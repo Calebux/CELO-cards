@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+Tyc/
+# Next.js build output
+.next/
+out/
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# misc
+.DS_Store
+tsconfig.tsbuildinfo
+
+# Claude Code context
+.claude/
+artifacts/
+cache/
+.vercel

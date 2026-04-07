@@ -1,0 +1,57 @@
+import type { Metadata } from "next";
+import { Space_Grotesk } from "next/font/google";
+import "./globals.css";
+import { Providers } from "./providers";
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-space-grotesk",
+});
+
+export const metadata: Metadata = {
+  title: "Action Order",
+  description: "Competitive card game platform",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Prevent browser UI from shrinking the viewport when keyboard opens
+  interactiveWidget: "resizes-content",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className={spaceGrotesk.variable}>
+      <head>
+        {/* Intercept window.electronAPI so wallet extensions that look for
+            Electron APIs don't throw and crash the React tree.
+            We use defineProperty so the setter fires even after the
+            extension overwrites window.electronAPI post-load. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){
+  var _noop=function(){return Promise.resolve('0.0.0');};
+  var _val=window.electronAPI||{};
+  if(!_val.getAppVersion)_val.getAppVersion=_noop;
+  Object.defineProperty(window,'electronAPI',{
+    configurable:true,
+    get:function(){return _val;},
+    set:function(v){if(v&&!v.getAppVersion)v.getAppVersion=_noop;_val=v||{};}
+  });
+})();` }} />
+        <link
+          href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet"
+        />
+        <meta name="talentapp:project_verification" content="bddb7b5eaf94854dd9c959a5dda473962fa75537eb76c9c64602c9931af3473129534ad7bc43c989c5435a380d14f6968e5ef86c4cdf6ac8b3c248c06983a4ec" />
+      </head>
+      <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
