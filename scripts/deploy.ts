@@ -32,9 +32,11 @@ const rpc = IS_MAINNET
   ? "https://forno.celo.org"
   : "https://alfajores-forno.celo-testnet.org";
 
-const deployerKey = process.env.TREASURY_PRIVATE_KEY;
+// Use DEPLOYER_PRIVATE_KEY if set (so Talent Protocol recognises the deployer),
+// otherwise fall back to TREASURY_PRIVATE_KEY.
+const deployerKey = process.env.DEPLOYER_PRIVATE_KEY ?? process.env.TREASURY_PRIVATE_KEY;
 if (!deployerKey) {
-  console.error("❌  TREASURY_PRIVATE_KEY not set in .env.local");
+  console.error("❌  DEPLOYER_PRIVATE_KEY not set in .env.local");
   process.exit(1);
 }
 

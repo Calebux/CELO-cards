@@ -24,6 +24,21 @@ const config: HardhatUserConfig = {
       accounts: DEPLOYER_KEY ? [DEPLOYER_KEY] : [],
     },
   },
+  etherscan: {
+    apiKey: {
+      celo: process.env.CELOSCAN_API_KEY ?? "FREE",
+    },
+    customChains: [
+      {
+        network: "celo",
+        chainId: 42220,
+        urls: {
+          apiURL: "https://api.celoscan.io/api",
+          browserURL: "https://celoscan.io",
+        },
+      },
+    ],
+  },
 };
 
 export default config;
