@@ -5,10 +5,6 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 
 const BG_IMAGE = "/new addition/kaira_lobby.webp";
-const LOGO_IMAGE = "https://www.figma.com/api/mcp/asset/c6286412-f94a-4c9b-83a4-9f042eaff47b";
-const DIVIDER_IMAGE = "https://www.figma.com/api/mcp/asset/637fc49c-966d-4ff4-935b-d5a4eeb02b45";
-const READY_BTN_IMAGE = "https://www.figma.com/api/mcp/asset/7e7907a7-f1ce-45ed-a876-aebccbae14af";
-const WIFI_ICON = "https://www.figma.com/api/mcp/asset/b35c4bd1-8bf7-466a-82d6-f44723e24373";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -91,8 +87,8 @@ export default function Lobby() {
         </div>
 
         {/* Logo */}
-        <div className="absolute left-1/2 -translate-x-1/2" style={{ top: "-2px", width: 200, height: 114 }}>
-          <img src={LOGO_IMAGE} alt="Action Order" className="w-full h-full object-cover" />
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center" style={{ top: "-2px", width: 200, height: 114 }}>
+          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Header Top Bar */}
@@ -105,7 +101,7 @@ export default function Lobby() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <img src={WIFI_ICON} alt="" style={{ width: 11, height: 8 }} />
+            <span className="material-icons" style={{ color: "#6b7280", fontSize: 14 }}>wifi</span>
             <span className="uppercase" style={{ fontSize: 12, letterSpacing: "1.2px", color: "#6b7280", fontWeight: 400 }}>Server: NAIJA O1</span>
           </div>
           <div className="flex items-center gap-4">
@@ -119,9 +115,7 @@ export default function Lobby() {
           style={{ top: 181, width: 960, height: 526.5, paddingTop: 60, paddingBottom: 30 }}>
 
           {/* Vertical Divider */}
-          <div className="absolute top-0 bottom-0" style={{ left: "calc(50% - 0.375px)", width: "0.75px" }}>
-            <img src={DIVIDER_IMAGE} alt="" className="w-full h-full object-cover" />
-          </div>
+          <div className="absolute top-0 bottom-0" style={{ left: "calc(50% - 0.375px)", width: "0.75px", background: "linear-gradient(to bottom, transparent, rgba(185,231,244,0.3) 20%, rgba(185,231,244,0.3) 80%, transparent)" }} />
 
           {/* Player 1 — Left */}
           <div className="flex-1 relative h-full">

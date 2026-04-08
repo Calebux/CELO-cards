@@ -456,22 +456,14 @@ export default function ActionOrderLandingPage() {
               src="/asset 1.webp"
               alt="background" />
 
-            <div className="ko-logo-wrap">
-              <img src="https://www.figma.com/api/mcp/asset/33ef3dcf-f298-49e8-8ea8-4d005e8b75ed" alt="Action Order Logo" />
+            <div className="ko-logo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontWeight: 900, fontSize: 38, lineHeight: "1.1", letterSpacing: "-1.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 30px rgba(185,231,244,0.6)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
             </div>
 
-            <div className="ko-logo-wrap" style={{ zIndex: 11 }}>
-              <img src="https://www.figma.com/api/mcp/asset/33ef3dcf-f298-49e8-8ea8-4d005e8b75ed" alt="" />
-            </div>
-
-            <div className="ko-enter-banner">
-              <img src="https://www.figma.com/api/mcp/asset/ba0c1501-7180-4325-8187-45cfee761eb0" alt="" />
-            </div>
+            <div className="ko-enter-banner" />
             <span className="ko-enter-label">ENTER THE ORDER</span>
 
-            <div className="ko-left-tab">
-              <img src="https://www.figma.com/api/mcp/asset/45b3238d-e8d3-44d6-bf40-325564d8afa8" alt="" />
-            </div>
+            <div className="ko-left-tab" />
 
             <Link className="ko-nav-btn ko-btn-create" href="/create">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
@@ -501,18 +493,14 @@ export default function ActionOrderLandingPage() {
               </div>
             </div>
 
-            <div className="ko-news-heading-img">
-              <img src="https://www.figma.com/api/mcp/asset/935e9076-a5c3-4ae2-be56-4e67cad95581" alt="" />
-            </div>
+            <div className="ko-news-heading-img" />
             <span className="ko-news-label">News</span>
 
-            <div className="ko-news-cards-box">
-              <img src="https://www.figma.com/api/mcp/asset/935e9076-a5c3-4ae2-be56-4e67cad95581" alt="" />
-            </div>
+            <div className="ko-news-cards-box" />
 
             <div className="ko-news-card ko-news-card-1">
               <img className="ko-card-img"
-                src="https://www.figma.com/api/mcp/asset/04d8ca8c-1cc3-4fac-b29f-3dff98dcc8ec"
+                src="/new addition/epic 1.webp"
                 alt="Season 1: Order Ascension" />
               <div className="ko-card-title">
                 <p>SEASON 1: ORDER ASCENSION</p>
@@ -524,25 +512,22 @@ export default function ActionOrderLandingPage() {
 
             <div className="ko-news-card ko-news-card-2">
               <img className="ko-card-img"
-                src="https://www.figma.com/api/mcp/asset/8508603b-14e7-41f3-b149-a6efd308b6ed"
+                src="/new addition/Whisk_a8bce35f81b3966850a4a44ff274fa0feg 1 (1).webp"
                 alt="New Character Reveal" />
               <div className="ko-card-title">NEW CHARACTER REVEAL: KAZUMA, THE BLAZING SWORD</div>
             </div>
 
-            <div className="ko-right-tab">
-              <img src="https://www.figma.com/api/mcp/asset/ba7a6101-615a-46c2-add5-76896d4b807a" alt="" />
-            </div>
+            <div className="ko-right-tab" />
 
             <div className="ko-scrollbar-track"></div>
             <div className="ko-scrollbar-thumb"></div>
 
-            <div className="ko-social-btn-bg">
-              <img src="https://www.figma.com/api/mcp/asset/346f3dfc-28d0-49ab-a415-c57d8fd7a38c" alt="" />
-            </div>
+            <div className="ko-social-btn-bg" />
             <span className="ko-social-label">SOCIAL MEDIA</span>
 
             <div className="ko-social-icons-row">
-              <img src="https://www.figma.com/api/mcp/asset/194544c7-b4b1-4d12-ac34-35b2390ecc67" alt="Social media icons" />
+              <a href="https://t.me/knockorder" target="_blank" rel="noopener noreferrer" style={{ color: "#b9e7f4", fontSize: 12, letterSpacing: 1, textDecoration: "none", textTransform: "uppercase" }}>Telegram</a>
+              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" style={{ color: "#b9e7f4", fontSize: 12, letterSpacing: 1, textDecoration: "none", textTransform: "uppercase", marginLeft: 16 }}>X / Twitter</a>
             </div>
 
           </div>

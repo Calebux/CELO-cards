@@ -7,7 +7,6 @@ import { CARDS, Card, CardType } from "../lib/gameData";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/loadout 001.webp";
-const LOGO = "https://www.figma.com/api/mcp/asset/dbd2f1d0-de97-437b-97ac-4a5426213f9e";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -140,8 +139,8 @@ export default function Loadout() {
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, zIndex: 5 }}>
-          <img src={LOGO} alt="Action Order" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Left character panel — shows selected character's standing art */}

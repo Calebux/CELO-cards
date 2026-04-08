@@ -8,14 +8,6 @@ import { formatAddress } from "../lib/minipay";
 
 // ── Figma assets ─────────────────────────────────────────────────
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
-const LOGO = "https://www.figma.com/api/mcp/asset/a6c81a09-6dae-4ce3-8262-4d237cd2c9c4";
-const AVATAR = "https://www.figma.com/api/mcp/asset/f4f7bfbb-c6f5-4953-bfad-688b6212e284";
-const VERTICAL_DIVIDER = "https://www.figma.com/api/mcp/asset/895179c9-7880-4875-83a6-98f760ab45c9";
-const ICON_COPY = "https://www.figma.com/api/mcp/asset/b60e749f-b287-4764-a6eb-22358b81c7bb";
-const ICON_SHARE = "https://www.figma.com/api/mcp/asset/74bf10e4-23d4-468b-9e2b-1d4f72e522c3";
-const ICON_PLAYER = "https://www.figma.com/api/mcp/asset/65d74087-9136-42a7-9ca2-d724eb91e9ea";
-const ICON_PLUS = "https://www.figma.com/api/mcp/asset/0a68ed64-aa90-427d-ab7f-e59559bd1ca5";
-const ICON_KO = "https://www.figma.com/api/mcp/asset/94464413-0513-4d70-b470-194e3b10e08b";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -80,8 +72,8 @@ export default function ReadyYourDeck() {
         <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -13, width: 350, height: 200, pointerEvents: "none" }}>
-          <img src={LOGO} alt="Action Order" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -13, width: 350, height: 200, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontWeight: 900, fontSize: 30, lineHeight: "1.1", letterSpacing: "-1px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 24px rgba(185,231,244,0.5)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Cartridge Identity badge — top right */}
@@ -101,8 +93,8 @@ export default function ReadyYourDeck() {
             </div>
           </div>
           <div style={{ position: "relative" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 4, border: "2px solid #222f42", overflow: "hidden" }}>
-              <img src={AVATAR} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ width: 40, height: 40, borderRadius: 4, border: "2px solid #222f42", overflow: "hidden", backgroundColor: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="material-icons" style={{ color: "#94a3b8", fontSize: 22 }}>person</span>
             </div>
             {/* Online dot */}
             <div style={{
@@ -220,9 +212,7 @@ export default function ReadyYourDeck() {
                 alignItems: "center", justifyContent: "center",
                 height: 135,
               }}>
-                <div style={{ flex: 1, width: 1, position: "relative", overflow: "hidden" }}>
-                  <img src={VERTICAL_DIVIDER} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
+                <div style={{ flex: 1, width: 1, background: "linear-gradient(to bottom, transparent, rgba(185,231,244,0.3) 30%, rgba(185,231,244,0.3) 70%, transparent)" }} />
                 <div style={{ padding: "16px 0" }}>
                   <div style={{
                     width: 32, height: 23,
@@ -234,9 +224,7 @@ export default function ReadyYourDeck() {
                     <span style={{ fontSize: 10, fontWeight: 700, color: "#f5f5f5" }}>OR</span>
                   </div>
                 </div>
-                <div style={{ flex: 1, width: 1, position: "relative", overflow: "hidden" }}>
-                  <img src={VERTICAL_DIVIDER} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
+                <div style={{ flex: 1, width: 1, background: "linear-gradient(to bottom, transparent, rgba(185,231,244,0.3) 30%, rgba(185,231,244,0.3) 70%, transparent)" }} />
               </div>
 
               {/* Section 2: Share Match Link */}
@@ -275,7 +263,7 @@ export default function ReadyYourDeck() {
                       padding: 13,
                     }}
                   >
-                    <img src={ICON_COPY} alt="Copy" style={{ width: 19, height: 22 }} />
+                    <span className="material-icons" style={{ color: "#94a3b8", fontSize: 18 }}>content_copy</span>
                   </button>
                 </div>
 
@@ -338,7 +326,7 @@ export default function ReadyYourDeck() {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   overflow: "hidden", position: "relative",
                 }}>
-                  <img src={ICON_PLAYER} alt="" style={{ width: 20, height: 20 }} />
+                  <span className="material-icons" style={{ color: "#222f42", fontSize: 20 }}>person</span>
                   <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(140, 37, 244, 0.05)" }} />
                 </div>
                 {/* Player 2 — filled */}
@@ -349,7 +337,7 @@ export default function ReadyYourDeck() {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   overflow: "hidden", position: "relative",
                 }}>
-                  <img src={ICON_PLAYER} alt="" style={{ width: 20, height: 20 }} />
+                  <span className="material-icons" style={{ color: "#222f42", fontSize: 20 }}>person</span>
                   <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(140, 37, 244, 0.05)" }} />
                 </div>
                 {/* Player 3 — empty */}
@@ -358,7 +346,7 @@ export default function ReadyYourDeck() {
                   border: "2px dashed #334155",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <img src={ICON_PLUS} alt="" style={{ width: 14, height: 14 }} />
+                  <span className="material-icons" style={{ color: "#334155", fontSize: 18 }}>add</span>
                 </div>
               </div>
             </div>
@@ -378,7 +366,7 @@ export default function ReadyYourDeck() {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 boxShadow: "0 0 15px rgba(140, 37, 244, 0.4), inset 0 0 5px rgba(140, 37, 244, 0.2)",
               }}>
-                <img src={ICON_KO} alt="" style={{ width: 21, height: 19 }} />
+                <span style={{ fontSize: 14, fontWeight: 900, color: "#8c25f4", letterSpacing: "-0.5px" }}>KO</span>
               </div>
               <div style={{ marginLeft: 12 }}>
                 <div style={{
