@@ -1,24 +1,18 @@
 /**
- * Action Order — Agent Bot
+ * Action Order — Agent Bot (10-wallet rotation)
  * Plays matches on-chain to generate activity for Talent Protocol.
  *
  * Usage:
  *   node scripts/agent-bot.mjs [number_of_matches]
  *
- * Examples:
- *   node scripts/agent-bot.mjs 20
- *   node scripts/agent-bot.mjs 100
+ * On first run: generates 10 wallets, saves keys to .env.local,
+ * then auto-funds each from the treasury (0.04 CELO each).
  *
- * Flow per match:
- *   1. Bot calls enterMatchWithCelo (pays 0.000007 CELO)
- *   2. Treasury calls completeMatch  (bot gets 0.000007 CELO back)
- *   Net cost: gas only (~0.0002 CELO per match)
- *
- * Bot wallets are auto-generated on first run and saved to .env.local.
- * Fund each bot wallet with 0.05 CELO to run ~200 matches.
+ * Net cost per match: gas only (~0.002 CELO)
+ * With 5 CELO funding: ~400+ matches across 10 unique wallets
  */
 
-import { createWalletClient, createPublicClient, http, keccak256, toHex } from "viem";
+import { createWalletClient, createPublicClient, http, keccak256, toHex, parseEther } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { celo } from "viem/chains";
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -46,7 +40,10 @@ if (existsSync(ENV_PATH)) {
 const RPC           = "https://forno.celo.org";
 const ARENA_ADDRESS = process.env.NEXT_PUBLIC_ARENA_ADDRESS;
 const TREASURY_KEY  = process.env.TREASURY_PRIVATE_KEY;
-const ENTRY_FEE     = 7_000_000_000_000n; // 0.000007 CELO
+const ENTRY_FEE     = 7_000_000_000_000n;        // 0.000007 CELO
+const FUND_AMOUNT   = parseEther("0.04");          // sent to each wallet when low
+const MIN_BAL       = parseEther("0.015");         // refund threshold
+const NUM_WALLETS   = 10;
 const MATCHES       = parseInt(process.argv[2] ?? "20");
 
 if (!ARENA_ADDRESS || ARENA_ADDRESS === "0x0000000000000000000000000000000000000000") {
@@ -76,17 +73,21 @@ const ARENA_ABI = [
   },
 ];
 
-// ── Bot wallet helpers ────────────────────────────────────────────────────────
-function getOrCreateKey(envKey, label) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getOrCreateKey(envKey) {
   if (process.env[envKey]) return process.env[envKey];
 
   const newKey = generatePrivateKey();
   let content  = readFileSync(ENV_PATH, "utf8");
-  content      = content.replace(`${envKey}=`, `${envKey}=${newKey}`);
-  writeFileSync(ENV_PATH, content);
 
-  console.log(`🔑  Generated ${label}: ${newKey}`);
-  console.log(`    Saved to .env.local as ${envKey}\n`);
+  // Append if key line doesn't exist at all
+  if (!content.includes(`${envKey}=`)) {
+    content += `\n${envKey}=${newKey}`;
+  } else {
+    content = content.replace(`${envKey}=`, `${envKey}=${newKey}`);
+  }
+  writeFileSync(ENV_PATH, content);
+  process.env[envKey] = newKey;
   return newKey;
 }
 
@@ -96,99 +97,156 @@ function fmtCelo(wei) { return (Number(wei) / 1e18).toFixed(6); }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-  const botKeyA = getOrCreateKey("BOT_AGENT_A_KEY", "Bot A");
-  const botKeyB = getOrCreateKey("BOT_AGENT_B_KEY", "Bot B");
-
-  const treasury = privateKeyToAccount(TREASURY_KEY);
-  const botA     = privateKeyToAccount(botKeyA);
-  const botB     = privateKeyToAccount(botKeyB);
-
-  const pub      = createPublicClient({ chain: celo, transport: http(RPC) });
+  const pub       = createPublicClient({ chain: celo, transport: http(RPC) });
+  const treasury  = privateKeyToAccount(TREASURY_KEY);
   const treClient = createWalletClient({ account: treasury, chain: celo, transport: http(RPC) });
-  const botAClient = createWalletClient({ account: botA, chain: celo, transport: http(RPC) });
-  const botBClient = createWalletClient({ account: botB, chain: celo, transport: http(RPC) });
 
-  // Balances
-  const [balTre, balA, balB] = await Promise.all([
-    pub.getBalance({ address: treasury.address }),
-    pub.getBalance({ address: botA.address }),
-    pub.getBalance({ address: botB.address }),
-  ]);
+  // Build 10 bot accounts
+  const bots = [];
+  for (let i = 1; i <= NUM_WALLETS; i++) {
+    const key     = getOrCreateKey(`BOT_WALLET_${i}_KEY`);
+    const account = privateKeyToAccount(key);
+    const client  = createWalletClient({ account, chain: celo, transport: http(RPC) });
+    bots.push({ account, client, label: `W${i}` });
+  }
+
+  // Fetch all balances
+  const balTre  = await pub.getBalance({ address: treasury.address });
+  const balances = await Promise.all(bots.map(b => pub.getBalance({ address: b.account.address })));
 
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("  Action Order — Agent Bot");
+  console.log("  Action Order — Agent Bot (10-wallet rotation)");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`  Arena:    ${ARENA_ADDRESS}`);
   console.log(`  Treasury: ${treasury.address}  (${fmtCelo(balTre)} CELO)`);
-  console.log(`  Bot A:    ${botA.address}  (${fmtCelo(balA)} CELO)`);
-  console.log(`  Bot B:    ${botB.address}  (${fmtCelo(balB)} CELO)`);
+  bots.forEach((b, i) => console.log(`  ${b.label}:       ${b.account.address}  (${fmtCelo(balances[i])} CELO)`));
   console.log(`  Matches:  ${MATCHES}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-  // Need CELO for gas + entry fee
-  const MIN = ENTRY_FEE * 5n;
-  const needFunding = [];
-  if (balA < MIN) needFunding.push(`  Bot A: send 0.05 CELO to ${botA.address}`);
-  if (balB < MIN) needFunding.push(`  Bot B: send 0.05 CELO to ${botB.address}`);
+  // Auto-fund any wallet below minimum
+  const needsFunding = bots.filter((b, i) => balances[i] < MIN_BAL);
+  if (needsFunding.length > 0) {
+    const totalNeeded = BigInt(needsFunding.length) * FUND_AMOUNT;
+    if (balTre < totalNeeded) {
+      console.error(`❌  Treasury needs ${fmtCelo(totalNeeded)} CELO to fund ${needsFunding.length} wallets (has ${fmtCelo(balTre)})`);
+      process.exit(1);
+    }
 
-  if (needFunding.length === 2) {
-    console.error("❌  Both bots need CELO for gas:\n" + needFunding.join("\n"));
-    process.exit(1);
-  }
-  if (needFunding.length === 1) {
-    console.log("⚠️  " + needFunding[0] + "  (continuing with other bot)\n");
+    console.log(`💸  Funding ${needsFunding.length} wallets from treasury…\n`);
+    for (const bot of needsFunding) {
+      const hash = await treClient.sendTransaction({
+        to: bot.account.address,
+        value: FUND_AMOUNT,
+        gas: 21_000n,
+      });
+      await pub.waitForTransactionReceipt({ hash });
+      console.log(`  Funded ${bot.label} (${bot.account.address}) — ${fmtCelo(FUND_AMOUNT)} CELO`);
+      await sleep(300);
+    }
+    console.log();
   }
 
+  // Treasury queue — serialises all treasury txs to avoid nonce conflicts
+  let treasuryQueue = Promise.resolve();
+  function queueTreasury(fn) {
+    treasuryQueue = treasuryQueue.then(fn);
+    return treasuryQueue;
+  }
+
+  // Each wallet runs its own independent loop — staggered naturally
   let success = 0;
   let failed  = 0;
 
-  for (let i = 0; i < MATCHES; i++) {
-    // Alternate bots each match
-    const useA      = i % 2 === 0;
-    const bot       = useA ? botA : botB;
-    const botClient = useA ? botAClient : botBClient;
-    const botBal    = useA ? balA : balB;
-    const label     = useA ? "A" : "B";
+  async function walletLoop(bot) {
+    // Stagger startup so wallets don't all begin at once (0–5 min random offset)
+    const startDelay = Math.floor(Math.random() * 5 * 60 * 1000);
+    await sleep(startDelay);
 
-    if (botBal < MIN) {
-      console.log(`[${i+1}/${MATCHES}] ⚠️  Bot ${label} low — skipping`);
-      failed++; continue;
+    let matchCount = 0;
+
+    while (matchCount < MATCHES) {
+      const bal = await pub.getBalance({ address: bot.account.address });
+      if (bal < MIN_BAL) {
+        console.log(`[${bot.label}] 💸 low balance — topping up from treasury…`);
+        try {
+          await queueTreasury(async () => {
+            const fundHash = await treClient.sendTransaction({
+              to: bot.account.address,
+              value: FUND_AMOUNT,
+              gas: 21_000n,
+            });
+            await pub.waitForTransactionReceipt({ hash: fundHash });
+            console.log(`[${bot.label}] ✅ topped up 0.04 CELO`);
+          });
+        } catch (e) {
+          console.log(`[${bot.label}] ❌ top-up failed — stopping: ${e.message?.slice(0, 60)}`);
+          break;
+        }
+      }
+
+      const matchId    = `AO-BOT-${Date.now()}-${bot.label}`;
+      const matchBytes = matchIdToBytes32(matchId);
+
+      // Random game duration 3–9 minutes
+      const gameSec = Math.floor(Math.random() * (9 - 3 + 1)) + 3;
+      const gameMs  = gameSec * 60 * 1000;
+
+      try {
+        const enterReceipt = await pub.waitForTransactionReceipt({
+          hash: await bot.client.writeContract({
+            address: ARENA_ADDRESS,
+            abi: ARENA_ABI,
+            functionName: "enterMatchWithCelo",
+            args: [matchBytes],
+            value: ENTRY_FEE,
+            gas: 150_000n,
+          }),
+        });
+
+        if (enterReceipt.status === "reverted") {
+          console.log(`[${bot.label}] ❌ enterMatch reverted`);
+          failed++;
+          matchCount++;
+          continue;
+        }
+
+        console.log(`[${bot.label}] 🎮 entered — playing for ${gameSec}m…`);
+        await sleep(gameMs);
+
+        await queueTreasury(async () => {
+          const completeReceipt = await pub.waitForTransactionReceipt({
+            hash: await treClient.writeContract({
+              address: ARENA_ADDRESS,
+              abi: ARENA_ABI,
+              functionName: "completeMatch",
+              args: [matchBytes, bot.account.address],
+              gas: 150_000n,
+            }),
+          });
+
+          if (completeReceipt.status === "reverted") {
+            console.log(`[${bot.label}] ❌ completeMatch reverted`);
+            failed++;
+          } else {
+            success++;
+            console.log(`[${bot.label}] ✅ match done  ${completeReceipt.transactionHash}  (total: ${success})`);
+          }
+        });
+      } catch (e) {
+        console.log(`[${bot.label}] ❌ ${e.message?.slice(0, 80)}`);
+        failed++;
+      }
+
+      matchCount++;
+
+      // Short cooldown between games for this wallet (1–3 min)
+      const cooldown = Math.floor(Math.random() * (3 - 1 + 1) + 1) * 60 * 1000;
+      await sleep(cooldown);
     }
-
-    const matchId = `AO-BOT-${Date.now()}-${i}`;
-    const matchBytes = matchIdToBytes32(matchId);
-
-    try {
-      // 1. Bot enters match (pays 0.000007 CELO into contract)
-      const enterHash = await botClient.writeContract({
-        address: ARENA_ADDRESS,
-        abi: ARENA_ABI,
-        functionName: "enterMatchWithCelo",
-        args: [matchBytes],
-        value: ENTRY_FEE,
-        gas: 150_000n,
-      });
-      await pub.waitForTransactionReceipt({ hash: enterHash });
-
-      // 2. Treasury completes match (bot wins, gets 0.000007 CELO back)
-      const completeHash = await treClient.writeContract({
-        address: ARENA_ADDRESS,
-        abi: ARENA_ABI,
-        functionName: "completeMatch",
-        args: [matchBytes, bot.address],
-        gas: 150_000n,
-      });
-      await pub.waitForTransactionReceipt({ hash: completeHash });
-
-      success++;
-      console.log(`[${i+1}/${MATCHES}] ✅ Bot ${label}  ${completeHash}`);
-    } catch (e) {
-      failed++;
-      console.log(`[${i+1}/${MATCHES}] ❌ Bot ${label}  ${e.message?.slice(0, 80)}`);
-    }
-
-    await sleep(400);
   }
+
+  // Launch all wallet loops in parallel — they run independently
+  await Promise.all(bots.map(bot => walletLoop(bot)));
 
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`  ✅ ${success} matches completed  |  ❌ ${failed} failed`);

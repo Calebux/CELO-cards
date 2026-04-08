@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 
-const BG_IMAGE = "https://www.figma.com/api/mcp/asset/322d591d-976a-47a9-8486-41a5a0cc6642";
+const BG_IMAGE = "/new addition/kaira_lobby.webp";
 const LOGO_IMAGE = "https://www.figma.com/api/mcp/asset/c6286412-f94a-4c9b-83a4-9f042eaff47b";
 const DIVIDER_IMAGE = "https://www.figma.com/api/mcp/asset/637fc49c-966d-4ff4-935b-d5a4eeb02b45";
 const READY_BTN_IMAGE = "https://www.figma.com/api/mcp/asset/7e7907a7-f1ce-45ed-a876-aebccbae14af";

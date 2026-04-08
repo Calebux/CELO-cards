@@ -7,7 +7,7 @@ import { useAccount } from "wagmi";
 import { formatAddress } from "../lib/minipay";
 
 // ── Figma assets ─────────────────────────────────────────────────
-const BG_IMAGE = "https://www.figma.com/api/mcp/asset/144683b5-580d-47ef-bc8e-0c40d1f968fe";
+const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const LOGO = "https://www.figma.com/api/mcp/asset/a6c81a09-6dae-4ce3-8262-4d237cd2c9c4";
 const AVATAR = "https://www.figma.com/api/mcp/asset/f4f7bfbb-c6f5-4953-bfad-688b6212e284";
 const VERTICAL_DIVIDER = "https://www.figma.com/api/mcp/asset/895179c9-7880-4875-83a6-98f760ab45c9";
@@ -26,6 +26,7 @@ export default function ReadyYourDeck() {
   const [copied, setCopied] = useState(false);
   const [challengeUser, setChallengeUser] = useState("");
   const [challenged, setChallenged] = useState(false);
+  const [linkShared, setLinkShared] = useState(false);
   const storeMatchId = useGameStore((s) => s.matchId);
   const { address } = useAccount();
   const playerLabel = address ? formatAddress(address) : "Guest";
@@ -58,6 +59,17 @@ export default function ReadyYourDeck() {
     navigator.clipboard.writeText(link);
     setChallenged(true);
     setTimeout(() => setChallenged(false), 2000);
+  };
+
+  const handleShareLink = () => {
+    const link = `${window.location.origin}/join?id=${matchId}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator.share({ title: "Action Order", text: `Join my match! Code: ${matchId}`, url: link }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(link);
+    }
+    setLinkShared(true);
+    setTimeout(() => setLinkShared(false), 2000);
   };
 
   return (
@@ -270,6 +282,7 @@ export default function ReadyYourDeck() {
 
                 {/* Share Link button */}
                 <button
+                  onClick={handleShareLink}
                   className="ko-btn ko-btn-secondary"
                   style={{ width: 181, height: 44 }}
                 >
@@ -278,7 +291,7 @@ export default function ReadyYourDeck() {
                     fontSize: 14, fontWeight: 700, color: "#cbd5e1",
                     textTransform: "uppercase", letterSpacing: 0.7,
                   }}>
-                    Share Link
+                    {linkShared ? "Copied!" : "Share Link"}
                   </span>
                 </button>
               </div>

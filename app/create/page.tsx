@@ -7,8 +7,7 @@ import { useAccount } from "wagmi";
 import { formatAddress } from "../lib/minipay";
 import { WagerModal } from "../components/WagerModal";
 
-const BG_IMAGE =
-  "https://www.figma.com/api/mcp/asset/391bcf4f-350f-4a5a-8d08-9aad39c53e12";
+const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const AVATAR_IMAGE =
   "https://www.figma.com/api/mcp/asset/d5d821a8-1bb6-4dd7-baf8-1b62a43e7019";
 const LOGO_IMAGE =

@@ -5,25 +5,25 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
 
-const BG = "https://www.figma.com/api/mcp/asset/5d46b3a8-702b-4f58-a2b9-6a969f50abe7";
+const BG = "/new addition/gameplay landing page.webp";
 const AVATAR = "https://www.figma.com/api/mcp/asset/e126aa24-9976-41ed-8153-8896164d6540";
 const LOGO = "https://www.figma.com/api/mcp/asset/548dcc6b-759c-4a9f-8282-89c44a5ad1db";
 const GRADIENT = "https://www.figma.com/api/mcp/asset/837824fd-7955-4202-a7c0-24a205a10465";
 const READY_BTN = "https://www.figma.com/api/mcp/asset/9f62cce1-df7f-4e90-a13e-661e18b712a6";
 const RIGHT_BG = "https://www.figma.com/api/mcp/asset/abbf254e-2aa1-46c4-baf4-87f2c428a3ee";
 
-// Grey filler portraits for locked slots
+// Grey filler portraits for locked slots — use local assets so they never break
 const GREY_PORTRAITS = [
-  "https://www.figma.com/api/mcp/asset/d201cda3-9418-4d4d-90d2-2b4f5d9aab3a",
-  "https://www.figma.com/api/mcp/asset/4a36f21b-d7b9-4b17-ba23-febd246d80e8",
-  "https://www.figma.com/api/mcp/asset/da77a056-b153-4e33-8a7c-7996c772730f",
-  "https://www.figma.com/api/mcp/asset/abbf254e-2aa1-46c4-baf4-87f2c428a3ee",
-  "https://www.figma.com/api/mcp/asset/f74578b8-d9a7-4a3c-a6e6-2d6deb94d633",
-  "https://www.figma.com/api/mcp/asset/0ebaea33-63c9-4a26-bd7b-1083c540c849",
-  "https://www.figma.com/api/mcp/asset/9bb34c20-8e10-4bea-a44f-1ee558880b14",
-  "https://www.figma.com/api/mcp/asset/f7594a9d-2c81-4703-b791-f2830cc889af",
-  "https://www.figma.com/api/mcp/asset/d201cda3-9418-4d4d-90d2-2b4f5d9aab3a",
-  "https://www.figma.com/api/mcp/asset/4a36f21b-d7b9-4b17-ba23-febd246d80e8",
+  "/Characters standing/Whisk_19475fe609c83ad99cb4dd1553b8093edr.webp",
+  "/Characters standing/Whisk_33ea37eab366d43891d436152d920497dr.webp",
+  "/Characters standing/Whisk_gdzlldmlhtm3e2nh1ymmfwotadmjrtlkzmm20sy.webp",
+  "/Characters standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
+  "/Characters standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
+  "/Characters standing/Whisk_iznjzdmzmtoivgmw0yn3atytytz0qtl3ygz10cn.webp",
+  "/Two fighters/standing 2.webp",
+  "/characters/fighter.webp",
+  "/Characters standing/Whisk_19475fe609c83ad99cb4dd1553b8093edr.webp",
+  "/Characters standing/Whisk_33ea37eab366d43891d436152d920497dr.webp",
 ];
 
 const STAT_META = [

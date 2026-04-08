@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 
-const BG_IMAGE = "https://www.figma.com/api/mcp/asset/144683b5-580d-47ef-bc8e-0c40d1f968fe";
+const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const LOGO    = "https://www.figma.com/api/mcp/asset/a6c81a09-6dae-4ce3-8262-4d237cd2c9c4";
 const AVATAR  = "https://www.figma.com/api/mcp/asset/f4f7bfbb-c6f5-4953-bfad-688b6212e284";
 const ICON_KO = "https://www.figma.com/api/mcp/asset/94464413-0513-4d70-b470-194e3b10e08b";

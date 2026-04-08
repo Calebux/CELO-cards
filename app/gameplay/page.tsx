@@ -7,9 +7,11 @@ import { useGameStore } from "../lib/gameStore";
 import { Card, CardType } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
+import { formatUnits } from "viem";
+import { PAYOUT_AMOUNT } from "../lib/cusd";
 
 const BG_MAIN = "/new addition/gameplay777.webp";
-const MENU_BG = "https://www.figma.com/api/mcp/asset/391bcf4f-350f-4a5a-8d08-9aad39c53e12";
+const MENU_BG = "/new addition/gameplay landing page.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -323,7 +325,6 @@ export default function Gameplay() {
     wagerCurrency,
   } = useGameStore();
   const { address } = useAccount();
-  const syncedRoundEndRef = useRef(false);
 
   // Payout state
   const [payoutState, setPayoutState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -444,14 +445,6 @@ export default function Gameplay() {
     }
   }, [revealedSlots, showResult, slotResults, finishRound]);
 
-  // Reset sync ref when leaving round result (e.g. next round or back to menu)
-  useEffect(() => {
-    if (matchPhase === "combat" || matchPhase === "loadout" || matchPhase === "idle") {
-      syncedRoundEndRef.current = false;
-    }
-  }, [matchPhase]);
-
-
   const handleNextRound = () => {
     playSound("click");
     setRevealedSlots(0);
@@ -509,6 +502,8 @@ export default function Gameplay() {
   const displayOpponentHP = showResult && roundWinner === "player" ? 0 : opponentHP;
 
   const isMatchEnd = matchPhase === "match-end";
+  const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : "cUSD";
+  const payoutAmountDisplay = `${formatUnits(PAYOUT_AMOUNT, 18)} ${payoutTokenSymbol}`;
 
   if (!selectedCharacter || !opponentCharacter) {
     return (
@@ -1061,7 +1056,7 @@ export default function Gameplay() {
                         >
                           <span className="material-icons" style={{ fontSize: 20, color: "#4ade80" }}>payments</span>
                           <span style={{ fontSize: 14, fontWeight: 700, color: "#4ade80", textTransform: "uppercase", letterSpacing: 3 }}>
-                            Claim 0.18 cUSD
+                            Claim {payoutAmountDisplay}
                           </span>
                         </button>
                       )}
@@ -1073,7 +1068,7 @@ export default function Gameplay() {
                       {payoutState === "done" && (
                         <div style={{ textAlign: "center", padding: "14px 0" }}>
                           <span style={{ fontSize: 13, color: "#4ade80", letterSpacing: 0.5 }}>
-                            ✓ 0.18 cUSD sent!{" "}
+                            ✓ {payoutAmountDisplay} sent!{" "}
                             {payoutTxHash && (
                               <span style={{ fontSize: 11, color: "#6b7280", wordBreak: "break-all" }}>
                                 tx: {payoutTxHash.slice(0, 14)}…
