@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 
+const OPPONENT_WARN_MS  = 60_000;  // show warning after 60s
+const OPPONENT_ABORT_MS = 90_000;  // allow exit after 90s
+
 const BG_IMAGE = "/new addition/kaira_lobby.webp";
 
 const DESIGN_W = 1440;
@@ -12,10 +15,12 @@ const DESIGN_H = 823;
 export default function Lobby() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { selectedCharacter, opponentCharacter, matchId } = useGameStore();
+  const { selectedCharacter, opponentCharacter, matchId, playerRole, setOpponentCharacterFromServer } = useGameStore();
   const [p1Ready, setP1Ready] = useState(false);
   const [p2Ready, setP2Ready] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [opponentWaitMs, setOpponentWaitMs] = useState(0);
+  const waitStartRef = useRef<number | null>(null);
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;
@@ -33,11 +38,49 @@ export default function Lobby() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // AI auto-readies after a short delay
+  // Poll for opponent character (multiplayer only)
   useEffect(() => {
-    const t = setTimeout(() => setP2Ready(true), 1500 + Math.random() * 1000);
-    return () => clearTimeout(t);
-  }, []);
+    if (!playerRole || !matchId) {
+      // Solo: AI auto-readies after a short delay
+      const t = setTimeout(() => setP2Ready(true), 1500 + Math.random() * 1000);
+      return () => clearTimeout(t);
+    }
+
+    // Track how long we've been waiting for opponent
+    waitStartRef.current = Date.now();
+    const waitTick = setInterval(() => {
+      if (waitStartRef.current) {
+        setOpponentWaitMs(Date.now() - waitStartRef.current);
+      }
+    }, 1000);
+
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        const data = await res.json() as { opponentCharId: string | null; phase?: string };
+        if (data.phase === "timed-out") {
+          clearInterval(poll);
+          clearInterval(waitTick);
+          router.replace("/");
+          return;
+        }
+        if (data.opponentCharId) {
+          setOpponentCharacterFromServer(data.opponentCharId);
+          setP2Ready(true);
+          clearInterval(poll);
+          clearInterval(waitTick);
+        }
+      } catch {
+        // ignore transient errors
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(poll);
+      clearInterval(waitTick);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerRole, matchId]);
 
   // Solo: auto-ready P1 after 3s; On-chain: P1 auto-readies (they committed by creating)
   useEffect(() => {
@@ -181,7 +224,25 @@ export default function Lobby() {
             </span>
           </div>
 
-          {/* Player 2 — Right */}
+          {/* Opponent timeout warning (multiplayer only) */}
+        {playerRole && !p2Ready && opponentWaitMs >= OPPONENT_WARN_MS && (
+          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
+            style={{ bottom: 24, zIndex: 20 }}>
+            <span style={{ fontSize: 13, letterSpacing: "1px", color: "#f97316", fontWeight: 600, textTransform: "uppercase" }}>
+              Opponent not responding…
+            </span>
+            {opponentWaitMs >= OPPONENT_ABORT_MS && (
+              <button
+                onClick={() => router.replace("/")}
+                className="ko-btn ko-btn-secondary"
+                style={{ padding: "8px 24px", fontSize: 13, letterSpacing: "1.2px", fontWeight: 700, textTransform: "uppercase" }}>
+                Leave Match
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Player 2 — Right */}
           <div className="flex-1 relative h-full">
             <div className="absolute flex items-center justify-end" style={{ inset: "-60px 36px 80px 36px", paddingRight: 30 }}>
               <div className="relative flex-1 overflow-hidden" style={{ maxWidth: 384, height: 504, borderRadius: 12 }}>
