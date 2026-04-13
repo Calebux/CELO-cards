@@ -1,15 +1,18 @@
 /**
- * Action Order — Agent Bot (10-wallet rotation)
+ * Action Order — Agent Bot (multi-wallet rotation, continuous)
  * Plays matches on-chain to generate activity for Talent Protocol.
  *
  * Usage:
- *   node scripts/agent-bot.mjs [number_of_matches]
+ *   node scripts/agent-bot.mjs
  *
- * On first run: generates 10 wallets, saves keys to .env.local,
+ * Runs continuously until the treasury CELO is exhausted.
+ * On first run: generates NUM_WALLETS wallets, saves keys to .env.local,
  * then auto-funds each from the treasury (0.04 CELO each).
  *
  * Net cost per match: gas only (~0.002 CELO)
- * With 5 CELO funding: ~400+ matches across 10 unique wallets
+ * With 8 CELO funding: ~2000+ matches across wallets
+ *
+ * Crash recovery: auto-restarts up to MAX_RESTARTS times with backoff.
  */
 
 import { createWalletClient, createPublicClient, http, keccak256, toHex, parseEther } from "viem";
@@ -43,8 +46,10 @@ const TREASURY_KEY  = process.env.TREASURY_PRIVATE_KEY;
 const ENTRY_FEE     = 7_000_000_000_000n;        // 0.000007 CELO
 const FUND_AMOUNT   = parseEther("0.04");          // sent to each wallet when low
 const MIN_BAL       = parseEther("0.015");         // refund threshold
-const NUM_WALLETS   = 10;
-const MATCHES       = parseInt(process.argv[2] ?? "20");
+const NUM_WALLETS        = 14;
+const TREASURY_STOP_BAL  = parseEther("0.05"); // stop funding when treasury < this
+const MAX_RESTARTS       = 10;                  // crash recovery limit
+const BASE_RESTART_DELAY = 5_000;               // 5s base, doubles on each retry
 
 if (!ARENA_ADDRESS || ARENA_ADDRESS === "0x0000000000000000000000000000000000000000") {
   console.error("❌  NEXT_PUBLIC_ARENA_ADDRESS not set in .env.local"); process.exit(1);
@@ -115,13 +120,16 @@ async function main() {
   const balances = await Promise.all(bots.map(b => pub.getBalance({ address: b.account.address })));
 
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("  Action Order — Agent Bot (10-wallet rotation)");
+  console.log(`  Action Order — Agent Bot (${NUM_WALLETS}-wallet rotation)`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`  Arena:    ${ARENA_ADDRESS}`);
   console.log(`  Treasury: ${treasury.address}  (${fmtCelo(balTre)} CELO)`);
   bots.forEach((b, i) => console.log(`  ${b.label}:       ${b.account.address}  (${fmtCelo(balances[i])} CELO)`));
-  console.log(`  Matches:  ${MATCHES}`);
+  console.log(`  Mode:     continuous (runs until treasury < ${fmtCelo(TREASURY_STOP_BAL)} CELO)`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+  // Manually track treasury nonce to avoid "nonce too low" on rapid sequential sends
+  let treNonce = await pub.getTransactionCount({ address: treasury.address });
 
   // Auto-fund any wallet below minimum
   const needsFunding = bots.filter((b, i) => balances[i] < MIN_BAL);
@@ -138,6 +146,7 @@ async function main() {
         to: bot.account.address,
         value: FUND_AMOUNT,
         gas: 21_000n,
+        nonce: treNonce++,
       });
       await pub.waitForTransactionReceipt({ hash });
       console.log(`  Funded ${bot.label} (${bot.account.address}) — ${fmtCelo(FUND_AMOUNT)} CELO`);
@@ -148,12 +157,14 @@ async function main() {
 
   // Treasury queue — serialises all treasury txs to avoid nonce conflicts
   let treasuryQueue = Promise.resolve();
+  let treasuryDepleted = false;
+
   function queueTreasury(fn) {
     treasuryQueue = treasuryQueue.then(fn);
     return treasuryQueue;
   }
 
-  // Each wallet runs its own independent loop — staggered naturally
+  // Shared counters
   let success = 0;
   let failed  = 0;
 
@@ -162,26 +173,37 @@ async function main() {
     const startDelay = Math.floor(Math.random() * 5 * 60 * 1000);
     await sleep(startDelay);
 
-    let matchCount = 0;
-
-    while (matchCount < MATCHES) {
+    // Continuous loop — runs until treasury is depleted
+    while (!treasuryDepleted) {
       const bal = await pub.getBalance({ address: bot.account.address });
       if (bal < MIN_BAL) {
         console.log(`[${bot.label}] 💸 low balance — topping up from treasury…`);
         try {
           await queueTreasury(async () => {
+            // Re-check treasury before each fund tx
+            const treBal = await pub.getBalance({ address: treasury.address });
+            if (treBal < TREASURY_STOP_BAL + FUND_AMOUNT) {
+              console.log(`\n💀  Treasury low (${fmtCelo(treBal)} CELO) — stopping all wallets.`);
+              treasuryDepleted = true;
+              return;
+            }
             const fundHash = await treClient.sendTransaction({
               to: bot.account.address,
               value: FUND_AMOUNT,
               gas: 21_000n,
+              nonce: treNonce++,
             });
             await pub.waitForTransactionReceipt({ hash: fundHash });
-            console.log(`[${bot.label}] ✅ topped up 0.04 CELO`);
+            const remaining = await pub.getBalance({ address: treasury.address });
+            console.log(`[${bot.label}] ✅ topped up 0.04 CELO  (treasury: ${fmtCelo(remaining)} CELO left)`);
           });
         } catch (e) {
-          console.log(`[${bot.label}] ❌ top-up failed — stopping: ${e.message?.slice(0, 60)}`);
-          break;
+          console.log(`[${bot.label}] ❌ top-up failed: ${e.message?.slice(0, 60)}`);
+          await sleep(30_000); // wait 30s before retrying
+          continue;
         }
+
+        if (treasuryDepleted) break;
       }
 
       const matchId    = `AO-BOT-${Date.now()}-${bot.label}`;
@@ -206,12 +228,14 @@ async function main() {
         if (enterReceipt.status === "reverted") {
           console.log(`[${bot.label}] ❌ enterMatch reverted`);
           failed++;
-          matchCount++;
+          await sleep(60_000); // 1 min backoff on revert
           continue;
         }
 
         console.log(`[${bot.label}] 🎮 entered — playing for ${gameSec}m…`);
         await sleep(gameMs);
+
+        if (treasuryDepleted) break;
 
         await queueTreasury(async () => {
           const completeReceipt = await pub.waitForTransactionReceipt({
@@ -221,6 +245,7 @@ async function main() {
               functionName: "completeMatch",
               args: [matchBytes, bot.account.address],
               gas: 150_000n,
+              nonce: treNonce++,
             }),
           });
 
@@ -235,24 +260,48 @@ async function main() {
       } catch (e) {
         console.log(`[${bot.label}] ❌ ${e.message?.slice(0, 80)}`);
         failed++;
+        await sleep(30_000); // 30s backoff on error
       }
-
-      matchCount++;
 
       // Short cooldown between games for this wallet (1–3 min)
       const cooldown = Math.floor(Math.random() * (3 - 1 + 1) + 1) * 60 * 1000;
       await sleep(cooldown);
     }
+
+    console.log(`[${bot.label}] stopped.`);
   }
 
   // Launch all wallet loops in parallel — they run independently
   await Promise.all(bots.map(bot => walletLoop(bot)));
 
+  const finalBal = await pub.getBalance({ address: treasury.address });
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`  ✅ ${success} matches completed  |  ❌ ${failed} failed`);
   console.log(`  On-chain txs generated: ${success * 2}`);
+  console.log(`  Treasury remaining: ${fmtCelo(finalBal)} CELO`);
   console.log(`  Contract: https://celoscan.io/address/${ARENA_ADDRESS}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 
-main().catch(console.error);
+// ── Crash recovery wrapper ────────────────────────────────────────────────
+
+let restarts = 0;
+
+async function run() {
+  try {
+    await main();
+  } catch (err) {
+    if (restarts >= MAX_RESTARTS) {
+      console.error(`\n💀  Bot crashed ${MAX_RESTARTS} times — giving up.`);
+      console.error(err);
+      process.exit(1);
+    }
+    const delay = BASE_RESTART_DELAY * Math.pow(2, restarts);
+    restarts++;
+    console.error(`\n⚠️  Bot crashed (attempt ${restarts}/${MAX_RESTARTS}). Restarting in ${delay / 1000}s…`);
+    console.error(err?.message ?? err);
+    setTimeout(run, delay);
+  }
+}
+
+run();
