@@ -14,6 +14,7 @@ export type MatchPhase =
     | "character-select"
     | "lobby"
     | "loadout"
+    | "waiting-for-opponent"
     | "combat"
     | "round-result"
     | "match-end";
@@ -44,6 +45,10 @@ interface GameState {
     matchId: string | null;
     setMatchId: (id: string | null) => void;
 
+    // Multiplayer role
+    playerRole: "host" | "joiner" | null;
+    setPlayerRole: (role: "host" | "joiner" | null) => void;
+
     // Player identity (Celo wallet address)
     playerAddress: string | null;
 
@@ -56,8 +61,15 @@ interface GameState {
     playerPoints: number;
     pointsThisRound: number;
 
+    // Match history
+    matchesPlayed: number;
+    matchesWon: number;
+    matchesLost: number;
+
     // Actions
     setPlayerAddress: (address: string | null) => void;
+    setOpponentCharacterFromServer: (charId: string) => void;
+    setPrecomputedFromServer: (slots: SlotResult[]) => void;
     setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo") => void;
     selectCharacter: (character: Character) => void;
     startMatch: () => void;
@@ -89,15 +101,35 @@ export const useGameStore = create<GameState>()(
     maxEnergy: 10,
     matchId: null,
     setMatchId: (id) => set({ matchId: id }),
+    playerRole: null,
+    setPlayerRole: (role) => set({ playerRole: role }),
     playerAddress: null,
     wagerActive: false,
     wagerTxHash: null,
     wagerCurrency: "cusd" as "cusd" | "celo",
     playerPoints: 0,
     pointsThisRound: 0,
+    matchesPlayed: 0,
+    matchesWon: 0,
+    matchesLost: 0,
 
     setPlayerAddress: (address) => set({ playerAddress: address }),
     setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency }),
+
+    setOpponentCharacterFromServer: (charId) => {
+        const char = CHARACTERS.find((c) => c.id === charId);
+        if (char) set({ opponentCharacter: char });
+    },
+
+    setPrecomputedFromServer: (slots) => {
+        set({
+            precomputedRound: slots,
+            opponentOrder: slots.map((s) => s.opponentCard),
+            matchPhase: "combat",
+            revealedSlots: 0,
+            currentRoundResult: null,
+        });
+    },
 
     selectCharacter: (character) => {
         set({ selectedCharacter: character });
@@ -198,7 +230,7 @@ export const useGameStore = create<GameState>()(
     },
 
     finishRound: () => {
-        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints } = get();
+        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost } = get();
         if (!precomputedRound) return;
 
         const totalPlayerKnock = precomputedRound.reduce((s, r) => s + r.playerKnock, 0);
@@ -229,6 +261,10 @@ export const useGameStore = create<GameState>()(
         if (result.roundWinner === "player") earned += 50;
         if (isMatchEnd && pWon >= 2) earned += 100;
 
+        // Update match history counters when the match concludes
+        const matchWon = isMatchEnd && pWon >= 2;
+        const matchLost = isMatchEnd && oWon >= 2;
+
         set({
             currentRoundResult: result,
             playerRoundsWon: pWon,
@@ -237,6 +273,11 @@ export const useGameStore = create<GameState>()(
             playerPoints: playerPoints + earned,
             pointsThisRound: earned,
             precomputedRound: null, // consumed — second calls are now no-ops
+            ...(isMatchEnd && {
+                matchesPlayed: matchesPlayed + 1,
+                matchesWon: matchWon ? matchesWon + 1 : matchesWon,
+                matchesLost: matchLost ? matchesLost + 1 : matchesLost,
+            }),
         });
     },
 
@@ -271,6 +312,7 @@ export const useGameStore = create<GameState>()(
             precomputedRound: null,
             revealedSlots: 0,
             matchId: `AO-${suffix}`,
+            playerRole: null,
             maxEnergy: 10,
             playerPoints: state.playerPoints, // keep — persisted to localStorage
             pointsThisRound: 0,
@@ -282,7 +324,12 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "action-order-store",
-      partialize: (state) => ({ playerPoints: state.playerPoints }),
+      partialize: (state) => ({
+        playerPoints: state.playerPoints,
+        matchesPlayed: state.matchesPlayed,
+        matchesWon: state.matchesWon,
+        matchesLost: state.matchesLost,
+      }),
     }
   )
 );
