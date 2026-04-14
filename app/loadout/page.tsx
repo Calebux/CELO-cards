@@ -126,6 +126,10 @@ export default function Loadout() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
+  // Multiplayer polling ref — cleaned up on unmount
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
   const handleLockOrder = () => {
     if (!isOrderComplete) return;
     setLockError(null);
