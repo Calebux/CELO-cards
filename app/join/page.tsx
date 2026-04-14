@@ -14,6 +14,7 @@ export default function JoinMatch() {
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
+  const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -55,6 +56,7 @@ export default function JoinMatch() {
 
     resetMatch();
     setMatchId(matchCode);
+    setPlayerRole("joiner");
     router.push("/select-character");
   };
 
