@@ -579,7 +579,7 @@ export default function Loadout() {
         </div>
 
         {/* Lock Sequence button — appears when order is complete */}
-        {isOrderComplete && (
+        {isOrderComplete && !waiting && (
           <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 16, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <button
               onClick={() => void handleLockOrder()}
