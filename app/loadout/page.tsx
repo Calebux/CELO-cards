@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType } from "../lib/gameData";
@@ -83,6 +83,9 @@ export default function Loadout() {
     lockOrder,
     maxEnergy,
     matchId,
+    playerRole,
+    roundNumber,
+    setPrecomputedFromServer,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
 
