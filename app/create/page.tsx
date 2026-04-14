@@ -17,11 +17,13 @@ export default function CreateMatch() {
   const [showWager, setShowWager] = useState(false);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
+  const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
   const { address } = useAccount();
 
   const handleCreateMatch = () => {
     resetMatch();
+    setPlayerRole("host");
     if (address) {
       setShowWager(true);
     } else {
