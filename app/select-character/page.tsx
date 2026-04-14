@@ -35,7 +35,7 @@ export default function SelectCharacter() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
   const router = useRouter();
-  const { selectCharacter, startMatch, playerAddress } = useGameStore();
+  const { selectCharacter, startMatch, playerAddress, playerRole, matchId } = useGameStore();
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -65,9 +65,16 @@ export default function SelectCharacter() {
     return () => clearInterval(t);
   }, [timer]);
 
-  const handleLock = () => {
+  const handleLock = async () => {
     selectCharacter(activeChar);
     startMatch();
+    if (playerRole !== null && matchId) {
+      await fetch(`/api/match/${matchId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: playerRole, characterId: activeChar.id }),
+      });
+    }
     router.push("/lobby");
   };
 
@@ -277,7 +284,7 @@ export default function SelectCharacter() {
 
             {/* Centre: Lock Selection button */}
             <div className="absolute" style={{ left: 256, top: "50%", transform: "translateY(-50%)", width: 300 }}>
-              <button className="ko-btn ko-btn-primary w-full h-[54px]" onClick={handleLock}>
+              <button className="ko-btn ko-btn-primary w-full h-[54px]" onClick={() => void handleLock()}>
                 <span className="ko-btn-text font-bold uppercase text-white" style={{ fontSize: 20, letterSpacing: 2 }}>Lock Selection</span>
                 <span className="material-icons ko-btn-icon not-italic text-white" style={{ fontSize: 24 }}>arrow_forward_ios</span>
               </button>
