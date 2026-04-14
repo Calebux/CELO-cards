@@ -130,12 +130,17 @@ export default function Loadout() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const handleLockOrder = () => {
+  const handleLockOrder = useCallback(async () => {
     if (!isOrderComplete) return;
     setLockError(null);
-    lockOrder();
-    router.push("/gameplay");
-  };
+
+    // Solo path — unchanged
+    if (!playerRole || !matchId) {
+      lockOrder();
+      router.push("/gameplay");
+      return;
+    }
+  }, [isOrderComplete, playerRole, matchId, lockOrder, router]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
 
