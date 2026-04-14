@@ -158,7 +158,21 @@ export default function Loadout() {
     }
 
     setWaiting(true);
-  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router]);
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        const data = await res.json() as { phase: string; slots: unknown };
+        if (data.phase === "resolved" && data.slots) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
+          router.push("/gameplay");
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    }, 2000);
+  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
 
