@@ -596,6 +596,27 @@ export default function Loadout() {
           </div>
         )}
 
+        {/* Waiting overlay — multiplayer only */}
+        {waiting && (
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 50,
+            backgroundColor: "rgba(0,0,0,0.75)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            gap: 20,
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%",
+              border: "4px solid rgba(90,191,230,0.3)",
+              borderTopColor: "#5abfe6",
+              animation: "spin 0.9s linear infinite",
+            }} />
+            <span style={{ fontSize: 20, fontWeight: 700, color: "#5abfe6", textTransform: "uppercase", letterSpacing: 3 }}>
+              Waiting for opponent...
+            </span>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
         {/* Back button */}
         <button
           onClick={() => router.back()}
