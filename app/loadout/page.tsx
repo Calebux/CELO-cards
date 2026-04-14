@@ -88,6 +88,7 @@ export default function Loadout() {
     setPrecomputedFromServer,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
 
   const currentFilter = TABS[activeTab].filter;
   const accentColor = TYPE_COLORS[currentFilter];
