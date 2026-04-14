@@ -582,7 +582,7 @@ export default function Loadout() {
         {isOrderComplete && (
           <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 16, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <button
-              onClick={handleLockOrder}
+              onClick={() => void handleLockOrder()}
               className="ko-btn ko-btn-primary"
               style={{ padding: "12px 40px" }}
             >
