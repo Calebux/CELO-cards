@@ -140,7 +140,25 @@ export default function Loadout() {
       router.push("/gameplay");
       return;
     }
-  }, [isOrderComplete, playerRole, matchId, lockOrder, router]);
+
+    // Multiplayer path
+    const cardIds = currentOrder
+      .filter((c): c is NonNullable<typeof c> => c !== null)
+      .map((c) => c.id);
+
+    try {
+      await fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: playerRole, cardIds, round: roundNumber }),
+      });
+    } catch {
+      setLockError("Network error — try again.");
+      return;
+    }
+
+    setWaiting(true);
+  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
 
