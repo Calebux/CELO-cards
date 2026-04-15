@@ -94,24 +94,6 @@ Both players lock their order independently. The server resolves the round and r
 
 ---
 
-## Agent Bot
-
-Runs 14 wallets in parallel, each continuously entering and completing matches on-chain to generate activity.
-
-```bash
-npm run bot
-```
-
-- Auto-generates and saves wallet keys to `.env.local` on first run
-- Funds wallets from a treasury wallet when balance drops below 0.015 CELO
-- Random game duration (3–9 min) and cooldown (1–3 min) per wallet
-- Stops automatically when treasury falls below 0.05 CELO
-- Crash recovery with exponential backoff (up to 10 restarts)
-
-Requires `TREASURY_PRIVATE_KEY` and `NEXT_PUBLIC_ARENA_ADDRESS` in `.env.local`.
-
----
-
 ## Project Structure
 
 ```
@@ -129,6 +111,5 @@ app/
 contracts/
   KnockOrderArena.sol    — on-chain match registry
 scripts/
-  agent-bot.mjs          — 14-wallet activity bot
   deploy.ts              — contract deployment
 ```
