@@ -5,25 +5,20 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
 
-const BG = "https://www.figma.com/api/mcp/asset/5d46b3a8-702b-4f58-a2b9-6a969f50abe7";
-const AVATAR = "https://www.figma.com/api/mcp/asset/e126aa24-9976-41ed-8153-8896164d6540";
-const LOGO = "https://www.figma.com/api/mcp/asset/548dcc6b-759c-4a9f-8282-89c44a5ad1db";
-const GRADIENT = "https://www.figma.com/api/mcp/asset/837824fd-7955-4202-a7c0-24a205a10465";
-const READY_BTN = "https://www.figma.com/api/mcp/asset/9f62cce1-df7f-4e90-a13e-661e18b712a6";
-const RIGHT_BG = "https://www.figma.com/api/mcp/asset/abbf254e-2aa1-46c4-baf4-87f2c428a3ee";
+const BG = "/new addition/gameplay landing page.webp";
 
-// Grey filler portraits for locked slots
+// Grey filler portraits for locked slots — use local assets so they never break
 const GREY_PORTRAITS = [
-  "https://www.figma.com/api/mcp/asset/d201cda3-9418-4d4d-90d2-2b4f5d9aab3a",
-  "https://www.figma.com/api/mcp/asset/4a36f21b-d7b9-4b17-ba23-febd246d80e8",
-  "https://www.figma.com/api/mcp/asset/da77a056-b153-4e33-8a7c-7996c772730f",
-  "https://www.figma.com/api/mcp/asset/abbf254e-2aa1-46c4-baf4-87f2c428a3ee",
-  "https://www.figma.com/api/mcp/asset/f74578b8-d9a7-4a3c-a6e6-2d6deb94d633",
-  "https://www.figma.com/api/mcp/asset/0ebaea33-63c9-4a26-bd7b-1083c540c849",
-  "https://www.figma.com/api/mcp/asset/9bb34c20-8e10-4bea-a44f-1ee558880b14",
-  "https://www.figma.com/api/mcp/asset/f7594a9d-2c81-4703-b791-f2830cc889af",
-  "https://www.figma.com/api/mcp/asset/d201cda3-9418-4d4d-90d2-2b4f5d9aab3a",
-  "https://www.figma.com/api/mcp/asset/4a36f21b-d7b9-4b17-ba23-febd246d80e8",
+  "/Characters standing/Whisk_19475fe609c83ad99cb4dd1553b8093edr.webp",
+  "/Characters standing/Whisk_33ea37eab366d43891d436152d920497dr.webp",
+  "/Characters standing/Whisk_gdzlldmlhtm3e2nh1ymmfwotadmjrtlkzmm20sy.webp",
+  "/Characters standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
+  "/Characters standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
+  "/Characters standing/Whisk_iznjzdmzmtoivgmw0yn3atytytz0qtl3ygz10cn.webp",
+  "/Two fighters/standing 2.webp",
+  "/characters/fighter.webp",
+  "/Characters standing/Whisk_19475fe609c83ad99cb4dd1553b8093edr.webp",
+  "/Characters standing/Whisk_33ea37eab366d43891d436152d920497dr.webp",
 ];
 
 const STAT_META = [
@@ -40,7 +35,7 @@ export default function SelectCharacter() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
   const router = useRouter();
-  const { selectCharacter, startMatch, playerAddress } = useGameStore();
+  const { selectCharacter, startMatch, playerAddress, playerRole, matchId } = useGameStore();
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -70,9 +65,16 @@ export default function SelectCharacter() {
     return () => clearInterval(t);
   }, [timer]);
 
-  const handleLock = () => {
+  const handleLock = async () => {
     selectCharacter(activeChar);
     startMatch();
+    if (playerRole !== null && matchId) {
+      await fetch(`/api/match/${matchId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: playerRole, characterId: activeChar.id }),
+      });
+    }
     router.push("/lobby");
   };
 
@@ -87,8 +89,8 @@ export default function SelectCharacter() {
         </div>
 
         {/* Logo */}
-        <div className="absolute left-1/2 -translate-x-1/2" style={{ top: "-7px", width: 200, height: 114 }}>
-          <img src={LOGO} alt="Action Order" className="w-full h-full object-cover" />
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center" style={{ top: "-7px", width: 200, height: 114 }}>
+          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Cartridge Identity */}
@@ -99,8 +101,8 @@ export default function SelectCharacter() {
             <span className="font-medium text-right text-black" style={{ fontSize: 14 }}>{playerAddress ? `${playerAddress.slice(0, 6)}…${playerAddress.slice(-4)}` : "Guest"}</span>
           </div>
           <div className="relative ml-4 shrink-0">
-            <div className="relative rounded border-2 border-[#222f42] overflow-hidden" style={{ width: 40, height: 40 }}>
-              <img src={AVATAR} alt="Avatar" className="w-full h-full object-cover" />
+            <div className="relative rounded border-2 border-[#222f42] overflow-hidden flex items-center justify-center" style={{ width: 40, height: 40, backgroundColor: "#1e293b" }}>
+              <span className="material-icons" style={{ color: "#94a3b8", fontSize: 22 }}>person</span>
             </div>
             <div className="absolute -bottom-1 -right-1 rounded-full border-2 border-[#0a060e]" style={{ width: 12, height: 12, backgroundColor: "#8c25f4" }} />
           </div>
@@ -166,9 +168,7 @@ export default function SelectCharacter() {
 
           <div className="relative overflow-hidden rounded-[11.25px] border-[0.703px] border-[rgba(255,255,255,0.05)] shrink-0"
             style={{ width: "100%", height: 491, backgroundColor: "rgba(25,16,34,0.3)" }}>
-            <div className="absolute" style={{ inset: "0.13px -71.44px 0.46px 0.03px", opacity: 0.2 }}>
-              <img src={GRADIENT} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-            </div>
+            <div className="absolute" style={{ inset: "0.13px -71.44px 0.46px 0.03px", opacity: 0.2, background: "radial-gradient(ellipse at center, rgba(140,37,244,0.4) 0%, transparent 70%)" }} />
 
             <div className="absolute grid gap-[11.25px] p-[16.88px]"
               style={{ gridTemplateColumns: "repeat(5, 107px)", gridTemplateRows: "repeat(3, 141px)", top: 0, left: 0 }}>
@@ -228,9 +228,7 @@ export default function SelectCharacter() {
         {/* ── Right: Opponent Status Panel ─────────────────────── */}
         <div className="absolute overflow-hidden rounded-[8.438px] border-[0.703px] border-[rgba(255,255,255,0.1)]"
           style={{ left: "75.49%", right: "9.67%", top: "calc(50% - 8.6px)", transform: "translateY(-50%)", height: 623.8 }}>
-          <div className="absolute" style={{ inset: "-77.8px -26.54px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <img src={RIGHT_BG} alt="" className="w-full h-full object-cover pointer-events-none" style={{ filter: "blur(14px)", opacity: 0.4 }} />
-          </div>
+          <div className="absolute" style={{ inset: "-77.8px -26.54px", background: "radial-gradient(ellipse at center, rgba(86,164,203,0.15) 0%, transparent 70%)" }} />
           <div className="absolute inset-0" style={{ backdropFilter: "blur(4.219px)", backgroundColor: "rgba(185,231,244,0.05)" }} />
 
           <div className="absolute flex items-center gap-[5.625px]" style={{ top: 11.25, right: 11.25 }}>
@@ -286,7 +284,7 @@ export default function SelectCharacter() {
 
             {/* Centre: Lock Selection button */}
             <div className="absolute" style={{ left: 256, top: "50%", transform: "translateY(-50%)", width: 300 }}>
-              <button className="ko-btn ko-btn-primary w-full h-[54px]" onClick={handleLock}>
+              <button className="ko-btn ko-btn-primary w-full h-[54px]" onClick={() => void handleLock()}>
                 <span className="ko-btn-text font-bold uppercase text-white" style={{ fontSize: 20, letterSpacing: 2 }}>Lock Selection</span>
                 <span className="material-icons ko-btn-icon not-italic text-white" style={{ fontSize: 24 }}>arrow_forward_ios</span>
               </button>

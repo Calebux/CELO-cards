@@ -4,10 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 
-const BG_IMAGE = "https://www.figma.com/api/mcp/asset/144683b5-580d-47ef-bc8e-0c40d1f968fe";
-const LOGO    = "https://www.figma.com/api/mcp/asset/a6c81a09-6dae-4ce3-8262-4d237cd2c9c4";
-const AVATAR  = "https://www.figma.com/api/mcp/asset/f4f7bfbb-c6f5-4953-bfad-688b6212e284";
-const ICON_KO = "https://www.figma.com/api/mcp/asset/94464413-0513-4d70-b470-194e3b10e08b";
+const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -17,6 +14,7 @@ export default function JoinMatch() {
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
+  const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -58,6 +56,7 @@ export default function JoinMatch() {
 
     resetMatch();
     setMatchId(matchCode);
+    setPlayerRole("joiner");
     router.push("/select-character");
   };
 
@@ -69,8 +68,8 @@ export default function JoinMatch() {
         <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -13, width: 350, height: 200, pointerEvents: "none" }}>
-          <img src={LOGO} alt="Action Order" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -13, width: 350, height: 200, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontWeight: 900, fontSize: 30, lineHeight: "1.1", letterSpacing: "-1px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 24px rgba(185,231,244,0.5)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Cartridge Identity badge */}
@@ -89,8 +88,8 @@ export default function JoinMatch() {
             </div>
           </div>
           <div style={{ position: "relative" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 4, border: "2px solid #222f42", overflow: "hidden" }}>
-              <img src={AVATAR} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ width: 40, height: 40, borderRadius: 4, border: "2px solid #222f42", overflow: "hidden", backgroundColor: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="material-icons" style={{ color: "#94a3b8", fontSize: 22 }}>person</span>
             </div>
             <div style={{ position: "absolute", bottom: -4, right: -4, width: 12, height: 12, borderRadius: "50%", backgroundColor: "#6b7280", border: "2px solid #0a060e" }} />
           </div>
@@ -200,7 +199,7 @@ export default function JoinMatch() {
                 border: "1px solid #0f1c23", display: "flex", alignItems: "center", justifyContent: "center",
                 boxShadow: "0 0 15px rgba(140, 37, 244, 0.4), inset 0 0 5px rgba(140, 37, 244, 0.2)",
               }}>
-                <img src={ICON_KO} alt="" style={{ width: 21, height: 19 }} />
+                <span style={{ fontSize: 14, fontWeight: 900, color: "#8c25f4", letterSpacing: "-0.5px" }}>KO</span>
               </div>
               <div style={{ marginLeft: 12 }}>
                 <div style={{ fontSize: 24, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -1.2, lineHeight: "32px", textShadow: "0 0 8px rgba(140, 37, 244, 0.8)" }}>

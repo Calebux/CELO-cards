@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-const BG_IMAGE = "https://www.figma.com/api/mcp/asset/e9b1584b-6919-44a5-a7af-7cc7c7b5645b";
+const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;

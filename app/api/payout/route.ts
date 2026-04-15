@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
+import { createPublicClient, createWalletClient, http, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { ERC20_ABI, CUSD_CONTRACT, PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO } from "../../lib/cusd";
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
           args: [winner, PAYOUT_AMOUNT],
         });
         txHash = await walletClient.writeContract(request);
-        console.log(`Payout ${matchId}: direct transfer ${parseUnits("0.18", 18)} cUSD to ${winner} — tx ${txHash}`);
+        console.log(`Payout ${matchId}: direct transfer ${formatUnits(PAYOUT_AMOUNT, 18)} cUSD to ${winner} — tx ${txHash}`);
       }
     }
 

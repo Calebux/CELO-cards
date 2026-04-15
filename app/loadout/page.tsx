@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType } from "../lib/gameData";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/loadout 001.webp";
-const LOGO = "https://www.figma.com/api/mcp/asset/dbd2f1d0-de97-437b-97ac-4a5426213f9e";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -84,8 +83,12 @@ export default function Loadout() {
     lockOrder,
     maxEnergy,
     matchId,
+    playerRole,
+    roundNumber,
+    setPrecomputedFromServer,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
 
   const currentFilter = TABS[activeTab].filter;
   const accentColor = TYPE_COLORS[currentFilter];
@@ -123,12 +126,53 @@ export default function Loadout() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  const handleLockOrder = () => {
+  // Multiplayer polling ref — cleaned up on unmount
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const handleLockOrder = useCallback(async () => {
     if (!isOrderComplete) return;
     setLockError(null);
-    lockOrder();
-    router.push("/gameplay");
-  };
+
+    // Solo path — unchanged
+    if (!playerRole || !matchId) {
+      lockOrder();
+      router.push("/gameplay");
+      return;
+    }
+
+    // Multiplayer path
+    const cardIds = currentOrder
+      .filter((c): c is NonNullable<typeof c> => c !== null)
+      .map((c) => c.id);
+
+    try {
+      await fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: playerRole, cardIds, round: roundNumber }),
+      });
+    } catch {
+      setLockError("Network error — try again.");
+      return;
+    }
+
+    setWaiting(true);
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        const data = await res.json() as { phase: string; slots: unknown };
+        if (data.phase === "resolved" && data.slots) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
+          router.push("/gameplay");
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    }, 2000);
+  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
 
@@ -140,8 +184,8 @@ export default function Loadout() {
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, zIndex: 5 }}>
-          <img src={LOGO} alt="Action Order" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Left character panel — shows selected character's standing art */}
@@ -535,10 +579,10 @@ export default function Loadout() {
         </div>
 
         {/* Lock Sequence button — appears when order is complete */}
-        {isOrderComplete && (
+        {isOrderComplete && !waiting && (
           <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 16, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <button
-              onClick={handleLockOrder}
+              onClick={() => void handleLockOrder()}
               className="ko-btn ko-btn-primary"
               style={{ padding: "12px 40px" }}
             >
@@ -549,6 +593,27 @@ export default function Loadout() {
               <span className="material-icons ko-btn-icon" style={{ fontSize: 22, color: "#fff" }}>double_arrow</span>
             </button>
             {lockError && <span style={{ fontSize: 12, color: "#f87171" }}>{lockError}</span>}
+          </div>
+        )}
+
+        {/* Waiting overlay — multiplayer only */}
+        {waiting && (
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 50,
+            backgroundColor: "rgba(0,0,0,0.75)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            gap: 20,
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%",
+              border: "4px solid rgba(90,191,230,0.3)",
+              borderTopColor: "#5abfe6",
+              animation: "spin 0.9s linear infinite",
+            }} />
+            <span style={{ fontSize: 20, fontWeight: 700, color: "#5abfe6", textTransform: "uppercase", letterSpacing: 3 }}>
+              Waiting for opponent...
+            </span>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 

@@ -7,12 +7,7 @@ import { useAccount } from "wagmi";
 import { formatAddress } from "../lib/minipay";
 import { WagerModal } from "../components/WagerModal";
 
-const BG_IMAGE =
-  "https://www.figma.com/api/mcp/asset/391bcf4f-350f-4a5a-8d08-9aad39c53e12";
-const AVATAR_IMAGE =
-  "https://www.figma.com/api/mcp/asset/d5d821a8-1bb6-4dd7-baf8-1b62a43e7019";
-const LOGO_IMAGE =
-  "https://www.figma.com/api/mcp/asset/9980f06e-500f-4857-a744-9658e83e286f";
+const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
 type MatchType = "casual" | "ranked" | "tourney";
 
@@ -22,11 +17,13 @@ export default function CreateMatch() {
   const [showWager, setShowWager] = useState(false);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
+  const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
   const { address } = useAccount();
 
   const handleCreateMatch = () => {
     resetMatch();
+    setPlayerRole("host");
     if (address) {
       setShowWager(true);
     } else {
@@ -55,14 +52,10 @@ export default function CreateMatch() {
 
       {/* Logo */}
       <div
-        className="absolute left-1/2 -translate-x-1/2"
+        className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center"
         style={{ top: "-13px", width: "350px", height: "200px" }}
       >
-        <img
-          src={LOGO_IMAGE}
-          alt="Action Order"
-          className="w-full h-full object-cover"
-        />
+        <div style={{ fontWeight: 900, fontSize: 30, lineHeight: "1.1", letterSpacing: "-1px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 24px rgba(185,231,244,0.5)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
       </div>
 
       {/* Wallet Identity (top right) */}
@@ -111,10 +104,10 @@ export default function CreateMatch() {
         </div>
         <div className="relative ml-4 shrink-0">
           <div
-            className="relative rounded border-2 border-[#222f42] overflow-hidden"
-            style={{ width: "40px", height: "40px" }}
+            className="relative rounded border-2 border-[#222f42] overflow-hidden flex items-center justify-center"
+            style={{ width: "40px", height: "40px", backgroundColor: "#1e293b" }}
           >
-            <img src={AVATAR_IMAGE} alt="Avatar" className="w-full h-full object-cover" />
+            <span className="material-icons" style={{ color: "#94a3b8", fontSize: 22 }}>person</span>
           </div>
           <div
             className="absolute -bottom-1 -right-1 rounded-full border-2 border-[#0a060e]"

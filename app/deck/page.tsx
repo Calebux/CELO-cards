@@ -2,22 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const BG_IMAGE = "https://www.figma.com/api/mcp/asset/60f4534e-dfd0-4160-983f-4af922ac1fcd";
-const LOGO = "https://www.figma.com/api/mcp/asset/dbd2f1d0-de97-437b-97ac-4a5426213f9e";
+const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
-// Card images
-const S1 = "https://www.figma.com/api/mcp/asset/3025b152-3912-4e26-83b4-7314219322f0";
-const S2 = "https://www.figma.com/api/mcp/asset/d818ab89-0996-4828-89be-45c53cccd5e6";
-const S3 = "https://www.figma.com/api/mcp/asset/a86384bc-25b2-4878-961a-736ed32176f9";
-const S4 = "https://www.figma.com/api/mcp/asset/b91e5913-ea5d-4144-a356-5c4aee146cf0";
-const S5 = "https://www.figma.com/api/mcp/asset/88a11935-c709-4cc0-a2e7-cd472c6dc8cd";
-const CTRL1 = "https://www.figma.com/api/mcp/asset/951456fa-c9dd-454e-88fe-2559e7f10102";
-const CTRL2 = "https://www.figma.com/api/mcp/asset/d206dace-36c2-477a-81cd-eabd210e5de6";
-const CTRL3 = "https://www.figma.com/api/mcp/asset/b0250ee3-a56c-488b-adcd-c59e00be9801";
-const CTRL4 = "https://www.figma.com/api/mcp/asset/105fc89e-7c7a-4ad5-9160-bdaf9de82984";
-const D1 = "https://www.figma.com/api/mcp/asset/3b1e737b-9d77-45d6-bfb3-82b520b44aa2";
-const D2 = "https://www.figma.com/api/mcp/asset/18135017-4212-4c9f-8ba1-2a9e368ff72a";
-const D3 = "https://www.figma.com/api/mcp/asset/c981a515-cd30-4778-be71-bce19aac7fef";
+// Card images — local assets
+const S1 = "/cards/phantom_break.webp";
+const S2 = "/cards/storm_kick.webp";
+const S3 = "/cards/power_punch.webp";
+const S4 = "/cards/direct_impact.webp";
+const S5 = "/cards/finisher.webp";
+const CTRL1 = "/cards/mind_game.webp";
+const CTRL2 = "/cards/evasion.webp";
+const CTRL3 = "/cards/pressure_advance.webp";
+const CTRL4 = "/cards/disrupt.webp";
+const D1 = "/cards/guard_stance.webp";
+const D2 = "/cards/stability.webp";
+const D3 = "/cards/reversal_edge.webp";
 
 
 const DESIGN_W = 1440;
@@ -55,8 +54,8 @@ export default function DeckPage() {
                 <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
                 {/* Logo */}
-                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114 }}>
-                    <img src={LOGO} alt="Action Order" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
                 </div>
 
                 {/* Tabs */}
