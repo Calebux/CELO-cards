@@ -456,7 +456,7 @@ export default function ActionOrderLandingPage() {
           <WalletBadge />
           <div className="ko-land-page">
             <img className="ko-bg-image"
-              src="/asset 1.webp"
+              src="/new-assets/landing-hero.png"
               alt="background" />
 
             <div className="ko-logo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -465,25 +465,6 @@ export default function ActionOrderLandingPage() {
 
             <div className="ko-enter-banner" />
             <span className="ko-enter-label">ENTER THE ORDER</span>
-
-            {/* Centre hero image */}
-            <div style={{
-              position: "absolute",
-              left: "50%",
-              transform: "translateX(-50%)",
-              top: 195,
-              width: 740,
-              zIndex: 5,
-              borderRadius: 10,
-              overflow: "hidden",
-              border: "1px solid rgba(86,164,203,0.18)",
-              boxShadow: "0 0 50px rgba(86,164,203,0.1)",
-            }}>
-              <img src="/new-assets/landing-hero.png" alt="Action Order fighters"
-                style={{ width: "100%", display: "block", objectFit: "cover" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(10,15,28,0.6) 0%, transparent 15%, transparent 85%, rgba(10,15,28,0.6) 100%)", pointerEvents: "none" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(10,15,28,0.5) 0%, transparent 25%, transparent 75%, rgba(10,15,28,0.7) 100%)", pointerEvents: "none" }} />
-            </div>
 
             <div className="ko-left-tab" />
 
