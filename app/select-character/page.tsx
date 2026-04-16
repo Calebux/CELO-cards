@@ -89,8 +89,8 @@ export default function SelectCharacter() {
         </div>
 
         {/* Logo */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center" style={{ top: "-7px", width: 200, height: 114 }}>
-          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center" style={{ top: "-10px", width: 200, height: 114 }}>
+          <div style={{ fontWeight: 900, fontSize: 26, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Cartridge Identity */}

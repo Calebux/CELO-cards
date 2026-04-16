@@ -20,7 +20,7 @@ const TABS: { label: string; filter: CardType | "all" }[] = [
 
 // Type accent colours
 const TYPE_COLORS: Record<string, string> = {
-  all: "#5abfe6",
+  all: "#56a4cb",
   strike: "#f97316",
   defense: "#3b82f6",
   control: "#a855f7",
@@ -32,7 +32,7 @@ const SPECIAL_DEFENSE_ID = "reversal_edge";
 
 function CardTooltip({ card }: { card: Card }) {
   const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
-  const col = typeColors[card.type] ?? "#5abfe6";
+  const col = typeColors[card.type] ?? "#56a4cb";
   return (
     <div style={{
       position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
@@ -186,8 +186,8 @@ export default function Loadout() {
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -10, width: 200, height: 114, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontWeight: 900, fontSize: 26, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Round + score badge */}
@@ -202,7 +202,7 @@ export default function Loadout() {
             Round {roundNumber}
           </span>
           <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.12)" }} />
-          <span style={{ fontSize: 16, fontWeight: 800, color: "#5abfe6", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: "#56a4cb", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
             {playerRoundsWon}
           </span>
           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>—</span>
@@ -216,8 +216,8 @@ export default function Loadout() {
           position: "absolute", left: 109, top: 120, width: 326, height: 636,
           overflow: "hidden", pointerEvents: "none",
           borderRadius: 6,
-          border: `1.5px solid ${selectedCharacter?.color || "#5abfe6"}40`,
-          boxShadow: `0 0 28px ${selectedCharacter?.color || "#5abfe6"}18`,
+          border: `1.5px solid ${selectedCharacter?.color || "#56a4cb"}40`,
+          boxShadow: `0 0 28px ${selectedCharacter?.color || "#56a4cb"}18`,
         }}>
           {selectedCharacter && (
             <>
@@ -521,31 +521,31 @@ export default function Loadout() {
           <div style={{
             position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)",
             backgroundColor: "#0f1a2e",
-            border: "2px solid #5abfe6",
+            border: "2px solid #56a4cb",
             borderRadius: 6,
             padding: "4px 24px",
             boxShadow: "0 0 12px rgba(90, 191, 230, 0.5)",
           }}>
             <span style={{
               fontSize: 14, fontWeight: 800, textTransform: "uppercase",
-              letterSpacing: 3, color: "#5abfe6",
+              letterSpacing: 3, color: "#56a4cb",
               textShadow: "0 0 8px rgba(90,191,230,0.6)",
             }}>DECK LOADOUT</span>
           </div>
 
           {/* Energy bar */}
           <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#5abfe6", textTransform: "uppercase", letterSpacing: 1 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
               ⚡ {usedEnergy} / {maxEnergy}
             </span>
             <div style={{ width: 120, height: 8, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(90,191,230,0.3)", overflow: "hidden" }}>
               <div style={{
                 height: "100%",
                 width: `${Math.min(100, (usedEnergy / maxEnergy) * 100)}%`,
-                backgroundColor: usedEnergy >= maxEnergy ? "#ef4444" : "#5abfe6",
+                backgroundColor: usedEnergy >= maxEnergy ? "#ef4444" : "#56a4cb",
                 borderRadius: 4,
                 transition: "width 0.3s ease, background-color 0.2s",
-                boxShadow: `0 0 8px ${usedEnergy >= maxEnergy ? "#ef4444" : "#5abfe6"}80`,
+                boxShadow: `0 0 8px ${usedEnergy >= maxEnergy ? "#ef4444" : "#56a4cb"}80`,
               }} />
             </div>
           </div>
@@ -564,7 +564,7 @@ export default function Loadout() {
                     cursor: card ? "pointer" : "default",
                     position: "relative", overflow: "hidden",
                     backgroundColor: card ? "transparent" : "rgba(0, 0, 0, 0.4)",
-                    border: card ? "2px solid #5abfe6" : "2px solid rgba(90, 191, 230, 0.2)",
+                    border: card ? "2px solid #56a4cb" : "2px solid rgba(90, 191, 230, 0.2)",
                     boxShadow: card
                       ? "0 0 16px rgba(90,191,230,0.4), inset 0 0 8px rgba(90,191,230,0.2)"
                       : "inset 0 0 10px rgba(0,0,0,0.5)",
@@ -630,10 +630,10 @@ export default function Loadout() {
             <div style={{
               width: 56, height: 56, borderRadius: "50%",
               border: "4px solid rgba(90,191,230,0.3)",
-              borderTopColor: "#5abfe6",
+              borderTopColor: "#56a4cb",
               animation: "spin 0.9s linear infinite",
             }} />
-            <span style={{ fontSize: 20, fontWeight: 700, color: "#5abfe6", textTransform: "uppercase", letterSpacing: 3 }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 3 }}>
               Waiting for opponent...
             </span>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

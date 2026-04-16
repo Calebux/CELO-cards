@@ -130,15 +130,15 @@ export default function Lobby() {
         </div>
 
         {/* Logo */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center" style={{ top: "-2px", width: 200, height: 114 }}>
-          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center" style={{ top: "-10px", width: 200, height: 114 }}>
+          <div style={{ fontWeight: 900, fontSize: 26, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
         </div>
 
         {/* Header Top Bar */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-between border-b"
           style={{ top: 92, width: 1146, padding: "24px 32px 25px", backdropFilter: "blur(2px)", backgroundColor: "rgba(5,5,5,0.5)", borderColor: "rgba(255,255,255,0.05)" }}>
           <div className="flex items-center gap-4">
-            <div className="rounded-full bg-[#06a8f9]" style={{ width: 8, height: 8 }} />
+            <div className="rounded-full bg-[#56a4cb]" style={{ width: 8, height: 8 }} />
             <span style={{ fontSize: 14, letterSpacing: "1.4px", color: "#9ca3af", fontWeight: 500 }}>
               MATCH ID: <span style={{ color: "white" }}>{matchId ?? "AO-????-X"}</span>
             </span>
@@ -148,8 +148,8 @@ export default function Lobby() {
             <span className="uppercase" style={{ fontSize: 12, letterSpacing: "1.2px", color: "#6b7280", fontWeight: 400 }}>Server: NAIJA O1</span>
           </div>
           <div className="flex items-center gap-4">
-            <span style={{ fontSize: 14, letterSpacing: "1.4px", color: "#06a8f9", fontWeight: 500 }}>{statusText}</span>
-            <div className={`rounded-full bg-[#06a8f9] ${p1Ready && p2Ready ? "animate-ping" : ""}`} style={{ width: 8, height: 8 }} />
+            <span style={{ fontSize: 14, letterSpacing: "1.4px", color: "#56a4cb", fontWeight: 500 }}>{statusText}</span>
+            <div className={`rounded-full bg-[#56a4cb] ${p1Ready && p2Ready ? "animate-ping" : ""}`} style={{ width: 8, height: 8 }} />
           </div>
         </div>
 
@@ -177,11 +177,11 @@ export default function Lobby() {
               {player && (
                 <div className="absolute" style={{ left: 30, top: 30 }}>
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="rounded-sm px-1.5 py-0.5 bg-[#06a8f9]">
+                    <div className="rounded-sm px-1.5 py-0.5 bg-[#56a4cb]">
                       <span className="font-bold uppercase text-black" style={{ fontSize: 9 }}>P1</span>
                     </div>
                     <div className="rounded-sm px-1.5 py-0.5 border" style={{ borderColor: "rgba(6,168,249,0.3)" }}>
-                      <span className="font-bold uppercase text-[#06a8f9]" style={{ fontSize: "7.5px", letterSpacing: "0.375px" }}>[{player.className}]</span>
+                      <span className="font-bold uppercase text-[#56a4cb]" style={{ fontSize: "7.5px", letterSpacing: "0.375px" }}>[{player.className}]</span>
                     </div>
                   </div>
                   <div className="font-bold uppercase text-white" style={{ fontSize: 45, lineHeight: "45px", letterSpacing: "-2.25px", textShadow: "0px 0px 7.5px rgba(6,168,249,0.5)", marginTop: 4 }}>

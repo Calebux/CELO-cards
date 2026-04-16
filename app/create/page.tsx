@@ -39,7 +39,7 @@ export default function CreateMatch() {
   return (
     <div
       className="relative w-full min-h-screen overflow-hidden"
-      style={{ backgroundColor: "#0a060e", fontFamily: "'Space Grotesk', sans-serif" }}
+      style={{ backgroundColor: "#050505", fontFamily: "'Space Grotesk', sans-serif" }}
     >
       {/* Background */}
       <div className="absolute inset-0">

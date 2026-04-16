@@ -216,9 +216,9 @@ function JoinMatchContent() {
               borderRadius: 9999, padding: "7px 13px",
               display: "flex", alignItems: "center",
             }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#6b7280", marginRight: 8 }} />
+              <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#4ade80", marginRight: 8 }} />
               <span style={{ fontSize: 12, fontWeight: 600, color: "#cbd5e1", lineHeight: "16px" }}>
-                KNOCK ORDER — SEPOLIA TESTNET
+                ACTION ORDER — CELO MAINNET
               </span>
             </div>
           </div>
