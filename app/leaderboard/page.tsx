@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { WalletSection } from "../components/WalletSection";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -76,13 +77,18 @@ export default function Leaderboard() {
         <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.75)" }} />
 
-        {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -13, width: 350, height: 200, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontWeight: 900, fontSize: 30, lineHeight: "1.1", letterSpacing: "-1px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 24px rgba(185,231,244,0.5)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+        {/* ── Top Bar ── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
+          </button>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>LEADERBOARD</div>
+          <WalletSection />
         </div>
 
         {/* Main container */}
-        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", marginTop: 30, width: 820 }}>
+        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -46%)", width: 820 }}>
 
           {/* Corner accents */}
           {[

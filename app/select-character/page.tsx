@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
+import { WalletSection } from "../components/WalletSection";
 
 const BG = "/new-assets/two-fighters-vs.png";
 
@@ -89,19 +90,14 @@ export default function SelectCharacter() {
         </div>
 
 
-        {/* Cartridge Identity */}
-        <div className="absolute flex items-center rounded-lg border border-[#222f42] p-[9px]"
-          style={{ top: "calc(50% - 353.5px)", left: 1200, transform: "translateY(-50%)", backdropFilter: "blur(6px)", backgroundColor: "#b9e7f4" }}>
-          <div className="flex flex-col items-end" style={{ width: 127 }}>
-            <span className="font-bold uppercase text-right text-black" style={{ fontSize: 10, letterSpacing: 1 }}>Celo Wallet</span>
-            <span className="font-medium text-right text-black" style={{ fontSize: 14 }}>{playerAddress ? `${playerAddress.slice(0, 6)}…${playerAddress.slice(-4)}` : "Guest"}</span>
-          </div>
-          <div className="relative ml-4 shrink-0">
-            <div className="relative rounded border-2 border-[#222f42] overflow-hidden flex items-center justify-center" style={{ width: 40, height: 40, backgroundColor: "#1e293b" }}>
-              <span className="material-icons" style={{ color: "#94a3b8", fontSize: 22 }}>person</span>
-            </div>
-            <div className="absolute -bottom-1 -right-1 rounded-full border-2 border-[#0a060e]" style={{ width: 12, height: 12, backgroundColor: "#8c25f4" }} />
-          </div>
+        {/* ── Top Bar ── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
+          </button>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>SELECT FIGHTER</div>
+          <WalletSection />
         </div>
 
         {/* ── Left: Player Preview Panel ───────────────────────── */}
