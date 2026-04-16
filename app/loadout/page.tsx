@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType } from "../lib/gameData";
+import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/loadout 001.webp";
@@ -180,40 +181,35 @@ export default function Loadout() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top left", position: "relative" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top center", position: "relative" }}>
 
         {/* Background */}
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
-        {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -10, width: 200, height: 114, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontWeight: 900, fontSize: 26, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
-        </div>
+        {/* ── Top Bar ── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
+          {/* Logo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 4, height: 28, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+          </div>
 
-        {/* Round + score badge */}
-        <div style={{
-          position: "absolute", top: 24, right: 32, zIndex: 10,
-          display: "flex", alignItems: "center", gap: 10,
-          backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)",
-          border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
-          padding: "6px 14px",
-        }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 2 }}>
-            Round {roundNumber}
-          </span>
-          <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.12)" }} />
-          <span style={{ fontSize: 16, fontWeight: 800, color: "#56a4cb", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
-            {playerRoundsWon}
-          </span>
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>—</span>
-          <span style={{ fontSize: 16, fontWeight: 800, color: "rgba(255,255,255,0.55)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
-            {opponentRoundsWon}
-          </span>
+          {/* Round + score */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 14px", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 2 }}>Round {roundNumber}</span>
+            <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.12)" }} />
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#56a4cb", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>{playerRoundsWon}</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>—</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>{opponentRoundsWon}</span>
+          </div>
+
+          {/* Wallet */}
+          <WalletSection />
         </div>
 
         {/* Left character panel — shows selected character's standing art */}
         <div style={{
-          position: "absolute", left: 109, top: 120, width: 326, height: 636,
+          position: "absolute", left: 109, top: 68, width: 326, height: 636,
           overflow: "hidden", pointerEvents: "none",
           borderRadius: 6,
           border: `1.5px solid ${selectedCharacter?.color || "#56a4cb"}40`,
@@ -258,7 +254,7 @@ export default function Loadout() {
         {/* ═══════════════ NEW Card Selection Panel ═══════════════ */}
         <div style={{
           position: "absolute",
-          left: 480, top: 60,
+          left: 480, top: 68,
           width: 920, height: 535,
           display: "flex", flexDirection: "column",
         }}>
@@ -645,7 +641,7 @@ export default function Loadout() {
           onClick={() => router.back()}
           className="ko-btn ko-btn-secondary"
           style={{
-            position: "absolute", left: 32, top: 32,
+            position: "absolute", left: 32, bottom: 24,
             padding: "8px 16px", zIndex: 20,
           }}
         >
