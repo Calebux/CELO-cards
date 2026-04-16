@@ -10,7 +10,7 @@ import { useAccount } from "wagmi";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-type MatchType = "casual" | "ranked" | "tourney";
+type MatchType = "casual" | "ranked" | "tourney" | "vshouse";
 
 const MATCH_TYPES: {
   key: MatchType;
@@ -46,17 +46,37 @@ const MATCH_TYPES: {
     desc: "Tournament play. Only available to qualified top-16 players.",
     color: "#a855f7",
   },
+  {
+    key: "vshouse",
+    icon: "smart_toy",
+    label: "VS HOUSE",
+    sub: "Play AI",
+    desc: "Challenge the house AI. No wait time — jump straight in and sharpen your skills.",
+    color: "#00C58E",
+    badge: "INSTANT",
+  },
 ];
 
 export default function CreateMatch() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("ranked");
   const [showWager, setShowWager] = useState(false);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
+  const setVsBot = useGameStore((s) => s.setVsBot);
   const { address } = useAccount();
+
+  useEffect(() => {
+    const fetchOnline = () => {
+      fetch("/api/online").then((r) => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
+    };
+    fetchOnline();
+    const id = setInterval(fetchOnline, 15_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const scale = () => {
@@ -73,6 +93,13 @@ export default function CreateMatch() {
 
   const handleCreateMatch = () => {
     resetMatch();
+    if (matchType === "vshouse") {
+      setVsBot(true);
+      setPlayerRole(null);
+      router.push("/select-character");
+      return;
+    }
+    setVsBot(false);
     setPlayerRole("host");
     if (address) {
       setShowWager(true);
@@ -153,7 +180,7 @@ export default function CreateMatch() {
                           onClick={() => setMatchType(mt.key)}
                           style={{
                             width: "100%", padding: "20px 12px 16px",
-                            background: active ? `rgba(${mt.color === "#56a4cb" ? "86,164,203" : mt.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.12)` : "rgba(255,255,255,0.03)",
+                            background: active ? `${mt.color}1e` : "rgba(255,255,255,0.03)",
                             border: active ? `1.5px solid ${mt.color}` : "1.5px solid rgba(255,255,255,0.08)",
                             borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
                             textAlign: "center",
@@ -204,17 +231,25 @@ export default function CreateMatch() {
 
             {/* Stats row */}
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              {[
-                { label: "Active Players", value: "12,408" },
-                { label: "Live Lobbies", value: "1,102" },
-                { label: "Avg Queue", value: "14s" },
-              ].map((stat) => (
-                <div key={stat.label} style={{ flex: 1, textAlign: "center", padding: "10px 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6 }}>
-                  <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>{stat.label}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "#b9e7f4", letterSpacing: -0.5 }}>{stat.value}</div>
+              <div style={{ flex: 1, textAlign: "center", padding: "10px 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 3 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 5px #4ade80", animation: "pulse 2s ease-in-out infinite" }} />
+                  <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Playing Now</div>
                 </div>
-              ))}
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#4ade80", letterSpacing: -0.5 }}>
+                  {onlineCount !== null ? onlineCount.toLocaleString() : "—"}
+                </div>
+              </div>
+              <div style={{ flex: 1, textAlign: "center", padding: "10px 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6 }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>House Bots</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#b9e7f4", letterSpacing: -0.5 }}>Always On</div>
+              </div>
+              <div style={{ flex: 1, textAlign: "center", padding: "10px 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6 }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>VS House</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#00C58E", letterSpacing: -0.5 }}>Instant</div>
+              </div>
             </div>
+            <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
           </div>
         </div>
 
