@@ -227,22 +227,34 @@ export default function Leaderboard() {
                       </span>
 
                       {/* Address */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{
-                          fontSize: 13,
-                          fontWeight: isMe ? 700 : 500,
-                          color: isMe ? "#b9e7f4" : "#94a3b8",
-                          fontFamily: "monospace",
-                          letterSpacing: 0.5,
-                        }}>
-                          {truncateAddress(p.address)}
-                        </span>
-                        {isMe && (
-                          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
-                            YOU
-                          </span>
-                        )}
-                      </div>
+                      {(() => {
+                        const isBot = p.address.toLowerCase().startsWith("0xb071d7a6f3ea");
+                        const botNames = ["Kaira-7","Zane-X","Riven-3","Elara-9","Kenji-2","Nova-5","Void-1","Storm-8","Apex-4","Ghost-6"];
+                        const botIdx = parseInt(p.address.slice(-1), 16) % botNames.length;
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{
+                              fontSize: 13,
+                              fontWeight: isMe ? 700 : 500,
+                              color: isMe ? "#b9e7f4" : isBot ? "#a78bfa" : "#94a3b8",
+                              fontFamily: isBot ? "inherit" : "monospace",
+                              letterSpacing: 0.5,
+                            }}>
+                              {isBot ? `BOT: ${botNames[botIdx]}` : truncateAddress(p.address)}
+                            </span>
+                            {isMe && (
+                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
+                                YOU
+                              </span>
+                            )}
+                            {isBot && (
+                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#a78bfa", textTransform: "uppercase", background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 3, padding: "1px 5px" }}>
+                                AI
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Points */}
                       <span style={{ fontSize: 14, fontWeight: 800, color: "#f1f5f9" }}>
