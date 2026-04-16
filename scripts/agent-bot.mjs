@@ -46,7 +46,7 @@ const TREASURY_KEY  = process.env.TREASURY_PRIVATE_KEY;
 const ENTRY_FEE     = 7_000_000_000_000n;        // 0.000007 CELO
 const FUND_AMOUNT   = parseEther("0.04");          // sent to each wallet when low
 const MIN_BAL       = parseEther("0.015");         // refund threshold
-const NUM_WALLETS        = 14;
+const NUM_WALLETS        = 22;
 const TREASURY_STOP_BAL  = parseEther("0.05"); // stop funding when treasury < this
 const MAX_RESTARTS       = 10;                  // crash recovery limit
 const BASE_RESTART_DELAY = 5_000;               // 5s base, doubles on each retry
@@ -159,8 +159,16 @@ async function main() {
   let treasuryQueue = Promise.resolve();
   let treasuryDepleted = false;
 
+  async function resyncNonce() {
+    treNonce = await pub.getTransactionCount({ address: treasury.address, blockTag: "pending" });
+  }
+
   function queueTreasury(fn) {
-    treasuryQueue = treasuryQueue.then(fn);
+    treasuryQueue = treasuryQueue.then(fn).catch(async (e) => {
+      console.log(`[treasury] ⚠️  tx error — resyncing nonce: ${e.message?.slice(0, 60)}`);
+      await resyncNonce();
+      throw e; // re-throw so the caller's catch still fires
+    });
     return treasuryQueue;
   }
 
@@ -193,7 +201,7 @@ async function main() {
               gas: 21_000n,
               nonce: treNonce++,
             });
-            await pub.waitForTransactionReceipt({ hash: fundHash });
+            await pub.waitForTransactionReceipt({ hash: fundHash, timeout: 120_000 });
             const remaining = await pub.getBalance({ address: treasury.address });
             console.log(`[${bot.label}] ✅ topped up 0.04 CELO  (treasury: ${fmtCelo(remaining)} CELO left)`);
           });
@@ -223,6 +231,7 @@ async function main() {
             value: ENTRY_FEE,
             gas: 150_000n,
           }),
+          timeout: 120_000,
         });
 
         if (enterReceipt.status === "reverted") {
@@ -247,6 +256,7 @@ async function main() {
               gas: 150_000n,
               nonce: treNonce++,
             }),
+            timeout: 120_000,
           });
 
           if (completeReceipt.status === "reverted") {

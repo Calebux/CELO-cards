@@ -9,6 +9,21 @@ import {
     SlotResult,
 } from "./combatEngine";
 
+export type MatchRecord = {
+    id: string;
+    date: string;
+    opponentCharId: string;
+    outcome: "win" | "loss";
+    pointsEarned: number;
+    playerRoundsWon: number;
+    opponentRoundsWon: number;
+};
+
+export type DeckPreset = {
+    name: string;
+    cardIds: string[];
+};
+
 export type MatchPhase =
     | "idle"
     | "character-select"
@@ -69,9 +84,23 @@ interface GameState {
     // Streak
     winStreak: number;
     lossStreak: number;
+    maxWinStreak: number;
+
+    // Match history log
+    matchHistory: MatchRecord[];
+
+    // Player profile
+    playerName: string;
+
+    // Deck presets
+    deckPresets: DeckPreset[];
 
     // Actions
     setPlayerAddress: (address: string | null) => void;
+    setPlayerName: (name: string) => void;
+    savePreset: (name: string) => void;
+    loadPreset: (index: number) => void;
+    deletePreset: (index: number) => void;
     setOpponentCharacterFromServer: (charId: string) => void;
     setPrecomputedFromServer: (slots: SlotResult[]) => void;
     setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo") => void;
@@ -118,8 +147,42 @@ export const useGameStore = create<GameState>()(
     matchesLost: 0,
     winStreak: 0,
     lossStreak: 0,
+    maxWinStreak: 0,
+    matchHistory: [],
+    playerName: "",
+    deckPresets: [],
 
     setPlayerAddress: (address) => set({ playerAddress: address }),
+    setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
+
+    savePreset: (name) => {
+        const { currentOrder, deckPresets } = get();
+        const cardIds = currentOrder.filter((c): c is Card => c !== null).map((c) => c.id);
+        if (cardIds.length < 5) return;
+        const newPreset: DeckPreset = { name: name.slice(0, 20) || `Preset ${deckPresets.length + 1}`, cardIds };
+        set({ deckPresets: [...deckPresets.slice(0, 4), newPreset] }); // max 5
+    },
+
+    loadPreset: (index) => {
+        const { deckPresets, playerDeck, maxEnergy } = get();
+        const preset = deckPresets[index];
+        if (!preset) return;
+        const allCards = [...CARDS];
+        const cards = preset.cardIds
+            .map((id) => allCards.find((c) => c.id === id))
+            .filter((c): c is Card => !!c);
+        // Validate energy budget
+        const totalCost = cards.reduce((s, c) => s + c.energyCost, 0);
+        if (totalCost > maxEnergy) return; // preset no longer valid for this character
+        const newOrder: (Card | null)[] = [null, null, null, null, null];
+        cards.slice(0, 5).forEach((c, i) => { newOrder[i] = c; });
+        set({ currentOrder: newOrder });
+    },
+
+    deletePreset: (index) => {
+        const { deckPresets } = get();
+        set({ deckPresets: deckPresets.filter((_, i) => i !== index) });
+    },
     setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency }),
 
     setOpponentCharacterFromServer: (charId) => {
@@ -236,7 +299,7 @@ export const useGameStore = create<GameState>()(
     },
 
     finishRound: () => {
-        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak } = get();
+        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, matchId, opponentCharacter } = get();
         if (!precomputedRound) return;
 
         const totalPlayerKnock = precomputedRound.reduce((s, r) => s + r.playerKnock, 0);
@@ -285,6 +348,22 @@ export const useGameStore = create<GameState>()(
                 newWinStreak = 0;
             }
         }
+        const newMaxWinStreak = Math.max(maxWinStreak, newWinStreak);
+
+        const newMatchHistory = isMatchEnd
+            ? [
+                {
+                    id: matchId ?? `AO-${Date.now()}`,
+                    date: new Date().toISOString(),
+                    opponentCharId: opponentCharacter?.id ?? "unknown",
+                    outcome: matchWon ? ("win" as const) : ("loss" as const),
+                    pointsEarned: earned,
+                    playerRoundsWon: pWon,
+                    opponentRoundsWon: oWon,
+                },
+                ...matchHistory,
+              ].slice(0, 50) // keep last 50
+            : matchHistory;
 
         set({
             currentRoundResult: result,
@@ -294,12 +373,14 @@ export const useGameStore = create<GameState>()(
             playerPoints: playerPoints + earned,
             pointsThisRound: earned,
             precomputedRound: null, // consumed — second calls are now no-ops
+            matchHistory: newMatchHistory,
             ...(isMatchEnd && {
                 matchesPlayed: matchesPlayed + 1,
                 matchesWon: matchWon ? matchesWon + 1 : matchesWon,
                 matchesLost: matchLost ? matchesLost + 1 : matchesLost,
                 winStreak: newWinStreak,
                 lossStreak: newLossStreak,
+                maxWinStreak: newMaxWinStreak,
             }),
         });
     },
@@ -354,6 +435,10 @@ export const useGameStore = create<GameState>()(
         matchesLost: state.matchesLost,
         winStreak: state.winStreak,
         lossStreak: state.lossStreak,
+        maxWinStreak: state.maxWinStreak,
+        matchHistory: state.matchHistory,
+        playerName: state.playerName,
+        deckPresets: state.deckPresets,
       }),
     }
   )

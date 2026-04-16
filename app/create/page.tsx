@@ -55,6 +55,7 @@ export default function CreateMatch() {
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
+  const setWager = useGameStore((s) => s.setWager);
   const { address } = useAccount();
 
   useEffect(() => {
@@ -220,7 +221,10 @@ export default function CreateMatch() {
       </div>
 
       {showWager && (
-        <WagerModal onConfirmed={() => { setShowWager(false); router.push("/ready"); }} onSkip={() => { setShowWager(false); router.push("/ready"); }} />
+        <WagerModal
+          onConfirmed={() => { setShowWager(false); router.push("/ready"); }}
+          onSkip={() => { setWager(false, null); setShowWager(false); router.push("/ready"); }}
+        />
       )}
     </div>
   );

@@ -132,6 +132,7 @@ export default function TournamentPage() {
   const { address } = useAccount();
   const [rank, setRank] = useState<number | null>(null);
   const [points, setPoints] = useState<number | null>(null);
+  const [bracketPlayers, setBracketPlayers] = useState<{ address: string; points: number }[]>([]);
   const countdown = useCountdown();
 
   useEffect(() => {
@@ -141,10 +142,21 @@ export default function TournamentPage() {
       const h = document.body.clientHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
       wrapRef.current.style.transform = `scale(${s})`;
+      wrapRef.current.style.transformOrigin = "top center";
     };
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
+  }, []);
+
+  // Fetch top 16 for bracket
+  useEffect(() => {
+    fetch("/api/leaderboard?tab=ranked&limit=16")
+      .then((r) => r.json())
+      .then((data: { players: { address: string; points: number }[] }) => {
+        setBracketPlayers(data.players ?? []);
+      })
+      .catch(() => { /* ignore */ });
   }, []);
 
   // Fetch the player's current rank if connected
@@ -167,7 +179,7 @@ export default function TournamentPage() {
   const qualified = rank !== null && rank <= SPOTS;
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
 
       {/* Background */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
@@ -179,7 +191,7 @@ export default function TournamentPage() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,5,5,0.7) 0%, rgba(5,5,5,0.4) 40%, rgba(5,5,5,0.85) 100%)" }} />
       </div>
 
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top center", position: "relative", zIndex: 1, overflow: "hidden" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, minHeight: DESIGN_H, height: "auto", transformOrigin: "top center", position: "relative", zIndex: 1 }}>
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
@@ -329,6 +341,103 @@ export default function TournamentPage() {
             </button>
           </div>
         </div>
+
+      {/* ── Bracket Section ── */}
+      <div style={{ position: "absolute", left: 0, right: 0, top: 820, padding: "0 80px 80px" }}>
+        {/* Section header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
+          <div style={{ flex: 1, height: 1, background: "rgba(86,164,203,0.15)" }} />
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, color: "#56a4cb", textTransform: "uppercase" }}>THIS WEEK&apos;S BRACKET</div>
+          <div style={{ flex: 1, height: 1, background: "rgba(86,164,203,0.15)" }} />
+        </div>
+
+        {/* Round labels */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 0, marginBottom: 12 }}>
+          {["ROUND OF 16", "QUARTERFINALS", "SEMIFINALS", "FINAL"].map((label) => (
+            <div key={label} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase" }}>{label}</div>
+          ))}
+        </div>
+
+        {/* Bracket — seed pairing: 1v16, 2v15, … 8v9 */}
+        <div style={{ display: "flex", gap: 0, alignItems: "stretch", overflowX: "auto", paddingBottom: 8 }}>
+          {/* R16 — 8 matches */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+            {Array.from({ length: 8 }).map((_, i) => {
+              const top = bracketPlayers[i];
+              const bot = bracketPlayers[15 - i];
+              const isMe = (p?: { address: string }) => address && p && p.address.toLowerCase() === address.toLowerCase();
+              return (
+                <div key={i} style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6, overflow: "hidden" }}>
+                  {[top, bot].map((p, j) => (
+                    <div key={j} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                      background: isMe(p) ? "rgba(86,164,203,0.12)" : "transparent",
+                      borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#475569", width: 18, textAlign: "right" }}>#{p ? (i + (j === 0 ? 1 : 16 - i)) : "—"}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: isMe(p) ? "#b9e7f4" : p ? "#94a3b8" : "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                        {p ? `${p.address.slice(0, 6)}…${p.address.slice(-4)}` : "TBD"}
+                      </span>
+                      {p && <span style={{ fontSize: 10, color: "#56a4cb", fontWeight: 700 }}>{p.points.toLocaleString()}</span>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Arrow connector */}
+          <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 18 }}>›</div>
+
+          {/* QF — 4 slots */}
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{ background: "rgba(15,23,42,0.4)", border: "1px dashed rgba(86,164,203,0.1)", borderRadius: 6, overflow: "hidden" }}>
+                {[0, 1].map((j) => (
+                  <div key={j} style={{ padding: "8px 12px", borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                    <span style={{ fontSize: 11, color: "#334155", fontFamily: "monospace" }}>TBD</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 18 }}>›</div>
+
+          {/* SF — 2 slots */}
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} style={{ background: "rgba(15,23,42,0.4)", border: "1px dashed rgba(86,164,203,0.1)", borderRadius: 6, overflow: "hidden" }}>
+                {[0, 1].map((j) => (
+                  <div key={j} style={{ padding: "8px 12px", borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                    <span style={{ fontSize: 11, color: "#334155", fontFamily: "monospace" }}>TBD</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 18 }}>›</div>
+
+          {/* Final — 1 slot */}
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
+            <div style={{ background: "rgba(251,204,92,0.06)", border: "1px dashed rgba(251,204,92,0.2)", borderRadius: 6, overflow: "hidden" }}>
+              {[0, 1].map((j) => (
+                <div key={j} style={{ padding: "10px 12px", borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none", display: "flex", alignItems: "center", gap: 8 }}>
+                  {j === 0 && <span style={{ fontSize: 13 }}>🏆</span>}
+                  <span style={{ fontSize: 11, color: "#475569", fontFamily: "monospace" }}>TBD</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {bracketPlayers.length === 0 && (
+          <div style={{ textAlign: "center", padding: "24px", color: "#334155", fontSize: 12 }}>
+            No ranked matches yet — bracket forms when players compete.
+          </div>
+        )}
+      </div>
 
       </div>
 

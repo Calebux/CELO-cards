@@ -89,9 +89,16 @@ export default function Loadout() {
     playerRoundsWon,
     opponentRoundsWon,
     setPrecomputedFromServer,
+    deckPresets,
+    savePreset,
+    loadPreset,
+    deletePreset,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const [showPresets, setShowPresets] = useState(false);
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [presetName, setPresetName] = useState("");
 
   const currentFilter = TABS[activeTab].filter;
   const accentColor = TYPE_COLORS[currentFilter];
@@ -529,8 +536,68 @@ export default function Loadout() {
             }}>DECK LOADOUT</span>
           </div>
 
-          {/* Energy bar */}
-          <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Energy bar + Preset buttons */}
+          <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Preset controls */}
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {/* Save preset */}
+                {isOrderComplete && !savingPreset && (
+                  <button
+                    onClick={() => { setSavingPreset(true); setPresetName(""); setShowPresets(false); }}
+                    style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 5, padding: "4px 10px", color: "#4ade80", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                  >SAVE</button>
+                )}
+                {/* Load presets */}
+                {deckPresets.length > 0 && (
+                  <button
+                    onClick={() => { setShowPresets((v) => !v); setSavingPreset(false); }}
+                    style={{ background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: "4px 10px", color: "#56a4cb", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                  >PRESETS ({deckPresets.length})</button>
+                )}
+              </div>
+
+              {/* Save preset input */}
+              {savingPreset && (
+                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 100, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}>Save Preset</div>
+                  <input
+                    autoFocus
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder="Preset name…"
+                    maxLength={20}
+                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: "6px 10px", color: "#f1f5f9", fontSize: 12, outline: "none" }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { savePreset(presetName); setSavingPreset(false); }
+                      if (e.key === "Escape") setSavingPreset(false);
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => { savePreset(presetName); setSavingPreset(false); }} style={{ flex: 1, background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.35)", borderRadius: 5, padding: "6px", color: "#4ade80", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>SAVE</button>
+                    <button onClick={() => setSavingPreset(false)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, padding: "6px 10px", color: "#64748b", fontSize: 11, cursor: "pointer" }}>✕</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Preset list dropdown */}
+              {showPresets && (
+                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 100, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Saved Presets</div>
+                  {deckPresets.map((preset, idx) => (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0" }}>{preset.name || `Preset ${idx + 1}`}</div>
+                        <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{preset.cardIds.length} cards</div>
+                      </div>
+                      <button onClick={() => { loadPreset(idx); setShowPresets(false); }} style={{ background: "rgba(86,164,203,0.12)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4, padding: "4px 10px", color: "#56a4cb", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>LOAD</button>
+                      <button onClick={() => deletePreset(idx)} style={{ background: "none", border: "none", color: "#475569", fontSize: 14, cursor: "pointer", padding: "2px" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
               ⚡ {usedEnergy} / {maxEnergy}
             </span>
