@@ -430,10 +430,11 @@ export default function ActionOrderLandingPage() {
             <img className="ko-bg-image"
               src="/new-assets/landing-hero.png"
               alt="background" />
+            {/* Dark overlay so UI elements stay readable over the image */}
+            <div style={{ position: "absolute", inset: 0, background: "rgba(5,8,18,0.55)", zIndex: 1, pointerEvents: "none" }} />
 
-            <div className="ko-logo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ fontWeight: 900, fontSize: 38, lineHeight: "1.1", letterSpacing: "-1.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 30px rgba(185,231,244,0.6)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
-            </div>
+            {/* No text logo — the bg image already has ACTION ORDER */}
+            <div className="ko-logo-wrap" />
 
 
             <div className="ko-left-tab" />
