@@ -110,34 +110,6 @@ export default function ActionOrderLandingPage() {
             object-fit: cover;
           }
 
-          .ko-enter-banner {
-            position: absolute;
-            left: 50%;
-            top: 181px;
-            transform: translateX(-50%);
-            width: 400px;
-            height: 122px;
-            z-index: 10;
-            overflow: hidden;
-          }
-          .ko-enter-banner img {
-            position: absolute;
-            width: 103.14%;
-            height: 192.7%;
-            left: -3.11%;
-            top: -43.26%;
-          }
-          .ko-enter-label {
-            position: absolute;
-            left: 619px;
-            top: 228px;
-            font-size: 24px;
-            font-weight: 800;
-            color: #f2d7b5;
-            white-space: nowrap;
-            z-index: 20;
-            letter-spacing: 1px;
-          }
 
           .ko-left-tab {
             position: absolute;
@@ -463,8 +435,6 @@ export default function ActionOrderLandingPage() {
               <div style={{ fontWeight: 900, fontSize: 38, lineHeight: "1.1", letterSpacing: "-1.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 30px rgba(185,231,244,0.6)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
             </div>
 
-            <div className="ko-enter-banner" />
-            <span className="ko-enter-label">ENTER THE ORDER</span>
 
             <div className="ko-left-tab" />
 
