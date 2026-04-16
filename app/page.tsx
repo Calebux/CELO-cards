@@ -423,15 +423,15 @@ export default function ActionOrderLandingPage() {
           }
         `}</style>
 
-      <div style={{ width: "100vw", minHeight: "100vh", overflowX: "hidden", overflowY: "auto", backgroundColor: "#0a0f1c" }}>
-        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ position: "relative", transformOrigin: "top left" }}>
+      <div style={{ width: "100vw", minHeight: "100vh", overflowX: "hidden", overflowY: "auto", backgroundColor: "#0a0f1c", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ position: "relative", transformOrigin: "top center" }}>
           <WalletBadge />
           <div className="ko-land-page">
             <img className="ko-bg-image"
               src="/new-assets/landing-hero.png"
               alt="background" />
-            {/* Dark overlay so UI elements stay readable over the image */}
-            <div style={{ position: "absolute", inset: 0, background: "rgba(5,8,18,0.55)", zIndex: 1, pointerEvents: "none" }} />
+            {/* Gradient overlay — darker on sides for UI readability, open in centre to show fighters */}
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(5,8,18,0.78) 0%, rgba(5,8,18,0.25) 22%, rgba(5,8,18,0.25) 78%, rgba(5,8,18,0.78) 100%)", zIndex: 1, pointerEvents: "none" }} />
 
             {/* No text logo — the bg image already has ACTION ORDER */}
             <div className="ko-logo-wrap" />
