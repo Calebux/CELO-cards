@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useGameStore } from './lib/gameStore';
 import { WalletSection } from './components/WalletSection';
@@ -11,6 +11,14 @@ const DESIGN_H = 823;
 export default function ActionOrderLandingPage() {
   const playerPoints = useGameStore((s) => s.playerPoints);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetch_ = () => fetch("/api/online").then(r => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
+    fetch_();
+    const id = setInterval(fetch_, 20_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const scale = () => {
@@ -206,6 +214,24 @@ export default function ActionOrderLandingPage() {
               <WalletSection />
             </div>
 
+            {/* ── G$ Claim Banner ──────────────────────────────────── */}
+            <Link href="/profile" style={{
+              position:"absolute", left:40, top:72, width:180, zIndex:15,
+              display:"flex", alignItems:"center", gap:8,
+              padding:"7px 14px",
+              background:"linear-gradient(135deg, rgba(0,197,142,0.18), rgba(0,197,142,0.06))",
+              border:"1px solid rgba(0,197,142,0.5)",
+              borderRadius:6, textDecoration:"none",
+              boxShadow:"0 0 12px rgba(0,197,142,0.2)",
+              animation:"ko-dot-pulse 2.5s ease-in-out infinite",
+            }}>
+              <span style={{ fontSize:14 }}>🌱</span>
+              <div>
+                <div style={{ fontSize:8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
+                <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
+              </div>
+            </Link>
+
             {/* ── Left Nav ─────────────────────────────────────────── */}
             <Link className="ko-nav-btn ko-btn-create" href="/create">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -242,6 +268,17 @@ export default function ActionOrderLandingPage() {
               <div style={{ display:"flex", flexDirection:"column" }}>
                 <span className="ko-points-label">Total Points</span>
                 <span className="ko-points-value">{playerPoints.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Live player count — bottom right */}
+            <div style={{ position:"absolute", right:40, bottom:32, zIndex:15, display:"flex", alignItems:"center", gap:10, padding:"10px 18px", background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:8, backdropFilter:"blur(8px)" }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 8px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite", flexShrink:0 }} />
+              <div style={{ display:"flex", flexDirection:"column" }}>
+                <span style={{ fontSize:7, fontWeight:700, letterSpacing:2, color:"#4ade80", textTransform:"uppercase", lineHeight:1 }}>Playing Now</span>
+                <span style={{ fontSize:18, fontWeight:900, color:"#4ade80", letterSpacing:-0.5, lineHeight:1.4 }}>
+                  {onlineCount !== null ? onlineCount.toLocaleString() : "—"}
+                </span>
               </div>
             </div>
 

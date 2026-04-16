@@ -16,6 +16,8 @@ export interface SlotContext {
     playerTotalKnock: number;    // running total before this slot (for Finisher)
     opponentTotalKnock: number;  // running total before this slot
     slotIndex?: number;          // 0-based slot position (for Riven passive)
+    playerComboStreak?: number;  // consecutive slots won by player going into this slot
+    opponentComboStreak?: number;
 }
 
 export function charToCombat(c: Character): CombatChar {
@@ -67,6 +69,12 @@ export interface SlotResult {
     effect?: string;
     nextOpponentKnockDebuff?: number;
     nextPlayerKnockDebuff?: number;
+    isCrit?: boolean;             // player landed a crit
+    isOpponentCrit?: boolean;     // opponent landed a crit
+    playerComboBonus?: number;    // bonus knock player received from combo
+    opponentComboBonus?: number;
+    playerComboStreak?: number;   // streak after this slot resolves
+    opponentComboStreak?: number;
 }
 
 export function resolveSlot(
@@ -254,6 +262,35 @@ export function resolveSlot(
     if (c.player.charId === "zane" && playerCard.type === "strike" && typeAdv === "win") playerKnock += 2;
     if (c.opponent.charId === "zane" && opponentCard.type === "strike" && typeAdv === "lose") opponentKnock += 2;
 
+    // ── Critical hits (based on priority stat) ────────────────────────────────
+    // Crit chance = 8% + priorityStat * 0.07% (max ~15% at priorityStat=100)
+    const playerCritChance = 0.08 + (c.player.priorityBonus * 0.0007);
+    const opponentCritChance = 0.08 + (c.opponent.priorityBonus * 0.0007);
+    const isCrit = winner === "player" && Math.random() < playerCritChance;
+    const isOpponentCrit = winner === "opponent" && Math.random() < opponentCritChance;
+    if (isCrit) {
+        playerKnock = Math.round(playerKnock * 2);
+        description += " [CRITICAL!]";
+    }
+    if (isOpponentCrit) {
+        opponentKnock = Math.round(opponentKnock * 2);
+    }
+
+    // ── Combo streak bonus: 3+ consecutive wins → +3 knock ───────────────
+    const playerStreak = c.playerComboStreak ?? 0;
+    const opponentStreak = c.opponentComboStreak ?? 0;
+    let playerComboBonus = 0;
+    let opponentComboBonus = 0;
+    if (playerStreak >= 3 && winner === "player") {
+        playerComboBonus = 3;
+        playerKnock += playerComboBonus;
+        description += " [COMBO!]";
+    }
+    if (opponentStreak >= 3 && winner === "opponent") {
+        opponentComboBonus = 3;
+        opponentKnock += opponentComboBonus;
+    }
+
     // ── Recalculate winner after all modifiers ────────────────────────────
     if (playerKnock > opponentKnock) winner = "player";
     else if (opponentKnock > playerKnock) winner = "opponent";
@@ -283,6 +320,10 @@ export function resolveSlot(
         effect,
         nextOpponentKnockDebuff: nextOpponentKnockDebuff || undefined,
         nextPlayerKnockDebuff: nextPlayerKnockDebuff || undefined,
+        isCrit: isCrit || undefined,
+        isOpponentCrit: isOpponentCrit || undefined,
+        playerComboBonus: playerComboBonus || undefined,
+        opponentComboBonus: opponentComboBonus || undefined,
     };
 }
 
@@ -363,6 +404,8 @@ export function resolveRound(
     let totalOpponentKnock = 0;
     let nextPlayerKnockDebuff = 0;
     let nextOpponentKnockDebuff = 0;
+    let playerStreak = 0;
+    let opponentStreak = 0;
 
     for (let i = 0; i < 5; i++) {
         const result = resolveSlot(playerOrder[i], opponentOrder[i], {
@@ -373,12 +416,17 @@ export function resolveRound(
             playerTotalKnock: totalPlayerKnock,
             opponentTotalKnock: totalOpponentKnock,
             slotIndex: i,
+            playerComboStreak: playerStreak,
+            opponentComboStreak: opponentStreak,
         });
         slots.push(result);
         totalPlayerKnock += result.playerKnock;
         totalOpponentKnock += result.opponentKnock;
         nextPlayerKnockDebuff = result.nextPlayerKnockDebuff ?? 0;
         nextOpponentKnockDebuff = result.nextOpponentKnockDebuff ?? 0;
+        if (result.winner === "player") { playerStreak++; opponentStreak = 0; }
+        else if (result.winner === "opponent") { opponentStreak++; playerStreak = 0; }
+        else { playerStreak = 0; opponentStreak = 0; }
     }
 
     const roundWinner: "player" | "opponent" | "draw" =

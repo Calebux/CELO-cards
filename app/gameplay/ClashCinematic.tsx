@@ -99,6 +99,10 @@ export const CLASH_STYLES = `
     60% { transform: translateX(-4px) rotate(-1deg); }
     80% { transform: translateX(4px) rotate(1deg); }
   }
+  @keyframes critPop {
+    from { transform: translateX(-50%) scale(0.5); opacity: 0; }
+    to   { transform: translateX(-50%) scale(1);   opacity: 1; }
+  }
 `;
 
 function getEffectLabel(effect: string): { label: string; color: string } {

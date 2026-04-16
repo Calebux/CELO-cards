@@ -64,6 +64,10 @@ interface GameState {
     playerRole: "host" | "joiner" | null;
     setPlayerRole: (role: "host" | "joiner" | null) => void;
 
+    // VS House (AI) mode — skips lobby/ready
+    vsBot: boolean;
+    setVsBot: (v: boolean) => void;
+
     // Player identity (Celo wallet address)
     playerAddress: string | null;
 
@@ -136,6 +140,8 @@ export const useGameStore = create<GameState>()(
     setMatchId: (id) => set({ matchId: id }),
     playerRole: null,
     setPlayerRole: (role) => set({ playerRole: role }),
+    vsBot: false,
+    setVsBot: (v) => set({ vsBot: v }),
     playerAddress: null,
     wagerActive: false,
     wagerTxHash: null,
