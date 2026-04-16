@@ -456,15 +456,33 @@ export default function ActionOrderLandingPage() {
           <WalletBadge />
           <div className="ko-land-page">
             <img className="ko-bg-image"
-              src="/asset 1.webp"
+              src="/new-assets/landing-hero.png"
               alt="background" />
 
-            <div className="ko-logo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ fontWeight: 900, fontSize: 38, lineHeight: "1.1", letterSpacing: "-1.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 30px rgba(185,231,244,0.6)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
-            </div>
+            <div className="ko-logo-wrap" />
 
             <div className="ko-enter-banner" />
             <span className="ko-enter-label">ENTER THE ORDER</span>
+
+            {/* Centre video showcase */}
+            <div style={{
+              position: "absolute",
+              left: "50%",
+              transform: "translateX(-50%)",
+              top: 285,
+              width: 680,
+              zIndex: 5,
+              borderRadius: 8,
+              overflow: "hidden",
+              border: "1px solid rgba(86,164,203,0.2)",
+              boxShadow: "0 0 40px rgba(86,164,203,0.12)",
+            }}>
+              <video autoPlay loop muted playsInline style={{ width: "100%", display: "block" }}>
+                <source src="/new-assets/action-flying-kick.webm" type="video/webm" />
+              </video>
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(10,15,28,0.55) 0%, transparent 18%, transparent 82%, rgba(10,15,28,0.55) 100%)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(10,15,28,0.65) 0%, transparent 22%, transparent 78%, rgba(10,15,28,0.75) 100%)", pointerEvents: "none" }} />
+            </div>
 
             <div className="ko-left-tab" />
 
@@ -508,7 +526,7 @@ export default function ActionOrderLandingPage() {
 
             <div className="ko-news-card ko-news-card-1">
               <img className="ko-card-img"
-                src="/new addition/epic 1.webp"
+                src="/new-assets/fighters-energy.jpeg"
                 alt="Season 1: Order Ascension" />
               <div className="ko-card-title">
                 <p>SEASON 1: ORDER ASCENSION</p>
@@ -520,7 +538,7 @@ export default function ActionOrderLandingPage() {
 
             <div className="ko-news-card ko-news-card-2">
               <img className="ko-card-img"
-                src="/new addition/Whisk_a8bce35f81b3966850a4a44ff274fa0feg 1 (1).webp"
+                src="/new-assets/fighters-rooftop.jpeg"
                 alt="New Character Reveal" />
               <div className="ko-card-title">NEW CHARACTER REVEAL: KAZUMA, THE BLAZING SWORD</div>
             </div>

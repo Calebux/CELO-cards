@@ -7,10 +7,20 @@ import { useGameStore } from "../lib/gameStore";
 const OPPONENT_WARN_MS  = 60_000;  // show warning after 60s
 const OPPONENT_ABORT_MS = 90_000;  // allow exit after 90s
 
-const BG_IMAGE = "/new addition/kaira_lobby.webp";
-
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
+
+// Pair-specific lobby backgrounds — keyed by sorted "id1-id2"
+const PAIR_BG: Record<string, string> = {
+  "kenji-riven": "/new-assets/two-fighters-vs.png",
+  "kenji-elara": "/new-assets/lobby-clash.webm",
+  "elara-zane":  "/new-assets/lobby-vs-scene.webm",
+};
+
+function getPairBg(id1: string, id2: string): string {
+  const key = [id1, id2].sort().join("-");
+  return PAIR_BG[key] ?? "/new-assets/lobby-vs-scene.webm";
+}
 
 export default function Lobby() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -123,10 +133,21 @@ export default function Lobby() {
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top left", position: "relative" }}>
 
-        {/* Background */}
+        {/* Background — pair-specific when both fighters are known */}
         <div className="absolute inset-0">
-          <img src={BG_IMAGE} alt="" className="w-full h-full object-cover pointer-events-none" />
-          <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.92)" }} />
+          {(() => {
+            const bg = (player && opponent)
+              ? getPairBg(player.id, opponent.id)
+              : "/new-assets/lobby-vs-scene.webm";
+            return bg.endsWith(".webm") ? (
+              <video key={bg} autoPlay loop muted playsInline className="w-full h-full object-cover pointer-events-none">
+                <source src={bg} type="video/webm" />
+              </video>
+            ) : (
+              <img key={bg} src={bg} alt="" className="w-full h-full object-cover pointer-events-none" />
+            );
+          })()}
+          <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.88)" }} />
         </div>
 
         {/* Logo */}

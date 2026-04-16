@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
 
-const BG = "/new addition/gameplay landing page.webp";
+const BG = "/new-assets/two-fighters-vs.png";
 
 // Grey filler portraits for locked slots — use local assets so they never break
 const GREY_PORTRAITS = [

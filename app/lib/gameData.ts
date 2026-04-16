@@ -28,6 +28,7 @@ export interface Character {
     standingArt: string; // full-body standing image shown on select screen
     color: string;       // neon accent
     isLocked?: boolean;  // whether the character is selectable
+    finisherVideo?: string; // played on match-end win screen
 }
 
 // ── Characters ────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ export const CHARACTERS: Character[] = [
         standingArt: "/Two fighters/standing 2.webp",
         color: "#b9e7f4",
         isLocked: false,
+        finisherVideo: "/new-assets/action-green-spiral.webm",
     },
     {
         id: "kenji",
@@ -58,6 +60,7 @@ export const CHARACTERS: Character[] = [
         standingArt: "/Characters standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
         color: "#06a8f9",
         isLocked: false,
+        finisherVideo: "/new-assets/action-knight-attack.webm",
     },
     {
         id: "riven",
@@ -71,6 +74,7 @@ export const CHARACTERS: Character[] = [
         standingArt: "/Characters standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
         color: "#8c25f4",
         isLocked: false,
+        finisherVideo: "/new-assets/action-white-hair-blue.webm",
     },
     {
         id: "zane",
@@ -84,6 +88,7 @@ export const CHARACTERS: Character[] = [
         standingArt: "/Characters standing/Whisk_iznjzdmzmtoivgmw0yn3atytytz0qtl3ygz10cn.webp",
         color: "#f87171",
         isLocked: false,
+        finisherVideo: "/new-assets/action-flying-kick.webm",
     },
     {
         id: "elara",
@@ -97,6 +102,7 @@ export const CHARACTERS: Character[] = [
         standingArt: "/Two fighters/standing .webp",
         color: "#f906a8",
         isLocked: false,
+        finisherVideo: "/new-assets/action-solo-energy.webm",
     },
 ];
 

@@ -963,11 +963,17 @@ export default function Gameplay() {
           const won = roundWinner === "player";
           const accentColor = won ? "#06a8f9" : (opponent?.color || "#f906a8");
           const accentGlow  = won ? "rgba(6,168,249,0.5)" : `${opponent?.color || "#f906a8"}80`;
+          const winnerChar = won ? selectedCharacter : opponent;
+          const finisherVideo = winnerChar?.finisherVideo ?? "/new-assets/action-solo-burst.webm";
           return (
             <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {/* Background */}
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
-              <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
+              {/* Winner finisher video */}
+              <video key={finisherVideo} autoPlay loop muted playsInline
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.28, zIndex: -1, pointerEvents: "none" }}>
+                <source src={finisherVideo} type="video/webm" />
+              </video>
 
               {/* Centered layout — matches join page exactly */}
               <div style={{ position: "relative", width: 540 }}>
