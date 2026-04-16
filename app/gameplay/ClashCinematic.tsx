@@ -78,6 +78,7 @@ export const CLASH_STYLES = `
   @keyframes sparkFly4 { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(80px, 120px) scale(0); opacity:0; } }
   @keyframes sparkFly5 { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(130px,-60px) scale(0); opacity:0; } }
   @keyframes sparkFly6 { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(-120px,70px) scale(0); opacity:0; } }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   @keyframes cinematicIn  { from { opacity: 0; } to { opacity: 1; } }
   @keyframes cinematicOut { from { opacity: 1; } to { opacity: 0; } }
   @keyframes descriptionFade { 0% { opacity:0; transform:translateY(12px); } 100% { opacity:1; transform:translateY(0); } }

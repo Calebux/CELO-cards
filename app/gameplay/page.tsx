@@ -199,7 +199,7 @@ export default function Gameplay() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ winner: address, matchId, currency: wagerCurrency }),
       });
-      const data = await res.json() as { txHash?: string; error?: string };
+      const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");
       setPayoutTxHash(data.txHash ?? null);
       setPayoutState("done");
@@ -248,8 +248,9 @@ export default function Gameplay() {
   const displayOpponentHP = showResult && roundWinner === "player" ? 0 : opponentHP;
 
   const isMatchEnd = matchPhase === "match-end";
-  const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : "cUSD";
+  const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : wagerCurrency === "gdollar" ? "G$" : "cUSD";
   const payoutAmountDisplay = `${formatUnits(PAYOUT_AMOUNT, 18)} ${payoutTokenSymbol}`;
+  const isGDollar = wagerCurrency === "gdollar";
 
   if (!selectedCharacter || !opponentCharacter) {
     return (
@@ -801,25 +802,31 @@ export default function Gameplay() {
                           onClick={() => void handleClaimPayout()}
                           style={{
                             width: "100%", padding: "14px 0",
-                            background: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
-                            border: "1.5px solid #4ade80",
+                            background: isGDollar
+                              ? "linear-gradient(135deg, rgba(0,197,142,0.15), rgba(0,197,142,0.05))"
+                              : "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
+                            border: `1.5px solid ${isGDollar ? "#00C58E" : "#4ade80"}`,
                             borderRadius: 6, cursor: "pointer",
                             display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
                             fontFamily: "inherit",
                           }}
                         >
-                          <span className="material-icons" style={{ fontSize: 20, color: "#4ade80" }}>payments</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "#4ade80", textTransform: "uppercase", letterSpacing: 3 }}>
-                            Claim {payoutAmountDisplay}
+                          <span className="material-icons" style={{ fontSize: 20, color: isGDollar ? "#00C58E" : "#4ade80" }}>
+                            {isGDollar ? "stream" : "payments"}
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: isGDollar ? "#00C58E" : "#4ade80", textTransform: "uppercase", letterSpacing: 3 }}>
+                            {isGDollar ? "Stream G$ Winnings" : `Claim ${payoutAmountDisplay}`}
                           </span>
                         </button>
                       )}
                       {payoutState === "loading" && (
                         <div style={{ textAlign: "center", padding: "14px 0" }}>
-                          <span style={{ fontSize: 13, color: "#b9e7f4", letterSpacing: 1 }}>Sending payout…</span>
+                          <span style={{ fontSize: 13, color: isGDollar ? "#00C58E" : "#b9e7f4", letterSpacing: 1 }}>
+                            {isGDollar ? "Starting G$ stream via Superfluid…" : "Sending payout…"}
+                          </span>
                         </div>
                       )}
-                      {payoutState === "done" && (
+                      {payoutState === "done" && !isGDollar && (
                         <div style={{ textAlign: "center", padding: "14px 0" }}>
                           <span style={{ fontSize: 13, color: "#4ade80", letterSpacing: 0.5 }}>
                             ✓ {payoutAmountDisplay} sent!{" "}
@@ -827,6 +834,26 @@ export default function Gameplay() {
                               <span style={{ fontSize: 11, color: "#6b7280", wordBreak: "break-all" }}>
                                 tx: {payoutTxHash.slice(0, 14)}…
                               </span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {payoutState === "done" && isGDollar && (
+                        <div style={{ padding: "14px 16px", background: "rgba(0,197,142,0.08)", border: "1px solid rgba(0,197,142,0.35)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00C58E", boxShadow: "0 0 8px #00C58E", animation: "pulse 1.5s ease-in-out infinite" }} />
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#00C58E", letterSpacing: 0.5 }}>G$ streaming to your wallet</span>
+                          </div>
+                          <span style={{ fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
+                            {payoutAmountDisplay} flowing over 24h via Superfluid.{" "}
+                            {payoutTxHash && (
+                              <a
+                                href={`https://explorer.celo.org/mainnet/tx/${payoutTxHash}`}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ color: "#00C58E", textDecoration: "underline" }}
+                              >
+                                View stream ↗
+                              </a>
                             )}
                           </span>
                         </div>
