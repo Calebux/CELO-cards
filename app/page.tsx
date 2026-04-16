@@ -456,32 +456,33 @@ export default function ActionOrderLandingPage() {
           <WalletBadge />
           <div className="ko-land-page">
             <img className="ko-bg-image"
-              src="/new-assets/landing-hero.png"
+              src="/asset 1.webp"
               alt="background" />
 
-            <div className="ko-logo-wrap" />
+            <div className="ko-logo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontWeight: 900, fontSize: 38, lineHeight: "1.1", letterSpacing: "-1.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 30px rgba(185,231,244,0.6)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+            </div>
 
             <div className="ko-enter-banner" />
             <span className="ko-enter-label">ENTER THE ORDER</span>
 
-            {/* Centre video showcase */}
+            {/* Centre hero image */}
             <div style={{
               position: "absolute",
               left: "50%",
               transform: "translateX(-50%)",
-              top: 285,
-              width: 680,
+              top: 195,
+              width: 740,
               zIndex: 5,
-              borderRadius: 8,
+              borderRadius: 10,
               overflow: "hidden",
-              border: "1px solid rgba(86,164,203,0.2)",
-              boxShadow: "0 0 40px rgba(86,164,203,0.12)",
+              border: "1px solid rgba(86,164,203,0.18)",
+              boxShadow: "0 0 50px rgba(86,164,203,0.1)",
             }}>
-              <video autoPlay loop muted playsInline style={{ width: "100%", display: "block" }}>
-                <source src="/new-assets/action-flying-kick.webm" type="video/webm" />
-              </video>
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(10,15,28,0.55) 0%, transparent 18%, transparent 82%, rgba(10,15,28,0.55) 100%)", pointerEvents: "none" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(10,15,28,0.65) 0%, transparent 22%, transparent 78%, rgba(10,15,28,0.75) 100%)", pointerEvents: "none" }} />
+              <img src="/new-assets/landing-hero.png" alt="Action Order fighters"
+                style={{ width: "100%", display: "block", objectFit: "cover" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(10,15,28,0.6) 0%, transparent 15%, transparent 85%, rgba(10,15,28,0.6) 100%)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(10,15,28,0.5) 0%, transparent 25%, transparent 75%, rgba(10,15,28,0.7) 100%)", pointerEvents: "none" }} />
             </div>
 
             <div className="ko-left-tab" />
