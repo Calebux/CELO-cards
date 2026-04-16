@@ -228,13 +228,16 @@ export default function ActionOrderLandingPage() {
 
           .ko-btn-join      { left: 40px; top: 316px; }
           .ko-btn-story     { left: 40px; top: 372px; }
-          .ko-btn-community { left: 40px; top: 428px; }
+          .ko-btn-community   { left: 40px; top: 428px; }
+          .ko-btn-leaderboard { left: 40px; top: 484px; }
           .ko-btn-join .ko-btn-label,
           .ko-btn-story .ko-btn-label,
-          .ko-btn-community .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
+          .ko-btn-community .ko-btn-label,
+          .ko-btn-leaderboard .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
           .ko-btn-join .ko-btn-icon,
           .ko-btn-story .ko-btn-icon,
-          .ko-btn-community .ko-btn-icon { color: #56a4cb; }
+          .ko-btn-community .ko-btn-icon,
+          .ko-btn-leaderboard .ko-btn-icon { color: #56a4cb; }
 
           .ko-nav-btn:hover .ko-btn-label { opacity: 1; text-shadow: 0 0 8px rgba(185, 231, 244, 0.4); }
           .ko-nav-btn:hover .ko-btn-icon { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(86,164,203,0.8)); }
@@ -242,7 +245,7 @@ export default function ActionOrderLandingPage() {
           .ko-points-badge {
             position: absolute;
             left: 40px;
-            top: 484px;
+            top: 540px;
             width: 180px;
             height: 44px;
             z-index: 15;
@@ -484,6 +487,11 @@ export default function ActionOrderLandingPage() {
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
               <span className="ko-btn-label">COMMUNITY</span>
             </a>
+
+            <Link className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
+              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>
+              <span className="ko-btn-label">LEADERBOARD</span>
+            </Link>
 
             <div className="ko-points-badge">
               <span className="ko-points-icon">⚡</span>

@@ -19,3 +19,6 @@ tsconfig.tsbuildinfo
 artifacts/
 cache/
 .vercel
+
+# Leaderboard data (auto-generated)
+data/leaderboard.json

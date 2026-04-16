@@ -475,6 +475,18 @@ export default function Gameplay() {
     }
   };
 
+  // Record match result on leaderboard (fire-and-forget)
+  useEffect(() => {
+    if (matchPhase !== "match-end" || !address) return;
+    const won = playerRoundsWon > opponentRoundsWon;
+    void fetch("/api/leaderboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerAddress: address, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchPhase]);
+
   const handleBackToMenu = () => {
     playSound(isMatchEnd ? "gameOver" : "click");
     resetMatch();
