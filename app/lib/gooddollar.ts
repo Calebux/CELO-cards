@@ -19,7 +19,7 @@ export const STREAM_FLOW_RATE = PAYOUT_AMOUNT_GDOLLAR / STREAM_DURATION_SECS; //
 export const GDOLLAR_COLOR = "#00C58E";
 
 // GoodDollar UBIScheme — daily UBI claim (Celo mainnet)
-export const UBISCHEME_CONTRACT = "0xAACbaaB8571cbECEB46ba85B5981efDB8928545e" as `0x${string}`;
+export const UBISCHEME_CONTRACT = "0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1" as `0x${string}`;
 
 export const UBISCHEME_ABI = [
   {
