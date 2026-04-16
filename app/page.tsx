@@ -271,12 +271,12 @@ export default function ActionOrderLandingPage() {
               </div>
             </div>
 
-            {/* Live player count */}
-            <div style={{ position:"absolute", left:40, top:652, width:180, height:44, zIndex:15, display:"flex", alignItems:"center", gap:10, padding:"0 16px", background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:6 }}>
-              <div style={{ width:7, height:7, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 6px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite", flexShrink:0 }} />
+            {/* Live player count — bottom right */}
+            <div style={{ position:"absolute", right:40, bottom:32, zIndex:15, display:"flex", alignItems:"center", gap:10, padding:"10px 18px", background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:8, backdropFilter:"blur(8px)" }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 8px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite", flexShrink:0 }} />
               <div style={{ display:"flex", flexDirection:"column" }}>
-                <span style={{ fontSize:7, fontWeight:700, letterSpacing:1.5, color:"#4ade80", textTransform:"uppercase", lineHeight:1 }}>Playing Now</span>
-                <span style={{ fontSize:15, fontWeight:800, color:"#4ade80", letterSpacing:-0.5, lineHeight:1.5 }}>
+                <span style={{ fontSize:7, fontWeight:700, letterSpacing:2, color:"#4ade80", textTransform:"uppercase", lineHeight:1 }}>Playing Now</span>
+                <span style={{ fontSize:18, fontWeight:900, color:"#4ade80", letterSpacing:-0.5, lineHeight:1.4 }}>
                   {onlineCount !== null ? onlineCount.toLocaleString() : "—"}
                 </span>
               </div>
