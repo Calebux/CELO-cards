@@ -44,6 +44,7 @@ export default function Leaderboard() {
   const [tab, setTab] = useState<Tab>("casual");
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     const scale = () => {
@@ -58,15 +59,21 @@ export default function Leaderboard() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  useEffect(() => {
+  const loadLeaderboard = () => {
     setLoading(true);
+    setFetchError(false);
     void fetch(`/api/leaderboard?tab=${tab}&limit=50`)
       .then((r) => r.json())
       .then((data: { players: Player[] }) => {
         setPlayers(data.players ?? []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => { setLoading(false); setFetchError(true); });
+  };
+
+  useEffect(() => {
+    loadLeaderboard();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   return (
@@ -178,6 +185,12 @@ export default function Leaderboard() {
                       <div style={{ width: 30, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
                     </div>
                   ))}
+                </div>
+              ) : fetchError ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 340, gap: 12 }}>
+                  <span style={{ fontSize: 32 }}>⚠️</span>
+                  <p style={{ fontSize: 13, color: "#f87171", letterSpacing: 1 }}>Failed to load leaderboard</p>
+                  <button onClick={loadLeaderboard} style={{ background: "rgba(86,164,203,0.12)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 6, padding: "8px 20px", color: "#56a4cb", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}>RETRY</button>
                 </div>
               ) : players.length === 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 340, gap: 12 }}>

@@ -24,8 +24,25 @@ const SOUND_PATHS: Record<SoundName, string> = {
 const pool: Partial<Record<SoundName, HTMLAudioElement>> = {};
 
 let _muted = false;
+let _volume = 1.0; // 0–1
 let _bgAudio: HTMLAudioElement | null = null;
 let _bgPending = false; // startBgMusic() called before unlock
+
+// Load persisted sound prefs
+if (typeof window !== "undefined") {
+    try {
+        const saved = localStorage.getItem("ao-sound");
+        if (saved) {
+            const prefs = JSON.parse(saved) as { muted?: boolean; volume?: number };
+            if (typeof prefs.muted === "boolean") _muted = prefs.muted;
+            if (typeof prefs.volume === "number") _volume = Math.max(0, Math.min(1, prefs.volume));
+        }
+    } catch { /* ignore */ }
+}
+
+function _saveSoundPrefs() {
+    try { localStorage.setItem("ao-sound", JSON.stringify({ muted: _muted, volume: _volume })); } catch { /* ignore */ }
+}
 
 // ── Unlock on first user interaction ──────────────────────────────────────────
 // Play + immediately pause a silent clip to unlock the audio context.
@@ -62,10 +79,18 @@ if (typeof window !== "undefined") {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function isMuted() { return _muted; }
+export function getVolume() { return _volume; }
 
 export function setMuted(muted: boolean) {
     _muted = muted;
     if (_bgAudio) _bgAudio.muted = muted;
+    _saveSoundPrefs();
+}
+
+export function setVolume(v: number) {
+    _volume = Math.max(0, Math.min(1, v));
+    if (_bgAudio) _bgAudio.volume = _volume * 0.3; // bg at 30% of master
+    _saveSoundPrefs();
 }
 
 export function playSound(name: SoundName) {
@@ -81,7 +106,7 @@ export function playSound(name: SoundName) {
         }
         // Clone so we can overlap the same sound
         const clone = audio.cloneNode() as HTMLAudioElement;
-        clone.volume = name === "clash" ? 0.7 : 0.5;
+        clone.volume = (name === "clash" ? 0.7 : 0.5) * _volume;
         clone.play().catch(() => {/* autoplay policy – silently ignore */});
     } catch (_) { }
 }
@@ -91,7 +116,7 @@ function _startBgMusicNow() {
     try {
         _bgAudio = new Audio("/Sounds/intro sound.mp3");
         _bgAudio.loop = true;
-        _bgAudio.volume = 0.3;
+        _bgAudio.volume = 0.3 * _volume;
         _bgAudio.muted = _muted;
         _bgAudio.play().catch(() => { });
     } catch (_) { }
