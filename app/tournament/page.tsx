@@ -10,8 +10,31 @@ const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 const PRIZE_POOL = "500 CELO";
-const NEXT_TOURNAMENT = "MONDAY 00:00 UTC";
 const SPOTS = 16;
+
+function useCountdown() {
+  const [time, setTime] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const next = new Date(now);
+      // Find next Monday 00:00 UTC
+      const daysUntilMonday = (8 - now.getUTCDay()) % 7 || 7;
+      next.setUTCDate(now.getUTCDate() + daysUntilMonday);
+      next.setUTCHours(0, 0, 0, 0);
+      const diff = Math.max(0, next.getTime() - now.getTime());
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTime({ days: d, hours: h, minutes: m, seconds: s });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
 
 const HOW_IT_WORKS = [
   {
@@ -109,6 +132,7 @@ export default function TournamentPage() {
   const { address } = useAccount();
   const [rank, setRank] = useState<number | null>(null);
   const [points, setPoints] = useState<number | null>(null);
+  const countdown = useCountdown();
 
   useEffect(() => {
     const scale = () => {
@@ -191,17 +215,35 @@ export default function TournamentPage() {
           </div>
 
           {/* Key stats row */}
-          <div style={{ display: "flex", gap: 32, marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 32, marginTop: 8, alignItems: "flex-start" }}>
             {[
               { label: "PRIZE POOL", value: PRIZE_POOL, color: "#4ade80" },
               { label: "SPOTS", value: `TOP ${SPOTS}`, color: "#56a4cb" },
-              { label: "NEXT BRACKET", value: NEXT_TOURNAMENT, color: "#f59e0b" },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>{label}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color, letterSpacing: 0.5, marginTop: 2 }}>{value}</div>
               </div>
             ))}
+            {/* Live countdown */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 2 }}>NEXT BRACKET IN</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+                {[
+                  { v: countdown.days, label: "D" },
+                  { v: countdown.hours, label: "H" },
+                  { v: countdown.minutes, label: "M" },
+                  { v: countdown.seconds, label: "S" },
+                ].map(({ v, label }) => (
+                  <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#f59e0b", letterSpacing: -1, lineHeight: 1, minWidth: 28, textAlign: "center" }}>
+                      {String(v).padStart(2, "0")}
+                    </div>
+                    <div style={{ fontSize: 8, fontWeight: 700, color: "#6b7280", letterSpacing: 1 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

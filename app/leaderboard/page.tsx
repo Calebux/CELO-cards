@@ -161,8 +161,17 @@ export default function Leaderboard() {
             {/* Table rows */}
             <div style={{ minHeight: 340, maxHeight: 340, overflowY: "auto" }}>
               {loading ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 340 }}>
-                  <span className="material-icons" style={{ color: "#56a4cb", fontSize: 28, animation: "spin 1s linear infinite" }}>sync</span>
+                <div>
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "48px 1fr 90px 60px 60px 70px", gap: 0, padding: "12px 16px", borderBottom: "1px solid rgba(30,41,59,0.6)" }}>
+                      <div style={{ width: 24, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
+                      <div style={{ width: `${60 + (i % 3) * 12}%`, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
+                      <div style={{ width: 44, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
+                      <div style={{ width: 20, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
+                      <div style={{ width: 20, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
+                      <div style={{ width: 30, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
+                    </div>
+                  ))}
                 </div>
               ) : players.length === 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 340, gap: 12 }}>
@@ -261,6 +270,10 @@ export default function Leaderboard() {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes shimmer {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
       `}</style>
     </div>
   );
