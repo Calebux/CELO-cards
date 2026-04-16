@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType } from "../lib/gameData";
+import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/loadout 001.webp";
@@ -20,7 +21,7 @@ const TABS: { label: string; filter: CardType | "all" }[] = [
 
 // Type accent colours
 const TYPE_COLORS: Record<string, string> = {
-  all: "#5abfe6",
+  all: "#56a4cb",
   strike: "#f97316",
   defense: "#3b82f6",
   control: "#a855f7",
@@ -32,7 +33,7 @@ const SPECIAL_DEFENSE_ID = "reversal_edge";
 
 function CardTooltip({ card }: { card: Card }) {
   const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
-  const col = typeColors[card.type] ?? "#5abfe6";
+  const col = typeColors[card.type] ?? "#56a4cb";
   return (
     <div style={{
       position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
@@ -85,6 +86,8 @@ export default function Loadout() {
     matchId,
     playerRole,
     roundNumber,
+    playerRoundsWon,
+    opponentRoundsWon,
     setPrecomputedFromServer,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
@@ -178,23 +181,39 @@ export default function Loadout() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top left", position: "relative" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top center", position: "relative" }}>
 
         {/* Background */}
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
-        {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+        {/* ── Top Bar ── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
+          {/* Logo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 4, height: 28, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+          </div>
+
+          {/* Round + score */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 14px", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 2 }}>Round {roundNumber}</span>
+            <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.12)" }} />
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#56a4cb", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>{playerRoundsWon}</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>—</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>{opponentRoundsWon}</span>
+          </div>
+
+          {/* Wallet */}
+          <WalletSection />
         </div>
 
         {/* Left character panel — shows selected character's standing art */}
         <div style={{
-          position: "absolute", left: 109, top: 120, width: 326, height: 636,
+          position: "absolute", left: 109, top: 68, width: 326, height: 636,
           overflow: "hidden", pointerEvents: "none",
           borderRadius: 6,
-          border: `1.5px solid ${selectedCharacter?.color || "#5abfe6"}40`,
-          boxShadow: `0 0 28px ${selectedCharacter?.color || "#5abfe6"}18`,
+          border: `1.5px solid ${selectedCharacter?.color || "#56a4cb"}40`,
+          boxShadow: `0 0 28px ${selectedCharacter?.color || "#56a4cb"}18`,
         }}>
           {selectedCharacter && (
             <>
@@ -235,7 +254,7 @@ export default function Loadout() {
         {/* ═══════════════ NEW Card Selection Panel ═══════════════ */}
         <div style={{
           position: "absolute",
-          left: 480, top: 60,
+          left: 480, top: 68,
           width: 920, height: 535,
           display: "flex", flexDirection: "column",
         }}>
@@ -498,31 +517,31 @@ export default function Loadout() {
           <div style={{
             position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)",
             backgroundColor: "#0f1a2e",
-            border: "2px solid #5abfe6",
+            border: "2px solid #56a4cb",
             borderRadius: 6,
             padding: "4px 24px",
             boxShadow: "0 0 12px rgba(90, 191, 230, 0.5)",
           }}>
             <span style={{
               fontSize: 14, fontWeight: 800, textTransform: "uppercase",
-              letterSpacing: 3, color: "#5abfe6",
+              letterSpacing: 3, color: "#56a4cb",
               textShadow: "0 0 8px rgba(90,191,230,0.6)",
             }}>DECK LOADOUT</span>
           </div>
 
           {/* Energy bar */}
           <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#5abfe6", textTransform: "uppercase", letterSpacing: 1 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
               ⚡ {usedEnergy} / {maxEnergy}
             </span>
             <div style={{ width: 120, height: 8, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(90,191,230,0.3)", overflow: "hidden" }}>
               <div style={{
                 height: "100%",
                 width: `${Math.min(100, (usedEnergy / maxEnergy) * 100)}%`,
-                backgroundColor: usedEnergy >= maxEnergy ? "#ef4444" : "#5abfe6",
+                backgroundColor: usedEnergy >= maxEnergy ? "#ef4444" : "#56a4cb",
                 borderRadius: 4,
                 transition: "width 0.3s ease, background-color 0.2s",
-                boxShadow: `0 0 8px ${usedEnergy >= maxEnergy ? "#ef4444" : "#5abfe6"}80`,
+                boxShadow: `0 0 8px ${usedEnergy >= maxEnergy ? "#ef4444" : "#56a4cb"}80`,
               }} />
             </div>
           </div>
@@ -541,7 +560,7 @@ export default function Loadout() {
                     cursor: card ? "pointer" : "default",
                     position: "relative", overflow: "hidden",
                     backgroundColor: card ? "transparent" : "rgba(0, 0, 0, 0.4)",
-                    border: card ? "2px solid #5abfe6" : "2px solid rgba(90, 191, 230, 0.2)",
+                    border: card ? "2px solid #56a4cb" : "2px solid rgba(90, 191, 230, 0.2)",
                     boxShadow: card
                       ? "0 0 16px rgba(90,191,230,0.4), inset 0 0 8px rgba(90,191,230,0.2)"
                       : "inset 0 0 10px rgba(0,0,0,0.5)",
@@ -607,10 +626,10 @@ export default function Loadout() {
             <div style={{
               width: 56, height: 56, borderRadius: "50%",
               border: "4px solid rgba(90,191,230,0.3)",
-              borderTopColor: "#5abfe6",
+              borderTopColor: "#56a4cb",
               animation: "spin 0.9s linear infinite",
             }} />
-            <span style={{ fontSize: 20, fontWeight: 700, color: "#5abfe6", textTransform: "uppercase", letterSpacing: 3 }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 3 }}>
               Waiting for opponent...
             </span>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -622,7 +641,7 @@ export default function Loadout() {
           onClick={() => router.back()}
           className="ko-btn ko-btn-secondary"
           style={{
-            position: "absolute", left: 32, top: 32,
+            position: "absolute", left: 32, bottom: 24,
             padding: "8px 16px", zIndex: 20,
           }}
         >

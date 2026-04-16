@@ -1,0 +1,343 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { isMiniPay, formatAddress } from "../lib/minipay";
+
+const DESIGN_W = 1440;
+const DESIGN_H = 823;
+
+const PRIZE_POOL = "500 CELO";
+const SPOTS = 16;
+
+function useCountdown() {
+  const [time, setTime] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const next = new Date(now);
+      // Find next Monday 00:00 UTC
+      const daysUntilMonday = (8 - now.getUTCDay()) % 7 || 7;
+      next.setUTCDate(now.getUTCDate() + daysUntilMonday);
+      next.setUTCHours(0, 0, 0, 0);
+      const diff = Math.max(0, next.getTime() - now.getTime());
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTime({ days: d, hours: h, minutes: m, seconds: s });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
+
+const HOW_IT_WORKS = [
+  {
+    step: "01",
+    title: "PLAY RANKED MATCHES",
+    body: "Every ranked match you win earns you Points. Beat higher-ranked opponents for bonus multipliers. Losses cost fewer points than wins reward.",
+    icon: "⚔️",
+    color: "#56a4cb",
+  },
+  {
+    step: "02",
+    title: "REACH THE TOP 16",
+    body: "At the end of each week the leaderboard locks. The 16 players with the most ranked Points automatically qualify for that week's tournament.",
+    icon: "🏆",
+    color: "#f59e0b",
+  },
+  {
+    step: "03",
+    title: "FIGHT IN THE BRACKET",
+    body: "Qualified players are seeded into a single-elimination bracket. Matches run on Monday. Win your bracket match to advance — one loss and you're out.",
+    icon: "🎯",
+    color: "#a855f7",
+  },
+  {
+    step: "04",
+    title: "CLAIM YOUR PRIZE",
+    body: `The champion takes the prize pool. Payouts are sent automatically to your connected wallet. Top 4 finishers earn Glory Points that carry into the next season.`,
+    icon: "💰",
+    color: "#4ade80",
+  },
+];
+
+const RULES = [
+  "Top 16 ranked players qualify each week — no sign-up required",
+  "Bracket is single-elimination, best-of-1 per match",
+  "Matches are played live — failure to show forfeits the match",
+  "Prize pool is split: 1st 60% · 2nd 25% · 3rd–4th 7.5% each",
+  "Ranked leaderboard resets every Monday at 00:00 UTC",
+  "You must have a connected wallet to receive prize payouts",
+];
+
+function WalletSection() {
+  const { address, isConnected } = useAccount();
+  const base: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 10,
+    border: "1.5px solid #56a4cb", borderRadius: 6, padding: "8px 18px",
+    backdropFilter: "blur(10px)",
+    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
+    boxShadow: "0 0 16px rgba(86,164,203,0.3), inset 0 0 20px rgba(86,164,203,0.07)",
+  };
+
+  if (isMiniPay() && isConnected && address) {
+    return (
+      <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
+        <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+        <div>
+          <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>CELO WALLET</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>{formatAddress(address)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ConnectButton.Custom>
+      {({ account, chain, openConnectModal, openAccountModal, mounted }) => {
+        if (!mounted) return null;
+        const connected = !!(account && chain);
+        return (
+          <button onClick={connected ? openAccountModal : openConnectModal} style={{
+            ...base, cursor: "pointer", fontFamily: "inherit",
+            background: connected
+              ? "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))"
+              : "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",
+          }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#4ade80" : "#56a4cb", boxShadow: `0 0 6px ${connected ? "#4ade80" : "#56a4cb"}` }} />
+            <div>
+              <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
+                {connected ? "CELO WALLET" : "CONNECT"}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
+                {connected ? (account.displayName ?? formatAddress(account.address)) : "SIGN IN"}
+              </div>
+            </div>
+          </button>
+        );
+      }}
+    </ConnectButton.Custom>
+  );
+}
+
+export default function TournamentPage() {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { address } = useAccount();
+  const [rank, setRank] = useState<number | null>(null);
+  const [points, setPoints] = useState<number | null>(null);
+  const countdown = useCountdown();
+
+  useEffect(() => {
+    const scale = () => {
+      if (!wrapRef.current) return;
+      const w = document.body.clientWidth;
+      const h = document.body.clientHeight;
+      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
+      wrapRef.current.style.transform = `scale(${s})`;
+    };
+    scale();
+    window.addEventListener("resize", scale);
+    return () => window.removeEventListener("resize", scale);
+  }, []);
+
+  // Fetch the player's current rank if connected
+  useEffect(() => {
+    if (!address) return;
+    fetch("/api/leaderboard?type=ranked&limit=200")
+      .then((r) => r.json())
+      .then((data: { players: { address: string; points: number }[] }) => {
+        const idx = data.players?.findIndex(
+          (p) => p.address.toLowerCase() === address.toLowerCase()
+        );
+        if (idx !== -1 && idx !== undefined) {
+          setRank(idx + 1);
+          setPoints(data.players[idx].points);
+        }
+      })
+      .catch(() => {});
+  }, [address]);
+
+  const qualified = rank !== null && rank <= SPOTS;
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+
+      {/* Background */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
+        <video autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.12 }}>
+          <source src="/new-assets/lobby-vs-scene.webm" type="video/webm" />
+        </video>
+        {/* gradient overlays */}
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(86,164,203,0.06) 0%, transparent 70%)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,5,5,0.7) 0%, rgba(5,5,5,0.4) 40%, rgba(5,5,5,0.85) 100%)" }} />
+      </div>
+
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top center", position: "relative", zIndex: 1, overflow: "hidden" }}>
+
+        {/* ── Top Bar ──────────────────────────────────────────────────── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+          {/* Logo */}
+          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+          </button>
+
+          {/* Center tag */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 18px", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4, background: "rgba(86,164,203,0.08)" }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b", boxShadow: "0 0 8px #f59e0b", animation: "pulse 2s infinite" }} />
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#f59e0b", textTransform: "uppercase" }}>WEEKLY TOURNAMENT</span>
+          </div>
+
+          {/* Nav + Wallet */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <button onClick={() => router.push("/leaderboard")} style={{ background: "none", border: "1px solid rgba(86,164,203,0.25)", borderRadius: 4, padding: "7px 16px", cursor: "pointer", color: "#9ca3af", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit" }}>
+              RANKINGS
+            </button>
+            <WalletSection />
+          </div>
+        </div>
+
+        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, height: 210, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase" }}>SEASON 1 · ORDER ASCENSION</div>
+          <div style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-3.5px", color: "white", textTransform: "uppercase", textAlign: "center", lineHeight: 1, textShadow: "0 0 40px rgba(86,164,203,0.35)" }}>
+            THE TOURNAMENT
+          </div>
+          <div style={{ fontSize: 15, color: "#9ca3af", letterSpacing: 0.5, textAlign: "center", maxWidth: 560, lineHeight: 1.6 }}>
+            Every week the top 16 ranked players clash in a live bracket for glory and a prize pool paid out on-chain. No sign-up. No luck. Just skill.
+          </div>
+
+          {/* Key stats row */}
+          <div style={{ display: "flex", gap: 32, marginTop: 8, alignItems: "flex-start" }}>
+            {[
+              { label: "PRIZE POOL", value: PRIZE_POOL, color: "#4ade80" },
+              { label: "SPOTS", value: `TOP ${SPOTS}`, color: "#56a4cb" },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>{label}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color, letterSpacing: 0.5, marginTop: 2 }}>{value}</div>
+              </div>
+            ))}
+            {/* Live countdown */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 2 }}>NEXT BRACKET IN</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+                {[
+                  { v: countdown.days, label: "D" },
+                  { v: countdown.hours, label: "H" },
+                  { v: countdown.minutes, label: "M" },
+                  { v: countdown.seconds, label: "S" },
+                ].map(({ v, label }) => (
+                  <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#f59e0b", letterSpacing: -1, lineHeight: 1, minWidth: 28, textAlign: "center" }}>
+                      {String(v).padStart(2, "0")}
+                    </div>
+                    <div style={{ fontSize: 8, fontWeight: 700, color: "#6b7280", letterSpacing: 1 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── How It Works ─────────────────────────────────────────────── */}
+        <div style={{ position: "absolute", top: 290, left: 64, right: 64 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 14 }}>HOW IT WORKS</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+            {HOW_IT_WORKS.map((item) => (
+              <div key={item.step} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${item.color}28`, borderRadius: 8, padding: "18px 16px", position: "relative", overflow: "hidden" }}>
+                {/* step number watermark */}
+                <div style={{ position: "absolute", top: -6, right: 10, fontSize: 56, fontWeight: 900, color: `${item.color}0d`, letterSpacing: -2, lineHeight: 1, userSelect: "none" }}>{item.step}</div>
+                <div style={{ fontSize: 22, marginBottom: 8 }}>{item.icon}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: item.color, textTransform: "uppercase", marginBottom: 6 }}>{item.step} · {item.title}</div>
+                <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7 }}>{item.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Rules + Status row ───────────────────────────────────────── */}
+        <div style={{ position: "absolute", top: 546, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
+
+          {/* Rules */}
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "18px 20px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 12 }}>TOURNAMENT RULES</div>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              {RULES.map((rule, i) => (
+                <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
+                  <span style={{ color: "#56a4cb", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>▸</span>
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Player status + CTA */}
+          <div style={{ width: 340, display: "flex", flexDirection: "column", gap: 12 }}>
+
+            {/* Qualification status card */}
+            <div style={{ background: address ? (qualified ? "rgba(74,222,128,0.06)" : "rgba(86,164,203,0.06)") : "rgba(255,255,255,0.02)", border: `1px solid ${address ? (qualified ? "rgba(74,222,128,0.25)" : "rgba(86,164,203,0.25)") : "rgba(255,255,255,0.07)"}`, borderRadius: 8, padding: "18px 20px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>YOUR STATUS</div>
+
+              {!address ? (
+                <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6 }}>
+                  Connect your wallet to see your current rank and whether you&apos;ve qualified for this week&apos;s tournament.
+                </div>
+              ) : rank === null ? (
+                <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6 }}>
+                  You haven&apos;t played any ranked matches yet. Jump in — every win moves you up the board.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Rank</span>
+                    <span style={{ fontSize: 22, fontWeight: 900, color: rank <= 3 ? "#f59e0b" : qualified ? "#4ade80" : "#b9e7f4", letterSpacing: -1 }}>#{rank}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Points</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "#b9e7f4" }}>{points?.toLocaleString()}</span>
+                  </div>
+                  <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
+                  <div style={{ fontSize: 13, fontWeight: 700, color: qualified ? "#4ade80" : "#f59e0b", letterSpacing: 0.5 }}>
+                    {qualified
+                      ? `✓ You qualify! Hold your spot until Monday.`
+                      : `${SPOTS - rank < 0 ? "Outside" : `${rank - SPOTS} rank${rank - SPOTS > 1 ? "s" : ""} outside`} the top ${SPOTS} — keep playing.`}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* CTA buttons */}
+            <button
+              onClick={() => router.push("/select-character")}
+              style={{ width: "100%", height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 15, letterSpacing: 2.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)", boxShadow: "0 0 20px rgba(86,164,203,0.25)" }}
+            >
+              PLAY RANKED NOW ▸
+            </button>
+            <button
+              onClick={() => router.push("/leaderboard")}
+              style={{ width: "100%", height: 44, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 13, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}
+            >
+              VIEW FULL LEADERBOARD
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
+    </div>
+  );
+}

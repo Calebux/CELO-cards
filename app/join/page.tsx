@@ -1,22 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
+import { WalletSection } from "../components/WalletSection";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-export default function JoinMatch() {
+function JoinMatchContent() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
-  const [code, setCode] = useState("");
+  const searchParams = useSearchParams();
+  const [code, setCode] = useState(() => searchParams.get("id") ?? "");
   const [error, setError] = useState("");
   const [joining] = useState(false);
 
@@ -67,39 +69,21 @@ export default function JoinMatch() {
         {/* Background */}
         <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
-        {/* Logo */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -13, width: 350, height: 200, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontWeight: 900, fontSize: 30, lineHeight: "1.1", letterSpacing: "-1px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 24px rgba(185,231,244,0.5)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
-        </div>
-
-        {/* Cartridge Identity badge */}
-        <div style={{
-          position: "absolute", right: 50, top: 58,
-          display: "flex", alignItems: "center",
-          backgroundColor: "#b9e7f4", border: "1px solid #222f42",
-          borderRadius: 8, padding: 9, backdropFilter: "blur(6px)", zIndex: 10,
-        }}>
-          <div style={{ textAlign: "right", marginRight: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "#000", lineHeight: "10px" }}>
-              Cartridge Identity
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: "#000", lineHeight: "20px" }}>
-              Guest
-            </div>
-          </div>
-          <div style={{ position: "relative" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 4, border: "2px solid #222f42", overflow: "hidden", backgroundColor: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span className="material-icons" style={{ color: "#94a3b8", fontSize: 22 }}>person</span>
-            </div>
-            <div style={{ position: "absolute", bottom: -4, right: -4, width: 12, height: 12, borderRadius: "50%", backgroundColor: "#6b7280", border: "2px solid #0a060e" }} />
-          </div>
+        {/* ── Top Bar ── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
+          </button>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>JOIN MATCH</div>
+          <WalletSection />
         </div>
 
         {/* Central panel */}
         <div style={{
           position: "absolute", left: "50%", top: "50%",
-          transform: "translate(-50%, -50%)",
-          marginTop: 54, width: 504,
+          transform: "translate(-50%, -44%)",
+          width: 504,
         }}>
           {/* Corner accents */}
           {[
@@ -191,39 +175,23 @@ export default function JoinMatch() {
             </div>
           </div>
 
-          {/* Footer */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24 }}>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 8, backgroundColor: "#0f1c23",
-                border: "1px solid #0f1c23", display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 0 15px rgba(140, 37, 244, 0.4), inset 0 0 5px rgba(140, 37, 244, 0.2)",
-              }}>
-                <span style={{ fontSize: 14, fontWeight: 900, color: "#8c25f4", letterSpacing: "-0.5px" }}>KO</span>
-              </div>
-              <div style={{ marginLeft: 12 }}>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -1.2, lineHeight: "32px", textShadow: "0 0 8px rgba(140, 37, 244, 0.8)" }}>
-                  Action Order
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1.2, lineHeight: "16px" }}>
-                  PvP Matchmaking
-                </div>
-              </div>
-            </div>
-            <div style={{
-              backgroundColor: "#0f1c23", border: "1px solid #0f1c23",
-              borderRadius: 9999, padding: "7px 13px",
-              display: "flex", alignItems: "center",
-            }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#6b7280", marginRight: 8 }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#cbd5e1", lineHeight: "16px" }}>
-                KNOCK ORDER — SEPOLIA TESTNET
-              </span>
-            </div>
+          {/* Footer status */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>ACTION ORDER — CELO MAINNET</span>
           </div>
         </div>
 
       </div>
     </div>
+  );
+}
+
+
+export default function JoinMatch() {
+  return (
+    <Suspense>
+      <JoinMatchContent />
+    </Suspense>
   );
 }

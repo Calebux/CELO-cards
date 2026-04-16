@@ -66,6 +66,10 @@ interface GameState {
     matchesWon: number;
     matchesLost: number;
 
+    // Streak
+    winStreak: number;
+    lossStreak: number;
+
     // Actions
     setPlayerAddress: (address: string | null) => void;
     setOpponentCharacterFromServer: (charId: string) => void;
@@ -112,6 +116,8 @@ export const useGameStore = create<GameState>()(
     matchesPlayed: 0,
     matchesWon: 0,
     matchesLost: 0,
+    winStreak: 0,
+    lossStreak: 0,
 
     setPlayerAddress: (address) => set({ playerAddress: address }),
     setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency }),
@@ -230,7 +236,7 @@ export const useGameStore = create<GameState>()(
     },
 
     finishRound: () => {
-        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost } = get();
+        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak } = get();
         if (!precomputedRound) return;
 
         const totalPlayerKnock = precomputedRound.reduce((s, r) => s + r.playerKnock, 0);
@@ -261,9 +267,24 @@ export const useGameStore = create<GameState>()(
         if (result.roundWinner === "player") earned += 50;
         if (isMatchEnd && pWon >= 2) earned += 100;
 
-        // Update match history counters when the match concludes
+        // Update match history counters and streak when the match concludes
         const matchWon = isMatchEnd && pWon >= 2;
         const matchLost = isMatchEnd && oWon >= 2;
+
+        let newWinStreak = winStreak;
+        let newLossStreak = lossStreak;
+        if (isMatchEnd) {
+            if (matchWon) {
+                newWinStreak = winStreak + 1;
+                newLossStreak = 0;
+                // Streak bonus multiplier: 3–4 = 1.5×, 5+ = 2×
+                const mult = newWinStreak >= 5 ? 2 : newWinStreak >= 3 ? 1.5 : 1;
+                earned = Math.round(earned * mult);
+            } else if (matchLost) {
+                newLossStreak = lossStreak + 1;
+                newWinStreak = 0;
+            }
+        }
 
         set({
             currentRoundResult: result,
@@ -277,6 +298,8 @@ export const useGameStore = create<GameState>()(
                 matchesPlayed: matchesPlayed + 1,
                 matchesWon: matchWon ? matchesWon + 1 : matchesWon,
                 matchesLost: matchLost ? matchesLost + 1 : matchesLost,
+                winStreak: newWinStreak,
+                lossStreak: newLossStreak,
             }),
         });
     },
@@ -329,6 +352,8 @@ export const useGameStore = create<GameState>()(
         matchesPlayed: state.matchesPlayed,
         matchesWon: state.matchesWon,
         matchesLost: state.matchesLost,
+        winStreak: state.winStreak,
+        lossStreak: state.lossStreak,
       }),
     }
   )

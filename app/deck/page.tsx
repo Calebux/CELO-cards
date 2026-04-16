@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { WalletSection } from "../components/WalletSection";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -30,6 +32,7 @@ const DEFENSE_CARDS = [D1, D2, D3];
 
 export default function DeckPage() {
     const wrapRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<Tab>("STRIKE");
 
     useEffect(() => {
@@ -53,13 +56,18 @@ export default function DeckPage() {
                 {/* BG */}
                 <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
-                {/* Logo */}
-                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+                {/* ── Top Bar ── */}
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+                  <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+                    <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+                    <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+                  </button>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>CARD GALLERY</div>
+                  <WalletSection />
                 </div>
 
                 {/* Tabs */}
-                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 120, display: "flex", gap: "12px" }}>
+                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 88, display: "flex", gap: "12px" }}>
                     {(["STRIKE", "CONTROL", "DEFENSE"] as Tab[]).map((tab) => (
                         <button
                             key={tab}
@@ -79,7 +87,7 @@ export default function DeckPage() {
                 </div>
 
                 {/* Card grid */}
-                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 180, display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "center", maxWidth: 800 }}>
+                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 148, display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "center", maxWidth: 800 }}>
                     {cards.map((img, i) => (
                         <div key={i} style={{ width: 130, height: 180, borderRadius: 6, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", position: "relative" }}>
                             <img src={img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />

@@ -1,25 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
-import { useAccount } from "wagmi";
-import { formatAddress } from "../lib/minipay";
+import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
+import { useAccount } from "wagmi";
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const DESIGN_W = 1440;
+const DESIGN_H = 823;
 
 type MatchType = "casual" | "ranked" | "tourney";
 
+const MATCH_TYPES: {
+  key: MatchType;
+  icon: string;
+  label: string;
+  sub: string;
+  desc: string;
+  color: string;
+  badge?: string;
+}[] = [
+  {
+    key: "casual",
+    icon: "sports_esports",
+    label: "CASUAL",
+    sub: "No Stakes",
+    desc: "Play for fun. Win streaks still track. No leaderboard points.",
+    color: "#56a4cb",
+  },
+  {
+    key: "ranked",
+    icon: "military_tech",
+    label: "RANKED",
+    sub: "Earn Points",
+    desc: "Climb the leaderboard. Qualify for the weekly tournament.",
+    color: "#f59e0b",
+    badge: "POPULAR",
+  },
+  {
+    key: "tourney",
+    icon: "emoji_events",
+    label: "TOURNEY",
+    sub: "Bracketed",
+    desc: "Tournament play. Only available to qualified top-16 players.",
+    color: "#a855f7",
+  },
+];
+
 export default function CreateMatch() {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("ranked");
-  const [copied, setCopied] = useState(false);
   const [showWager, setShowWager] = useState(false);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
-
   const { address } = useAccount();
+
+  useEffect(() => {
+    const scale = () => {
+      if (!wrapRef.current) return;
+      const w = document.body.clientWidth;
+      const h = document.body.clientHeight;
+      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
+      wrapRef.current.style.transform = `scale(${s})`;
+    };
+    scale();
+    window.addEventListener("resize", scale);
+    return () => window.removeEventListener("resize", scale);
+  }, []);
 
   const handleCreateMatch = () => {
     resetMatch();
@@ -31,240 +80,147 @@ export default function CreateMatch() {
     }
   };
 
-  const handleWagerDone = () => {
-    setShowWager(false);
-    router.push("/ready");
-  };
+  const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
 
   return (
-    <div
-      className="relative w-full min-h-screen overflow-hidden"
-      style={{ backgroundColor: "#0a060e", fontFamily: "'Space Grotesk', sans-serif" }}
-    >
-      {/* Background */}
-      <div className="absolute inset-0">
-        <img
-          src={BG_IMAGE}
-          alt=""
-          className="w-full h-full object-cover pointer-events-none"
-        />
-      </div>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
 
-      {/* Logo */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center"
-        style={{ top: "-13px", width: "350px", height: "200px" }}
-      >
-        <div style={{ fontWeight: 900, fontSize: 30, lineHeight: "1.1", letterSpacing: "-1px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 24px rgba(185,231,244,0.5)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
-      </div>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top left", position: "relative" }}>
 
-      {/* Wallet Identity (top right) */}
-      <div
-        className="absolute flex items-center rounded-lg border border-[#222f42] p-[9px]"
-        style={{
-          top: "calc(50% - 353.5px)",
-          left: "1200px",
-          transform: "translateY(-50%)",
-          backdropFilter: "blur(6px)",
-          backgroundColor: "#b9e7f4",
-        }}
-      >
-        <div className="flex flex-col items-end" style={{ width: "127px" }}>
-          <span
-            className="text-black font-bold text-right uppercase tracking-[1px]"
-            style={{ fontSize: "10px", lineHeight: "10px" }}
-          >
-            Celo Wallet
-          </span>
-          <span
-            className="text-black font-medium text-right"
-            style={{ fontSize: "14px", lineHeight: "20px" }}
-          >
-            {address ? formatAddress(address) : "Not connected"}
-          </span>
-          {address && (
-            <button
-              onClick={() => {
-                void navigator.clipboard.writeText(address).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                });
-              }}
-              className="flex items-center gap-[3px] mt-[2px] cursor-pointer"
-              title={address}
-            >
-              <span className="text-[#222f42] font-mono text-right" style={{ fontSize: "8px" }}>
-                {address.slice(0, 6)}…{address.slice(-4)}
-              </span>
-              <span className="material-icons text-[#222f42]" style={{ fontSize: "9px" }}>
-                {copied ? "check" : "content_copy"}
-              </span>
-            </button>
-          )}
-        </div>
-        <div className="relative ml-4 shrink-0">
-          <div
-            className="relative rounded border-2 border-[#222f42] overflow-hidden flex items-center justify-center"
-            style={{ width: "40px", height: "40px", backgroundColor: "#1e293b" }}
-          >
-            <span className="material-icons" style={{ color: "#94a3b8", fontSize: 22 }}>person</span>
+        {/* Background */}
+        <img src="/new addition/gameplay landing page.webp" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.85) 0%, rgba(5,8,18,0.75) 50%, rgba(5,5,5,0.85) 100%)", pointerEvents: "none" }} />
+
+        {/* ── Top Bar ──────────────────────────────────────────────────── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 16px", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, background: "rgba(86,164,203,0.06)" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>CREATE MATCH</span>
           </div>
-          <div
-            className="absolute -bottom-1 -right-1 rounded-full border-2 border-[#0a060e]"
-            style={{ width: "12px", height: "12px", backgroundColor: address ? "#4ade80" : "#6b7280" }}
-          />
+
+          <WalletSection />
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center px-3"
-        style={{ top: "calc(50% + 29.75px)", width: "960px" }}
-      >
-        {/* Container with corner accents */}
-        <div className="relative flex flex-col gap-6 items-start" style={{ width: "504px" }}>
-          {/* Corner accents */}
-          <div className="absolute border-t-[1.5px] border-l-[1.5px] border-[#b9e7f4]" style={{ top: "-12px", left: "-12px", width: "36px", height: "36px" }} />
-          <div className="absolute border-t-[1.5px] border-r-[1.5px] border-[#b9e7f4]" style={{ top: "-12px", right: "-12px", width: "36px", height: "36px" }} />
-          <div className="absolute border-b-[1.5px] border-l-[1.5px] border-[#b9e7f4]" style={{ bottom: "-12px", left: "-12px", width: "36px", height: "36px" }} />
-          <div className="absolute border-b-[1.5px] border-r-[1.5px] border-[#b9e7f4]" style={{ bottom: "-12px", right: "-12px", width: "36px", height: "36px" }} />
+        {/* ── Main Layout ───────────────────────────────────────────────── */}
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
 
-          {/* Central Config Panel */}
-          <div
-            className="relative w-full rounded-[6px] border-[2.4px] border-[#b9e7f4] overflow-hidden"
-            style={{
-              backdropFilter: "blur(4.5px)",
-              backgroundColor: "rgba(15,23,42,0.4)",
-              padding: "38.4px",
-            }}
-          >
-            <div className="absolute top-[-1.65px] left-[-1.65px] right-[-1.65px] bg-[#56a4cb]" style={{ height: "1.5px" }} />
+          {/* Panel */}
+          <div style={{ position: "relative", width: 560 }}>
 
-            <div className="flex flex-col gap-[30px] items-start w-full">
-              <div className="w-full flex flex-col gap-[6px] items-center">
-                <h2
-                  className="text-[#f1f5f9] font-bold text-center uppercase tracking-[4.5px]"
-                  style={{ fontSize: "22.5px", lineHeight: "27px" }}
-                >
-                  Initiate Match Sequence
-                </h2>
-                <div className="rounded-full bg-[#222f42]" style={{ width: "72px", height: "3px" }} />
-              </div>
+            {/* Corner accents */}
+            {[
+              { top: -12, left: -12, borderLeft: "1.5px solid #56a4cb", borderTop: "1.5px solid #56a4cb" },
+              { top: -12, right: -12, borderRight: "1.5px solid #56a4cb", borderTop: "1.5px solid #56a4cb" },
+              { bottom: -12, left: -12, borderLeft: "1.5px solid #56a4cb", borderBottom: "1.5px solid #56a4cb" },
+              { bottom: -12, right: -12, borderRight: "1.5px solid #56a4cb", borderBottom: "1.5px solid #56a4cb" },
+            ].map((s, i) => (
+              <div key={i} style={{ position: "absolute", width: 36, height: 36, ...s }} />
+            ))}
 
-              <div className="flex flex-col gap-6 items-start w-full">
-                {/* Match Type Selector */}
-                <div className="flex flex-col gap-3 items-start w-full">
-                  <label className="text-white font-bold uppercase tracking-[2.7px]" style={{ fontSize: "9px", lineHeight: "12px" }}>
-                    Select Match Type
-                  </label>
-                  <div className="flex gap-3 items-start w-full">
-                    {([
-                      { key: "casual" as MatchType, icon: "sports_esports", label: "Casual", sub: "No Stakes" },
-                      { key: "ranked" as MatchType, icon: "military_tech", label: "Ranked", sub: "Earn Points", popular: true },
-                      { key: "tourney" as MatchType, icon: "emoji_events", label: "Tourney", sub: "Bracketed" },
-                    ]).map((mt) => (
-                      <div key={mt.key} className="relative flex-1">
-                        <button
-                          onClick={() => setMatchType(mt.key)}
-                          className={`w-full flex flex-col items-center py-[18.75px] ko-btn transition-all ${matchType === mt.key ? "ko-btn-secondary active" : "ko-btn-secondary"}`}
-                        >
-                          <span className={`material-icons mb-2 ko-btn-icon ${matchType === mt.key ? "text-[#222f42]" : "text-[#56a4cb]"}`} style={{ fontSize: "22.5px" }}>
-                            {mt.icon}
-                          </span>
-                          <span className={`font-bold uppercase tracking-[1.05px] ko-btn-text ${matchType === mt.key ? "text-black" : "text-[#f1f5f9]"}`} style={{ fontSize: "10.5px", lineHeight: "15px" }}>
-                            {mt.label}
-                          </span>
-                          <span className={`uppercase mt-[3px] ${matchType === mt.key ? "text-[rgba(0,0,0,0.8)]" : "text-[#94a3b8]"}`} style={{ fontSize: "7.5px", lineHeight: "11.25px" }}>
-                            {mt.sub}
-                          </span>
-                        </button>
-                        {mt.popular && (
-                          <div className="absolute left-1/2 -translate-x-1/2 bg-[#222f42] rounded-[3px] px-[6px] py-[1.5px]" style={{ top: "-9px" }}>
-                            <span className="text-[#f1f5f9] font-bold uppercase text-center" style={{ fontSize: "7.5px", lineHeight: "11.25px" }}>Popular</span>
+            {/* Glass panel */}
+            <div style={{ background: "rgba(10,15,28,0.85)", border: "1.5px solid rgba(86,164,203,0.35)", borderRadius: 8, backdropFilter: "blur(12px)", overflow: "hidden", boxShadow: "0 0 40px rgba(86,164,203,0.1)" }}>
+
+              {/* Scanline */}
+              <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #56a4cb, transparent)" }} />
+
+              <div style={{ padding: "36px 40px 40px" }}>
+
+                {/* Heading */}
+                <div style={{ textAlign: "center", marginBottom: 32 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>MATCH SETUP</div>
+                  <h2 style={{ fontSize: 30, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -1, margin: 0, lineHeight: 1 }}>
+                    SELECT MATCH TYPE
+                  </h2>
+                </div>
+
+                {/* Match type cards */}
+                <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+                  {MATCH_TYPES.map((mt) => {
+                    const active = matchType === mt.key;
+                    return (
+                      <div key={mt.key} style={{ flex: 1, position: "relative" }}>
+                        {mt.badge && (
+                          <div style={{ position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)", background: mt.color, borderRadius: 3, padding: "2px 8px", zIndex: 2 }}>
+                            <span style={{ fontSize: 7.5, fontWeight: 800, color: "#000", letterSpacing: 1, textTransform: "uppercase" }}>{mt.badge}</span>
                           </div>
                         )}
+                        <button
+                          onClick={() => setMatchType(mt.key)}
+                          style={{
+                            width: "100%", padding: "20px 12px 16px",
+                            background: active ? `rgba(${mt.color === "#56a4cb" ? "86,164,203" : mt.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.12)` : "rgba(255,255,255,0.03)",
+                            border: active ? `1.5px solid ${mt.color}` : "1.5px solid rgba(255,255,255,0.08)",
+                            borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                            textAlign: "center",
+                            transition: "all 0.18s ease",
+                            boxShadow: active ? `0 0 20px ${mt.color}25` : "none",
+                          }}
+                        >
+                          <span className="material-icons" style={{ fontSize: 28, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 8 }}>{mt.icon}</span>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{mt.label}</div>
+                          <div style={{ fontSize: 9, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{mt.sub}</div>
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
 
-                {/* Deck Selection + Server Region */}
-                <div className="flex gap-[18px] items-start w-full" style={{ height: "67.5px" }}>
-                  <div className="flex-1 flex flex-col gap-[6px] items-start self-stretch">
-                    <label className="text-white font-bold uppercase tracking-[0.9px]" style={{ fontSize: "9px", lineHeight: "12px" }}>Deck Selection</label>
-                    <div className="flex items-center justify-between w-full rounded-[6px] border-[0.75px] border-[#56a4cb] p-[9.75px] cursor-pointer" style={{ backgroundColor: "rgba(30,41,59,0.5)" }}>
-                      <div className="flex items-center">
-                        <div className="rounded-[3px] border-[0.75px] border-[#b9e7f4] shrink-0 bg-[#334155]" style={{ width: "24px", height: "30px" }} />
-                        <div className="flex flex-col items-start pl-[9px]">
-                          <span className="text-[#f1f5f9] font-medium" style={{ fontSize: "10.5px", lineHeight: "15px" }}>Void Walkers v.2</span>
-                          <span className="text-white" style={{ fontSize: "7.5px", lineHeight: "11.25px" }}>10 Cards • SR Rare</span>
-                        </div>
-                      </div>
-                      <span className="material-icons text-white" style={{ fontSize: "10.5px" }}>expand_more</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 flex flex-col gap-[6px] items-start self-stretch">
-                    <label className="text-white font-bold uppercase tracking-[0.9px]" style={{ fontSize: "9px", lineHeight: "12px" }}>Server Region</label>
-                    <div className="flex items-center justify-between w-full rounded-[6px] border-[0.75px] border-[#56a4cb] p-[9.75px] cursor-pointer" style={{ backgroundColor: "rgba(30,41,59,0.5)" }}>
-                      <div className="flex items-center">
-                        <span className="material-icons text-[#56a4cb]" style={{ fontSize: "13.5px" }}>language</span>
-                        <span className="text-[#f1f5f9] font-medium uppercase tracking-[-0.525px] pl-[9px]" style={{ fontSize: "10.5px", lineHeight: "15px" }}>Automatic (24ms)</span>
-                      </div>
-                      <span className="material-icons text-white" style={{ fontSize: "10.5px" }}>expand_more</span>
-                    </div>
-                  </div>
+                {/* Description of selected type */}
+                <div style={{ marginBottom: 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
+                  <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
 
-                {/* Create Match Button */}
-                <div className="flex flex-col gap-3 items-start w-full pt-[18px]">
-                  <button
-                    onClick={handleCreateMatch}
-                    className="flex w-full py-[15px] ko-btn ko-btn-primary animate-pulse"
-                    style={{ animationDuration: "3s" }}
-                  >
-                    <span className="material-icons text-white ko-btn-icon" style={{ fontSize: "18px" }}>radar</span>
-                    <span className="text-white font-bold uppercase tracking-[6px] pl-3 ko-btn-text" style={{ fontSize: "15px", lineHeight: "21px" }}>
-                      Create Match
-                    </span>
-                    <span className="material-icons text-white pl-3 ko-btn-icon" style={{ fontSize: "18px" }}>radar</span>
-                  </button>
-                  <p className="text-white text-center uppercase tracking-[1.5px] w-full" style={{ fontSize: "7.5px", lineHeight: "11.25px" }}>
-                    Establishing secure connection on Celo...
-                  </p>
-                </div>
+                {/* Create Match button */}
+                <button
+                  onClick={handleCreateMatch}
+                  style={{
+                    width: "100%", height: 56,
+                    background: "linear-gradient(135deg, #1a3a52, #0f2233)",
+                    border: `1.5px solid ${selected.color}`,
+                    borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                    fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                    color: "#b9e7f4", textTransform: "uppercase",
+                    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
+                    boxShadow: `0 0 24px ${selected.color}30`,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>radar</span>
+                  CREATE MATCH
+                  <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>
+                </button>
+
+                <p style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                  Secure connection via Celo network
+                </p>
               </div>
             </div>
-          </div>
 
-          {/* Footer Stats */}
-          <div className="flex gap-3 items-start w-full" style={{ height: "53.25px" }}>
-            {[
-              { label: "Active Players", value: "12,408" },
-              { label: "Live Lobbies", value: "1,102" },
-              { label: "Avg Queue", value: "14s" },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="flex-1 flex flex-col items-center justify-center rounded-[3px] border-[1.5px] border-[#b9e7f4] p-[10.5px] self-stretch"
-                style={{ backgroundColor: "rgba(15,23,42,0.6)" }}
-              >
-                <span className="text-[#f5f5f5] font-bold uppercase tracking-[0.75px] text-center" style={{ fontSize: "7.5px", lineHeight: "11.25px" }}>
-                  {stat.label}
-                </span>
-                <span className="text-white font-bold text-center" style={{ fontSize: "13.5px", lineHeight: "21px" }}>
-                  {stat.value}
-                </span>
-              </div>
-            ))}
+            {/* Stats row */}
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              {[
+                { label: "Active Players", value: "12,408" },
+                { label: "Live Lobbies", value: "1,102" },
+                { label: "Avg Queue", value: "14s" },
+              ].map((stat) => (
+                <div key={stat.label} style={{ flex: 1, textAlign: "center", padding: "10px 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6 }}>
+                  <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>{stat.label}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#b9e7f4", letterSpacing: -0.5 }}>{stat.value}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+
       </div>
 
       {showWager && (
-        <WagerModal
-          onConfirmed={handleWagerDone}
-          onSkip={handleWagerDone}
-        />
+        <WagerModal onConfirmed={() => { setShowWager(false); router.push("/ready"); }} onSkip={() => { setShowWager(false); router.push("/ready"); }} />
       )}
     </div>
   );

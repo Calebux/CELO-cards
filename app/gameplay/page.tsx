@@ -323,6 +323,7 @@ export default function Gameplay() {
     matchId,
     wagerActive,
     wagerCurrency,
+    winStreak,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -474,6 +475,18 @@ export default function Gameplay() {
       setPayoutState("error");
     }
   };
+
+  // Record match result on leaderboard (fire-and-forget)
+  useEffect(() => {
+    if (matchPhase !== "match-end" || !address) return;
+    const won = playerRoundsWon > opponentRoundsWon;
+    void fetch("/api/leaderboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerAddress: address, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchPhase]);
 
   const handleBackToMenu = () => {
     playSound(isMatchEnd ? "gameOver" : "click");
@@ -951,11 +964,17 @@ export default function Gameplay() {
           const won = roundWinner === "player";
           const accentColor = won ? "#06a8f9" : (opponent?.color || "#f906a8");
           const accentGlow  = won ? "rgba(6,168,249,0.5)" : `${opponent?.color || "#f906a8"}80`;
+          const winnerChar = won ? selectedCharacter : opponent;
+          const finisherVideo = winnerChar?.finisherVideo ?? "/new-assets/action-solo-burst.webm";
           return (
             <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {/* Background */}
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
-              <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
+              {/* Winner finisher video */}
+              <video key={finisherVideo} autoPlay loop muted playsInline
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.28, zIndex: -1, pointerEvents: "none" }}>
+                <source src={finisherVideo} type="video/webm" />
+              </video>
 
               {/* Centered layout — matches join page exactly */}
               <div style={{ position: "relative", width: 540 }}>
@@ -1085,25 +1104,34 @@ export default function Gameplay() {
                     </div>
                   )}
 
-                  {/* Return to menu button */}
-                  <button onClick={handleBackToMenu} className="ko-btn ko-btn-primary" style={{ width: "100%", padding: "15px 0" }}>
-                    <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>home</span>
-                    <span className="ko-btn-text" style={{ fontSize: 15, fontWeight: 700, textTransform: "uppercase", letterSpacing: 6, color: "#fff" }}>
-                      Return to Menu
-                    </span>
-                    <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>arrow_forward_ios</span>
-                  </button>
+                  {/* Win streak banner */}
+                  {won && winStreak >= 2 && (
+                    <div style={{ marginBottom: 16, padding: "10px 16px", borderRadius: 6, background: winStreak >= 5 ? "rgba(251,191,36,0.12)" : "rgba(234,88,12,0.1)", border: `1px solid ${winStreak >= 5 ? "rgba(251,191,36,0.4)" : "rgba(234,88,12,0.4)"}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>🔥</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: winStreak >= 5 ? "#fbbf24" : "#fb923c", letterSpacing: 1, textTransform: "uppercase" }}>
+                          {winStreak} WIN STREAK
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: winStreak >= 5 ? "#fbbf24" : "#fb923c", letterSpacing: 0.5 }}>
+                        {winStreak >= 5 ? "2× BONUS" : "1.5× BONUS"} ACTIVE
+                      </span>
+                    </div>
+                  )}
 
-                  {/* Divider + play again */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 20 }}>
-                    <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
+                    {/* Play Again — primary */}
                     <button
                       onClick={() => { resetMatch(); router.push("/select-character"); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
+                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(86,164,203,0.2)" }}
                     >
-                      Play Again
+                      ⚔ PLAY AGAIN
                     </button>
-                    <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
+                    {/* Return to Menu — secondary */}
+                    <button onClick={handleBackToMenu} style={{ flex: 1, height: 52, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 12, letterSpacing: 1.5, color: "#6b7280", textTransform: "uppercase" }}>
+                      MENU
+                    </button>
                   </div>
                 </div>
               </div>

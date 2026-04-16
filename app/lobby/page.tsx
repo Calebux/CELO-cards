@@ -3,14 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
+import { WalletSection } from "../components/WalletSection";
 
 const OPPONENT_WARN_MS  = 60_000;  // show warning after 60s
 const OPPONENT_ABORT_MS = 90_000;  // allow exit after 90s
 
-const BG_IMAGE = "/new addition/kaira_lobby.webp";
-
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
+
+// Pair-specific lobby backgrounds — keyed by sorted "id1-id2"
+const PAIR_BG: Record<string, string> = {
+  "kenji-riven": "/new-assets/two-fighters-vs.png",
+  "kenji-elara": "/new-assets/lobby-clash.webm",
+  "elara-zane":  "/new-assets/lobby-vs-scene.webm",
+};
+
+function getPairBg(id1: string, id2: string): string {
+  const key = [id1, id2].sort().join("-");
+  return PAIR_BG[key] ?? "/new-assets/lobby-vs-scene.webm";
+}
 
 export default function Lobby() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -123,22 +134,37 @@ export default function Lobby() {
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top left", position: "relative" }}>
 
-        {/* Background */}
+        {/* Background — pair-specific when both fighters are known */}
         <div className="absolute inset-0">
-          <img src={BG_IMAGE} alt="" className="w-full h-full object-cover pointer-events-none" />
-          <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.92)" }} />
+          {(() => {
+            const bg = (player && opponent)
+              ? getPairBg(player.id, opponent.id)
+              : "/new-assets/lobby-vs-scene.webm";
+            return bg.endsWith(".webm") ? (
+              <video key={bg} autoPlay loop muted playsInline className="w-full h-full object-cover pointer-events-none">
+                <source src={bg} type="video/webm" />
+              </video>
+            ) : (
+              <img key={bg} src={bg} alt="" className="w-full h-full object-cover pointer-events-none" />
+            );
+          })()}
+          <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.88)" }} />
         </div>
 
-        {/* Logo */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center" style={{ top: "-2px", width: 200, height: 114 }}>
-          <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+        {/* ── Top Bar ── */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
+          </button>
+          <WalletSection />
         </div>
 
-        {/* Header Top Bar */}
+        {/* Match ID / status bar */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-between border-b"
-          style={{ top: 92, width: 1146, padding: "24px 32px 25px", backdropFilter: "blur(2px)", backgroundColor: "rgba(5,5,5,0.5)", borderColor: "rgba(255,255,255,0.05)" }}>
+          style={{ top: 68, width: 1146, padding: "18px 32px", backdropFilter: "blur(2px)", backgroundColor: "rgba(5,5,5,0.5)", borderColor: "rgba(255,255,255,0.05)" }}>
           <div className="flex items-center gap-4">
-            <div className="rounded-full bg-[#06a8f9]" style={{ width: 8, height: 8 }} />
+            <div className="rounded-full bg-[#56a4cb]" style={{ width: 8, height: 8 }} />
             <span style={{ fontSize: 14, letterSpacing: "1.4px", color: "#9ca3af", fontWeight: 500 }}>
               MATCH ID: <span style={{ color: "white" }}>{matchId ?? "AO-????-X"}</span>
             </span>
@@ -148,14 +174,14 @@ export default function Lobby() {
             <span className="uppercase" style={{ fontSize: 12, letterSpacing: "1.2px", color: "#6b7280", fontWeight: 400 }}>Server: NAIJA O1</span>
           </div>
           <div className="flex items-center gap-4">
-            <span style={{ fontSize: 14, letterSpacing: "1.4px", color: "#06a8f9", fontWeight: 500 }}>{statusText}</span>
-            <div className={`rounded-full bg-[#06a8f9] ${p1Ready && p2Ready ? "animate-ping" : ""}`} style={{ width: 8, height: 8 }} />
+            <span style={{ fontSize: 14, letterSpacing: "1.4px", color: "#56a4cb", fontWeight: 500 }}>{statusText}</span>
+            <div className={`rounded-full bg-[#56a4cb] ${p1Ready && p2Ready ? "animate-ping" : ""}`} style={{ width: 8, height: 8 }} />
           </div>
         </div>
 
         {/* Main Split Layout */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-start"
-          style={{ top: 181, width: 960, height: 526.5, paddingTop: 60, paddingBottom: 30 }}>
+          style={{ top: 130, width: 960, height: 570, paddingTop: 60, paddingBottom: 30 }}>
 
           {/* Vertical Divider */}
           <div className="absolute top-0 bottom-0" style={{ left: "calc(50% - 0.375px)", width: "0.75px", background: "linear-gradient(to bottom, transparent, rgba(185,231,244,0.3) 20%, rgba(185,231,244,0.3) 80%, transparent)" }} />
@@ -177,11 +203,11 @@ export default function Lobby() {
               {player && (
                 <div className="absolute" style={{ left: 30, top: 30 }}>
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="rounded-sm px-1.5 py-0.5 bg-[#06a8f9]">
+                    <div className="rounded-sm px-1.5 py-0.5 bg-[#56a4cb]">
                       <span className="font-bold uppercase text-black" style={{ fontSize: 9 }}>P1</span>
                     </div>
                     <div className="rounded-sm px-1.5 py-0.5 border" style={{ borderColor: "rgba(6,168,249,0.3)" }}>
-                      <span className="font-bold uppercase text-[#06a8f9]" style={{ fontSize: "7.5px", letterSpacing: "0.375px" }}>[{player.className}]</span>
+                      <span className="font-bold uppercase text-[#56a4cb]" style={{ fontSize: "7.5px", letterSpacing: "0.375px" }}>[{player.className}]</span>
                     </div>
                   </div>
                   <div className="font-bold uppercase text-white" style={{ fontSize: 45, lineHeight: "45px", letterSpacing: "-2.25px", textShadow: "0px 0px 7.5px rgba(6,168,249,0.5)", marginTop: 4 }}>
