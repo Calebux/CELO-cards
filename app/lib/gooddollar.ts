@@ -18,6 +18,26 @@ export const STREAM_FLOW_RATE = PAYOUT_AMOUNT_GDOLLAR / STREAM_DURATION_SECS; //
 // G$ brand color
 export const GDOLLAR_COLOR = "#00C58E";
 
+// GoodDollar UBIScheme — daily UBI claim (Celo mainnet)
+export const UBISCHEME_CONTRACT = "0xAACbaaB8571cbECEB46ba85B5981efDB8928545e" as `0x${string}`;
+
+export const UBISCHEME_ABI = [
+  {
+    name: "claim",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "checkEntitlement",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
 // G$ is ERC-20 + ERC-677 (transferAndCall) compatible
 export const GDOLLAR_ABI = [
   {

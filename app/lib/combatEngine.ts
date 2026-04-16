@@ -5,6 +5,7 @@ import { Card, CardType, Character, CARDS } from "./gameData";
 export interface CombatChar {
     knockMult: number;     // multiplier applied to all knock dealt
     priorityBonus: number; // fractional bonus that breaks priority ties
+    charId?: string;       // character id for passive effects
 }
 
 export interface SlotContext {
@@ -14,12 +15,14 @@ export interface SlotContext {
     opponentKnockDebuff: number; // flat reduction to opponent's knock this slot
     playerTotalKnock: number;    // running total before this slot (for Finisher)
     opponentTotalKnock: number;  // running total before this slot
+    slotIndex?: number;          // 0-based slot position (for Riven passive)
 }
 
 export function charToCombat(c: Character): CombatChar {
     return {
         knockMult: c.knockStat / 75, // 75 = baseline 1.0×
         priorityBonus: c.priorityStat,
+        charId: c.id,
     };
 }
 
@@ -237,14 +240,31 @@ export function resolveSlot(
         opponentKnock += 3;
     }
 
+    // ── Character passives ────────────────────────────────────────────────
+    // Kaira "First Strike": +2 knock on the opening slot (index 0)
+    if (c.player.charId === "kaira" && c.slotIndex === 0 && winner === "player") playerKnock += 2;
+    if (c.opponent.charId === "kaira" && c.slotIndex === 0 && winner === "opponent") opponentKnock += 2;
+    // Kenji "Blade Speed": +2 knock when winning a same-type priority clash
+    if (c.player.charId === "kenji" && typeAdv === "draw" && priorityWinner === "player") playerKnock += 2;
+    if (c.opponent.charId === "kenji" && typeAdv === "draw" && priorityWinner === "opponent") opponentKnock += 2;
+    // Riven "Phantom Dodge": halve damage received on slot 3 (index 2)
+    if (c.player.charId === "riven" && c.slotIndex === 2) opponentKnock = Math.floor(opponentKnock * 0.5);
+    if (c.opponent.charId === "riven" && c.slotIndex === 2) playerKnock = Math.floor(playerKnock * 0.5);
+    // Zane "Bulldoze": +2 knock on every strike type-win
+    if (c.player.charId === "zane" && playerCard.type === "strike" && typeAdv === "win") playerKnock += 2;
+    if (c.opponent.charId === "zane" && opponentCard.type === "strike" && typeAdv === "lose") opponentKnock += 2;
+
     // ── Recalculate winner after all modifiers ────────────────────────────
     if (playerKnock > opponentKnock) winner = "player";
     else if (opponentKnock > playerKnock) winner = "opponent";
     else winner = "draw";
 
     // ── Pressure Advance: debuff opponent's next slot by -2 ──────────────
-    const nextOpponentKnockDebuff = playerCard.id === "pressure_advance" ? 2 : 0;
-    const nextPlayerKnockDebuff = opponentCard.id === "pressure_advance" ? 2 : 0;
+    let nextOpponentKnockDebuff = playerCard.id === "pressure_advance" ? 2 : 0;
+    let nextPlayerKnockDebuff = opponentCard.id === "pressure_advance" ? 2 : 0;
+    // Elara "Void Drain": +1 debuff after any control win
+    if (c.player.charId === "elara" && playerCard.type === "control" && winner === "player") nextOpponentKnockDebuff += 1;
+    if (c.opponent.charId === "elara" && opponentCard.type === "control" && winner === "opponent") nextPlayerKnockDebuff += 1;
 
     const effect =
         playerCard.id === "pressure_advance" || opponentCard.id === "pressure_advance"
@@ -352,6 +372,7 @@ export function resolveRound(
             opponentKnockDebuff: nextOpponentKnockDebuff,
             playerTotalKnock: totalPlayerKnock,
             opponentTotalKnock: totalOpponentKnock,
+            slotIndex: i,
         });
         slots.push(result);
         totalPlayerKnock += result.playerKnock;
