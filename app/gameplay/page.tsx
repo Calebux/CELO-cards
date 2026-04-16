@@ -63,6 +63,11 @@ export default function Gameplay() {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [gameStuck, setGameStuck] = useState(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [critBanner, setCritBanner] = useState<"player" | "opponent" | null>(null);
+  const [comboBanner, setComboBanner] = useState<"player" | "opponent" | null>(null);
+  const [playerStreak, setPlayerStreak] = useState(0);
+  const [opponentStreak, setOpponentStreak] = useState(0);
+  const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -130,6 +135,23 @@ export default function Gameplay() {
       setTotalPlayerKnock((p) => p + result.playerKnock);
       setTotalOpponentKnock((p) => p + result.opponentKnock);
       setRevealedSlots(idx + 1);
+      // Update streaks and trigger banners
+      if (result.winner === "player") {
+        setPlayerStreak(s => { const next = s + 1; if (next >= 3) setComboBanner("player"); return next; });
+        setOpponentStreak(0);
+        setMomentum(m => Math.min(5, m + 1));
+      } else if (result.winner === "opponent") {
+        setOpponentStreak(s => { const next = s + 1; if (next >= 3) setComboBanner("opponent"); return next; });
+        setPlayerStreak(0);
+        setMomentum(m => Math.max(0, m - 1));
+      } else {
+        setMomentum(m => Math.max(0, m - 1));
+      }
+      if (result.isCrit) { setCritBanner("player"); setTimeout(() => setCritBanner(null), 1200); }
+      if (result.isOpponentCrit) { setCritBanner("opponent"); setTimeout(() => setCritBanner(null), 1200); }
+      if (result.playerComboBonus || result.opponentComboBonus) {
+        setTimeout(() => setComboBanner(null), 1500);
+      }
       setTimeout(() => setIsAnimating(false), 300);
     }, 3900);
   }, [revealedSlots, isAnimating, playerCards, opponentOrder, precomputedRound]);
@@ -186,6 +208,11 @@ export default function Gameplay() {
     setShowResult(false);
     setTotalPlayerKnock(0);
     setTotalOpponentKnock(0);
+    setPlayerStreak(0);
+    setOpponentStreak(0);
+    setMomentum(0);
+    setCritBanner(null);
+    setComboBanner(null);
     nextRound();
     router.push("/loadout");
   };
@@ -251,6 +278,7 @@ export default function Gameplay() {
   const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : wagerCurrency === "gdollar" ? "G$" : "cUSD";
   const payoutAmountDisplay = `${formatUnits(PAYOUT_AMOUNT, 18)} ${payoutTokenSymbol}`;
   const isGDollar = wagerCurrency === "gdollar";
+  const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 
   if (!selectedCharacter || !opponentCharacter) {
     return (
@@ -280,6 +308,73 @@ export default function Gameplay() {
             transition: "opacity 0.3s ease",
           }} />
         )}
+
+        {/* Critical hit banner */}
+        {critBanner && (
+          <div style={{
+            position: "absolute", top: "30%", left: "50%", transform: "translateX(-50%)",
+            zIndex: 80, pointerEvents: "none",
+            padding: "12px 28px",
+            background: critBanner === "player" ? "rgba(249,115,22,0.95)" : "rgba(239,68,68,0.95)",
+            border: `2px solid ${critBanner === "player" ? "#f97316" : "#ef4444"}`,
+            borderRadius: 6,
+            boxShadow: `0 0 40px ${critBanner === "player" ? "#f97316" : "#ef4444"}`,
+            animation: "critPop 0.3s ease-out",
+          }}>
+            <span style={{ fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: 2, textTransform: "uppercase" }}>
+              {critBanner === "player" ? "⚡ CRITICAL HIT!" : "💥 OPPONENT CRITS!"}
+            </span>
+          </div>
+        )}
+
+        {/* Combo banner */}
+        {comboBanner && (
+          <div style={{
+            position: "absolute", top: "38%", left: "50%", transform: "translateX(-50%)",
+            zIndex: 79, pointerEvents: "none",
+            padding: "10px 24px",
+            background: comboBanner === "player" ? "rgba(251,191,36,0.95)" : "rgba(167,139,250,0.95)",
+            borderRadius: 6,
+            boxShadow: `0 0 30px ${comboBanner === "player" ? "#fbbf24" : "#a78bfa"}`,
+            animation: "critPop 0.3s ease-out",
+          }}>
+            <span style={{ fontSize: 18, fontWeight: 900, color: "#000", letterSpacing: 2 }}>
+              {comboBanner === "player" ? "🔥 COMBO STREAK! +3" : "🔥 OPPONENT COMBO! +3"}
+            </span>
+          </div>
+        )}
+
+        {/* Last Stand banner */}
+        {isLastStand && !isMatchEnd && (
+          <div style={{
+            position: "absolute", bottom: 120, left: "50%", transform: "translateX(-50%)",
+            zIndex: 60, pointerEvents: "none",
+            padding: "8px 20px",
+            background: "rgba(239,68,68,0.15)",
+            border: "1px solid rgba(239,68,68,0.5)",
+            borderRadius: 6,
+            animation: "pulse 1.5s ease-in-out infinite",
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "#ef4444", letterSpacing: 2, textTransform: "uppercase" }}>
+              🛡️ LAST STAND — +20% KNOCK
+            </span>
+          </div>
+        )}
+
+        {/* Momentum bar */}
+        <div style={{ position: "absolute", bottom: 88, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
+          <div style={{ display: "flex", gap: 3 }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} style={{
+                width: 18, height: 8, borderRadius: 2,
+                background: i < momentum ? "#4ade80" : "rgba(255,255,255,0.1)",
+                boxShadow: i < momentum ? "0 0 6px #4ade80" : "none",
+                transition: "all 0.3s ease",
+              }} />
+            ))}
+          </div>
+        </div>
 
         {/* ── HUD ──────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 16, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
@@ -928,6 +1023,24 @@ export default function Gameplay() {
                       style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(86,164,203,0.2)" }}
                     >
                       ⚔ PLAY AGAIN
+                    </button>
+                    {/* Rematch */}
+                    <button
+                      onClick={() => {
+                        resetMatch();
+                        router.push("/select-character");
+                      }}
+                      style={{
+                        padding: "12px 28px",
+                        background: "linear-gradient(135deg, #1a3a52, #0f2233)",
+                        border: "1.5px solid #56a4cb",
+                        borderRadius: 6, cursor: "pointer",
+                        fontWeight: 900, fontSize: 14, letterSpacing: 2,
+                        color: "#b9e7f4", textTransform: "uppercase",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      🔄 REMATCH
                     </button>
                     {/* Share result */}
                     <button
