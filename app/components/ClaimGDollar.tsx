@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { UBISCHEME_CONTRACT, UBISCHEME_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { formatUnits } from "viem";
@@ -19,10 +20,11 @@ export function ClaimGDollar() {
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
-    query: {
-      onSuccess: () => { refetch(); },
-    },
   });
+
+  useEffect(() => {
+    if (isSuccess) refetch();
+  }, [isSuccess, refetch]);
 
   if (!isConnected) return null;
 
