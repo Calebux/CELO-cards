@@ -2,18 +2,26 @@
 
 import { useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { UBISCHEME_CONTRACT, UBISCHEME_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { formatUnits } from "viem";
 
 export function ClaimGDollar() {
   const { address, isConnected } = useAccount();
+
+  const { data: isWhitelisted } = useReadContract({
+    address: IDENTITY_CONTRACT,
+    abi: IDENTITY_ABI,
+    functionName: "isWhitelisted",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
 
   const { data: entitlement, refetch } = useReadContract({
     address: UBISCHEME_CONTRACT,
     abi: UBISCHEME_ABI,
     functionName: "checkEntitlement",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address && isWhitelisted === true },
   });
 
   const { writeContract, data: txHash, isPending, isError, reset } = useWriteContract();
@@ -73,32 +81,31 @@ export function ClaimGDollar() {
         <button onClick={handleClaim} disabled={isBusy} style={btnStyle("#000", GDOLLAR_COLOR, GDOLLAR_COLOR, isBusy ? 0.6 : 1)}>
           {isBusy ? (isConfirming ? "Confirming…" : "Claiming…") : "Claim G$"}
         </button>
-      ) : (
-        /* Not verified or already claimed today */
+      ) : isWhitelisted === false ? (
+        /* Not verified on GoodDollar */
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ fontSize: 9, color: "#6b7280", lineHeight: "13px" }}>
-            {entitlement === undefined ? "Checking eligibility…" : "Already claimed today, or not yet verified."}
+            Not verified. Get your GoodDollar identity to claim daily G$.
           </p>
-          {entitlement !== undefined && (
-            <a
-              href="https://wallet.gooddollar.org/verify"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 10,
-                fontWeight: 700,
-                color: GDOLLAR_COLOR,
-                textDecoration: "none",
-                letterSpacing: 0.5,
-              }}
-            >
-              Get GoodDollar Verified →
-            </a>
-          )}
+          <a
+            href="https://wallet.gooddollar.org/verify"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: GDOLLAR_COLOR, textDecoration: "none", letterSpacing: 0.5 }}
+          >
+            Get Verified →
+          </a>
         </div>
+      ) : isWhitelisted === true && entitlement === 0n ? (
+        /* Verified but already claimed today */
+        <p style={{ fontSize: 9, color: "#6b7280", lineHeight: "13px" }}>
+          Already claimed today. Come back tomorrow!
+        </p>
+      ) : (
+        /* Loading / checking */
+        <p style={{ fontSize: 9, color: "#6b7280", lineHeight: "13px" }}>
+          {isWhitelisted === undefined ? "Checking identity…" : "Checking eligibility…"}
+        </p>
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

@@ -93,6 +93,11 @@ export default function Loadout() {
     savePreset,
     loadPreset,
     deletePreset,
+    ultimateActivated,
+    ultimateUsed,
+    activateUltimate,
+    playerTaunt,
+    setPlayerTaunt,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -662,6 +667,70 @@ export default function Loadout() {
               );
             })}
           </div>
+        </div>
+
+        {/* Ultimate + Taunt buttons */}
+        {selectedCharacter?.ultimate && (
+          <div style={{ position: "absolute", left: 32, bottom: 80, zIndex: 20, display: "flex", gap: 10, alignItems: "center" }}>
+            {/* Ultimate button */}
+            <button
+              onClick={activateUltimate}
+              disabled={ultimateUsed || ultimateActivated}
+              style={{
+                padding: "10px 18px",
+                background: ultimateActivated
+                  ? `linear-gradient(135deg, ${selectedCharacter.color}40, ${selectedCharacter.color}20)`
+                  : ultimateUsed
+                  ? "rgba(255,255,255,0.04)"
+                  : `linear-gradient(135deg, ${selectedCharacter.color}30, ${selectedCharacter.color}15)`,
+                border: ultimateActivated
+                  ? `2px solid ${selectedCharacter.color}`
+                  : ultimateUsed
+                  ? "2px solid rgba(255,255,255,0.08)"
+                  : `2px solid ${selectedCharacter.color}60`,
+                borderRadius: 8,
+                cursor: ultimateUsed ? "default" : "pointer",
+                opacity: ultimateUsed ? 0.45 : 1,
+                boxShadow: ultimateActivated ? `0 0 16px ${selectedCharacter.color}60` : "none",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="material-icons" style={{ fontSize: 18, color: ultimateUsed ? "#475569" : selectedCharacter.color }}>
+                  {ultimateActivated ? "flash_on" : "bolt"}
+                </span>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 1 }}>
+                    {ultimateUsed ? "USED" : ultimateActivated ? "ACTIVATED" : "ULTIMATE"}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: ultimateUsed ? "#475569" : "#f1f5f9", letterSpacing: 0.5 }}>
+                    {selectedCharacter.ultimate.name}
+                  </div>
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Taunt picker */}
+        <div style={{ position: "absolute", right: 32, bottom: 80, zIndex: 20, display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: 1.5 }}>TAUNT</span>
+          {["😤", "🔥", "💀", "👊", "⚡"].map((emoji) => (
+            <button
+              key={emoji}
+              onClick={() => setPlayerTaunt(playerTaunt === emoji ? null : emoji)}
+              style={{
+                width: 36, height: 36, borderRadius: 6,
+                background: playerTaunt === emoji ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
+                border: playerTaunt === emoji ? "1.5px solid rgba(255,255,255,0.35)" : "1.5px solid rgba(255,255,255,0.1)",
+                cursor: "pointer", fontSize: 18,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.15s",
+              }}
+            >
+              {emoji}
+            </button>
+          ))}
         </div>
 
         {/* Lock Sequence button — appears when order is complete */}

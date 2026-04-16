@@ -14,6 +14,7 @@ export interface Card {
     bgColor: string;     // darker bg colour
     image: string;       // card art image URL
     icon?: string;       // optional icon image URL
+    isWild?: boolean;    // type randomises at clash resolve time
 }
 
 export interface Character {
@@ -30,6 +31,7 @@ export interface Character {
     isLocked?: boolean;  // whether the character is selectable
     finisherVideo?: string; // played on match-end win screen
     passive?: { name: string; description: string };
+    ultimate?: { name: string; description: string; effect: "guaranteed_crit" | "double_knock" | "full_dodge" | "drain_debuff" | "priority_surge" };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────
@@ -49,6 +51,7 @@ export const CHARACTERS: Character[] = [
         isLocked: false,
         finisherVideo: "/new-assets/action-green-spiral.webm",
         passive: { name: "First Strike", description: "+2 Knock on the opening slot" },
+        ultimate: { name: "Blinding Flash", description: "Next slot guaranteed critical hit (2× knock)", effect: "guaranteed_crit" },
     },
     {
         id: "kenji",
@@ -64,6 +67,7 @@ export const CHARACTERS: Character[] = [
         isLocked: false,
         finisherVideo: "/new-assets/action-knight-attack.webm",
         passive: { name: "Blade Speed", description: "+2 Knock when winning a priority clash" },
+        ultimate: { name: "Blade Storm", description: "Double knock damage on next slot", effect: "double_knock" },
     },
     {
         id: "riven",
@@ -79,6 +83,7 @@ export const CHARACTERS: Character[] = [
         isLocked: false,
         finisherVideo: "/new-assets/action-white-hair-blue.webm",
         passive: { name: "Phantom Dodge", description: "Halve all damage received on slot 3" },
+        ultimate: { name: "Phase Shift", description: "Take zero damage on next slot", effect: "full_dodge" },
     },
     {
         id: "zane",
@@ -94,6 +99,7 @@ export const CHARACTERS: Character[] = [
         isLocked: false,
         finisherVideo: "/new-assets/action-flying-kick.webm",
         passive: { name: "Bulldoze", description: "+2 Knock on every Strike type-win" },
+        ultimate: { name: "Seismic Slam", description: "Drain 3 knock from opponent's next slot", effect: "drain_debuff" },
     },
     {
         id: "elara",
@@ -109,6 +115,7 @@ export const CHARACTERS: Character[] = [
         isLocked: false,
         finisherVideo: "/new-assets/action-solo-energy.webm",
         passive: { name: "Void Drain", description: "Drain -1 from opponent's next slot after a Control win" },
+        ultimate: { name: "Void Surge", description: "+5 priority on next slot, guaranteeing first-strike advantage", effect: "priority_surge" },
     },
 ];
 
@@ -275,6 +282,21 @@ export const CARDS: Card[] = [
         color: "#d946ef",
         bgColor: "#701a75",
         image: "/cards/disrupt.webp",
+    },
+
+    // Wild card
+    {
+        id: "wild_card",
+        name: "Wild Card",
+        type: "strike",  // default; randomised at resolve time when isWild=true
+        priority: 3,
+        knock: 5,
+        energyCost: 2,
+        effect: "Type unknown until the moment of clash. Could be anything.",
+        color: "#f59e0b",
+        bgColor: "#3d2100",
+        image: "/cards/wild_card.webp",
+        isWild: true,
     },
 ];
 

@@ -18,6 +18,19 @@ export const STREAM_FLOW_RATE = PAYOUT_AMOUNT_GDOLLAR / STREAM_DURATION_SECS; //
 // G$ brand color
 export const GDOLLAR_COLOR = "#00C58E";
 
+// GoodDollar Identity contract (Celo mainnet) — checks if address is whitelisted/verified
+export const IDENTITY_CONTRACT = "0xC361A6E67822a0EDc17D899227dd9FC50BD62F42" as `0x${string}`;
+
+export const IDENTITY_ABI = [
+  {
+    name: "isWhitelisted",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
 // GoodDollar UBIScheme — daily UBI claim (Celo mainnet)
 export const UBISCHEME_CONTRACT = "0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1" as `0x${string}`;
 

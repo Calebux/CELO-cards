@@ -1,5 +1,7 @@
 import { Card, CardType, Character, CARDS } from "./gameData";
 
+const CARD_TYPES: CardType[] = ["strike", "defense", "control"];
+
 // ── Combat character stats ─────────────────────────────────────────────────
 
 export interface CombatChar {
@@ -18,6 +20,10 @@ export interface SlotContext {
     slotIndex?: number;          // 0-based slot position (for Riven passive)
     playerComboStreak?: number;  // consecutive slots won by player going into this slot
     opponentComboStreak?: number;
+    playerLastStand?: boolean;   // player is down 0-2 in rounds — +20% knock
+    opponentLastStand?: boolean;
+    playerUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
+    opponentUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
 }
 
 export function charToCombat(c: Character): CombatChar {
@@ -83,6 +89,16 @@ export function resolveSlot(
     ctx: Partial<SlotContext> = {}
 ): SlotResult {
     const c: SlotContext = { ...DEFAULT_CTX, ...ctx };
+
+    // ── Wild card: randomise type at resolve time ─────────────────────────
+    if (playerCard.isWild) {
+        const randType = CARD_TYPES[Math.floor(Math.random() * 3)];
+        playerCard = { ...playerCard, type: randType };
+    }
+    if (opponentCard.isWild) {
+        const randType = CARD_TYPES[Math.floor(Math.random() * 3)];
+        opponentCard = { ...opponentCard, type: randType };
+    }
 
     // ── Evasion: avoid all damage ────────────────────────────────────────
     if (playerCard.id === "evasion") {
@@ -291,6 +307,10 @@ export function resolveSlot(
         opponentKnock += opponentComboBonus;
     }
 
+    // ── Last Stand: +20% knock when losing the round ─────────────────────
+    if (c.playerLastStand) playerKnock = Math.round(playerKnock * 1.2);
+    if (c.opponentLastStand) opponentKnock = Math.round(opponentKnock * 1.2);
+
     // ── Recalculate winner after all modifiers ────────────────────────────
     if (playerKnock > opponentKnock) winner = "player";
     else if (opponentKnock > playerKnock) winner = "opponent";
@@ -302,6 +322,53 @@ export function resolveSlot(
     // Elara "Void Drain": +1 debuff after any control win
     if (c.player.charId === "elara" && playerCard.type === "control" && winner === "player") nextOpponentKnockDebuff += 1;
     if (c.opponent.charId === "elara" && opponentCard.type === "control" && winner === "opponent") nextPlayerKnockDebuff += 1;
+
+    // ── Ultimate effects ──────────────────────────────────────────────────
+    if (c.playerUltimateEffect) {
+        switch (c.playerUltimateEffect) {
+            case "guaranteed_crit":
+                playerKnock = Math.round(playerKnock * 2);
+                description += " [ULTIMATE: BLINDING FLASH!]";
+                break;
+            case "double_knock":
+                playerKnock = Math.round(playerKnock * 2);
+                description += " [ULTIMATE: BLADE STORM!]";
+                break;
+            case "full_dodge":
+                opponentKnock = 0;
+                description += " [ULTIMATE: PHASE SHIFT!]";
+                break;
+            case "drain_debuff":
+                nextOpponentKnockDebuff += 3;
+                description += " [ULTIMATE: SEISMIC SLAM!]";
+                break;
+            case "priority_surge":
+                playerKnock += 5;
+                description += " [ULTIMATE: VOID SURGE!]";
+                break;
+        }
+    }
+    if (c.opponentUltimateEffect) {
+        switch (c.opponentUltimateEffect) {
+            case "guaranteed_crit":
+            case "double_knock":
+                opponentKnock = Math.round(opponentKnock * 2);
+                break;
+            case "full_dodge":
+                playerKnock = 0;
+                break;
+            case "drain_debuff":
+                nextPlayerKnockDebuff += 3;
+                break;
+            case "priority_surge":
+                opponentKnock += 5;
+                break;
+        }
+    }
+    // Recalculate winner again after ultimates
+    if (playerKnock > opponentKnock) winner = "player";
+    else if (opponentKnock > playerKnock) winner = "opponent";
+    else winner = "draw";
 
     const effect =
         playerCard.id === "pressure_advance" || opponentCard.id === "pressure_advance"
@@ -329,19 +396,40 @@ export function resolveSlot(
 
 // ── AI order generation ────────────────────────────────────────────────────
 
-export function generateAIOrder(aiChar?: Character, _playerChar?: Character): Card[] {
+// difficulty: 0=easy (random), 1=normal, 2=hard (optimal + counters player)
+export function generateAIOrder(aiChar?: Character, _playerChar?: Character, difficulty = 1): Card[] {
     const energyPool = aiChar ? calcEnergyPool(aiChar) : 10;
 
+    // Easy mode: mostly random selection
+    if (difficulty === 0) {
+        const valid = CARDS.filter((c) => !c.isWild && c.energyCost <= energyPool);
+        const shuffled = [...valid].sort(() => Math.random() - 0.5);
+        const picks: Card[] = [];
+        let usedEnergy = 0;
+        for (const card of shuffled) {
+            if (picks.length >= 5) break;
+            if (usedEnergy + card.energyCost > energyPool) continue;
+            picks.push(card);
+            usedEnergy += card.energyCost;
+        }
+        return picks.sort(() => Math.random() - 0.5);
+    }
+
     // Score each card by strategic value
-    const scored = CARDS.map((c) => {
+    const scored = CARDS.filter((c) => !c.isWild).map((c) => {
         let score = c.knock + c.priority * 0.5;
-        // Strategic bonuses for impactful cards
+        // Strategic bonuses
         if (c.id === "reversal_edge") score += 3;
         if (c.id === "anticipation") score += 2;
         if (c.id === "disrupt") score += 2;
         if (c.id === "evasion") score += 1;
-        // Energy efficiency bonus
         score += c.energyCost === 0 ? 2 : c.knock / (c.energyCost + 0.5);
+        // Hard mode: extra weight on high-priority and high-knock cards
+        if (difficulty === 2) {
+            score += c.priority * 0.3 + c.knock * 0.2;
+        }
+        // Add some randomness on normal mode to feel human
+        if (difficulty === 1) score += Math.random() * 2;
         return { card: c, score };
     });
 
@@ -350,18 +438,18 @@ export function generateAIOrder(aiChar?: Character, _playerChar?: Character): Ca
     const picks: Card[] = [];
     let usedEnergy = 0;
     const typeCount: Record<string, number> = { strike: 0, defense: 0, control: 0 };
+    // Hard mode allows more of one type; normal enforces variety
+    const typeLimit = difficulty === 2 ? 3 : 2;
 
-    // First pass: pick within energy budget with type variety
     for (const { card } of scored) {
         if (picks.length >= 5) break;
         if (usedEnergy + card.energyCost > energyPool) continue;
-        if (typeCount[card.type] >= 2) continue;
+        if (typeCount[card.type] >= typeLimit) continue;
         picks.push(card);
         usedEnergy += card.energyCost;
         typeCount[card.type]++;
     }
 
-    // Second pass: fill remaining slots ignoring type limit (still respect budget)
     for (const { card } of scored) {
         if (picks.length >= 5) break;
         if (picks.some((p) => p.id === card.id)) continue;
@@ -370,14 +458,14 @@ export function generateAIOrder(aiChar?: Character, _playerChar?: Character): Ca
         usedEnergy += card.energyCost;
     }
 
-    // Final pass: fill any remaining slots ignoring budget (guarantees 5 cards)
     for (const { card } of scored) {
         if (picks.length >= 5) break;
         if (picks.some((p) => p.id === card.id)) continue;
         picks.push(card);
     }
 
-    // Shuffle for unpredictability
+    // Hard mode: minimal shuffle, normal mode: full shuffle
+    if (difficulty === 2) return picks;
     return picks.sort(() => Math.random() - 0.5);
 }
 
@@ -390,11 +478,21 @@ export interface RoundResult {
     roundWinner: "player" | "opponent" | "draw";
 }
 
+export interface RoundOptions {
+    playerLastStand?: boolean;
+    opponentLastStand?: boolean;
+    playerUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
+    opponentUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
+    playerUltimateSlot?: number;   // which slot the ultimate fires on (default: 0)
+    opponentUltimateSlot?: number;
+}
+
 export function resolveRound(
     playerOrder: Card[],
     opponentOrder: Card[],
     playerChar?: Character,
-    opponentChar?: Character
+    opponentChar?: Character,
+    opts: RoundOptions = {}
 ): RoundResult {
     const playerCombat = playerChar ? charToCombat(playerChar) : DEFAULT_CHAR;
     const opponentCombat = opponentChar ? charToCombat(opponentChar) : DEFAULT_CHAR;
@@ -408,6 +506,8 @@ export function resolveRound(
     let opponentStreak = 0;
 
     for (let i = 0; i < 5; i++) {
+        const pUltSlot = opts.playerUltimateSlot ?? 0;
+        const oUltSlot = opts.opponentUltimateSlot ?? 0;
         const result = resolveSlot(playerOrder[i], opponentOrder[i], {
             player: playerCombat,
             opponent: opponentCombat,
@@ -418,6 +518,10 @@ export function resolveRound(
             slotIndex: i,
             playerComboStreak: playerStreak,
             opponentComboStreak: opponentStreak,
+            playerLastStand: opts.playerLastStand,
+            opponentLastStand: opts.opponentLastStand,
+            playerUltimateEffect: i === pUltSlot ? opts.playerUltimateEffect : undefined,
+            opponentUltimateEffect: i === oUltSlot ? opts.opponentUltimateEffect : undefined,
         });
         slots.push(result);
         totalPlayerKnock += result.playerKnock;

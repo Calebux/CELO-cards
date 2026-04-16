@@ -263,6 +263,11 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
+            <Link className="ko-nav-btn ko-btn-leaderboard" href="/challenges">
+              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7 21l5-3 5 3-1.5-5.5L21 9.5l-5.5-.5L13 4l-2 5-5.5.5 4.5 2.5z"/></svg>
+              <span className="ko-btn-label">CHALLENGES</span>
+            </Link>
+
             <div className="ko-points-badge">
               <span style={{ fontSize:16, flexShrink:0 }}>⚡</span>
               <div style={{ display:"flex", flexDirection:"column" }}>
