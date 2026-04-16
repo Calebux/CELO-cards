@@ -70,7 +70,7 @@ interface GameState {
     // Wager
     wagerActive: boolean;
     wagerTxHash: string | null;
-    wagerCurrency: "cusd" | "celo";
+    wagerCurrency: "cusd" | "celo" | "gdollar";
 
     // Points
     playerPoints: number;
@@ -103,7 +103,7 @@ interface GameState {
     deletePreset: (index: number) => void;
     setOpponentCharacterFromServer: (charId: string) => void;
     setPrecomputedFromServer: (slots: SlotResult[]) => void;
-    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo") => void;
+    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar") => void;
     selectCharacter: (character: Character) => void;
     startMatch: () => void;
     addCardToSlot: (card: Card) => void;
@@ -139,7 +139,7 @@ export const useGameStore = create<GameState>()(
     playerAddress: null,
     wagerActive: false,
     wagerTxHash: null,
-    wagerCurrency: "cusd" as "cusd" | "celo",
+    wagerCurrency: "cusd" as "cusd" | "celo" | "gdollar",
     playerPoints: 0,
     pointsThisRound: 0,
     matchesPlayed: 0,
@@ -183,7 +183,7 @@ export const useGameStore = create<GameState>()(
         const { deckPresets } = get();
         set({ deckPresets: deckPresets.filter((_, i) => i !== index) });
     },
-    setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency }),
+    setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency as "cusd" | "celo" | "gdollar" }),
 
     setOpponentCharacterFromServer: (charId) => {
         const char = CHARACTERS.find((c) => c.id === charId);

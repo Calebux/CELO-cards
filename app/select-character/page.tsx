@@ -132,6 +132,19 @@ export default function SelectCharacter() {
             </div>
           </div>
 
+          {/* Passive module */}
+          {activeChar.passive && (
+            <div className="rounded-[8.438px] border-[0.703px] shrink-0 p-[11.953px] flex flex-col gap-[5.625px]"
+              style={{ backgroundColor: "#1a0f2e", borderColor: `${activeChar.color}40` }}>
+              <div className="flex items-center gap-[5.625px]">
+                <span className="material-icons not-italic" style={{ fontSize: 8.438, color: activeChar.color }}>auto_awesome</span>
+                <span className="font-bold uppercase" style={{ fontSize: 7.5, letterSpacing: 1.5, color: activeChar.color }}>{activeChar.passive.name}</span>
+                <span className="font-bold uppercase" style={{ fontSize: 6.5, letterSpacing: 1, color: "rgba(255,255,255,0.3)", marginLeft: "auto" }}>PASSIVE</span>
+              </div>
+              <span style={{ fontSize: 7.5, color: "rgba(255,255,255,0.55)", lineHeight: "11px" }}>{activeChar.passive.description}</span>
+            </div>
+          )}
+
           {/* Stats module — dynamic */}
           <div className="rounded-[8.438px] border-[0.703px] border-[rgba(185,231,244,0.1)] shrink-0 p-[11.953px] flex flex-col gap-[11.25px]" style={{ backgroundColor: "#222f42" }}>
             {STAT_META.map((s) => {

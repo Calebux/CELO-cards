@@ -10,6 +10,7 @@ import {
 } from "wagmi";
 import { CUSD_CONTRACT, WAGER_AMOUNT, ERC20_ABI, WAGER_AMOUNT_CELO } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
+import { GDOLLAR_CONTRACT, GDOLLAR_ABI, WAGER_AMOUNT_GDOLLAR, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 
 type Props = {
@@ -18,9 +19,15 @@ type Props = {
 };
 
 type Step = "idle" | "approving" | "approved" | "entering" | "done" | "error";
-type Currency = "cusd" | "celo";
+type Currency = "cusd" | "celo" | "gdollar";
 
 const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
+
+const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: string }> = {
+  cusd:    { label: "cUSD",    color: "#56a4cb",     symbol: "cUSD" },
+  celo:    { label: "CELO",    color: "#f9c846",     symbol: "CELO" },
+  gdollar: { label: "G$",      color: GDOLLAR_COLOR, symbol: "G$" },
+};
 
 export function WagerModal({ onConfirmed, onSkip }: Props) {
   const { address } = useAccount();
@@ -71,6 +78,11 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
     if (!address) { setErrMsg("Wallet not connected."); return; }
     setErrMsg("");
 
+    if (currency === "gdollar") {
+      await handleGDollarTransfer();
+      return;
+    }
+
     if (currency === "celo") {
       if (!USE_CONTRACT) {
         await handleDirectCeloTransfer();
@@ -91,6 +103,24 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
       setStep("approved");
     } else {
       await handleApprove();
+    }
+  };
+
+  // ── G$: direct ERC-20 transfer to treasury ────────────────────────────────
+  const handleGDollarTransfer = async () => {
+    const TREASURY = (process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "0x0000000000000000000000000000000000000000") as `0x${string}`;
+    setStep("entering");
+    try {
+      const hash = await writeContractAsync({
+        address: GDOLLAR_CONTRACT,
+        abi: GDOLLAR_ABI,
+        functionName: "transfer",
+        args: [TREASURY, WAGER_AMOUNT_GDOLLAR],
+      });
+      setTxHash(hash);
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "G$ transfer failed.");
+      setStep("error");
     }
   };
 
@@ -186,16 +216,15 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
   const statusLabel = () => {
     if (step === "approving") return "Approving cUSD spend…";
     if (step === "approved")  return "Approval confirmed — entering match…";
-    if (step === "entering")  return "Waiting for confirmation…";
+    if (step === "entering")  return currency === "gdollar" ? "Sending G$…" : "Waiting for confirmation…";
     return null;
   };
 
-  const isCelo = currency === "celo";
-  const tokenSymbol = isCelo ? "CELO" : "cUSD";
-  const entryDisplay = `0.000007 ${tokenSymbol}`;
-  const payoutDisplay = `0.000007 ${tokenSymbol}`;
-  const entryColor = isCelo ? "#f9c846" : "#b9e7f4";
-  const payoutColor = "#4ade80";
+  const cfg = CURRENCY_CONFIG[currency];
+  const wagerDisplay = `0.000007 ${cfg.symbol}`;
+  const payoutNote = currency === "gdollar"
+    ? "Winnings stream to your wallet via Superfluid"
+    : `Win and claim 0.000007 ${cfg.symbol} back.`;
 
   return (
     <div style={{
@@ -207,15 +236,15 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
       <div style={{
         position: "relative", width: 420,
         background: "rgba(15, 23, 42, 0.95)",
-        border: `2px solid ${isCelo ? "#f9c846" : "#56a4cb"}`,
+        border: `2px solid ${cfg.color}`,
         borderRadius: 8,
         padding: "40px 40px 32px",
-        boxShadow: `0 0 40px ${isCelo ? "rgba(249,200,70,0.3)" : "rgba(86,164,203,0.3)"}`,
+        boxShadow: `0 0 40px ${cfg.color}50`,
         fontFamily: "var(--font-space-grotesk), sans-serif",
         transition: "border-color 0.2s, box-shadow 0.2s",
       }}>
         {/* Scanline */}
-        <div style={{ position: "absolute", top: -1, left: -1, right: -1, height: 2, backgroundColor: isCelo ? "#f9c846" : "#56a4cb", transition: "background-color 0.2s" }} />
+        <div style={{ position: "absolute", top: -1, left: -1, right: -1, height: 2, backgroundColor: cfg.color, transition: "background-color 0.2s" }} />
 
         {/* Corner accents */}
         <div style={{ position: "absolute", top: -10, left: -10, width: 24, height: 24, borderLeft: "1.5px solid #b9e7f4", borderTop: "1.5px solid #b9e7f4" }} />
@@ -232,33 +261,49 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
 
         {/* Currency selector */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(["cusd", "celo"] as Currency[]).map((c) => (
-            <button
-              key={c}
-              onClick={() => { if (!busy) { setCurrency(c); setErrMsg(""); setStep("idle"); } }}
-              disabled={busy}
-              style={{
-                flex: 1, padding: "8px 0",
-                background: currency === c
-                  ? (c === "celo" ? "rgba(249,200,70,0.15)" : "rgba(86,164,203,0.15)")
-                  : "rgba(255,255,255,0.03)",
-                border: `1.5px solid ${currency === c ? (c === "celo" ? "#f9c846" : "#56a4cb") : "#334155"}`,
-                borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
-                fontSize: 13, fontWeight: 700,
-                color: currency === c ? (c === "celo" ? "#f9c846" : "#56a4cb") : "#6b7280",
-                letterSpacing: 2, textTransform: "uppercase",
-                fontFamily: "inherit",
-                transition: "all 0.15s",
-              }}
-            >
-              {c === "cusd" ? "cUSD" : "CELO"}
-            </button>
-          ))}
+          {(["cusd", "celo", "gdollar"] as Currency[]).map((c) => {
+            const cc = CURRENCY_CONFIG[c];
+            return (
+              <button
+                key={c}
+                onClick={() => { if (!busy) { setCurrency(c); setErrMsg(""); setStep("idle"); } }}
+                disabled={busy}
+                style={{
+                  flex: 1, padding: "8px 0",
+                  background: currency === c ? `${cc.color}26` : "rgba(255,255,255,0.03)",
+                  border: `1.5px solid ${currency === c ? cc.color : "#334155"}`,
+                  borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
+                  fontSize: 12, fontWeight: 700,
+                  color: currency === c ? cc.color : "#6b7280",
+                  letterSpacing: 1.5, textTransform: "uppercase",
+                  fontFamily: "inherit",
+                  transition: "all 0.15s",
+                }}
+              >
+                {cc.label}
+              </button>
+            );
+          })}
         </div>
 
+        {/* G$ streaming badge */}
+        {currency === "gdollar" && (
+          <div style={{
+            marginBottom: 12, padding: "8px 14px",
+            background: `${GDOLLAR_COLOR}18`,
+            border: `1px solid ${GDOLLAR_COLOR}50`,
+            borderRadius: 6, display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: GDOLLAR_COLOR, boxShadow: `0 0 6px ${GDOLLAR_COLOR}`, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: GDOLLAR_COLOR, fontWeight: 700, letterSpacing: 0.5 }}>
+              Powered by Superfluid · Winnings stream to your wallet
+            </span>
+          </div>
+        )}
+
         <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 24, lineHeight: 1.6 }}>
-          Stake <strong style={{ color: entryColor }}>{entryDisplay}</strong> to play.
-          Win and claim <strong style={{ color: payoutColor }}>{payoutDisplay}</strong> back.
+          Stake <strong style={{ color: cfg.color }}>{wagerDisplay}</strong> to play.{" "}
+          <span style={{ color: currency === "gdollar" ? GDOLLAR_COLOR : "#4ade80" }}>{payoutNote}</span>
         </p>
 
         {/* Wager breakdown */}
@@ -268,9 +313,9 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
           display: "flex", flexDirection: "column", gap: 8,
         }}>
           {[
-            { label: "Entry fee",  value: entryDisplay,  color: entryColor },
-            { label: "Win payout", value: payoutDisplay, color: payoutColor },
-            { label: "House cut",  value: "0%",          color: "#6b7280" },
+            { label: "Entry fee",  value: wagerDisplay, color: cfg.color },
+            { label: "Win payout", value: currency === "gdollar" ? "Streamed via Superfluid" : wagerDisplay, color: currency === "gdollar" ? GDOLLAR_COLOR : "#4ade80" },
+            { label: "House cut",  value: "0%", color: "#6b7280" },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, color: "#6b7280", letterSpacing: 0.5 }}>{label}</span>
@@ -297,22 +342,18 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
           disabled={busy}
           style={{
             width: "100%", padding: "14px 0", marginBottom: 12,
-            background: busy
-              ? "rgba(86,164,203,0.3)"
-              : isCelo
-              ? "linear-gradient(135deg, #2a2010, #f9c84640)"
-              : "linear-gradient(135deg, #222f42, #56a4cb40)",
-            border: `1.5px solid ${isCelo ? "#f9c846" : "#56a4cb"}`,
+            background: busy ? `${cfg.color}40` : `${cfg.color}18`,
+            border: `1.5px solid ${cfg.color}`,
             borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
             transition: "all 0.2s",
           }}
         >
-          <span className="material-icons" style={{ fontSize: 18, color: "#fff" }}>
-            {busy ? "hourglass_empty" : "payments"}
+          <span className="material-icons" style={{ fontSize: 18, color: cfg.color }}>
+            {busy ? "hourglass_empty" : currency === "gdollar" ? "stream" : "payments"}
           </span>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 3 }}>
-            {busy ? "Processing…" : `Pay ${entryDisplay}`}
+            {busy ? "Processing…" : `Pay ${wagerDisplay}`}
           </span>
         </button>
 

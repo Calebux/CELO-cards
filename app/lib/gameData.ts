@@ -29,6 +29,7 @@ export interface Character {
     color: string;       // neon accent
     isLocked?: boolean;  // whether the character is selectable
     finisherVideo?: string; // played on match-end win screen
+    passive?: { name: string; description: string };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ export const CHARACTERS: Character[] = [
         color: "#b9e7f4",
         isLocked: false,
         finisherVideo: "/new-assets/action-green-spiral.webm",
+        passive: { name: "First Strike", description: "+2 Knock on the opening slot" },
     },
     {
         id: "kenji",
@@ -61,6 +63,7 @@ export const CHARACTERS: Character[] = [
         color: "#06a8f9",
         isLocked: false,
         finisherVideo: "/new-assets/action-knight-attack.webm",
+        passive: { name: "Blade Speed", description: "+2 Knock when winning a priority clash" },
     },
     {
         id: "riven",
@@ -75,6 +78,7 @@ export const CHARACTERS: Character[] = [
         color: "#8c25f4",
         isLocked: false,
         finisherVideo: "/new-assets/action-white-hair-blue.webm",
+        passive: { name: "Phantom Dodge", description: "Halve all damage received on slot 3" },
     },
     {
         id: "zane",
@@ -89,6 +93,7 @@ export const CHARACTERS: Character[] = [
         color: "#f87171",
         isLocked: false,
         finisherVideo: "/new-assets/action-flying-kick.webm",
+        passive: { name: "Bulldoze", description: "+2 Knock on every Strike type-win" },
     },
     {
         id: "elara",
@@ -103,6 +108,7 @@ export const CHARACTERS: Character[] = [
         color: "#f906a8",
         isLocked: false,
         finisherVideo: "/new-assets/action-solo-energy.webm",
+        passive: { name: "Void Drain", description: "Drain -1 from opponent's next slot after a Control win" },
     },
 ];
 

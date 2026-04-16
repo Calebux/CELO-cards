@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { SoundSettingsButton } from "../components/SoundSettings";
+import { ClaimGDollar } from "../components/ClaimGDollar";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -213,6 +214,9 @@ export default function ProfilePage() {
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginTop: 4 }}>TOTAL POINTS</div>
               </div>
             </div>
+
+            {/* G$ UBI Claim */}
+            <ClaimGDollar />
 
             {/* Stats */}
             <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "20px 20px" }}>

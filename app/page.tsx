@@ -96,20 +96,23 @@ export default function ActionOrderLandingPage() {
         .ko-btn-tournament  { left: 40px; top: 372px; }
         .ko-btn-community   { left: 40px; top: 428px; }
         .ko-btn-leaderboard { left: 40px; top: 484px; }
+        .ko-btn-profile     { left: 40px; top: 540px; }
         .ko-btn-join .ko-btn-label,
         .ko-btn-tournament .ko-btn-label,
         .ko-btn-community .ko-btn-label,
-        .ko-btn-leaderboard .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
+        .ko-btn-leaderboard .ko-btn-label,
+        .ko-btn-profile .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
         .ko-btn-join .ko-btn-icon,
         .ko-btn-tournament .ko-btn-icon,
         .ko-btn-community .ko-btn-icon,
-        .ko-btn-leaderboard .ko-btn-icon { color: #56a4cb; }
+        .ko-btn-leaderboard .ko-btn-icon,
+        .ko-btn-profile .ko-btn-icon { color: #56a4cb; }
         .ko-nav-btn:hover .ko-btn-label { opacity: 1; text-shadow: 0 0 8px rgba(185,231,244,0.4); }
         .ko-nav-btn:hover .ko-btn-icon  { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(86,164,203,0.8)); }
 
         /* ── Points badge ─────────────────────────────── */
         .ko-points-badge {
-          position: absolute; left: 40px; top: 540px;
+          position: absolute; left: 40px; top: 596px;
           width: 180px; height: 44px; z-index: 15;
           display: flex; align-items: center; gap: 10px; padding: 0 16px;
           background: linear-gradient(135deg,rgba(15,23,42,0.9),rgba(168,85,247,0.15));
@@ -227,6 +230,11 @@ export default function ActionOrderLandingPage() {
             <Link className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
               <span className="ko-btn-label">LEADERBOARD</span>
+            </Link>
+
+            <Link className="ko-nav-btn ko-btn-profile" href="/profile">
+              <svg className="ko-btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              <span className="ko-btn-label">PROFILE</span>
             </Link>
 
             <div className="ko-points-badge">
