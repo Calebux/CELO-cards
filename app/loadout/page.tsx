@@ -85,6 +85,8 @@ export default function Loadout() {
     matchId,
     playerRole,
     roundNumber,
+    playerRoundsWon,
+    opponentRoundsWon,
     setPrecomputedFromServer,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
@@ -186,6 +188,27 @@ export default function Loadout() {
         {/* Logo */}
         <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: -3, width: 200, height: 114, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ fontWeight: 900, fontSize: 22, lineHeight: "1.1", letterSpacing: "-0.5px", color: "#b9e7f4", textAlign: "center", textShadow: "0 0 20px rgba(185,231,244,0.4)", textTransform: "uppercase" }}>ACTION<br/>ORDER</div>
+        </div>
+
+        {/* Round + score badge */}
+        <div style={{
+          position: "absolute", top: 24, right: 32, zIndex: 10,
+          display: "flex", alignItems: "center", gap: 10,
+          backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
+          padding: "6px 14px",
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 2 }}>
+            Round {roundNumber}
+          </span>
+          <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.12)" }} />
+          <span style={{ fontSize: 16, fontWeight: 800, color: "#5abfe6", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
+            {playerRoundsWon}
+          </span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>—</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: "rgba(255,255,255,0.55)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>
+            {opponentRoundsWon}
+          </span>
         </div>
 
         {/* Left character panel — shows selected character's standing art */}

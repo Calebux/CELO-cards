@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
@@ -9,14 +9,15 @@ const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-export default function JoinMatch() {
+function JoinMatchContent() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
-  const [code, setCode] = useState("");
+  const searchParams = useSearchParams();
+  const [code, setCode] = useState(() => searchParams.get("id") ?? "");
   const [error, setError] = useState("");
   const [joining] = useState(false);
 
@@ -225,5 +226,14 @@ export default function JoinMatch() {
 
       </div>
     </div>
+  );
+}
+
+
+export default function JoinMatch() {
+  return (
+    <Suspense>
+      <JoinMatchContent />
+    </Suspense>
   );
 }
