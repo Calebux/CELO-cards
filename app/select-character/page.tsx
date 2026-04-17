@@ -15,7 +15,7 @@ const GREY_PORTRAITS = [
   "/Characters standing/Whisk_gdzlldmlhtm3e2nh1ymmfwotadmjrtlkzmm20sy.webp",
   "/Characters standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
   "/Characters standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
-  "/Characters standing/Whisk_iznjzdmzmtoivgmw0yn3atytytz0qtl3ygz10cn.webp",
+  "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
   "/Two fighters/standing 2.webp",
   "/characters/fighter.webp",
   "/Characters standing/Whisk_19475fe609c83ad99cb4dd1553b8093edr.webp",
@@ -49,10 +49,11 @@ export default function SelectCharacter() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = document.body.clientWidth;
-      const h = document.body.clientHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const offsetX = Math.max(0, (w - DESIGN_W * s) / 2);
+      wrapRef.current.style.transform = `translateX(${offsetX}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -110,6 +111,13 @@ export default function SelectCharacter() {
               from { opacity: 0; transform: translateY(28px) scale(0.97); }
               to   { opacity: 1; transform: translateY(0px) scale(1); }
             }
+            @keyframes selGlow {
+              0%,100% { box-shadow: 0 0 16px 2px var(--sc-color, #b9e7f4), 0 0 4px 0 var(--sc-color, #b9e7f4); }
+              50%     { box-shadow: 0 0 28px 6px var(--sc-color, #b9e7f4), 0 0 8px 2px var(--sc-color, #b9e7f4); }
+            }
+            .sc-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+            .sc-card:hover:not([disabled]) { transform: scale(1.06); }
+            .sc-card-selected { animation: selGlow 1.8s ease-in-out infinite; }
           `}</style>
           <div className="relative flex-1 overflow-hidden rounded-[8.438px] border-[1.406px] p-[1.406px]"
             style={{ borderColor: activeChar.color, boxShadow: `0 0 24px ${activeChar.color}40`, transition: "border-color 0.3s ease, box-shadow 0.3s ease" }}>
@@ -183,12 +191,13 @@ export default function SelectCharacter() {
                   <button
                     key={i}
                     onClick={() => !c.isLocked && setSelectedIdx(c.charIdx)}
-                    className="relative overflow-hidden rounded-[5.625px] border-[1.406px] cursor-pointer transition-all duration-200"
+                    className={`relative overflow-hidden rounded-[5.625px] border-[1.406px] cursor-pointer sc-card${isSel ? " sc-card-selected" : ""}`}
                     style={{
                       width: 107, height: 141,
-                      borderColor: isSel ? "#b9e7f4" : "transparent",
+                      borderColor: isSel ? activeChar.color : "transparent",
                       backgroundColor: isSel ? "rgba(255,255,255,0)" : "#222f42",
-                      boxShadow: isSel ? "0px 0px 0px 2.813px rgba(140,37,244,0.2)" : "none",
+                      // @ts-expect-error css custom property
+                      "--sc-color": activeChar.color,
                       padding: 1.406,
                       opacity: c.isLocked ? 0.4 : 1,
                       pointerEvents: c.isLocked ? "none" : "auto",

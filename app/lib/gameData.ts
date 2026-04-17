@@ -32,6 +32,7 @@ export interface Character {
     finisherVideo?: string; // played on match-end win screen
     passive?: { name: string; description: string };
     ultimate?: { name: string; description: string; effect: "guaranteed_crit" | "double_knock" | "full_dodge" | "drain_debuff" | "priority_surge" };
+    taunts?: string[]; // lines shown when this character enters the arena as an opponent
 }
 
 // ── Characters ────────────────────────────────────────────────────────────
@@ -44,14 +45,15 @@ export const CHARACTERS: Character[] = [
         knockStat: 85,
         priorityStat: 62,
         drainStat: 40,
-        portrait: "/Two fighters/standing 2.webp",
+        portrait: "/characters/characters /Adobe Express - file (4).webp",
         fullArt: "/new addition/kaira_lobby.webp",
-        standingArt: "/Two fighters/standing 2.webp",
+        standingArt: "/characters/characters /Adobe Express - file (4).webp",
         color: "#b9e7f4",
         isLocked: false,
         finisherVideo: "/new-assets/action-green-spiral.webm",
         passive: { name: "First Strike", description: "+2 Knock on the opening slot" },
         ultimate: { name: "Blinding Flash", description: "Next slot guaranteed critical hit (2× knock)", effect: "guaranteed_crit" },
+        taunts: ["You can't keep up with me.", "First strike, last words.", "I've already won."],
     },
     {
         id: "kenji",
@@ -68,6 +70,7 @@ export const CHARACTERS: Character[] = [
         finisherVideo: "/new-assets/action-knight-attack.webm",
         passive: { name: "Blade Speed", description: "+2 Knock when winning a priority clash" },
         ultimate: { name: "Blade Storm", description: "Double knock damage on next slot", effect: "double_knock" },
+        taunts: ["Draw your blade — if you dare.", "Speed is the only truth.", "I've cut down better players today."],
     },
     {
         id: "riven",
@@ -84,6 +87,7 @@ export const CHARACTERS: Character[] = [
         finisherVideo: "/new-assets/action-white-hair-blue.webm",
         passive: { name: "Phantom Dodge", description: "Halve all damage received on slot 3" },
         ultimate: { name: "Phase Shift", description: "Take zero damage on next slot", effect: "full_dodge" },
+        taunts: ["You can't hit what you can't see.", "A shadow leaves no trace.", "Your moves are already countered."],
     },
     {
         id: "zane",
@@ -92,14 +96,15 @@ export const CHARACTERS: Character[] = [
         knockStat: 95,
         priorityStat: 45,
         drainStat: 35,
-        portrait: "/Characters standing/Whisk_iznjzdmzmtoivgmw0yn3atytytz0qtl3ygz10cn.webp",
-        fullArt: "/Characters standing/Whisk_iznjzdmzmtoivgmw0yn3atytytz0qtl3ygz10cn.webp",
-        standingArt: "/Characters standing/Whisk_iznjzdmzmtoivgmw0yn3atytytz0qtl3ygz10cn.webp",
+        portrait: "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
+        fullArt: "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
+        standingArt: "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
         color: "#f87171",
         isLocked: false,
         finisherVideo: "/new-assets/action-flying-kick.webm",
         passive: { name: "Bulldoze", description: "+2 Knock on every Strike type-win" },
         ultimate: { name: "Seismic Slam", description: "Drain 3 knock from opponent's next slot", effect: "drain_debuff" },
+        taunts: ["I don't dodge. I end it.", "Try to stop me. I dare you.", "Every hit I land shakes the ground."],
     },
     {
         id: "elara",
@@ -108,14 +113,15 @@ export const CHARACTERS: Character[] = [
         knockStat: 60,
         priorityStat: 75,
         drainStat: 90,
-        portrait: "/characters/fighter.webp",
-        fullArt: "/characters/fighter.webp",
-        standingArt: "/Two fighters/standing .webp",
+        portrait: "/characters/characters /Adobe Express - file (6).webp",
+        fullArt: "/characters/characters /Adobe Express - file (6).webp",
+        standingArt: "/characters/characters /Adobe Express - file (6).webp",
         color: "#f906a8",
         isLocked: false,
         finisherVideo: "/new-assets/action-solo-energy.webm",
         passive: { name: "Void Drain", description: "Drain -1 from opponent's next slot after a Control win" },
         ultimate: { name: "Void Surge", description: "+5 priority on next slot, guaranteeing first-strike advantage", effect: "priority_surge" },
+        taunts: ["The void hungers for you.", "Every card you play feeds my power.", "Resistance is already futile."],
     },
 ];
 
@@ -126,6 +132,7 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     kaira: {
         kenji: "/arena-backgrounds/arena_kaira_kenji.webp",
         riven: "/arena-backgrounds/arena_kaira_riven.webp",
+        zane:  "/arena-backgrounds/arena_kaira_kenji.webp",
     },
     kenji: {
         kaira: "/arena-backgrounds/arena_kenji_kaira.webp",
@@ -140,6 +147,7 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     zane: {
         kenji: "/arena-backgrounds/arena_zane_kenji.webp",
         riven: "/arena-backgrounds/arena_zane_riven.webp",
+        kaira: "/arena-backgrounds/arena_zane_kenji.webp",
     },
 };
 

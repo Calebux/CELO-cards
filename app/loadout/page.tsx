@@ -131,10 +131,11 @@ export default function Loadout() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = document.body.clientWidth;
-      const h = document.body.clientHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const offsetX = Math.max(0, (w - DESIGN_W * s) / 2);
+      wrapRef.current.style.transform = `translateX(${offsetX}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -193,7 +194,7 @@ export default function Loadout() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top center", position: "relative" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top left", position: "relative" }}>
 
         {/* Background */}
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />

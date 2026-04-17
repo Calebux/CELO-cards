@@ -81,10 +81,11 @@ export default function CreateMatch() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = document.body.clientWidth;
-      const h = document.body.clientHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const offsetX = Math.max(0, (w - DESIGN_W * s) / 2);
+      wrapRef.current.style.transform = `translateX(${offsetX}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);

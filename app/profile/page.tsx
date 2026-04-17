@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { SoundSettingsButton } from "../components/SoundSettings";
 import { ClaimGDollar } from "../components/ClaimGDollar";
+import { CHARACTERS } from "../lib/gameData";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -59,10 +60,11 @@ export default function ProfilePage() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = document.body.clientWidth;
-      const h = document.body.clientHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const offsetX = Math.max(0, (w - DESIGN_W * s) / 2);
+      wrapRef.current.style.transform = `translateX(${offsetX}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -139,6 +141,21 @@ export default function ProfilePage() {
   ];
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
+
+  // Derived stats from match history
+  const { favouriteChar, totalPointsAllTime } = useMemo(() => {
+    const charWins: Record<string, number> = {};
+    let total = 0;
+    for (const m of matchHistory) {
+      // Track wins per opponent character (to find most-beaten = most-faced)
+      charWins[m.opponentCharId] = (charWins[m.opponentCharId] ?? 0) + (m.outcome === "win" ? 1 : 0);
+      total += m.pointsEarned;
+    }
+    // Favourite = character faced most (proxy for "main" since we don't store player char in history yet)
+    const topId = Object.entries(charWins).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const fav = topId ? CHARACTERS.find((c) => c.id === topId) ?? null : null;
+    return { favouriteChar: fav, totalPointsAllTime: total };
+  }, [matchHistory]);
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -228,6 +245,7 @@ export default function ProfilePage() {
                 { label: "Win Rate", value: winRate(matchesWon, matchesPlayed), color: "#b9e7f4" },
                 { label: "Streak", value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
                 { label: "Best Streak", value: maxWinStreak, color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
+                { label: "Pts Earned", value: totalPointsAllTime > 0 ? `+${totalPointsAllTime.toLocaleString()}` : "—", color: "#fbbf24" },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                   <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>{label}</span>
@@ -235,6 +253,19 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
+          {/* Favourite opponent / rival card */}
+          {favouriteChar && (
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: `1px solid ${favouriteChar.color}30`, borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 58, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${favouriteChar.color}50`, flexShrink: 0 }}>
+                <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 2 }}>Top Rival</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
+                <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>{favouriteChar.className}</div>
+              </div>
+            </div>
+          )}
           </div>
 
           {/* Right column — achievements */}

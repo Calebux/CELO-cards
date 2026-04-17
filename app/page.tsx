@@ -23,8 +23,8 @@ export default function ActionOrderLandingPage() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = document.body.clientWidth;
-      const h = document.body.clientHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
       wrapRef.current.style.transform = `scale(${s})`;
     };
@@ -35,7 +35,7 @@ export default function ActionOrderLandingPage() {
 
   return (
     <>
-      <title>Action Order – Land Page</title>
+      <title>Action Order</title>
       <link href="https://fonts.googleapis.com/css2?family=Ruda:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <style>{`
         .ko-land-page-wrapper {
@@ -183,8 +183,8 @@ export default function ActionOrderLandingPage() {
         }
       `}</style>
 
-      <div style={{ width:"100vw", minHeight:"100vh", overflowX:"hidden", overflowY:"auto", backgroundColor:"#0a0f1c", display:"flex", flexDirection:"column", alignItems:"center" }}>
-        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ position:"relative", transformOrigin:"top center" }}>
+      <div style={{ width:"100vw", height:"100vh", overflow:"hidden", backgroundColor:"#0a0f1c", display:"flex", justifyContent:"center" }}>
+        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ flexShrink:0, transformOrigin:"top center" }}>
           <div className="ko-land-page">
 
             {/* Background */}

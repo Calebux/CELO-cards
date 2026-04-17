@@ -123,9 +123,10 @@ interface ClashCinematicProps {
   result: SlotResult;
   opponentColor: string;
   fadeOut: boolean;
+  arenaBackground?: string;
 }
 
-export function ClashCinematic({ result, opponentColor, fadeOut }: ClashCinematicProps) {
+export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground }: ClashCinematicProps) {
   const winnerColor = result.winner === "player" ? "#06a8f9"
     : result.winner === "opponent" ? opponentColor
       : "#fbbf24";
@@ -145,6 +146,9 @@ export function ClashCinematic({ result, opponentColor, fadeOut }: ClashCinemati
       display: "flex", alignItems: "center", justifyContent: "center",
       animation: fadeOut ? "cinematicOut 0.4s ease forwards" : "cinematicIn 0.25s ease forwards",
     }}>
+      {arenaBackground && (
+        <img src={arenaBackground} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      )}
       {actionVideo && (
         <video src={actionVideo} autoPlay muted playsInline
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }}
