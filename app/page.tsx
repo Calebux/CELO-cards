@@ -26,7 +26,9 @@ export default function ActionOrderLandingPage() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const offsetX = (w - DESIGN_W * s) / 2;
+      const offsetY = (h - DESIGN_H * s) / 2;
+      wrapRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -183,8 +185,8 @@ export default function ActionOrderLandingPage() {
         }
       `}</style>
 
-      <div style={{ width:"100vw", height:"100vh", overflow:"hidden", backgroundColor:"#0a0f1c", display:"flex", justifyContent:"center" }}>
-        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ flexShrink:0, transformOrigin:"top center" }}>
+      <div style={{ width:"100vw", height:"100vh", overflow:"hidden", backgroundColor:"#0a0f1c" }}>
+        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ transformOrigin:"top left" }}>
           <div className="ko-land-page">
 
             {/* Background */}
