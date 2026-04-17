@@ -73,17 +73,3 @@
         box-shadow: 0px 0px 15px 0px rgba(140, 37, 244, 0.4);
     }
 }
-
-/* Force landscape on mobile portrait */
-@media screen and (max-width: 768px) and (orientation: portrait) {
-  body {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    width: 100vh;
-    height: 100vw;
-    transform: translate(-50%, -50%) rotate(90deg);
-    overflow: hidden;
-    background-color: #0a0f1c;
-  }
-}

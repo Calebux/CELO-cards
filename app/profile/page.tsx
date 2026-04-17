@@ -63,7 +63,9 @@ export default function ProfilePage() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const scaledW = DESIGN_W * s;
+      const scaledH = DESIGN_H * s;
+      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -157,8 +159,8 @@ export default function ProfilePage() {
   }, [matchHistory]);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "center", flexShrink: 0, position: "relative" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* Background */}
         <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -185,7 +187,7 @@ export default function ProfilePage() {
 
             {/* Identity card */}
             <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: "1.5px solid rgba(86,164,203,0.3)", borderRadius: 8, backdropFilter: "blur(8px)", padding: "28px 24px", textAlign: "center", boxShadow: "0 0 20px rgba(86,164,203,0.1)" }}>
-              <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${rank.color}33, transparent)`, border: `2px solid ${rank.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${rank.color}33, transparent)`, border: `2px solid ${rank.color}`, position: "relative", margin: "0 auto 16px" }}>
                 <span className="material-icons" style={{ fontSize: 28, color: rank.color }}>person</span>
               </div>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: rank.color, textTransform: "uppercase", marginBottom: 6 }}>{rank.label}</div>

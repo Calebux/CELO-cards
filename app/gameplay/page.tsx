@@ -153,7 +153,9 @@ export default function Gameplay() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-    wrapRef.current.style.transform = `scale(${s})`;
+    const scaledW = DESIGN_W * s;
+    const scaledH = DESIGN_H * s;
+    wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
   }, []);
 
   useEffect(() => {
@@ -361,10 +363,10 @@ export default function Gameplay() {
   }
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       {/* Inject clash animation keyframes */}
       <style dangerouslySetInnerHTML={{ __html: CLASH_STYLES }} />
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "center", flexShrink: 0, position: "relative" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* Background */}
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -818,7 +820,7 @@ export default function Gameplay() {
                       {revealed && pCard ? (
                         <img src={pCard.image} alt={pCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
-                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div style={{ position: "absolute", inset: 0, position: "relative" }}>
                           <span className="material-icons" style={{ fontSize: 14, color: "rgba(90,191,230,0.15)" }}>help_outline</span>
                         </div>
                       )}
@@ -836,7 +838,7 @@ export default function Gameplay() {
                       {revealed && oCard ? (
                         <img src={oCard.image} alt={oCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
-                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div style={{ position: "absolute", inset: 0, position: "relative" }}>
                           <span className="material-icons" style={{ fontSize: 14, color: "rgba(90,191,230,0.15)" }}>help_outline</span>
                         </div>
                       )}
@@ -897,7 +899,7 @@ export default function Gameplay() {
           const accentColor = won ? "#06a8f9" : roundWinner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24";
           const accentGlow  = won ? "rgba(6,168,249,0.5)" : roundWinner === "opponent" ? `${opponent?.color || "#f906a8"}80` : "rgba(251,191,36,0.4)";
           return (
-            <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ position: "absolute", inset: 0, zIndex: 100, position: "relative" }}>
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
 
@@ -1032,7 +1034,7 @@ export default function Gameplay() {
           const winnerChar = won ? selectedCharacter : opponent;
           const finisherVideo = winnerChar?.finisherVideo ?? "/new-assets/action-solo-burst.webm";
           return (
-            <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ position: "absolute", inset: 0, zIndex: 100, position: "relative" }}>
               {/* Background */}
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               {/* Winner finisher video */}
@@ -1311,7 +1313,7 @@ export default function Gameplay() {
                         if (navigator.share) { navigator.share({ text }).catch(() => {}); }
                         else { navigator.clipboard.writeText(text).catch(() => {}); }
                       }}
-                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", position: "relative" }}
                       title="Share result"
                     >
                       <span className="material-icons" style={{ fontSize: 18, color: "#6b7280" }}>share</span>

@@ -23,7 +23,9 @@ export default function ReadyYourDeck() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const scaledW = DESIGN_W * s;
+      const scaledH = DESIGN_H * s;
+      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -50,8 +52,8 @@ export default function ReadyYourDeck() {
   };
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "center", flexShrink: 0, position: "relative" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* Background */}
         <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3, pointerEvents: "none" }} />
@@ -108,7 +110,7 @@ export default function ReadyYourDeck() {
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>MATCH CODE</div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <div style={{ flex: 1, height: 52, background: "rgba(17,10,24,0.6)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ flex: 1, height: 52, background: "rgba(17,10,24,0.6)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 6, position: "relative" }}>
                     <span style={{ fontSize: 22, fontWeight: 900, color: "#b9e7f4", letterSpacing: 3, fontVariantNumeric: "tabular-nums" }}>{matchId}</span>
                   </div>
                   <button

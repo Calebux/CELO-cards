@@ -84,7 +84,9 @@ export default function CreateMatch() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const scaledW = DESIGN_W * s;
+      const scaledH = DESIGN_H * s;
+      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -111,9 +113,9 @@ export default function CreateMatch() {
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
 
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "center", flexShrink: 0, position: "relative" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* Background */}
         <img src="/new addition/gameplay landing page.webp" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
@@ -134,7 +136,7 @@ export default function CreateMatch() {
         </div>
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, position: "relative" }}>
 
           {/* Panel */}
           <div style={{ position: "relative", width: 560 }}>

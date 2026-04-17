@@ -141,7 +141,9 @@ export default function TournamentPage() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const scaledW = DESIGN_W * s;
+      const scaledH = DESIGN_H * s;
+      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -178,7 +180,7 @@ export default function TournamentPage() {
   const qualified = rank !== null && rank <= SPOTS;
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
 
       {/* Background */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
@@ -190,7 +192,7 @@ export default function TournamentPage() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,5,5,0.7) 0%, rgba(5,5,5,0.4) 40%, rgba(5,5,5,0.85) 100%)" }} />
       </div>
 
-      <div ref={wrapRef} style={{ width: DESIGN_W, minHeight: DESIGN_H, height: "auto", transformOrigin: "top center", position: "relative", zIndex: 1 }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, minHeight: DESIGN_H, height: "auto", position: "absolute", top: 0, left: 0, transformOrigin: "top left", zIndex: 1 }}>
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
@@ -388,7 +390,7 @@ export default function TournamentPage() {
           </div>
 
           {/* Arrow connector */}
-          <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 18 }}>›</div>
+          <div style={{ width: 24, position: "relative", color: "#334155", fontSize: 18 }}>›</div>
 
           {/* QF — 4 slots */}
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
@@ -403,7 +405,7 @@ export default function TournamentPage() {
             ))}
           </div>
 
-          <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 18 }}>›</div>
+          <div style={{ width: 24, position: "relative", color: "#334155", fontSize: 18 }}>›</div>
 
           {/* SF — 2 slots */}
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
@@ -418,7 +420,7 @@ export default function TournamentPage() {
             ))}
           </div>
 
-          <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 18 }}>›</div>
+          <div style={{ width: 24, position: "relative", color: "#334155", fontSize: 18 }}>›</div>
 
           {/* Final — 1 slot */}
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
