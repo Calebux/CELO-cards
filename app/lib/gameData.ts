@@ -96,9 +96,9 @@ export const CHARACTERS: Character[] = [
         knockStat: 95,
         priorityStat: 45,
         drainStat: 35,
-        portrait: "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
-        fullArt: "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
-        standingArt: "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
+        portrait: "/characters/characters /zane_portrait.webp",
+        fullArt: "/characters/characters /zane_portrait.webp",
+        standingArt: "/characters/characters /zane_portrait.webp",
         color: "#f87171",
         isLocked: false,
         finisherVideo: "/new-assets/action-flying-kick.webm",
@@ -132,22 +132,32 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     kaira: {
         kenji: "/arena-backgrounds/arena_kaira_kenji.webp",
         riven: "/arena-backgrounds/arena_kaira_riven.webp",
-        zane:  "/arena-backgrounds/arena_kaira_kenji.webp",
+        zane:  "/arena-backgrounds/arena_kaira_zane.webp",
+        elara: "/arena-backgrounds/arena_kaira_riven.webp",
     },
     kenji: {
         kaira: "/arena-backgrounds/arena_kenji_kaira.webp",
         riven: "/arena-backgrounds/arena_kenji_riven.webp",
         zane:  "/arena-backgrounds/arena_kenji_zane.webp",
+        elara: "/arena-backgrounds/arena_kenji_zane.webp",
     },
     riven: {
         kaira: "/arena-backgrounds/arena_riven_kaira.webp",
         kenji: "/arena-backgrounds/arena_riven_kenji.webp",
         zane:  "/arena-backgrounds/arena_riven_zane.webp",
+        elara: "/arena-backgrounds/arena_elara_riven.webp",
     },
     zane: {
         kenji: "/arena-backgrounds/arena_zane_kenji.webp",
         riven: "/arena-backgrounds/arena_zane_riven.webp",
-        kaira: "/arena-backgrounds/arena_zane_kenji.webp",
+        kaira: "/arena-backgrounds/arena_zane_kaira.webp",
+        elara: "/arena-backgrounds/arena_zane_elara.webp",
+    },
+    elara: {
+        riven: "/arena-backgrounds/arena_elara_riven.webp",
+        zane:  "/arena-backgrounds/arena_zane_elara.webp",
+        kaira: "/arena-backgrounds/arena_kaira_riven.webp",
+        kenji: "/arena-backgrounds/arena_kenji_riven.webp",
     },
 };
 
