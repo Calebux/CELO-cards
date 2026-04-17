@@ -12,9 +12,6 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "Action Order",
   description: "Competitive card game platform",
-  other: {
-    "talentapp:project_verification": "c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1",
-  },
 };
 
 export const viewport = {
@@ -50,7 +47,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/icon?family=Material+Icons"
           rel="stylesheet"
         />
-        <meta name="talentapp:project_verification" content="bddb7b5eaf94854dd9c959a5dda473962fa75537eb76c9c64602c9931af3473129534ad7bc43c989c5435a380d14f6968e5ef86c4cdf6ac8b3c248c06983a4ec" />
+        <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
         <Providers>{children}</Providers>
