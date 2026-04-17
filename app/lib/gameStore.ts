@@ -7,6 +7,7 @@ import {
     calcEnergyPool,
     RoundResult,
     SlotResult,
+    RoundOptions,
 } from "./combatEngine";
 
 export type MatchRecord = {
@@ -99,6 +100,19 @@ interface GameState {
     // Deck presets
     deckPresets: DeckPreset[];
 
+    // Ultimate
+    ultimateActivated: boolean;
+    ultimateUsed: boolean;
+    activateUltimate: () => void;
+
+    // Taunt
+    playerTaunt: string | null;
+    setPlayerTaunt: (taunt: string | null) => void;
+
+    // Double-down
+    wagerMultiplier: number;  // 1 or 2
+    setWagerMultiplier: (m: number) => void;
+
     // Actions
     setPlayerAddress: (address: string | null) => void;
     setPlayerName: (name: string) => void;
@@ -157,6 +171,18 @@ export const useGameStore = create<GameState>()(
     matchHistory: [],
     playerName: "",
     deckPresets: [],
+    ultimateActivated: false,
+    ultimateUsed: false,
+    playerTaunt: null,
+    wagerMultiplier: 1,
+
+    activateUltimate: () => {
+        const { ultimateUsed, selectedCharacter } = get();
+        if (ultimateUsed || !selectedCharacter?.ultimate) return;
+        set({ ultimateActivated: true });
+    },
+    setPlayerTaunt: (taunt) => set({ playerTaunt: taunt }),
+    setWagerMultiplier: (m) => set({ wagerMultiplier: m }),
 
     setPlayerAddress: (address) => set({ playerAddress: address }),
     setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
@@ -262,32 +288,45 @@ export const useGameStore = create<GameState>()(
     },
 
     lockOrder: () => {
-        const { currentOrder, selectedCharacter, opponentCharacter } = get();
+        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated } = get();
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
-        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined);
-        const precomputed = resolveRound(
-            playerCards, aiOrder,
-            selectedCharacter ?? undefined,
-            opponentCharacter ?? undefined
-        );
+        // Difficulty scales with player win streak: 0-1 streak = normal, 2+ = hard
+        const difficulty = winStreak >= 2 ? 2 : 1;
+        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty);
+        const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
+        const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;
+        const opts: RoundOptions = {
+            playerLastStand,
+            opponentLastStand,
+            playerUltimateEffect: ultimateActivated ? (selectedCharacter?.ultimate?.effect ?? undefined) : undefined,
+            playerUltimateSlot: 0,
+            opponentUltimateEffect: Math.random() < 0.25 ? (opponentCharacter?.ultimate?.effect ?? undefined) : undefined,
+            opponentUltimateSlot: Math.floor(Math.random() * 5),
+        };
+        const precomputed = resolveRound(playerCards, aiOrder, selectedCharacter ?? undefined, opponentCharacter ?? undefined, opts);
         set({
             opponentOrder: aiOrder,
             precomputedRound: precomputed.slots,
             matchPhase: "combat",
             revealedSlots: 0,
             currentRoundResult: null,
+            ultimateUsed: ultimateActivated ? true : get().ultimateUsed,
+            ultimateActivated: false,
         });
     },
 
     autoLockOrder: () => {
-        const { playerDeck, selectedCharacter, opponentCharacter } = get();
+        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak } = get();
         const autoOrder = playerDeck.slice(0, 5);
-        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined);
-        const precomputed = resolveRound(
-            autoOrder, aiOrder,
-            selectedCharacter ?? undefined,
-            opponentCharacter ?? undefined
-        );
+        const difficulty = winStreak >= 2 ? 2 : 1;
+        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty);
+        const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
+        const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;
+        const opts: RoundOptions = {
+            playerLastStand,
+            opponentLastStand,
+        };
+        const precomputed = resolveRound(autoOrder, aiOrder, selectedCharacter ?? undefined, opponentCharacter ?? undefined, opts);
         set({
             currentOrder: autoOrder,
             opponentOrder: aiOrder,
@@ -402,6 +441,8 @@ export const useGameStore = create<GameState>()(
             currentRoundResult: null,
             precomputedRound: null,
             revealedSlots: 0,
+            ultimateActivated: false,
+            // ultimateUsed persists until match ends
         }));
     },
 
@@ -429,6 +470,10 @@ export const useGameStore = create<GameState>()(
             wagerActive: false,
             wagerTxHash: null,
             wagerCurrency: "cusd",
+            ultimateActivated: false,
+            ultimateUsed: false,
+            playerTaunt: null,
+            wagerMultiplier: 1,
         }));
     },
     }),
