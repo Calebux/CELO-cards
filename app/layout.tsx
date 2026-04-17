@@ -12,6 +12,9 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "Action Order",
   description: "Competitive card game platform",
+  other: {
+    "talentapp:project_verification": "c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1",
+  },
 };
 
 export const viewport = {
