@@ -26,14 +26,17 @@ export default function ActionOrderLandingPage() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
-      let s: number;
       let transform: string;
       if (isPortrait) {
-        s = Math.min(vh / DESIGN_W, vw / DESIGN_H);
-        transform = `translate(-50%, -50%) rotate(90deg) scale(${s})`;
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
       } else {
-        s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        transform = `translate(-50%, -50%) scale(${s})`;
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
       wrapRef.current.style.transform = transform;
     };
@@ -193,7 +196,7 @@ export default function ActionOrderLandingPage() {
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
-        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ position:"fixed", top:"50%", left:"50%", transformOrigin:"center center" }}>
+        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ position:"absolute", top:0, left:0, transformOrigin:"top left" }}>
           <div className="ko-land-page">
 
             {/* Background */}
