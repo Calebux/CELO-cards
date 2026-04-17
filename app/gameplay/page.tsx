@@ -11,6 +11,7 @@ import { SoundSettings } from "../components/SoundSettings";
 import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT } from "../lib/cusd";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
+import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
 
 const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
@@ -45,6 +46,9 @@ export default function Gameplay() {
     playerTaunt,
     wagerMultiplier,
     setWagerMultiplier,
+    ultimateActivated,
+    ultimateUsed,
+    activateUltimate,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -72,8 +76,10 @@ export default function Gameplay() {
   const [opponentStreak, setOpponentStreak] = useState(0);
   const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
   const [showTaunt, setShowTaunt] = useState(true); // show taunt banner at match start
+  const [opponentTauntText, setOpponentTauntText] = useState<string | null>(null);
   const [showDoubleDown, setShowDoubleDown] = useState(false);
   const [doubleDownTimer, setDoubleDownTimer] = useState(10);
+  const [matchLoading, setMatchLoading] = useState(true);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -112,6 +118,22 @@ export default function Gameplay() {
     return () => clearInterval(t);
   }, [showDoubleDown, doubleDownTimer]);
 
+  // Brief cinematic loading screen before match starts
+  useEffect(() => {
+    const t = setTimeout(() => setMatchLoading(false), 2200);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Show opponent taunt ~3s after match loads (after player taunt clears)
+  useEffect(() => {
+    if (!opponentCharacter?.taunts?.length) return;
+    const taunt = opponentCharacter.taunts[Math.floor(Math.random() * opponentCharacter.taunts.length)];
+    const show = setTimeout(() => setOpponentTauntText(taunt), 3200);
+    const hide = setTimeout(() => setOpponentTauntText(null), 5800);
+    return () => { clearTimeout(show); clearTimeout(hide); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opponentCharacter?.id]);
+
   // Start background music on mount
   useEffect(() => {
     startBgMusic();
@@ -129,10 +151,11 @@ export default function Gameplay() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = document.body.clientWidth;
-      const h = document.body.clientHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      wrapRef.current.style.transform = `scale(${s})`;
+      const offsetX = Math.max(0, (w - DESIGN_W * s) / 2);
+      wrapRef.current.style.transform = `translateX(${offsetX}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -315,12 +338,20 @@ export default function Gameplay() {
   const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 
   if (!selectedCharacter || !opponentCharacter) {
+    return <MatchLoadingScreen playerName="—" opponentName="—" />;
+  }
+
+  if (matchLoading) {
     return (
-      <div style={{ width: "100vw", height: "100vh", backgroundColor: "#050505", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, color: "white" }}>
-        <div style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid #56a4cb", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
-        <p style={{ fontSize: 13, color: "#64748b", letterSpacing: 1 }}>Loading match…</p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
+      <MatchLoadingScreen
+        playerName={selectedCharacter.name}
+        opponentName={opponentCharacter.name}
+        playerColor={selectedCharacter.color}
+        opponentColor={opponentCharacter.color}
+        playerPortrait={selectedCharacter.standingArt}
+        opponentPortrait={opponentCharacter.standingArt}
+        label="MATCH STARTING…"
+      />
     );
   }
 
@@ -394,6 +425,29 @@ export default function Gameplay() {
             <div style={{ fontSize: 36, marginBottom: 4 }}>{playerTaunt}</div>
             <div style={{ fontSize: 11, fontWeight: 700, color: selectedCharacter?.color ?? "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>
               {selectedCharacter?.name} enters the arena
+            </div>
+          </div>
+        )}
+
+        {/* Opponent taunt banner */}
+        {opponentTauntText && (
+          <div style={{
+            position: "absolute", top: "22%", left: "50%", transform: "translateX(-50%)",
+            zIndex: 85, pointerEvents: "none",
+            padding: "14px 32px",
+            background: "rgba(15,20,35,0.92)",
+            border: `2px solid ${opponentCharacter?.color ?? "#f906a8"}`,
+            borderRadius: 8,
+            boxShadow: `0 0 30px ${opponentCharacter?.color ?? "#f906a8"}60`,
+            animation: "critPop 0.3s ease-out",
+            textAlign: "center",
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 4 }}>⚠️</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: opponentCharacter?.color ?? "#f906a8", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>
+              {opponentCharacter?.name} taunts you
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.85)", fontStyle: "italic" }}>
+              &ldquo;{opponentTauntText}&rdquo;
             </div>
           </div>
         )}
@@ -539,6 +593,53 @@ export default function Gameplay() {
             </span>
           </div>
         </div>
+
+        {/* ── Ultimate Ability Button ──────────────────────── */}
+        {player?.ultimate && !ultimateUsed && (
+          <div style={{ position: "absolute", top: 96, right: 32, zIndex: 10 }}>
+            <button
+              onClick={() => { if (!ultimateActivated && !isAnimating) { activateUltimate(); playSound("click"); } }}
+              disabled={ultimateActivated || isAnimating || revealedSlots > 0}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 16px",
+                background: ultimateActivated
+                  ? `linear-gradient(135deg, ${player.color}33, ${player.color}15)`
+                  : `linear-gradient(135deg, ${player.color}22, ${player.color}0a)`,
+                border: `1.5px solid ${ultimateActivated ? player.color : `${player.color}60`}`,
+                borderRadius: 4,
+                cursor: ultimateActivated || revealedSlots > 0 ? "not-allowed" : "pointer",
+                backdropFilter: "blur(6px)",
+                opacity: revealedSlots > 0 ? 0.4 : 1,
+                transition: "all 0.2s ease",
+                boxShadow: ultimateActivated ? `0 0 20px ${player.color}50` : "none",
+                fontFamily: "inherit",
+              }}
+            >
+              <span style={{ fontSize: 16 }}>⚡</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase",
+                  color: ultimateActivated ? player.color : `${player.color}cc`,
+                }}>ULTIMATE</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                  {player.ultimate.name}
+                </span>
+              </div>
+              {ultimateActivated && (
+                <span style={{
+                  fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: "#4ade80",
+                  textTransform: "uppercase", animation: "ko-dot-pulse 1s ease-in-out infinite",
+                }}>ACTIVE</span>
+              )}
+            </button>
+            {!ultimateActivated && revealedSlots === 0 && (
+              <p style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", letterSpacing: 1, marginTop: 4, textAlign: "center" }}>
+                {player.ultimate.description}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ── Combat Resolution Area ────────────────────────── */}
         <div style={{ position: "absolute", top: 120, left: 0, right: 0, bottom: 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, zIndex: 5 }}>
@@ -820,17 +921,43 @@ export default function Gameplay() {
                   {/* Scanline */}
                   <div style={{ position: "absolute", top: -2, left: -2, right: -2, height: 1.5, backgroundColor: accentColor }} />
 
-                  {/* Heading */}
-                  <div style={{ textAlign: "center", marginBottom: 32 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>
-                      Round {roundNumber}
-                    </p>
-                    <h2 style={{ fontSize: 56, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: -1, margin: 0, lineHeight: "56px", textShadow: `0 0 30px ${accentGlow}` }}>
-                      {won ? "VICTORY" : roundWinner === "opponent" ? "DEFEAT" : "DRAW"}
-                    </h2>
-                    <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>
-                      {won ? "You won this round" : roundWinner === "opponent" ? `${opponent?.name ?? "Opponent"} wins this round` : "This round is a draw"}
-                    </p>
+                  {/* Fighter portraits */}
+                  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                      <div style={{
+                        width: 72, height: 96, borderRadius: 4, overflow: "hidden",
+                        border: `2px solid ${won ? "#4ade80" : "#ef4444"}`,
+                        boxShadow: `0 0 16px ${won ? "rgba(74,222,128,0.4)" : "rgba(239,68,68,0.3)"}`,
+                        opacity: won ? 1 : 0.55,
+                      }}>
+                        <img src={player?.standingArt} alt={player?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#06a8f9", textTransform: "uppercase" }}>{player?.name}</span>
+                    </div>
+
+                    <div style={{ textAlign: "center", flex: 1 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>
+                        Round {roundNumber}
+                      </p>
+                      <h2 style={{ fontSize: 46, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: -1, margin: 0, lineHeight: "46px", textShadow: `0 0 30px ${accentGlow}` }}>
+                        {won ? "VICTORY" : roundWinner === "opponent" ? "DEFEAT" : "DRAW"}
+                      </h2>
+                      <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                        {won ? "You won this round" : roundWinner === "opponent" ? `${opponent?.name ?? "Opponent"} wins this round` : "This round is a draw"}
+                      </p>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                      <div style={{
+                        width: 72, height: 96, borderRadius: 4, overflow: "hidden",
+                        border: `2px solid ${roundWinner === "opponent" ? "#4ade80" : "#ef4444"}`,
+                        boxShadow: `0 0 16px ${roundWinner === "opponent" ? "rgba(74,222,128,0.4)" : "rgba(239,68,68,0.3)"}`,
+                        opacity: roundWinner === "opponent" ? 1 : 0.55,
+                      }}>
+                        <img src={opponent?.standingArt} alt={opponent?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: opponent?.color ?? "#f906a8", textTransform: "uppercase" }}>{opponent?.name}</span>
+                    </div>
                   </div>
 
                   {/* Knock scores */}
@@ -936,19 +1063,45 @@ export default function Gameplay() {
                   {/* Scanline */}
                   <div style={{ position: "absolute", top: -2, left: -2, right: -2, height: 1.5, backgroundColor: accentColor }} />
 
-                  {/* Heading */}
-                  <div style={{ textAlign: "center", marginBottom: 32 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>
-                      Match Complete
-                    </p>
-                    <h2 style={{ fontSize: 56, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: -1, margin: 0, lineHeight: "56px", textShadow: `0 0 30px ${accentGlow}` }}>
-                      {won ? "VICTORY" : roundWinner === "opponent" ? "DEFEAT" : "DRAW"}
-                    </h2>
-                    <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>
-                      {won
-                        ? `You defeated ${opponent?.name ?? "your opponent"}`
-                        : `${opponent?.name ?? "Opponent"} wins this match`}
-                    </p>
+                  {/* Fighter portraits */}
+                  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                      <div style={{
+                        width: 80, height: 108, borderRadius: 4, overflow: "hidden",
+                        border: `2px solid ${won ? "#4ade80" : "#ef4444"}`,
+                        boxShadow: `0 0 20px ${won ? "rgba(74,222,128,0.5)" : "rgba(239,68,68,0.3)"}`,
+                        opacity: won ? 1 : 0.45,
+                      }}>
+                        <img src={player?.standingArt} alt={player?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#06a8f9", textTransform: "uppercase" }}>{player?.name}</span>
+                    </div>
+
+                    <div style={{ textAlign: "center", flex: 1 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>
+                        Match Complete
+                      </p>
+                      <h2 style={{ fontSize: 46, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: -1, margin: 0, lineHeight: "46px", textShadow: `0 0 30px ${accentGlow}` }}>
+                        {won ? "VICTORY" : roundWinner === "opponent" ? "DEFEAT" : "DRAW"}
+                      </h2>
+                      <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                        {won
+                          ? `You defeated ${opponent?.name ?? "your opponent"}`
+                          : `${opponent?.name ?? "Opponent"} wins this match`}
+                      </p>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                      <div style={{
+                        width: 80, height: 108, borderRadius: 4, overflow: "hidden",
+                        border: `2px solid ${!won ? "#4ade80" : "#ef4444"}`,
+                        boxShadow: `0 0 20px ${!won ? "rgba(74,222,128,0.5)" : "rgba(239,68,68,0.3)"}`,
+                        opacity: !won ? 1 : 0.45,
+                      }}>
+                        <img src={opponent?.standingArt} alt={opponent?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: opponent?.color ?? "#f906a8", textTransform: "uppercase" }}>{opponent?.name}</span>
+                    </div>
                   </div>
 
                   {/* Stats row */}
@@ -1174,6 +1327,7 @@ export default function Gameplay() {
             result={clashAnim.result}
             opponentColor={opponent?.color || "#f906a8"}
             fadeOut={clashAnim.fadeOut}
+            arenaBackground={BG_MAIN}
           />
         )}
 

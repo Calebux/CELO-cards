@@ -138,8 +138,8 @@ export default function TournamentPage() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = document.body.clientWidth;
-      const h = document.body.clientHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
       wrapRef.current.style.transform = `scale(${s})`;
       wrapRef.current.style.transformOrigin = "top center";
@@ -366,6 +366,7 @@ export default function TournamentPage() {
               const top = bracketPlayers[i];
               const bot = bracketPlayers[15 - i];
               const isMe = (p?: { address: string }) => address && p && p.address.toLowerCase() === address.toLowerCase();
+              const seeds = [i + 1, 16 - i];
               return (
                 <div key={i} style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6, overflow: "hidden" }}>
                   {[top, bot].map((p, j) => (
@@ -374,11 +375,12 @@ export default function TournamentPage() {
                       background: isMe(p) ? "rgba(86,164,203,0.12)" : "transparent",
                       borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none",
                     }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#475569", width: 18, textAlign: "right" }}>#{p ? (i + (j === 0 ? 1 : 16 - i)) : "—"}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: p ? "#56a4cb" : "#334155", width: 20, textAlign: "right", flexShrink: 0 }}>#{seeds[j]}</span>
                       <span style={{ fontSize: 11, fontWeight: 600, color: isMe(p) ? "#b9e7f4" : p ? "#94a3b8" : "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
                         {p ? `${p.address.slice(0, 6)}…${p.address.slice(-4)}` : "TBD"}
                       </span>
                       {p && <span style={{ fontSize: 10, color: "#56a4cb", fontWeight: 700 }}>{p.points.toLocaleString()}</span>}
+                      {isMe(p) && <span style={{ fontSize: 8, fontWeight: 800, color: "#4ade80", letterSpacing: 1 }}>YOU</span>}
                     </div>
                   ))}
                 </div>
