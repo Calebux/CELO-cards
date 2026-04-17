@@ -119,6 +119,34 @@ export const CHARACTERS: Character[] = [
     },
 ];
 
+// ── Arena Backgrounds ──────────────────────────────────────────────────────
+// Keyed by [playerId][opponentId] → shows player on the LEFT side of the scene.
+// Reverse images exist for when the same pair fights with swapped roles.
+export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
+    kaira: {
+        kenji: "/arena-backgrounds/arena_kaira_kenji.webp",
+        riven: "/arena-backgrounds/arena_kaira_riven.webp",
+    },
+    kenji: {
+        kaira: "/arena-backgrounds/arena_kenji_kaira.webp",
+        riven: "/arena-backgrounds/arena_kenji_riven.webp",
+        zane:  "/arena-backgrounds/arena_kenji_zane.webp",
+    },
+    riven: {
+        kaira: "/arena-backgrounds/arena_riven_kaira.webp",
+        kenji: "/arena-backgrounds/arena_riven_kenji.webp",
+        zane:  "/arena-backgrounds/arena_riven_zane.webp",
+    },
+    zane: {
+        kenji: "/arena-backgrounds/arena_zane_kenji.webp",
+        riven: "/arena-backgrounds/arena_zane_riven.webp",
+    },
+};
+
+export function getArenaBackground(playerId: string, opponentId: string): string {
+    return ARENA_BACKGROUNDS[playerId]?.[opponentId] ?? "/new addition/gameplay777.webp";
+}
+
 // ── Cards ─────────────────────────────────────────────────────────────────
 
 export const CARDS: Card[] = [

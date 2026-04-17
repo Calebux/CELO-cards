@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-import { Card, CardType } from "../lib/gameData";
+import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
 import { SoundSettings } from "../components/SoundSettings";
@@ -12,7 +12,7 @@ import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT } from "../lib/cusd";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
 
-const BG_MAIN = "/new addition/gameplay777.webp";
+const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
 
 const DESIGN_W = 1440;
@@ -295,6 +295,8 @@ export default function Gameplay() {
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;
+
+  const BG_MAIN = getArenaBackground(player?.id ?? "", opponent?.id ?? "");
 
   // Calculate HP bars based on knock
   const maxHP = 40;
