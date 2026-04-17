@@ -7,7 +7,7 @@ import { CARDS, Card, CardType } from "../lib/gameData";
 import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
-const BG_MAIN = "/new addition/loadout 001.webp";
+const BG_MAIN = "/new addition/new_loadout_bg.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
