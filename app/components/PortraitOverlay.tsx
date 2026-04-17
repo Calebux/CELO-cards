@@ -1,30 +1,31 @@
 "use client";
 import { useEffect, useState } from "react";
 
-/** Shows a "rotate your device" screen whenever the browser is in portrait
- *  mode AND the viewport is narrow enough to be a phone (< 900 px).
- *  Uses matchMedia so it works on iOS where screen.orientation.lock is blocked. */
+/** Shows a "rotate your device" screen whenever width < height (portrait)
+ *  and the viewport is narrow (< 600 px). Uses actual pixel dimensions
+ *  rather than matchMedia so it works reliably in MiniPay WebViews.
+ *  Tapping "Play anyway" dismisses the overlay. */
 export function PortraitOverlay() {
   const [show, setShow] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     function check() {
-      const portrait = window.matchMedia("(orientation: portrait)").matches;
-      const narrow   = window.innerWidth < 900;
-      setShow(portrait && narrow);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const isPortrait = w < h;
+      const isNarrow   = w < 600;
+      setShow(isPortrait && isNarrow);
+      // If device rotated to landscape, reset dismissed so overlay can show again next time
+      if (!isPortrait) setDismissed(false);
     }
 
     check();
     window.addEventListener("resize", check);
-    const mq = window.matchMedia("(orientation: portrait)");
-    mq.addEventListener("change", check);
-    return () => {
-      window.removeEventListener("resize", check);
-      mq.removeEventListener("change", check);
-    };
+    return () => window.removeEventListener("resize", check);
   }, []);
 
-  if (!show) return null;
+  if (!show || dismissed) return null;
 
   return (
     <div style={{
@@ -81,6 +82,20 @@ export function PortraitOverlay() {
         <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#56a4cb", boxShadow: "0 0 6px #56a4cb" }} />
         <div style={{ flex: 1, height: 1, background: "rgba(86,164,203,0.2)" }} />
       </div>
+
+      {/* Dismiss button */}
+      <button
+        onClick={() => setDismissed(true)}
+        style={{
+          background: "none", border: "1px solid rgba(86,164,203,0.2)",
+          borderRadius: 6, padding: "8px 24px",
+          color: "rgba(185,231,244,0.35)", fontSize: 11,
+          fontWeight: 600, letterSpacing: 2, textTransform: "uppercase",
+          cursor: "pointer",
+        }}
+      >
+        Play anyway
+      </button>
 
       <style>{`
         @keyframes po-spin  { to { transform: rotate(360deg); } }
