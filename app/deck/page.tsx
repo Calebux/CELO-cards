@@ -41,9 +41,7 @@ export default function DeckPage() {
             const w = window.innerWidth;
             const h = window.innerHeight;
             const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-            const offsetX = (w - DESIGN_W * s) / 2;
-            const offsetY = (h - DESIGN_H * s) / 2;
-            wrapRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${s})`;
+            wrapRef.current.style.transform = `scale(${s})`;
         };
         scale();
         window.addEventListener("resize", scale);
@@ -55,8 +53,8 @@ export default function DeckPage() {
             : DEFENSE_CARDS;
 
     return (
-        <div style={{ width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-            <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "top left", position: "relative" }}>
+        <div style={{ width: "100vw", height: "100vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+            <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, transformOrigin: "center", flexShrink: 0, position: "relative" }}>
                 {/* BG */}
                 <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
