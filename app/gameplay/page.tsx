@@ -148,20 +148,26 @@ export default function Gameplay() {
     }
   }, [selectedCharacter, opponentCharacter, router]);
 
-  useEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const offsetX = (w - DESIGN_W * s) / 2;
-      const offsetY = (h - DESIGN_H * s) / 2;
-      wrapRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${s})`;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+  const applyScale = useCallback(() => {
+    if (!wrapRef.current) return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const s = Math.min(w / DESIGN_W, h / DESIGN_H);
+    const offsetX = (w - DESIGN_W * s) / 2;
+    const offsetY = (h - DESIGN_H * s) / 2;
+    wrapRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${s})`;
   }, []);
+
+  useEffect(() => {
+    applyScale();
+    window.addEventListener("resize", applyScale);
+    return () => window.removeEventListener("resize", applyScale);
+  }, [applyScale]);
+
+  // wrapRef only mounts after matchLoading → false, so re-apply scale then
+  useEffect(() => {
+    if (!matchLoading) applyScale();
+  }, [matchLoading, applyScale]);
 
   const revealNextSlot = useCallback(() => {
     if (revealedSlots >= 5 || isAnimating) return;
