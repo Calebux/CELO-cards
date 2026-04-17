@@ -20,12 +20,19 @@ export default function ReadyYourDeck() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const scaledW = DESIGN_W * s;
-      const scaledH = DESIGN_H * s;
-      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let s: number;
+      let transform: string;
+      if (isPortrait) {
+        s = Math.min(vh / DESIGN_W, vw / DESIGN_H);
+        transform = `translate(-50%, -50%) rotate(90deg) scale(${s})`;
+      } else {
+        s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        transform = `translate(-50%, -50%) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -53,7 +60,7 @@ export default function ReadyYourDeck() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "fixed", top: "50%", left: "50%", transformOrigin: "center center" }}>
 
         {/* Background */}
         <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3, pointerEvents: "none" }} />
