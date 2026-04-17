@@ -37,8 +37,9 @@ export default function ChallengesPage() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const offsetX = Math.max(0, (w - DESIGN_W * s) / 2);
-      wrapRef.current.style.transform = `translateX(${offsetX}px) scale(${s})`;
+      const offsetX = (w - DESIGN_W * s) / 2;
+      const offsetY = (h - DESIGN_H * s) / 2;
+      wrapRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${s})`;
     };
     scale();
     window.addEventListener("resize", scale);
