@@ -146,7 +146,7 @@ export default function CreateMatch() {
         </div>
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0 }}>
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
 
           {/* Panel */}
           <div style={{ position: "relative", width: 560 }}>

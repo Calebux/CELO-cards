@@ -358,25 +358,24 @@ export default function Gameplay() {
     return <MatchLoadingScreen playerName="—" opponentName="—" />;
   }
 
-  if (matchLoading) {
-    return (
-      <MatchLoadingScreen
-        playerName={selectedCharacter.name}
-        opponentName={opponentCharacter.name}
-        playerColor={selectedCharacter.color}
-        opponentColor={opponentCharacter.color}
-        playerPortrait={selectedCharacter.standingArt}
-        opponentPortrait={opponentCharacter.standingArt}
-        label="MATCH STARTING…"
-      />
-    );
-  }
-
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       {/* Inject clash animation keyframes */}
       <style dangerouslySetInnerHTML={{ __html: CLASH_STYLES }} />
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
+
+        {/* VS loading screen — inside the canvas so it gets the portrait rotation */}
+        {matchLoading && (
+          <MatchLoadingScreen
+            playerName={selectedCharacter.name}
+            opponentName={opponentCharacter.name}
+            playerColor={selectedCharacter.color}
+            opponentColor={opponentCharacter.color}
+            playerPortrait={selectedCharacter.standingArt}
+            opponentPortrait={opponentCharacter.standingArt}
+            label="MATCH STARTING…"
+          />
+        )}
 
         {/* Background */}
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -909,7 +908,7 @@ export default function Gameplay() {
           const accentColor = won ? "#06a8f9" : roundWinner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24";
           const accentGlow  = won ? "rgba(6,168,249,0.5)" : roundWinner === "opponent" ? `${opponent?.color || "#f906a8"}80` : "rgba(251,191,36,0.4)";
           return (
-            <div style={{ position: "relative", zIndex: 100 }}>
+            <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
 
@@ -1044,7 +1043,7 @@ export default function Gameplay() {
           const winnerChar = won ? selectedCharacter : opponent;
           const finisherVideo = winnerChar?.finisherVideo ?? "/new-assets/action-solo-burst.webm";
           return (
-            <div style={{ position: "relative", zIndex: 100 }}>
+            <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {/* Background */}
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               {/* Winner finisher video */}
