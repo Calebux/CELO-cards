@@ -164,7 +164,7 @@ export default function Loadout() {
     // Solo path — unchanged
     if (!playerRole || !matchId) {
       lockOrder();
-      router.push("/gameplay");
+      router.push("/game-action");
       return;
     }
 
@@ -193,7 +193,7 @@ export default function Loadout() {
         if (data.phase === "resolved" && data.slots) {
           if (pollRef.current) clearInterval(pollRef.current);
           setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
-          router.push("/gameplay");
+          router.push("/game-action");
         }
       } catch {
         // ignore transient network errors
