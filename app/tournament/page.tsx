@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { isMiniPay, formatAddress } from "../lib/minipay";
+
+type BracketPlayer = { seed: number; address: string; points: number };
+type MatchResult = { match: number; winner: "top" | "bottom" | null };
+type BracketSlot = { top: BracketPlayer | null; bottom: BracketPlayer | null };
+type TournamentState = {
+  weekId: string;
+  status: "pending" | "active" | "complete";
+  seeded: BracketPlayer[];
+  results: { r16: MatchResult[]; qf: MatchResult[]; sf: MatchResult[]; final: MatchResult[] };
+  champion: string | null;
+  slots: { r16: BracketSlot[]; qf: BracketSlot[]; sf: BracketSlot[]; final: BracketSlot[]; champion: BracketPlayer | null } | null;
+};
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -133,6 +145,8 @@ export default function TournamentPage() {
   const [rank, setRank] = useState<number | null>(null);
   const [points, setPoints] = useState<number | null>(null);
   const [bracketPlayers, setBracketPlayers] = useState<{ address: string; points: number }[]>([]);
+  const [tournament, setTournament] = useState<TournamentState | null>(null);
+  const [seeding, setSeeding] = useState(false);
   const countdown = useCountdown();
 
   useEffect(() => {
@@ -160,7 +174,7 @@ export default function TournamentPage() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Fetch top 16 for bracket
+  // Fetch top 16 for bracket seeding (used when no active tournament)
   useEffect(() => {
     fetch("/api/leaderboard?tab=ranked&limit=16")
       .then((r) => r.json())
@@ -169,6 +183,35 @@ export default function TournamentPage() {
       })
       .catch(() => { /* ignore */ });
   }, []);
+
+  // Fetch current tournament bracket state
+  const fetchTournament = useCallback(() => {
+    fetch("/api/tournament")
+      .then((r) => r.json())
+      .then((data: TournamentState) => setTournament(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { fetchTournament(); }, [fetchTournament]);
+
+  // Seed bracket from current leaderboard top 16
+  const seedBracket = useCallback(async () => {
+    if (bracketPlayers.length === 0) return;
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/tournament", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ players: bracketPlayers }),
+      });
+      if (res.ok) {
+        const data = await res.json() as TournamentState;
+        setTournament(data);
+      }
+    } finally {
+      setSeeding(false);
+    }
+  }, [bracketPlayers]);
 
   // Fetch the player's current rank if connected
   useEffect(() => {
@@ -356,96 +399,131 @@ export default function TournamentPage() {
       {/* ── Bracket Section ── */}
       <div style={{ position: "absolute", left: 0, right: 0, top: 820, padding: "0 80px 80px" }}>
         {/* Section header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
           <div style={{ flex: 1, height: 1, background: "rgba(86,164,203,0.15)" }} />
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, color: "#56a4cb", textTransform: "uppercase" }}>THIS WEEK&apos;S BRACKET</div>
           <div style={{ flex: 1, height: 1, background: "rgba(86,164,203,0.15)" }} />
         </div>
 
+        {/* Bracket controls */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "#475569" }}>
+            {tournament?.status === "active" && `Week ${tournament.weekId} · Active`}
+            {tournament?.status === "complete" && `Week ${tournament.weekId} · Champion crowned`}
+            {(!tournament || tournament.status === "pending") && "No bracket seeded yet"}
+          </div>
+          {tournament?.status !== "active" && tournament?.status !== "complete" && (
+            <button
+              onClick={seedBracket}
+              disabled={seeding || bracketPlayers.length === 0}
+              style={{ background: seeding ? "rgba(86,164,203,0.1)" : "rgba(86,164,203,0.15)", border: "1px solid #56a4cb", borderRadius: 5, padding: "7px 18px", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", opacity: seeding ? 0.6 : 1 }}
+            >
+              {seeding ? "SEEDING…" : "LOCK THIS WEEK'S BRACKET"}
+            </button>
+          )}
+          {tournament?.champion && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(251,204,92,0.08)", border: "1px solid rgba(251,204,92,0.3)", borderRadius: 6, padding: "8px 16px" }}>
+              <span style={{ fontSize: 16 }}>🏆</span>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#f59e0b", textTransform: "uppercase" }}>CHAMPION</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#fbbf24", fontFamily: "monospace" }}>
+                  {tournament.champion.slice(0, 6)}…{tournament.champion.slice(-4)}
+                  {address && tournament.champion.toLowerCase() === address.toLowerCase() && " 👑 YOU"}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Round labels */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 0, marginBottom: 12 }}>
-          {["ROUND OF 16", "QUARTERFINALS", "SEMIFINALS", "FINAL"].map((label) => (
-            <div key={label} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase" }}>{label}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr 24px 1fr 24px 1fr", gap: 0, marginBottom: 10 }}>
+          {["ROUND OF 16", "", "QUARTERFINALS", "", "SEMIFINALS", "", "FINAL"].map((label, i) => (
+            <div key={i} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, letterSpacing: 2, color: label ? "#475569" : "transparent", textTransform: "uppercase" }}>{label || "·"}</div>
           ))}
         </div>
 
-        {/* Bracket — seed pairing: 1v16, 2v15, … 8v9 */}
-        <div style={{ display: "flex", gap: 0, alignItems: "stretch", overflowX: "auto", paddingBottom: 8 }}>
-          {/* R16 — 8 matches */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
-            {Array.from({ length: 8 }).map((_, i) => {
-              const top = bracketPlayers[i];
-              const bot = bracketPlayers[15 - i];
-              const isMe = (p?: { address: string }) => address && p && p.address.toLowerCase() === address.toLowerCase();
-              const seeds = [i + 1, 16 - i];
+        {/* Bracket grid */}
+        <div style={{ display: "flex", gap: 0, alignItems: "stretch", paddingBottom: 8 }}>
+          {/* Helper to render a match slot */}
+          {(() => {
+            const isMe = (p: BracketPlayer | null) => address && p && p.address.toLowerCase() === address.toLowerCase();
+
+            function matchSlot(slot: BracketSlot | undefined, result: MatchResult | undefined, gold = false) {
+              const topWon = result?.winner === "top";
+              const botWon = result?.winner === "bottom";
               return (
-                <div key={i} style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6, overflow: "hidden" }}>
-                  {[top, bot].map((p, j) => (
-                    <div key={j} style={{
-                      display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
-                      background: isMe(p) ? "rgba(86,164,203,0.12)" : "transparent",
-                      borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                    }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: p ? "#56a4cb" : "#334155", width: 20, textAlign: "right", flexShrink: 0 }}>#{seeds[j]}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: isMe(p) ? "#b9e7f4" : p ? "#94a3b8" : "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
-                        {p ? `${p.address.slice(0, 6)}…${p.address.slice(-4)}` : "TBD"}
-                      </span>
-                      {p && <span style={{ fontSize: 10, color: "#56a4cb", fontWeight: 700 }}>{p.points.toLocaleString()}</span>}
-                      {isMe(p) && <span style={{ fontSize: 8, fontWeight: 800, color: "#4ade80", letterSpacing: 1 }}>YOU</span>}
-                    </div>
-                  ))}
+                <div style={{ background: gold ? "rgba(251,204,92,0.06)" : "rgba(15,23,42,0.6)", border: `1px solid ${gold ? "rgba(251,204,92,0.25)" : "rgba(86,164,203,0.15)"}`, borderRadius: 6, overflow: "hidden" }}>
+                  {(["top", "bottom"] as const).map((side, j) => {
+                    const p = side === "top" ? slot?.top : slot?.bottom;
+                    const won = side === "top" ? topWon : botWon;
+                    const lost = result?.winner !== null && !won;
+                    return (
+                      <div key={side} style={{
+                        display: "flex", alignItems: "center", gap: 6, padding: "7px 10px",
+                        background: won ? "rgba(74,222,128,0.08)" : isMe(p ?? null) ? "rgba(86,164,203,0.1)" : "transparent",
+                        borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        opacity: lost ? 0.4 : 1,
+                      }}>
+                        {p?.seed && <span style={{ fontSize: 9, fontWeight: 700, color: "#56a4cb", width: 18, textAlign: "right", flexShrink: 0 }}>#{p.seed}</span>}
+                        <span style={{ fontSize: 10, fontWeight: 600, color: won ? "#4ade80" : p ? "#94a3b8" : "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                          {p ? `${p.address.slice(0, 6)}…${p.address.slice(-4)}` : "TBD"}
+                        </span>
+                        {won && <span style={{ fontSize: 9, color: "#4ade80" }}>✓</span>}
+                        {isMe(p ?? null) && <span style={{ fontSize: 7, fontWeight: 800, color: "#4ade80", letterSpacing: 0.5 }}>YOU</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               );
-            })}
-          </div>
+            }
 
-          {/* Arrow connector */}
-          <div style={{ width: 24, position: "relative", color: "#334155", fontSize: 18 }}>›</div>
+            const slots = tournament?.slots;
+            const results = tournament?.results;
 
-          {/* QF — 4 slots */}
-          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} style={{ background: "rgba(15,23,42,0.4)", border: "1px dashed rgba(86,164,203,0.1)", borderRadius: 6, overflow: "hidden" }}>
-                {[0, 1].map((j) => (
-                  <div key={j} style={{ padding: "8px 12px", borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                    <span style={{ fontSize: 11, color: "#334155", fontFamily: "monospace" }}>TBD</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+            // Derive r16 fallback from bracketPlayers when no tournament is seeded
+            const r16Fallback: BracketSlot[] = Array.from({ length: 8 }, (_, i) => ({
+              top: bracketPlayers[i] ? { seed: i + 1, ...bracketPlayers[i] } : null,
+              bottom: bracketPlayers[15 - i] ? { seed: 16 - i, ...bracketPlayers[15 - i] } : null,
+            }));
 
-          <div style={{ width: 24, position: "relative", color: "#334155", fontSize: 18 }}>›</div>
+            const r16 = slots?.r16 ?? r16Fallback;
+            const qf  = slots?.qf  ?? Array.from({ length: 4 }, () => ({ top: null, bottom: null }));
+            const sf  = slots?.sf  ?? Array.from({ length: 2 }, () => ({ top: null, bottom: null }));
+            const fin = slots?.final ?? [{ top: null, bottom: null }];
 
-          {/* SF — 2 slots */}
-          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} style={{ background: "rgba(15,23,42,0.4)", border: "1px dashed rgba(86,164,203,0.1)", borderRadius: 6, overflow: "hidden" }}>
-                {[0, 1].map((j) => (
-                  <div key={j} style={{ padding: "8px 12px", borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                    <span style={{ fontSize: 11, color: "#334155", fontFamily: "monospace" }}>TBD</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ width: 24, position: "relative", color: "#334155", fontSize: 18 }}>›</div>
-
-          {/* Final — 1 slot */}
-          <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
-            <div style={{ background: "rgba(251,204,92,0.06)", border: "1px dashed rgba(251,204,92,0.2)", borderRadius: 6, overflow: "hidden" }}>
-              {[0, 1].map((j) => (
-                <div key={j} style={{ padding: "10px 12px", borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none", display: "flex", alignItems: "center", gap: 8 }}>
-                  {j === 0 && <span style={{ fontSize: 13 }}>🏆</span>}
-                  <span style={{ fontSize: 11, color: "#475569", fontFamily: "monospace" }}>TBD</span>
+            return (
+              <>
+                {/* R16 */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                  {r16.map((slot, i) => matchSlot(slot, results?.r16[i]))}
                 </div>
-              ))}
-            </div>
-          </div>
+
+                <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 16 }}>›</div>
+
+                {/* QF */}
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
+                  {qf.map((slot, i) => matchSlot(slot, results?.qf[i]))}
+                </div>
+
+                <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 16 }}>›</div>
+
+                {/* SF */}
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
+                  {sf.map((slot, i) => matchSlot(slot, results?.sf[i]))}
+                </div>
+
+                <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 16 }}>›</div>
+
+                {/* Final */}
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
+                  {fin.map((slot, i) => matchSlot(slot, results?.final[i], true))}
+                </div>
+              </>
+            );
+          })()}
         </div>
 
-        {bracketPlayers.length === 0 && (
+        {bracketPlayers.length === 0 && !tournament?.seeded.length && (
           <div style={{ textAlign: "center", padding: "24px", color: "#334155", fontSize: 12 }}>
             No ranked matches yet — bracket forms when players compete.
           </div>
