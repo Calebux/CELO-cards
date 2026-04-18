@@ -113,6 +113,7 @@ export default function HistoryPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {matchHistory.map((match, idx) => {
                   const char = CHARACTERS.find((c) => c.id === match.opponentCharId);
+                  const playerChar = CHARACTERS.find((c) => c.id === match.playerCharId);
                   const isWin = match.outcome === "win";
                   const isExpanded = expandedId === match.id + idx;
                   const totalRounds = match.playerRoundsWon + match.opponentRoundsWon;
@@ -190,18 +191,28 @@ export default function HistoryPage() {
                             </div>
                           </div>
 
-                          {/* Opponent info */}
-                          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14 }}>
-                            {char && (
-                              <div style={{ width: 60, height: 80, borderRadius: 6, overflow: "hidden", border: `2px solid ${char.color}50`, flexShrink: 0 }}>
-                                <img src={char.standingArt} alt={char.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }} />
-                              </div>
-                            )}
-                            <div>
-                              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 4 }}>Opponent</div>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: char?.color ?? "#f87171", textTransform: "uppercase", letterSpacing: 1 }}>{char?.name ?? match.opponentCharId}</div>
-                              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{char?.className ?? ""}</div>
-                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{char?.passive?.name}</div>
+                          {/* Matchup: player vs opponent */}
+                          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+                            {/* Player character */}
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 }}>
+                              {playerChar ? (
+                                <div style={{ width: 52, height: 68, borderRadius: 5, overflow: "hidden", border: `2px solid ${playerChar.color}60` }}>
+                                  <img src={playerChar.standingArt} alt={playerChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }} />
+                                </div>
+                              ) : <div style={{ width: 52, height: 68, borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />}
+                              <div style={{ fontSize: 10, fontWeight: 800, color: playerChar?.color ?? "#56a4cb", textTransform: "uppercase", letterSpacing: 0.5 }}>{playerChar?.name ?? "YOU"}</div>
+                              <div style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>You</div>
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>VS</div>
+                            {/* Opponent character */}
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 }}>
+                              {char ? (
+                                <div style={{ width: 52, height: 68, borderRadius: 5, overflow: "hidden", border: `2px solid ${char.color}60` }}>
+                                  <img src={char.standingArt} alt={char.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }} />
+                                </div>
+                              ) : <div style={{ width: 52, height: 68, borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />}
+                              <div style={{ fontSize: 10, fontWeight: 800, color: char?.color ?? "#f87171", textTransform: "uppercase", letterSpacing: 0.5 }}>{char?.name ?? "Opponent"}</div>
+                              <div style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>Opponent</div>
                             </div>
                           </div>
 
