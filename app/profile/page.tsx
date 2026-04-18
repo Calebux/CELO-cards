@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
@@ -56,6 +56,31 @@ export default function ProfilePage() {
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
+
+  // Sync achievements to server and fetch persisted unlocks
+  const syncAchievements = useCallback(async (addr: string) => {
+    try {
+      const res = await fetch("/api/achievements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: addr,
+          stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
+        }),
+      });
+      if (res.ok) {
+        const { unlockedIds } = await res.json() as { unlockedIds: string[] };
+        setServerUnlocked(new Set(unlockedIds));
+      }
+    } catch {
+      // offline — silently ignore
+    }
+  }, [matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost]);
+
+  useEffect(() => {
+    if (address) syncAchievements(address);
+  }, [address, syncAchievements]);
 
   useEffect(() => {
     const scale = () => {
@@ -85,70 +110,14 @@ export default function ProfilePage() {
   const rank = getRank(playerPoints);
 
   const achievements: Achievement[] = [
-    {
-      id: "first_blood",
-      icon: "🩸",
-      name: "First Blood",
-      description: "Win your first match",
-      unlocked: matchesWon >= 1,
-      color: "#f87171",
-    },
-    {
-      id: "warrior",
-      icon: "⚔️",
-      name: "Warrior",
-      description: "Win 5 matches",
-      unlocked: matchesWon >= 5,
-      color: "#fb923c",
-    },
-    {
-      id: "veteran",
-      icon: "🎖️",
-      name: "Veteran",
-      description: "Play 10 matches",
-      unlocked: matchesPlayed >= 10,
-      color: "#60a5fa",
-    },
-    {
-      id: "on_fire",
-      icon: "🔥",
-      name: "On Fire",
-      description: "Reach a 3-win streak",
-      unlocked: maxWinStreak >= 3,
-      color: "#f97316",
-    },
-    {
-      id: "unstoppable",
-      icon: "⚡",
-      name: "Unstoppable",
-      description: "Reach a 5-win streak",
-      unlocked: maxWinStreak >= 5,
-      color: "#fbbf24",
-    },
-    {
-      id: "centurion",
-      icon: "💎",
-      name: "Centurion",
-      description: "Earn 1,000 points",
-      unlocked: playerPoints >= 1000,
-      color: "#b9e7f4",
-    },
-    {
-      id: "legend",
-      icon: "👑",
-      name: "Legend",
-      description: "Reach LEGEND rank (5,000 pts)",
-      unlocked: playerPoints >= 5000,
-      color: "#FFD700",
-    },
-    {
-      id: "iron_will",
-      icon: "🛡️",
-      name: "Iron Will",
-      description: "Win a match after 3 consecutive losses",
-      unlocked: matchesWon >= 1 && matchesLost >= 3,
-      color: "#8c25f4",
-    },
+    { id: "first_blood",  icon: "🩸", name: "First Blood",   description: "Win your first match",                   unlocked: matchesWon >= 1 || serverUnlocked.has("first_blood"),                    color: "#f87171" },
+    { id: "warrior",      icon: "⚔️",  name: "Warrior",       description: "Win 5 matches",                          unlocked: matchesWon >= 5 || serverUnlocked.has("warrior"),                        color: "#fb923c" },
+    { id: "veteran",      icon: "🎖️", name: "Veteran",       description: "Play 10 matches",                        unlocked: matchesPlayed >= 10 || serverUnlocked.has("veteran"),                    color: "#60a5fa" },
+    { id: "on_fire",      icon: "🔥", name: "On Fire",        description: "Reach a 3-win streak",                   unlocked: maxWinStreak >= 3 || serverUnlocked.has("on_fire"),                      color: "#f97316" },
+    { id: "unstoppable",  icon: "⚡", name: "Unstoppable",    description: "Reach a 5-win streak",                   unlocked: maxWinStreak >= 5 || serverUnlocked.has("unstoppable"),                  color: "#fbbf24" },
+    { id: "centurion",    icon: "💎", name: "Centurion",      description: "Earn 1,000 points",                      unlocked: playerPoints >= 1000 || serverUnlocked.has("centurion"),                 color: "#b9e7f4" },
+    { id: "legend",       icon: "👑", name: "Legend",         description: "Reach LEGEND rank (5,000 pts)",          unlocked: playerPoints >= 5000 || serverUnlocked.has("legend"),                    color: "#FFD700" },
+    { id: "iron_will",    icon: "🛡️", name: "Iron Will",     description: "Win a match after 3 consecutive losses", unlocked: (matchesWon >= 1 && matchesLost >= 3) || serverUnlocked.has("iron_will"), color: "#8c25f4" },
   ];
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;

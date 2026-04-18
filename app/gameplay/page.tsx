@@ -49,6 +49,10 @@ export default function Gameplay() {
     ultimateActivated,
     ultimateUsed,
     activateUltimate,
+    matchesWon,
+    matchesPlayed,
+    maxWinStreak,
+    matchesLost,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -308,7 +312,7 @@ export default function Gameplay() {
     }
   };
 
-  // Record match result on leaderboard (fire-and-forget)
+  // Record match result on leaderboard + sync achievements (fire-and-forget)
   useEffect(() => {
     if (matchPhase !== "match-end" || !address) return;
     const won = playerRoundsWon > opponentRoundsWon;
@@ -316,6 +320,14 @@ export default function Gameplay() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ playerAddress: address, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
+    });
+    void fetch("/api/achievements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address,
+        stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
+      }),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchPhase]);
