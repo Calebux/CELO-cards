@@ -6,6 +6,7 @@ const DATA_FILE = path.join(process.cwd(), "data", "leaderboard.json");
 
 type PlayerEntry = {
   address: string;
+  name?: string;
   wins: number;
   losses: number;
   points: number;
@@ -33,14 +34,14 @@ function writeData(data: LeaderboardData) {
 
 // POST /api/leaderboard — record a match result
 export async function POST(req: NextRequest) {
-  let body: { playerAddress?: string; won?: boolean; pointsEarned?: number; wagered?: boolean };
+  let body: { playerAddress?: string; playerName?: string; won?: boolean; pointsEarned?: number; wagered?: boolean };
   try {
     body = await req.json() as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { playerAddress, won, pointsEarned = 0, wagered = false } = body;
+  const { playerAddress, playerName, won, pointsEarned = 0, wagered = false } = body;
 
   if (!playerAddress || !/^0x[0-9a-fA-F]{40}$/.test(playerAddress)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
     existing.losses += won ? 0 : 1;
     existing.points += pointsEarned;
     existing.lastSeen = now;
+    if (playerName?.trim()) existing.name = playerName.trim().slice(0, 24);
     map[addr] = existing;
   }
 

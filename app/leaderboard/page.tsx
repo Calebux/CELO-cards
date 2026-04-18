@@ -15,6 +15,7 @@ type Tab = "casual" | "ranked";
 type Player = {
   rank: number;
   address: string;
+  name?: string;
   wins: number;
   losses: number;
   points: number;
@@ -238,20 +239,27 @@ export default function Leaderboard() {
                         {p.rank <= 3 ? ["🥇", "🥈", "🥉"][p.rank - 1] : `#${p.rank}`}
                       </span>
 
-                      {/* Address */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{
-                          fontSize: 13,
-                          fontWeight: isMe ? 700 : 500,
-                          color: isMe ? "#b9e7f4" : "#94a3b8",
-                          fontFamily: "monospace",
-                          letterSpacing: 0.5,
-                        }}>
-                          {truncateAddress(p.address)}
-                        </span>
-                        {isMe && (
-                          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
-                            YOU
+                      {/* Name / Address */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{
+                            fontSize: p.name ? 13 : 12,
+                            fontWeight: isMe ? 700 : 500,
+                            color: isMe ? "#b9e7f4" : p.name ? "#e2e8f0" : "#94a3b8",
+                            fontFamily: p.name ? "inherit" : "monospace",
+                            letterSpacing: p.name ? 0.3 : 0.5,
+                          }}>
+                            {p.name ?? truncateAddress(p.address)}
+                          </span>
+                          {isMe && (
+                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        {p.name && (
+                          <span style={{ fontSize: 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
+                            {truncateAddress(p.address)}
                           </span>
                         )}
                       </div>

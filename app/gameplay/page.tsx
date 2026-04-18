@@ -53,6 +53,7 @@ export default function Gameplay() {
     matchesPlayed,
     maxWinStreak,
     matchesLost,
+    playerName,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -319,7 +320,7 @@ export default function Gameplay() {
     void fetch("/api/leaderboard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerAddress: address, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
+      body: JSON.stringify({ playerAddress: address, playerName: playerName || undefined, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
     });
     void fetch("/api/achievements", {
       method: "POST",
