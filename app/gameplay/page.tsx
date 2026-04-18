@@ -329,6 +329,11 @@ export default function Gameplay() {
         stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
       }),
     });
+    void fetch("/api/challenges", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, won }),
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchPhase]);
 
