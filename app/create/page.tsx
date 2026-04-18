@@ -67,6 +67,8 @@ export default function CreateMatch() {
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const aiDifficulty = useGameStore((s) => s.aiDifficulty);
+  const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
 
   useEffect(() => {
@@ -210,9 +212,42 @@ export default function CreateMatch() {
                 </div>
 
                 {/* Description of selected type */}
-                <div style={{ marginBottom: 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
+                <div style={{ marginBottom: matchType === "vshouse" ? 16 : 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
                   <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
+
+                {/* Difficulty selector — VS House only */}
+                {matchType === "vshouse" && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>AI Difficulty</div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      {([
+                        { level: 0 as const, label: "EASY",   sub: "Random orders",     color: "#4ade80" },
+                        { level: 1 as const, label: "NORMAL", sub: "Adaptive AI",        color: "#f59e0b" },
+                        { level: 2 as const, label: "HARD",   sub: "Counter-picks you",  color: "#f87171" },
+                      ] as const).map(({ level, label, sub, color }) => {
+                        const active = aiDifficulty === level;
+                        return (
+                          <button
+                            key={level}
+                            onClick={() => setAiDifficulty(level)}
+                            style={{
+                              flex: 1, padding: "10px 8px",
+                              background: active ? `${color}18` : "rgba(255,255,255,0.03)",
+                              border: `1.5px solid ${active ? color : "rgba(255,255,255,0.08)"}`,
+                              borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                              transition: "all 0.15s",
+                              boxShadow: active ? `0 0 12px ${color}25` : "none",
+                            }}
+                          >
+                            <div style={{ fontSize: 11, fontWeight: 800, color: active ? color : "#6b7280", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: 9, color: active ? `${color}cc` : "#475569", letterSpacing: 0.3 }}>{sub}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Create Match button */}
                 <button
