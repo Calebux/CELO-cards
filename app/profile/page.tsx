@@ -123,18 +123,22 @@ export default function ProfilePage() {
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
 
   // Derived stats from match history
-  const { favouriteChar, totalPointsAllTime } = useMemo(() => {
-    const charWins: Record<string, number> = {};
+  const { favouriteChar, topRival, totalPointsAllTime } = useMemo(() => {
+    const charPlayed: Record<string, number> = {};
+    const rivalWins: Record<string, number> = {};
     let total = 0;
     for (const m of matchHistory) {
-      // Track wins per opponent character (to find most-beaten = most-faced)
-      charWins[m.opponentCharId] = (charWins[m.opponentCharId] ?? 0) + (m.outcome === "win" ? 1 : 0);
+      charPlayed[m.playerCharId] = (charPlayed[m.playerCharId] ?? 0) + 1;
+      rivalWins[m.opponentCharId] = (rivalWins[m.opponentCharId] ?? 0) + (m.outcome === "win" ? 1 : 0);
       total += m.pointsEarned;
     }
-    // Favourite = character faced most (proxy for "main" since we don't store player char in history yet)
-    const topId = Object.entries(charWins).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-    const fav = topId ? CHARACTERS.find((c) => c.id === topId) ?? null : null;
-    return { favouriteChar: fav, totalPointsAllTime: total };
+    const favId = Object.entries(charPlayed).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const rivalId = Object.entries(rivalWins).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    return {
+      favouriteChar: favId ? CHARACTERS.find((c) => c.id === favId) ?? null : null,
+      topRival: rivalId ? CHARACTERS.find((c) => c.id === rivalId) ?? null : null,
+      totalPointsAllTime: total,
+    };
   }, [matchHistory]);
 
   return (
@@ -233,17 +237,33 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
-          {/* Favourite opponent / rival card */}
-          {favouriteChar && (
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: `1px solid ${favouriteChar.color}30`, borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 44, height: 58, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${favouriteChar.color}50`, flexShrink: 0 }}>
-                <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 2 }}>Top Rival</div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
-                <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>{favouriteChar.className}</div>
-              </div>
+          {/* Favourite character + top rival */}
+          {(favouriteChar || topRival) && (
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {favouriteChar && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 38, height: 50, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${favouriteChar.color}50`, flexShrink: 0 }}>
+                    <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 1 }}>Main</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
+                    <div style={{ fontSize: 9, color: "#64748b", marginTop: 1 }}>{favouriteChar.className}</div>
+                  </div>
+                </div>
+              )}
+              {topRival && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 38, height: 50, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${topRival.color}50`, flexShrink: 0 }}>
+                    <img src={topRival.standingArt} alt={topRival.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 1 }}>Top Rival</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: topRival.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{topRival.name}</div>
+                    <div style={{ fontSize: 9, color: "#64748b", marginTop: 1 }}>{topRival.className}</div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           </div>

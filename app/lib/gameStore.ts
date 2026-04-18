@@ -14,6 +14,7 @@ import {
 export type MatchRecord = {
     id: string;
     date: string;
+    playerCharId: string;
     opponentCharId: string;
     outcome: "win" | "loss";
     pointsEarned: number;
@@ -347,7 +348,7 @@ export const useGameStore = create<GameState>()(
     },
 
     finishRound: () => {
-        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, matchId, opponentCharacter } = get();
+        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, matchId, selectedCharacter, opponentCharacter } = get();
         if (!precomputedRound) return;
 
         const totalPlayerKnock = precomputedRound.reduce((s, r) => s + r.playerKnock, 0);
@@ -403,6 +404,7 @@ export const useGameStore = create<GameState>()(
                 {
                     id: matchId ?? `AO-${Date.now()}`,
                     date: new Date().toISOString(),
+                    playerCharId: selectedCharacter?.id ?? "unknown",
                     opponentCharId: opponentCharacter?.id ?? "unknown",
                     outcome: matchWon ? ("win" as const) : ("loss" as const),
                     pointsEarned: earned,
