@@ -85,6 +85,8 @@ export default function Gameplay() {
   const [showDoubleDown, setShowDoubleDown] = useState(false);
   const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
+  const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string } | null>(null);
+  const achievementQueueRef = useRef<{ id: string; name: string; icon: string }[]>([]);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -322,6 +324,16 @@ export default function Gameplay() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ playerAddress: address, playerName: playerName || undefined, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
     });
+    const ACHIEVEMENT_META: Record<string, { name: string; icon: string }> = {
+      first_blood:  { name: "First Blood",   icon: "🩸" },
+      warrior:      { name: "Warrior",        icon: "⚔️" },
+      veteran:      { name: "Veteran",        icon: "🎖️" },
+      on_fire:      { name: "On Fire",        icon: "🔥" },
+      unstoppable:  { name: "Unstoppable",    icon: "⚡" },
+      centurion:    { name: "Centurion",      icon: "💎" },
+      legend:       { name: "Legend",         icon: "👑" },
+      iron_will:    { name: "Iron Will",      icon: "🛡️" },
+    };
     void fetch("/api/achievements", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -329,7 +341,18 @@ export default function Gameplay() {
         address,
         stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
       }),
-    });
+    }).then((r) => r.json()).then((data: { newlyUnlocked?: string[] }) => {
+      const queue = (data.newlyUnlocked ?? []).map((id) => ({
+        id,
+        name: ACHIEVEMENT_META[id]?.name ?? id,
+        icon: ACHIEVEMENT_META[id]?.icon ?? "🏅",
+      }));
+      if (queue.length === 0) return;
+      achievementQueueRef.current = queue;
+      // Show first toast; subsequent ones are shown after each auto-dismiss
+      setAchievementToast(queue[0]);
+      achievementQueueRef.current = queue.slice(1);
+    }).catch(() => {});
     void fetch("/api/challenges", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -379,7 +402,12 @@ export default function Gameplay() {
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       {/* Inject clash animation keyframes */}
-      <style dangerouslySetInnerHTML={{ __html: CLASH_STYLES }} />
+      <style dangerouslySetInnerHTML={{ __html: CLASH_STYLES + `
+        @keyframes achieveIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(24px) scale(0.88); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);    }
+        }
+      ` }} />
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* VS loading screen — inside the canvas so it gets the portrait rotation */}
@@ -1413,6 +1441,44 @@ export default function Gameplay() {
               >
                 BACK TO MENU
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Achievement unlock toast */}
+        {achievementToast && (
+          <div
+            key={achievementToast.id}
+            style={{
+              position: "absolute", bottom: 100, left: "50%", transform: "translateX(-50%)",
+              background: "linear-gradient(135deg, rgba(15,23,42,0.97), rgba(86,164,203,0.18))",
+              border: "1.5px solid rgba(86,164,203,0.5)",
+              borderRadius: 10, padding: "14px 24px",
+              display: "flex", alignItems: "center", gap: 14,
+              boxShadow: "0 0 30px rgba(86,164,203,0.3)",
+              zIndex: 300, minWidth: 280,
+              animation: "achieveIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+            }}
+            onAnimationEnd={() => {
+              // Auto-dismiss after 2.8s then show next queued toast
+              setTimeout(() => {
+                setAchievementToast(null);
+                if (achievementQueueRef.current.length > 0) {
+                  setTimeout(() => {
+                    setAchievementToast(achievementQueueRef.current[0]);
+                    achievementQueueRef.current = achievementQueueRef.current.slice(1);
+                  }, 300);
+                }
+              }, 2800);
+            }}
+          >
+            <div style={{ fontSize: 30, lineHeight: 1 }}>{achievementToast.icon}</div>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#56a4cb", textTransform: "uppercase", marginBottom: 2 }}>Achievement Unlocked</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.3 }}>{achievementToast.name}</div>
+            </div>
+            <div style={{ marginLeft: "auto", width: 24, height: 24, borderRadius: "50%", background: "rgba(74,222,128,0.15)", border: "1.5px solid rgba(74,222,128,0.5)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: "#4ade80" }}>✓</span>
             </div>
           </div>
         )}
