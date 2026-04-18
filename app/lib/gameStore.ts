@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
 import {
     generateAIOrder,
+    AIRoundContext,
     resolveRound,
     calcEnergyPool,
     RoundResult,
@@ -292,7 +293,8 @@ export const useGameStore = create<GameState>()(
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
         // Difficulty scales with player win streak: 0-1 streak = normal, 2+ = hard
         const difficulty = winStreak >= 2 ? 2 : 1;
-        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty);
+        const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: playerCards };
+        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
         const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;
         const opts: RoundOptions = {
@@ -319,7 +321,8 @@ export const useGameStore = create<GameState>()(
         const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak } = get();
         const autoOrder = playerDeck.slice(0, 5);
         const difficulty = winStreak >= 2 ? 2 : 1;
-        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty);
+        const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: autoOrder };
+        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
         const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;
         const opts: RoundOptions = {
