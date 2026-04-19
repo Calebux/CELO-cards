@@ -27,13 +27,16 @@ export async function POST(req: NextRequest) {
   let winner: `0x${string}`;
   let matchId: string;
   let currency: "cusd" | "celo" | "gdollar" = "cusd";
+  let mult = 1n;
   try {
-    const body = await req.json() as { winner: string; matchId: string; currency?: string };
+    const body = await req.json() as { winner: string; matchId: string; currency?: string; multiplier?: number };
     if (!body.winner || !body.matchId) throw new Error("missing fields");
     winner = body.winner as `0x${string}`;
     matchId = body.matchId;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
+    // Clamp multiplier to 1 or 2 (double-down)
+    if (typeof body.multiplier === "number" && body.multiplier >= 2) mult = 2n;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -72,12 +75,12 @@ export async function POST(req: NextRequest) {
           GDOLLAR_CONTRACT,
           account.address,
           winner,
-          STREAM_FLOW_RATE,       // int96 flow rate (wei/sec)
+          STREAM_FLOW_RATE * mult, // int96 flow rate (wei/sec), doubled on double-down
           "0x",                   // userData
         ],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId}: G$ stream started to ${winner} @ ${STREAM_FLOW_RATE} wei/sec — tx ${txHash}`);
+      console.log(`Payout ${matchId}: G$ stream started to ${winner} @ ${STREAM_FLOW_RATE * mult} wei/sec (×${mult}) — tx ${txHash}`);
 
       // Schedule stream deletion after 24h (fire and forget — best effort)
       void scheduleStreamDeletion(walletClient, account, account.address, winner).catch((e) =>
@@ -102,9 +105,9 @@ export async function POST(req: NextRequest) {
       // Native CELO direct transfer
       txHash = await walletClient.sendTransaction({
         to: winner,
-        value: PAYOUT_AMOUNT_CELO,
+        value: PAYOUT_AMOUNT_CELO * mult,
       });
-      console.log(`Payout ${matchId}: direct CELO ${formatUnits(PAYOUT_AMOUNT_CELO, 18)} to ${winner} — tx ${txHash}`);
+      console.log(`Payout ${matchId}: direct CELO ${formatUnits(PAYOUT_AMOUNT_CELO * mult, 18)} (×${mult}) to ${winner} — tx ${txHash}`);
     } else {
       // cUSD direct transfer
       const { request } = await publicClient.simulateContract({
@@ -112,10 +115,10 @@ export async function POST(req: NextRequest) {
         address: CUSD_CONTRACT,
         abi: ERC20_ABI,
         functionName: "transfer",
-        args: [winner, PAYOUT_AMOUNT],
+        args: [winner, PAYOUT_AMOUNT * mult],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId}: direct transfer ${formatUnits(PAYOUT_AMOUNT, 18)} cUSD to ${winner} — tx ${txHash}`);
+      console.log(`Payout ${matchId}: direct transfer ${formatUnits(PAYOUT_AMOUNT * mult, 18)} cUSD (×${mult}) to ${winner} — tx ${txHash}`);
     }
 
     return NextResponse.json({ txHash });

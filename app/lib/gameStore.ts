@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
 import {
     generateAIOrder,
+    AIRoundContext,
     resolveRound,
     calcEnergyPool,
     RoundResult,
@@ -10,14 +11,24 @@ import {
     RoundOptions,
 } from "./combatEngine";
 
+export type ReplayRound = {
+    playerCards: string[];    // card ids
+    opponentCards: string[];  // card ids
+    slotWinners: ("player" | "opponent" | "draw")[];
+    playerKnocks: number[];
+    opponentKnocks: number[];
+};
+
 export type MatchRecord = {
     id: string;
     date: string;
+    playerCharId: string;
     opponentCharId: string;
     outcome: "win" | "loss";
     pointsEarned: number;
     playerRoundsWon: number;
     opponentRoundsWon: number;
+    rounds?: ReplayRound[]; // per-round card data for replay
 };
 
 export type DeckPreset = {
@@ -69,6 +80,10 @@ interface GameState {
     vsBot: boolean;
     setVsBot: (v: boolean) => void;
 
+    // AI difficulty (0=easy, 1=normal, 2=hard) — manual override for VS House
+    aiDifficulty: 0 | 1 | 2;
+    setAiDifficulty: (d: 0 | 1 | 2) => void;
+
     // Player identity (Celo wallet address)
     playerAddress: string | null;
 
@@ -93,6 +108,9 @@ interface GameState {
 
     // Match history log
     matchHistory: MatchRecord[];
+
+    // Accumulates per-round replay data during an active match; cleared on resetMatch
+    currentMatchRounds: ReplayRound[];
 
     // Player profile
     playerName: string;
@@ -156,6 +174,8 @@ export const useGameStore = create<GameState>()(
     setPlayerRole: (role) => set({ playerRole: role }),
     vsBot: false,
     setVsBot: (v) => set({ vsBot: v }),
+    aiDifficulty: 1,
+    setAiDifficulty: (d) => set({ aiDifficulty: d }),
     playerAddress: null,
     wagerActive: false,
     wagerTxHash: null,
@@ -169,6 +189,7 @@ export const useGameStore = create<GameState>()(
     lossStreak: 0,
     maxWinStreak: 0,
     matchHistory: [],
+    currentMatchRounds: [],
     playerName: "",
     deckPresets: [],
     ultimateActivated: false,
@@ -288,11 +309,12 @@ export const useGameStore = create<GameState>()(
     },
 
     lockOrder: () => {
-        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated } = get();
+        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty } = get();
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
-        // Difficulty scales with player win streak: 0-1 streak = normal, 2+ = hard
-        const difficulty = winStreak >= 2 ? 2 : 1;
-        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty);
+        // Use manual difficulty; on normal/hard still allow streak to push to max
+        const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
+        const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: playerCards };
+        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
         const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;
         const opts: RoundOptions = {
@@ -316,10 +338,11 @@ export const useGameStore = create<GameState>()(
     },
 
     autoLockOrder: () => {
-        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak } = get();
+        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty } = get();
         const autoOrder = playerDeck.slice(0, 5);
-        const difficulty = winStreak >= 2 ? 2 : 1;
-        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty);
+        const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
+        const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: autoOrder };
+        const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
         const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;
         const opts: RoundOptions = {
@@ -344,7 +367,7 @@ export const useGameStore = create<GameState>()(
     },
 
     finishRound: () => {
-        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, matchId, opponentCharacter } = get();
+        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, currentMatchRounds, matchId, selectedCharacter, opponentCharacter } = get();
         if (!precomputedRound) return;
 
         const totalPlayerKnock = precomputedRound.reduce((s, r) => s + r.playerKnock, 0);
@@ -395,16 +418,28 @@ export const useGameStore = create<GameState>()(
         }
         const newMaxWinStreak = Math.max(maxWinStreak, newWinStreak);
 
+        // Build replay data for this round
+        const thisRound: ReplayRound = {
+            playerCards: precomputedRound.map((s: SlotResult) => s.playerCard.id),
+            opponentCards: precomputedRound.map((s: SlotResult) => s.opponentCard.id),
+            slotWinners: precomputedRound.map((s: SlotResult) => s.winner),
+            playerKnocks: precomputedRound.map((s: SlotResult) => s.playerKnock),
+            opponentKnocks: precomputedRound.map((s: SlotResult) => s.opponentKnock),
+        };
+        const updatedMatchRounds = [...currentMatchRounds, thisRound];
+
         const newMatchHistory = isMatchEnd
             ? [
                 {
                     id: matchId ?? `AO-${Date.now()}`,
                     date: new Date().toISOString(),
+                    playerCharId: selectedCharacter?.id ?? "unknown",
                     opponentCharId: opponentCharacter?.id ?? "unknown",
                     outcome: matchWon ? ("win" as const) : ("loss" as const),
                     pointsEarned: earned,
                     playerRoundsWon: pWon,
                     opponentRoundsWon: oWon,
+                    rounds: updatedMatchRounds,
                 },
                 ...matchHistory,
               ].slice(0, 50) // keep last 50
@@ -419,6 +454,7 @@ export const useGameStore = create<GameState>()(
             pointsThisRound: earned,
             precomputedRound: null, // consumed — second calls are now no-ops
             matchHistory: newMatchHistory,
+            currentMatchRounds: isMatchEnd ? [] : updatedMatchRounds,
             ...(isMatchEnd && {
                 matchesPlayed: matchesPlayed + 1,
                 matchesWon: matchWon ? matchesWon + 1 : matchesWon,
@@ -474,6 +510,7 @@ export const useGameStore = create<GameState>()(
             ultimateUsed: false,
             playerTaunt: null,
             wagerMultiplier: 1,
+            currentMatchRounds: [],
         }));
     },
     }),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
@@ -56,16 +56,51 @@ export default function ProfilePage() {
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
+
+  // Sync achievements to server and fetch persisted unlocks
+  const syncAchievements = useCallback(async (addr: string) => {
+    try {
+      const res = await fetch("/api/achievements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: addr,
+          stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
+        }),
+      });
+      if (res.ok) {
+        const { unlockedIds } = await res.json() as { unlockedIds: string[] };
+        setServerUnlocked(new Set(unlockedIds));
+      }
+    } catch {
+      // offline — silently ignore
+    }
+  }, [matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost]);
+
+  useEffect(() => {
+    if (address) syncAchievements(address);
+  }, [address, syncAchievements]);
 
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const scaledW = DESIGN_W * s;
-      const scaledH = DESIGN_H * s;
-      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -75,87 +110,35 @@ export default function ProfilePage() {
   const rank = getRank(playerPoints);
 
   const achievements: Achievement[] = [
-    {
-      id: "first_blood",
-      icon: "🩸",
-      name: "First Blood",
-      description: "Win your first match",
-      unlocked: matchesWon >= 1,
-      color: "#f87171",
-    },
-    {
-      id: "warrior",
-      icon: "⚔️",
-      name: "Warrior",
-      description: "Win 5 matches",
-      unlocked: matchesWon >= 5,
-      color: "#fb923c",
-    },
-    {
-      id: "veteran",
-      icon: "🎖️",
-      name: "Veteran",
-      description: "Play 10 matches",
-      unlocked: matchesPlayed >= 10,
-      color: "#60a5fa",
-    },
-    {
-      id: "on_fire",
-      icon: "🔥",
-      name: "On Fire",
-      description: "Reach a 3-win streak",
-      unlocked: maxWinStreak >= 3,
-      color: "#f97316",
-    },
-    {
-      id: "unstoppable",
-      icon: "⚡",
-      name: "Unstoppable",
-      description: "Reach a 5-win streak",
-      unlocked: maxWinStreak >= 5,
-      color: "#fbbf24",
-    },
-    {
-      id: "centurion",
-      icon: "💎",
-      name: "Centurion",
-      description: "Earn 1,000 points",
-      unlocked: playerPoints >= 1000,
-      color: "#b9e7f4",
-    },
-    {
-      id: "legend",
-      icon: "👑",
-      name: "Legend",
-      description: "Reach LEGEND rank (5,000 pts)",
-      unlocked: playerPoints >= 5000,
-      color: "#FFD700",
-    },
-    {
-      id: "iron_will",
-      icon: "🛡️",
-      name: "Iron Will",
-      description: "Win a match after 3 consecutive losses",
-      unlocked: matchesWon >= 1 && matchesLost >= 3,
-      color: "#8c25f4",
-    },
+    { id: "first_blood",  icon: "🩸", name: "First Blood",   description: "Win your first match",                   unlocked: matchesWon >= 1 || serverUnlocked.has("first_blood"),                    color: "#f87171" },
+    { id: "warrior",      icon: "⚔️",  name: "Warrior",       description: "Win 5 matches",                          unlocked: matchesWon >= 5 || serverUnlocked.has("warrior"),                        color: "#fb923c" },
+    { id: "veteran",      icon: "🎖️", name: "Veteran",       description: "Play 10 matches",                        unlocked: matchesPlayed >= 10 || serverUnlocked.has("veteran"),                    color: "#60a5fa" },
+    { id: "on_fire",      icon: "🔥", name: "On Fire",        description: "Reach a 3-win streak",                   unlocked: maxWinStreak >= 3 || serverUnlocked.has("on_fire"),                      color: "#f97316" },
+    { id: "unstoppable",  icon: "⚡", name: "Unstoppable",    description: "Reach a 5-win streak",                   unlocked: maxWinStreak >= 5 || serverUnlocked.has("unstoppable"),                  color: "#fbbf24" },
+    { id: "centurion",    icon: "💎", name: "Centurion",      description: "Earn 1,000 points",                      unlocked: playerPoints >= 1000 || serverUnlocked.has("centurion"),                 color: "#b9e7f4" },
+    { id: "legend",       icon: "👑", name: "Legend",         description: "Reach LEGEND rank (5,000 pts)",          unlocked: playerPoints >= 5000 || serverUnlocked.has("legend"),                    color: "#FFD700" },
+    { id: "iron_will",    icon: "🛡️", name: "Iron Will",     description: "Win a match after 3 consecutive losses", unlocked: (matchesWon >= 1 && matchesLost >= 3) || serverUnlocked.has("iron_will"), color: "#8c25f4" },
   ];
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
 
   // Derived stats from match history
-  const { favouriteChar, totalPointsAllTime } = useMemo(() => {
-    const charWins: Record<string, number> = {};
+  const { favouriteChar, topRival, totalPointsAllTime } = useMemo(() => {
+    const charPlayed: Record<string, number> = {};
+    const rivalWins: Record<string, number> = {};
     let total = 0;
     for (const m of matchHistory) {
-      // Track wins per opponent character (to find most-beaten = most-faced)
-      charWins[m.opponentCharId] = (charWins[m.opponentCharId] ?? 0) + (m.outcome === "win" ? 1 : 0);
+      charPlayed[m.playerCharId] = (charPlayed[m.playerCharId] ?? 0) + 1;
+      rivalWins[m.opponentCharId] = (rivalWins[m.opponentCharId] ?? 0) + (m.outcome === "win" ? 1 : 0);
       total += m.pointsEarned;
     }
-    // Favourite = character faced most (proxy for "main" since we don't store player char in history yet)
-    const topId = Object.entries(charWins).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-    const fav = topId ? CHARACTERS.find((c) => c.id === topId) ?? null : null;
-    return { favouriteChar: fav, totalPointsAllTime: total };
+    const favId = Object.entries(charPlayed).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const rivalId = Object.entries(rivalWins).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    return {
+      favouriteChar: favId ? CHARACTERS.find((c) => c.id === favId) ?? null : null,
+      topRival: rivalId ? CHARACTERS.find((c) => c.id === rivalId) ?? null : null,
+      totalPointsAllTime: total,
+    };
   }, [matchHistory]);
 
   return (
@@ -254,17 +237,33 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
-          {/* Favourite opponent / rival card */}
-          {favouriteChar && (
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: `1px solid ${favouriteChar.color}30`, borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 44, height: 58, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${favouriteChar.color}50`, flexShrink: 0 }}>
-                <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 2 }}>Top Rival</div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
-                <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>{favouriteChar.className}</div>
-              </div>
+          {/* Favourite character + top rival */}
+          {(favouriteChar || topRival) && (
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {favouriteChar && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 38, height: 50, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${favouriteChar.color}50`, flexShrink: 0 }}>
+                    <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 1 }}>Main</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
+                    <div style={{ fontSize: 9, color: "#64748b", marginTop: 1 }}>{favouriteChar.className}</div>
+                  </div>
+                </div>
+              )}
+              {topRival && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 38, height: 50, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${topRival.color}50`, flexShrink: 0 }}>
+                    <img src={topRival.standingArt} alt={topRival.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 1 }}>Top Rival</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: topRival.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{topRival.name}</div>
+                    <div style={{ fontSize: 9, color: "#64748b", marginTop: 1 }}>{topRival.className}</div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           </div>

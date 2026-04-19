@@ -67,6 +67,8 @@ export default function CreateMatch() {
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const aiDifficulty = useGameStore((s) => s.aiDifficulty);
+  const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
 
   useEffect(() => {
@@ -81,12 +83,22 @@ export default function CreateMatch() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const scaledW = DESIGN_W * s;
-      const scaledH = DESIGN_H * s;
-      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -94,6 +106,7 @@ export default function CreateMatch() {
   }, []);
 
   const handleCreateMatch = () => {
+    if (!address) return; // wallet gate — button is visually locked when not connected
     resetMatch();
     if (matchType === "vshouse") {
       setVsBot(true);
@@ -103,11 +116,7 @@ export default function CreateMatch() {
     }
     setVsBot(false);
     setPlayerRole("host");
-    if (address) {
-      setShowWager(true);
-    } else {
-      router.push("/ready");
-    }
+    setShowWager(true);
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
@@ -136,7 +145,7 @@ export default function CreateMatch() {
         </div>
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0 }}>
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
 
           {/* Panel */}
           <div style={{ position: "relative", width: 560 }}>
@@ -200,33 +209,77 @@ export default function CreateMatch() {
                 </div>
 
                 {/* Description of selected type */}
-                <div style={{ marginBottom: 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
+                <div style={{ marginBottom: matchType === "vshouse" ? 16 : 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
                   <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
+
+                {/* Difficulty selector — VS House only */}
+                {matchType === "vshouse" && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>AI Difficulty</div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      {([
+                        { level: 0 as const, label: "EASY",   sub: "Random orders",     color: "#4ade80" },
+                        { level: 1 as const, label: "NORMAL", sub: "Adaptive AI",        color: "#f59e0b" },
+                        { level: 2 as const, label: "HARD",   sub: "Counter-picks you",  color: "#f87171" },
+                      ] as const).map(({ level, label, sub, color }) => {
+                        const active = aiDifficulty === level;
+                        return (
+                          <button
+                            key={level}
+                            onClick={() => setAiDifficulty(level)}
+                            style={{
+                              flex: 1, padding: "10px 8px",
+                              background: active ? `${color}18` : "rgba(255,255,255,0.03)",
+                              border: `1.5px solid ${active ? color : "rgba(255,255,255,0.08)"}`,
+                              borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                              transition: "all 0.15s",
+                              boxShadow: active ? `0 0 12px ${color}25` : "none",
+                            }}
+                          >
+                            <div style={{ fontSize: 11, fontWeight: 800, color: active ? color : "#6b7280", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: 9, color: active ? `${color}cc` : "#475569", letterSpacing: 0.3 }}>{sub}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Create Match button */}
                 <button
                   onClick={handleCreateMatch}
+                  disabled={!address}
                   style={{
                     width: "100%", height: 56,
-                    background: "linear-gradient(135deg, #1a3a52, #0f2233)",
-                    border: `1.5px solid ${selected.color}`,
-                    borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                    background: address
+                      ? "linear-gradient(135deg, #1a3a52, #0f2233)"
+                      : "rgba(255,255,255,0.03)",
+                    border: address
+                      ? `1.5px solid ${selected.color}`
+                      : "1.5px solid rgba(255,255,255,0.1)",
+                    borderRadius: 6,
+                    cursor: address ? "pointer" : "not-allowed",
+                    fontFamily: "inherit",
                     fontWeight: 900, fontSize: 16, letterSpacing: 3,
-                    color: "#b9e7f4", textTransform: "uppercase",
+                    color: address ? "#b9e7f4" : "#475569",
+                    textTransform: "uppercase",
                     clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
-                    boxShadow: `0 0 24px ${selected.color}30`,
+                    boxShadow: address ? `0 0 24px ${selected.color}30` : "none",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
                     transition: "all 0.2s ease",
+                    opacity: address ? 1 : 0.6,
                   }}
                 >
-                  <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>radar</span>
-                  CREATE MATCH
-                  <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>
+                  <span className="material-icons" style={{ fontSize: 20, color: address ? selected.color : "#475569" }}>
+                    {address ? "radar" : "lock"}
+                  </span>
+                  {address ? "CREATE MATCH" : "CONNECT WALLET TO PLAY"}
+                  {address && <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>}
                 </button>
 
-                <p style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 10, letterSpacing: 1, textTransform: "uppercase" }}>
-                  Secure connection via Celo network
+                <p style={{ fontSize: 10, color: address ? "#475569" : "#56a4cb", textAlign: "center", marginTop: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                  {address ? "Secure connection via Celo network" : "Use the Connect button in the top right ↗"}
                 </p>
               </div>
             </div>

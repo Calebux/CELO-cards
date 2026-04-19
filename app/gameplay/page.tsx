@@ -49,6 +49,11 @@ export default function Gameplay() {
     ultimateActivated,
     ultimateUsed,
     activateUltimate,
+    matchesWon,
+    matchesPlayed,
+    maxWinStreak,
+    matchesLost,
+    playerName,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -80,6 +85,8 @@ export default function Gameplay() {
   const [showDoubleDown, setShowDoubleDown] = useState(false);
   const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
+  const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
+  const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -150,12 +157,22 @@ export default function Gameplay() {
 
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-    const scaledW = DESIGN_W * s;
-    const scaledH = DESIGN_H * s;
-    wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const isPortrait = vh > vw;
+    let transform: string;
+    if (isPortrait) {
+      const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+      const tx = vw / 2 + (DESIGN_H * s) / 2;
+      const ty = vh / 2 - (DESIGN_W * s) / 2;
+      transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+    } else {
+      const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+      const tx = (vw - DESIGN_W * s) / 2;
+      const ty = (vh - DESIGN_H * s) / 2;
+      transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+    }
+    wrapRef.current.style.transform = transform;
   }, []);
 
   useEffect(() => {
@@ -298,15 +315,71 @@ export default function Gameplay() {
     }
   };
 
-  // Record match result on leaderboard (fire-and-forget)
+  // Record match result on leaderboard + sync achievements (fire-and-forget)
   useEffect(() => {
     if (matchPhase !== "match-end" || !address) return;
     const won = playerRoundsWon > opponentRoundsWon;
     void fetch("/api/leaderboard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerAddress: address, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
+      body: JSON.stringify({ playerAddress: address, playerName: playerName || undefined, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
     });
+    const ACHIEVEMENT_META: Record<string, { name: string; icon: string }> = {
+      first_blood:  { name: "First Blood",   icon: "🩸" },
+      warrior:      { name: "Warrior",        icon: "⚔️" },
+      veteran:      { name: "Veteran",        icon: "🎖️" },
+      on_fire:      { name: "On Fire",        icon: "🔥" },
+      unstoppable:  { name: "Unstoppable",    icon: "⚡" },
+      centurion:    { name: "Centurion",      icon: "💎" },
+      legend:       { name: "Legend",         icon: "👑" },
+      iron_will:    { name: "Iron Will",      icon: "🛡️" },
+    };
+    void fetch("/api/achievements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address,
+        stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
+      }),
+    }).then((r) => r.json()).then((data: { newlyUnlocked?: string[] }) => {
+      const queue = (data.newlyUnlocked ?? []).map((id) => ({
+        id,
+        name: ACHIEVEMENT_META[id]?.name ?? id,
+        icon: ACHIEVEMENT_META[id]?.icon ?? "🏅",
+      }));
+      if (queue.length === 0) return;
+      achievementQueueRef.current = queue;
+      // Show first toast; subsequent ones are shown after each auto-dismiss
+      setAchievementToast(queue[0]);
+      achievementQueueRef.current = queue.slice(1);
+    }).catch(() => {});
+    void fetch("/api/challenges", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, won }),
+    }).then(() =>
+      fetch(`/api/challenges?address=${address}`)
+        .then((r) => r.json())
+        .then((data: { challenges?: { id: string; title: string; eligible: boolean }[] }) => {
+          const readyChallenges = (data.challenges ?? []).filter((c) => c.eligible);
+          if (readyChallenges.length > 0) {
+            // Queue challenge toasts after any achievement toasts
+            const challengeItems = readyChallenges.map((c) => ({
+              id: `challenge-${c.id}`,
+              name: c.title,
+              icon: "🎯",
+              label: "Challenge Ready to Claim",
+            }));
+            const existingQueue = achievementQueueRef.current ?? [];
+            achievementQueueRef.current = [...existingQueue, ...challengeItems];
+            if (!achievementToast) {
+              setAchievementToast(achievementQueueRef.current[0]);
+              achievementQueueRef.current = achievementQueueRef.current.slice(1);
+            }
+          }
+        })
+        .catch(() => {})
+    ).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchPhase]);
 
@@ -348,25 +421,29 @@ export default function Gameplay() {
     return <MatchLoadingScreen playerName="—" opponentName="—" />;
   }
 
-  if (matchLoading) {
-    return (
-      <MatchLoadingScreen
-        playerName={selectedCharacter.name}
-        opponentName={opponentCharacter.name}
-        playerColor={selectedCharacter.color}
-        opponentColor={opponentCharacter.color}
-        playerPortrait={selectedCharacter.standingArt}
-        opponentPortrait={opponentCharacter.standingArt}
-        label="MATCH STARTING…"
-      />
-    );
-  }
-
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       {/* Inject clash animation keyframes */}
-      <style dangerouslySetInnerHTML={{ __html: CLASH_STYLES }} />
+      <style dangerouslySetInnerHTML={{ __html: CLASH_STYLES + `
+        @keyframes achieveIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(24px) scale(0.88); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);    }
+        }
+      ` }} />
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
+
+        {/* VS loading screen — inside the canvas so it gets the portrait rotation */}
+        {matchLoading && (
+          <MatchLoadingScreen
+            playerName={selectedCharacter.name}
+            opponentName={opponentCharacter.name}
+            playerColor={selectedCharacter.color}
+            opponentColor={opponentCharacter.color}
+            playerPortrait={selectedCharacter.standingArt}
+            opponentPortrait={opponentCharacter.standingArt}
+            label="MATCH STARTING…"
+          />
+        )}
 
         {/* Background */}
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -899,7 +976,7 @@ export default function Gameplay() {
           const accentColor = won ? "#06a8f9" : roundWinner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24";
           const accentGlow  = won ? "rgba(6,168,249,0.5)" : roundWinner === "opponent" ? `${opponent?.color || "#f906a8"}80` : "rgba(251,191,36,0.4)";
           return (
-            <div style={{ position: "relative", zIndex: 100 }}>
+            <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
 
@@ -1034,7 +1111,7 @@ export default function Gameplay() {
           const winnerChar = won ? selectedCharacter : opponent;
           const finisherVideo = winnerChar?.finisherVideo ?? "/new-assets/action-solo-burst.webm";
           return (
-            <div style={{ position: "relative", zIndex: 100 }}>
+            <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {/* Background */}
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               {/* Winner finisher video */}
@@ -1304,19 +1381,18 @@ export default function Gameplay() {
                     >
                       🔄 REMATCH
                     </button>
-                    {/* Share result */}
+                    {/* Share on X */}
                     <button
                       onClick={() => {
-                        const result = won ? "won" : "lost";
+                        const emoji = won ? "🏆" : "⚔️";
                         const score = `${playerRoundsWon}-${opponentRoundsWon}`;
-                        const text = `I just ${result} ${score} against ${opponent?.name ?? "my opponent"} in Action Order! 🎮 #ActionOrder`;
-                        if (navigator.share) { navigator.share({ text }).catch(() => {}); }
-                        else { navigator.clipboard.writeText(text).catch(() => {}); }
+                        const tweet = `${emoji} Just ${won ? "won" : "lost"} ${score} as ${selectedCharacter?.name ?? "my fighter"} vs ${opponent?.name ?? "opponent"} on Action Order!\n\nOn-chain card game on @Celo 🎮\n#ActionOrder #Celo`;
+                        window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank", "noopener");
                       }}
-                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", position: "relative" }}
-                      title="Share result"
+                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      title="Share on X"
                     >
-                      <span className="material-icons" style={{ fontSize: 18, color: "#6b7280" }}>share</span>
+                      <span style={{ fontSize: 17, fontWeight: 900, color: "#e2e8f0", fontFamily: "serif", lineHeight: 1 }}>𝕏</span>
                     </button>
                     {/* Return to Menu — secondary */}
                     <button onClick={handleBackToMenu} style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11, letterSpacing: 1, color: "#6b7280", textTransform: "uppercase" }}>
@@ -1386,6 +1462,44 @@ export default function Gameplay() {
               >
                 BACK TO MENU
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Achievement unlock toast */}
+        {achievementToast && (
+          <div
+            key={achievementToast.id}
+            style={{
+              position: "absolute", bottom: 100, left: "50%", transform: "translateX(-50%)",
+              background: "linear-gradient(135deg, rgba(15,23,42,0.97), rgba(86,164,203,0.18))",
+              border: "1.5px solid rgba(86,164,203,0.5)",
+              borderRadius: 10, padding: "14px 24px",
+              display: "flex", alignItems: "center", gap: 14,
+              boxShadow: "0 0 30px rgba(86,164,203,0.3)",
+              zIndex: 300, minWidth: 280,
+              animation: "achieveIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+            }}
+            onAnimationEnd={() => {
+              // Auto-dismiss after 2.8s then show next queued toast
+              setTimeout(() => {
+                setAchievementToast(null);
+                if (achievementQueueRef.current.length > 0) {
+                  setTimeout(() => {
+                    setAchievementToast(achievementQueueRef.current[0]);
+                    achievementQueueRef.current = achievementQueueRef.current.slice(1);
+                  }, 300);
+                }
+              }, 2800);
+            }}
+          >
+            <div style={{ fontSize: 30, lineHeight: 1 }}>{achievementToast.icon}</div>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#56a4cb", textTransform: "uppercase", marginBottom: 2 }}>{achievementToast.label ?? "Achievement Unlocked"}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.3 }}>{achievementToast.name}</div>
+            </div>
+            <div style={{ marginLeft: "auto", width: 24, height: 24, borderRadius: "50%", background: "rgba(74,222,128,0.15)", border: "1.5px solid rgba(74,222,128,0.5)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: "#4ade80" }}>✓</span>
             </div>
           </div>
         )}

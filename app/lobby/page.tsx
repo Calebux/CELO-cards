@@ -26,7 +26,7 @@ function getPairBg(id1: string, id2: string): string {
 export default function Lobby() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { selectedCharacter, opponentCharacter, matchId, playerRole, setOpponentCharacterFromServer } = useGameStore();
+  const { selectedCharacter, opponentCharacter, matchId, playerRole, wagerActive, wagerCurrency, setOpponentCharacterFromServer } = useGameStore();
   const [p1Ready, setP1Ready] = useState(false);
   const [p2Ready, setP2Ready] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -39,12 +39,22 @@ export default function Lobby() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const scaledW = DESIGN_W * s;
-      const scaledH = DESIGN_H * s;
-      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -171,9 +181,18 @@ export default function Lobby() {
               MATCH ID: <span style={{ color: "white" }}>{matchId ?? "AO-????-X"}</span>
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="material-icons" style={{ color: "#6b7280", fontSize: 14 }}>wifi</span>
-            <span className="uppercase" style={{ fontSize: 12, letterSpacing: "1.2px", color: "#6b7280", fontWeight: 400 }}>Server: NAIJA O1</span>
+          <div className="flex items-center gap-4">
+            {wagerActive ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 10px", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: 1, textTransform: "uppercase" }}>⚡ WAGER ON — {wagerCurrency ?? "CELO"}</span>
+              </div>
+            ) : (
+              <span style={{ fontSize: 11, color: "#475569", letterSpacing: 1, textTransform: "uppercase" }}>No Wager</span>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="material-icons" style={{ color: "#6b7280", fontSize: 14 }}>wifi</span>
+              <span className="uppercase" style={{ fontSize: 12, letterSpacing: "1.2px", color: "#6b7280", fontWeight: 400 }}>Server: NAIJA O1</span>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <span style={{ fontSize: 14, letterSpacing: "1.4px", color: "#56a4cb", fontWeight: 500 }}>{statusText}</span>
@@ -191,7 +210,12 @@ export default function Lobby() {
           {/* Player 1 — Left */}
           <div className="flex-1 relative h-full">
             <div className="absolute flex items-center" style={{ inset: "-60px 36px 80px 36px", paddingLeft: 30 }}>
-              <div className="relative flex-1 overflow-hidden" style={{ maxWidth: 384, height: 504, borderRadius: 12 }}>
+              <div className="relative flex-1 overflow-hidden" style={{
+                maxWidth: 384, height: 504, borderRadius: 12,
+                background: "#07050f",
+                border: `2px solid ${player ? player.color + "60" : "rgba(86,164,203,0.4)"}`,
+                boxShadow: player ? `0 0 40px ${player.color}30, inset 0 0 60px rgba(0,0,0,0.5)` : undefined,
+              }}>
                 {player && (
                   <img src={player.standingArt} alt={player.name}
                     className="absolute inset-0 w-full h-full object-cover"
@@ -201,6 +225,8 @@ export default function Lobby() {
                       transition: "all 0.5s ease"
                     }} />
                 )}
+                {/* Bottom gradient for polish */}
+                <div className="absolute inset-x-0 bottom-0" style={{ height: 80, background: "linear-gradient(to top, #07050f 0%, transparent 100%)", pointerEvents: "none" }} />
               </div>
               {player && (
                 <div className="absolute" style={{ left: 30, top: 30 }}>
@@ -273,7 +299,12 @@ export default function Lobby() {
         {/* Player 2 — Right */}
           <div className="flex-1 relative h-full">
             <div className="absolute flex items-center justify-end" style={{ inset: "-60px 36px 80px 36px", paddingRight: 30 }}>
-              <div className="relative flex-1 overflow-hidden" style={{ maxWidth: 384, height: 504, borderRadius: 12 }}>
+              <div className="relative flex-1 overflow-hidden" style={{
+                maxWidth: 384, height: 504, borderRadius: 12,
+                background: "#07050f",
+                border: `2px solid ${opponent ? opponent.color + "60" : "rgba(249,6,168,0.4)"}`,
+                boxShadow: opponent ? `0 0 40px ${opponent.color}30, inset 0 0 60px rgba(0,0,0,0.5)` : undefined,
+              }}>
                 {opponent && (
                   <img src={opponent.standingArt} alt={opponent.name}
                     className="absolute inset-0 w-full h-full object-cover"
@@ -283,6 +314,8 @@ export default function Lobby() {
                       transition: "all 0.5s ease"
                     }} />
                 )}
+                {/* Bottom gradient for polish */}
+                <div className="absolute inset-x-0 bottom-0" style={{ height: 80, background: "linear-gradient(to top, #07050f 0%, transparent 100%)", pointerEvents: "none" }} />
               </div>
               {opponent && (
                 <div className="absolute flex flex-col items-end" style={{ right: 6, top: 30 }}>

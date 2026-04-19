@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
-import { CHARACTERS } from "../lib/gameData";
+import { CHARACTERS, CARDS } from "../lib/gameData";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
@@ -33,12 +33,22 @@ export default function HistoryPage() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const scaledW = DESIGN_W * s;
-      const scaledH = DESIGN_H * s;
-      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -103,6 +113,7 @@ export default function HistoryPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {matchHistory.map((match, idx) => {
                   const char = CHARACTERS.find((c) => c.id === match.opponentCharId);
+                  const playerChar = CHARACTERS.find((c) => c.id === match.playerCharId);
                   const isWin = match.outcome === "win";
                   const isExpanded = expandedId === match.id + idx;
                   const totalRounds = match.playerRoundsWon + match.opponentRoundsWon;
@@ -162,7 +173,9 @@ export default function HistoryPage() {
 
                       {/* Expanded breakdown */}
                       {isExpanded && (
-                        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "20px 24px" }}>
+                          {/* Top row: 3 columns */}
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: match.rounds?.length ? 16 : 0 }}>
                           {/* Rounds breakdown */}
                           <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "14px 18px" }}>
                             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 12 }}>Round Breakdown</div>
@@ -170,7 +183,7 @@ export default function HistoryPage() {
                               {Array.from({ length: totalRounds }).map((_, i) => {
                                 const playerWon = i < match.playerRoundsWon;
                                 return (
-                                  <div key={i} style={{ flex: 1, padding: "8px 6px", borderRadius: 6, textAlign: "center", background: playerWon ? "rgba(6,168,249,0.12)" : `rgba(${char ? "var(--opp-rgb, 248,113,113)" : "248,113,113"},0.12)`, border: `1px solid ${playerWon ? "rgba(6,168,249,0.3)" : "rgba(248,113,113,0.3)"}` }}>
+                                  <div key={i} style={{ flex: 1, padding: "8px 6px", borderRadius: 6, textAlign: "center", background: playerWon ? "rgba(6,168,249,0.12)" : `rgba(248,113,113,0.12)`, border: `1px solid ${playerWon ? "rgba(6,168,249,0.3)" : "rgba(248,113,113,0.3)"}` }}>
                                     <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: playerWon ? "#06a8f9" : "#f87171" }}>R{i + 1}</div>
                                     <div style={{ fontSize: 12, fontWeight: 800, color: "#fff", marginTop: 2 }}>{playerWon ? "WIN" : "LOSS"}</div>
                                   </div>
@@ -180,18 +193,28 @@ export default function HistoryPage() {
                             </div>
                           </div>
 
-                          {/* Opponent info */}
-                          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14 }}>
-                            {char && (
-                              <div style={{ width: 60, height: 80, borderRadius: 6, overflow: "hidden", border: `2px solid ${char.color}50`, flexShrink: 0 }}>
-                                <img src={char.standingArt} alt={char.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }} />
-                              </div>
-                            )}
-                            <div>
-                              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 4 }}>Opponent</div>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: char?.color ?? "#f87171", textTransform: "uppercase", letterSpacing: 1 }}>{char?.name ?? match.opponentCharId}</div>
-                              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{char?.className ?? ""}</div>
-                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{char?.passive?.name}</div>
+                          {/* Matchup: player vs opponent */}
+                          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+                            {/* Player character */}
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 }}>
+                              {playerChar ? (
+                                <div style={{ width: 52, height: 68, borderRadius: 5, overflow: "hidden", border: `2px solid ${playerChar.color}60` }}>
+                                  <img src={playerChar.standingArt} alt={playerChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }} />
+                                </div>
+                              ) : <div style={{ width: 52, height: 68, borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />}
+                              <div style={{ fontSize: 10, fontWeight: 800, color: playerChar?.color ?? "#56a4cb", textTransform: "uppercase", letterSpacing: 0.5 }}>{playerChar?.name ?? "YOU"}</div>
+                              <div style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>You</div>
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>VS</div>
+                            {/* Opponent character */}
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 }}>
+                              {char ? (
+                                <div style={{ width: 52, height: 68, borderRadius: 5, overflow: "hidden", border: `2px solid ${char.color}60` }}>
+                                  <img src={char.standingArt} alt={char.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }} />
+                                </div>
+                              ) : <div style={{ width: 52, height: 68, borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />}
+                              <div style={{ fontSize: 10, fontWeight: 800, color: char?.color ?? "#f87171", textTransform: "uppercase", letterSpacing: 0.5 }}>{char?.name ?? "Opponent"}</div>
+                              <div style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>Opponent</div>
                             </div>
                           </div>
 
@@ -217,6 +240,56 @@ export default function HistoryPage() {
                               </div>
                             </div>
                           </div>
+                          </div>{/* end top row */}
+
+                          {/* Card replay — only shown when round data exists */}
+                          {match.rounds && match.rounds.length > 0 && (
+                            <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 8, padding: "14px 18px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 12 }}>Card Replay</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                {match.rounds.map((round, ri) => {
+                                  const roundWon = ri < match.playerRoundsWon;
+                                  return (
+                                    <div key={ri}>
+                                      <div style={{ fontSize: 9, fontWeight: 700, color: roundWon ? "#06a8f9" : "#f87171", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>
+                                        Round {ri + 1} — {roundWon ? "WON" : "LOST"}
+                                      </div>
+                                      {/* Header */}
+                                      <div style={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr 44px", gap: 4, marginBottom: 4 }}>
+                                        <span style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>Your card</span>
+                                        <span />
+                                        <span style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>Opponent</span>
+                                        <span style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1, textAlign: "right" }}>KNK</span>
+                                      </div>
+                                      {round.slotWinners.map((winner, si) => {
+                                        const pCard = CARDS.find((c) => c.id === round.playerCards[si]);
+                                        const oCard = CARDS.find((c) => c.id === round.opponentCards[si]);
+                                        const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
+                                        const pCol = typeColors[pCard?.type ?? ""] ?? "#475569";
+                                        const oCol = typeColors[oCard?.type ?? ""] ?? "#475569";
+                                        return (
+                                          <div key={si} style={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr 44px", gap: 4, padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                            <span style={{ fontSize: 11, color: winner === "player" ? "#b9e7f4" : "#64748b", fontWeight: winner === "player" ? 700 : 400 }}>
+                                              <span style={{ fontSize: 8, color: pCol, marginRight: 4, textTransform: "uppercase" }}>{pCard?.type?.slice(0,3) ?? ""}</span>
+                                              {pCard?.name ?? round.playerCards[si]}
+                                            </span>
+                                            <span style={{ fontSize: 10, textAlign: "center", color: winner === "player" ? "#4ade80" : winner === "opponent" ? "#f87171" : "#475569" }}>
+                                              {winner === "player" ? "▶" : winner === "opponent" ? "◀" : "="}
+                                            </span>
+                                            <span style={{ fontSize: 11, color: winner === "opponent" ? "#f87171" : "#64748b", fontWeight: winner === "opponent" ? 700 : 400 }}>
+                                              <span style={{ fontSize: 8, color: oCol, marginRight: 4, textTransform: "uppercase" }}>{oCard?.type?.slice(0,3) ?? ""}</span>
+                                              {oCard?.name ?? round.opponentCards[si]}
+                                            </span>
+                                            <span style={{ fontSize: 11, color: "#64748b", textAlign: "right" }}>{round.playerKnocks[si]}–{round.opponentKnocks[si]}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

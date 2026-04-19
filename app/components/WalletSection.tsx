@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { isMiniPay, formatAddress } from "../lib/minipay";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { formatUnits } from "viem";
+import { isMuted, setMuted } from "../lib/soundManager";
 
 function BalanceChip({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -44,6 +45,31 @@ function Balances({ address }: { address: `0x${string}` }) {
   );
 }
 
+function MuteButton() {
+  const [muted, setMutedState] = useState(false);
+  useEffect(() => { setMutedState(isMuted()); }, []);
+  const toggle = () => {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+  };
+  return (
+    <button
+      onClick={toggle}
+      title={muted ? "Unmute" : "Mute"}
+      style={{
+        background: "none", border: "none", cursor: "pointer",
+        padding: "4px 6px", borderRadius: 5, fontSize: 17,
+        color: muted ? "#ef4444" : "#6b7280",
+        display: "flex", alignItems: "center",
+        transition: "color 0.2s",
+      }}
+    >
+      {muted ? "🔇" : "🔊"}
+    </button>
+  );
+}
+
 export function WalletSection() {
   const { address, isConnected } = useAccount();
 
@@ -63,6 +89,7 @@ export function WalletSection() {
   if (isMiniPay() && isConnected && address) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <MuteButton />
         <Balances address={address} />
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
@@ -82,6 +109,7 @@ export function WalletSection() {
         const connected = !!(account && chain);
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <MuteButton />
             {connected && address && <Balances address={address} />}
             <button
               onClick={connected ? openAccountModal : openConnectModal}

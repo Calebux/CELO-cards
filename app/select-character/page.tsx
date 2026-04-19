@@ -49,12 +49,22 @@ export default function SelectCharacter() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const scaledW = DESIGN_W * s;
-      const scaledH = DESIGN_H * s;
-      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -189,39 +199,56 @@ export default function SelectCharacter() {
               {gridSlots.map((c, i) => {
                 const isSel = selectedIdx === c.charIdx && !c.isLocked;
                 return (
-                  <button
-                    key={i}
-                    onClick={() => !c.isLocked && setSelectedIdx(c.charIdx)}
-                    className={`relative overflow-hidden rounded-[5.625px] border-[1.406px] cursor-pointer sc-card${isSel ? " sc-card-selected" : ""}`}
-                    style={{
-                      width: 107, height: 141,
-                      borderColor: isSel ? activeChar.color : "transparent",
-                      backgroundColor: isSel ? "rgba(255,255,255,0)" : "#222f42",
-                      // @ts-expect-error css custom property
-                      "--sc-color": activeChar.color,
-                      padding: 1.406,
-                      opacity: c.isLocked ? 0.4 : 1,
-                      pointerEvents: c.isLocked ? "none" : "auto",
-                    }}
-                  >
-                    <img
-                      src={c.src}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                      style={{ filter: c.isLocked ? "grayscale(1)" : "none" }}
-                    />
-                    <div className="absolute inset-0" style={{ backgroundColor: isSel ? "rgba(185,231,244,0.2)" : "rgba(0,0,0,0.4)", mixBlendMode: isSel ? "overlay" : "normal" }} />
-                    {isSel && (
-                      <span className="material-icons absolute not-italic text-[#b9e7f4]" style={{ fontSize: 12.656, top: 5.63, right: 5.17 }}>
-                        check_circle
-                      </span>
+                  <div key={i} className="relative" style={{ width: 107, height: 141 }}>
+                    <button
+                      onClick={() => !c.isLocked && setSelectedIdx(c.charIdx)}
+                      className={`relative overflow-hidden rounded-[5.625px] border-[1.406px] cursor-pointer sc-card${isSel ? " sc-card-selected" : ""}`}
+                      style={{
+                        width: "100%", height: "100%",
+                        borderColor: isSel ? activeChar.color : "transparent",
+                        backgroundColor: isSel ? "rgba(255,255,255,0)" : "#222f42",
+                        // @ts-expect-error css custom property
+                        "--sc-color": activeChar.color,
+                        padding: 1.406,
+                        opacity: c.isLocked ? 0.4 : 1,
+                        pointerEvents: c.isLocked ? "none" : "auto",
+                      }}
+                    >
+                      <img
+                        src={c.src}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                        style={{ filter: c.isLocked ? "grayscale(1)" : "none" }}
+                      />
+                      <div className="absolute inset-0" style={{ backgroundColor: isSel ? "rgba(185,231,244,0.2)" : "rgba(0,0,0,0.4)", mixBlendMode: isSel ? "overlay" : "normal" }} />
+                      {isSel && (
+                        <span className="material-icons absolute not-italic text-[#b9e7f4]" style={{ fontSize: 12.656, top: 5.63, right: 5.17 }}>
+                          check_circle
+                        </span>
+                      )}
+                      {c.isLocked && (
+                        <span className="material-icons absolute not-italic text-white/30" style={{ fontSize: 18, top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
+                          lock
+                        </span>
+                      )}
+                    </button>
+                    {/* Info button — links to character detail page */}
+                    {!c.isLocked && c.charIdx >= 0 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/characters/${CHARACTERS[c.charIdx].id}`); }}
+                        title="View details"
+                        style={{
+                          position: "absolute", bottom: 5, right: 5,
+                          width: 18, height: 18, borderRadius: "50%",
+                          background: "rgba(0,0,0,0.75)", border: "1px solid rgba(255,255,255,0.25)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          cursor: "pointer", zIndex: 5,
+                        }}
+                      >
+                        <span className="material-icons not-italic" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)" }}>info</span>
+                      </button>
                     )}
-                    {c.isLocked && (
-                      <span className="material-icons absolute not-italic text-white/30" style={{ fontSize: 18, top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
-                        lock
-                      </span>
-                    )}
-                  </button>
+                  </div>
                 );
               })}
             </div>

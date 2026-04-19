@@ -5,9 +5,12 @@ import path from "path";
 const CHALLENGES_FILE = path.join(process.cwd(), "data", "challenges.json");
 const LEADERBOARD_FILE = path.join(process.cwd(), "data", "leaderboard.json");
 
+type DailyStats = { wins: number; played: number };
+
 type ChallengesData = {
   date: string; // YYYY-MM-DD UTC
   claims: Record<string, string[]>; // address → list of claimed challenge IDs today
+  dailyStats: Record<string, DailyStats>; // address → today's match stats
 };
 
 type LeaderboardData = {
@@ -25,10 +28,11 @@ function readData(): ChallengesData {
     const raw = fs.readFileSync(CHALLENGES_FILE, "utf-8");
     const parsed = JSON.parse(raw) as ChallengesData;
     // Reset if new day
-    if (parsed.date !== today) return { date: today, claims: {} };
+    if (parsed.date !== today) return { date: today, claims: {}, dailyStats: {} };
+    if (!parsed.dailyStats) parsed.dailyStats = {}; // backfill if file predates dailyStats
     return parsed;
   } catch {
-    return { date: today, claims: {} };
+    return { date: today, claims: {}, dailyStats: {} };
   }
 }
 
@@ -84,24 +88,16 @@ export const DAILY_CHALLENGES = [
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address")?.toLowerCase();
   const data = readData();
-  const leaderboard = readLeaderboard();
 
   const claimed = address ? (data.claims[address] ?? []) : [];
-
-  // Get today's stats for the address (approximation: use full stats for demo)
-  // In production you'd track daily deltas; for demo we use total stats
-  const playerCasual = address ? leaderboard.casual[address] : null;
-  const playerRanked = address ? leaderboard.ranked[address] : null;
-  const totalWins = (playerCasual?.wins ?? 0) + (playerRanked?.wins ?? 0);
-  const totalLosses = (playerCasual?.losses ?? 0) + (playerRanked?.losses ?? 0);
-  const totalPlayed = totalWins + totalLosses;
+  const todayStats = address ? (data.dailyStats[address] ?? { wins: 0, played: 0 }) : { wins: 0, played: 0 };
 
   const challenges = DAILY_CHALLENGES.map((c) => {
     const isClaimed = claimed.includes(c.id);
     let progress = 0;
-    let goal = c.requirement.count;
-    if (c.requirement.type === "wins") progress = Math.min(totalWins, goal);
-    if (c.requirement.type === "played") progress = Math.min(totalPlayed, goal);
+    const goal = c.requirement.count;
+    if (c.requirement.type === "wins") progress = Math.min(todayStats.wins, goal);
+    if (c.requirement.type === "played") progress = Math.min(todayStats.played, goal);
     const eligible = !isClaimed && progress >= goal;
     return { ...c, progress, goal, isClaimed, eligible };
   });
@@ -141,4 +137,23 @@ export async function POST(req: NextRequest) {
   writeData(data);
 
   return NextResponse.json({ ok: true, pointsAwarded: challenge.rewardPoints, gdollarReward: challenge.rewardGDollar });
+}
+
+// PATCH /api/challenges — report a match result to update daily stats
+export async function PATCH(req: NextRequest) {
+  let body: { address?: string; won?: boolean };
+  try { body = await req.json() as typeof body; } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+
+  const { address, won } = body;
+  if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+
+  const data = readData();
+  const addr = address.toLowerCase();
+  const prev = data.dailyStats[addr] ?? { wins: 0, played: 0 };
+  data.dailyStats[addr] = { wins: prev.wins + (won ? 1 : 0), played: prev.played + 1 };
+  writeData(data);
+
+  return NextResponse.json({ ok: true, daily: data.dailyStats[addr] });
 }

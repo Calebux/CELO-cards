@@ -15,6 +15,7 @@ type Tab = "casual" | "ranked";
 type Player = {
   rank: number;
   address: string;
+  name?: string;
   wins: number;
   losses: number;
   points: number;
@@ -49,12 +50,22 @@ export default function Leaderboard() {
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-      const scaledW = DESIGN_W * s;
-      const scaledH = DESIGN_H * s;
-      wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -228,20 +239,27 @@ export default function Leaderboard() {
                         {p.rank <= 3 ? ["🥇", "🥈", "🥉"][p.rank - 1] : `#${p.rank}`}
                       </span>
 
-                      {/* Address */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{
-                          fontSize: 13,
-                          fontWeight: isMe ? 700 : 500,
-                          color: isMe ? "#b9e7f4" : "#94a3b8",
-                          fontFamily: "monospace",
-                          letterSpacing: 0.5,
-                        }}>
-                          {truncateAddress(p.address)}
-                        </span>
-                        {isMe && (
-                          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
-                            YOU
+                      {/* Name / Address */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{
+                            fontSize: p.name ? 13 : 12,
+                            fontWeight: isMe ? 700 : 500,
+                            color: isMe ? "#b9e7f4" : p.name ? "#e2e8f0" : "#94a3b8",
+                            fontFamily: p.name ? "inherit" : "monospace",
+                            letterSpacing: p.name ? 0.3 : 0.5,
+                          }}>
+                            {p.name ?? truncateAddress(p.address)}
+                          </span>
+                          {isMe && (
+                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        {p.name && (
+                          <span style={{ fontSize: 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
+                            {truncateAddress(p.address)}
                           </span>
                         )}
                       </div>

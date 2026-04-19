@@ -11,7 +11,13 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: "Action Order",
-  description: "Competitive card game platform",
+  description: "On-chain card fighting game on Celo",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Action Order",
+  },
 };
 
 export const viewport = {

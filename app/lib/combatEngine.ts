@@ -396,11 +396,29 @@ export function resolveSlot(
 
 // ── AI order generation ────────────────────────────────────────────────────
 
-// difficulty: 0=easy (random), 1=normal, 2=hard (optimal + counters player)
-export function generateAIOrder(aiChar?: Character, _playerChar?: Character, difficulty = 1): Card[] {
+// What type beats a given type
+const COUNTER_TYPE: Record<CardType, CardType> = {
+    strike:  "defense",  // defense beats strike
+    control: "strike",   // strike beats control
+    defense: "control",  // control beats defense
+};
+
+export interface AIRoundContext {
+    playerRoundsWon: number;
+    opponentRoundsWon: number;
+    playerOrder?: Card[]; // player's visible card selection for this round
+}
+
+// difficulty: 0=easy (random), 1=normal (adaptive), 2=hard (optimal + counters)
+export function generateAIOrder(
+    aiChar?: Character,
+    playerChar?: Character,
+    difficulty = 1,
+    roundCtx?: AIRoundContext,
+): Card[] {
     const energyPool = aiChar ? calcEnergyPool(aiChar) : 10;
 
-    // Easy mode: mostly random selection
+    // Easy mode: random selection with no strategy
     if (difficulty === 0) {
         const valid = CARDS.filter((c) => !c.isWild && c.energyCost <= energyPool);
         const shuffled = [...valid].sort(() => Math.random() - 0.5);
@@ -415,21 +433,55 @@ export function generateAIOrder(aiChar?: Character, _playerChar?: Character, dif
         return picks.sort(() => Math.random() - 0.5);
     }
 
-    // Score each card by strategic value
+    // ── Analyse player's deck to find counter type ─────────────────────────
+    // Count player's type distribution from their visible order
+    const playerTypeCounts: Record<CardType, number> = { strike: 0, defense: 0, control: 0 };
+    if (roundCtx?.playerOrder) {
+        for (const c of roundCtx.playerOrder) {
+            if (c.type === "strike" || c.type === "defense" || c.type === "control") playerTypeCounts[c.type]++;
+        }
+    } else if (playerChar) {
+        // No visible order yet — guess from character bias (higher priority → more strike/control)
+        const bias = playerChar.priorityStat > 5 ? "control" : playerChar.knockStat > 75 ? "strike" : "defense";
+        playerTypeCounts[bias] = 3;
+    }
+
+    // Dominant player type → what the AI should counter with
+    const dominantPlayerType = (Object.entries(playerTypeCounts) as [CardType, number][])
+        .sort((a, b) => b[1] - a[1])[0][0];
+    const counterType: CardType = COUNTER_TYPE[dominantPlayerType];
+
+    // ── Round state aggression ─────────────────────────────────────────────
+    // If AI is losing rounds, go aggressive (more knock). If winning, play safe.
+    const aiRoundsWon  = roundCtx?.opponentRoundsWon ?? 0;
+    const playerRoundsWon = roundCtx?.playerRoundsWon ?? 0;
+    const isLosing = aiRoundsWon < playerRoundsWon;
+    const isWinning = aiRoundsWon > playerRoundsWon;
+
+    // Score each card
     const scored = CARDS.filter((c) => !c.isWild).map((c) => {
         let score = c.knock + c.priority * 0.5;
-        // Strategic bonuses
+
+        // Base strategic bonuses
         if (c.id === "reversal_edge") score += 3;
-        if (c.id === "anticipation") score += 2;
-        if (c.id === "disrupt") score += 2;
-        if (c.id === "evasion") score += 1;
+        if (c.id === "anticipation")  score += 2;
+        if (c.id === "disrupt")       score += 2;
+        if (c.id === "evasion")       score += 1;
         score += c.energyCost === 0 ? 2 : c.knock / (c.energyCost + 0.5);
-        // Hard mode: extra weight on high-priority and high-knock cards
-        if (difficulty === 2) {
-            score += c.priority * 0.3 + c.knock * 0.2;
-        }
-        // Add some randomness on normal mode to feel human
-        if (difficulty === 1) score += Math.random() * 2;
+
+        // Counter-type bonus (normal: +2, hard: +4)
+        if (c.type === counterType) score += difficulty === 2 ? 4 : 2;
+
+        // Aggression adjustment
+        if (isLosing)  score += c.knock * 0.3;           // prioritise damage when behind
+        if (isWinning) score += c.priority * 0.4;        // prioritise priority/safety when ahead
+
+        // Hard mode: extra weight on high-priority and high-knock
+        if (difficulty === 2) score += c.priority * 0.3 + c.knock * 0.2;
+
+        // Normal mode: small random noise to feel human
+        if (difficulty === 1) score += Math.random() * 1.5;
+
         return { card: c, score };
     });
 
@@ -438,7 +490,7 @@ export function generateAIOrder(aiChar?: Character, _playerChar?: Character, dif
     const picks: Card[] = [];
     let usedEnergy = 0;
     const typeCount: Record<string, number> = { strike: 0, defense: 0, control: 0 };
-    // Hard mode allows more of one type; normal enforces variety
+    // Hard mode allows stacking one type; normal enforces variety
     const typeLimit = difficulty === 2 ? 3 : 2;
 
     for (const { card } of scored) {
@@ -450,6 +502,7 @@ export function generateAIOrder(aiChar?: Character, _playerChar?: Character, dif
         typeCount[card.type]++;
     }
 
+    // Fill remaining slots ignoring type limit
     for (const { card } of scored) {
         if (picks.length >= 5) break;
         if (picks.some((p) => p.id === card.id)) continue;
@@ -464,7 +517,7 @@ export function generateAIOrder(aiChar?: Character, _playerChar?: Character, dif
         picks.push(card);
     }
 
-    // Hard mode: minimal shuffle, normal mode: full shuffle
+    // Hard: keep strategic order. Normal: shuffle to mask intent.
     if (difficulty === 2) return picks;
     return picks.sort(() => Math.random() - 0.5);
 }
