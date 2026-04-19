@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WalletSection } from "../components/WalletSection";
 import { isMuted, setMuted, getVolume, setVolume } from "../lib/soundManager";
+import { useGameStore } from "../lib/gameStore";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -15,12 +16,15 @@ export default function SettingsPage() {
   const [volume, setVolumeState] = useState(1);
   const [reducedEffects, setReducedEffects] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { playerName, setPlayerName } = useGameStore();
+  const [nameVal, setNameVal] = useState("");
 
   useEffect(() => {
     setMutedState(isMuted());
     setVolumeState(getVolume());
     try { setReducedEffects(localStorage.getItem("ao-reducedEffects") === "1"); } catch { /* */ }
-  }, []);
+    setNameVal(playerName || "");
+  }, [playerName]);
 
   useEffect(() => {
     const scale = () => {
@@ -50,6 +54,7 @@ export default function SettingsPage() {
   const handleSave = () => {
     setMuted(muted);
     setVolume(volume);
+    if (nameVal.trim()) setPlayerName(nameVal.trim());
     try { localStorage.setItem("ao-reducedEffects", reducedEffects ? "1" : "0"); } catch { /* */ }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -133,6 +138,24 @@ export default function SettingsPage() {
                   onChange={(e) => setVolumeState(parseFloat(e.target.value))}
                   disabled={muted}
                   style={{ width: 160, accentColor: "#56a4cb", opacity: muted ? 0.4 : 1, cursor: muted ? "default" : "pointer" }}
+                />
+              </Row>
+
+              {/* Player name */}
+              <Row label="Display Name" sub="Shown on leaderboard and in matches">
+                <input
+                  type="text"
+                  value={nameVal}
+                  onChange={(e) => setNameVal(e.target.value.slice(0, 20))}
+                  placeholder={playerName || "Enter name…"}
+                  style={{
+                    width: 180, height: 36, borderRadius: 6,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(86,164,203,0.35)",
+                    color: "#e2e8f0", fontFamily: "inherit",
+                    fontSize: 14, padding: "0 12px", outline: "none",
+                    letterSpacing: 0.5,
+                  }}
                 />
               </Row>
 

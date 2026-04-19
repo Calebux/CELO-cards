@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
+import { CHARACTERS } from './lib/gameData';
 import { WalletSection } from './components/WalletSection';
 import { HowToPlayModal } from './components/HowToPlayModal';
 
@@ -11,9 +13,20 @@ const DESIGN_H = 823;
 
 export default function ActionOrderLandingPage() {
   const playerPoints = useGameStore((s) => s.playerPoints);
+  const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+
+  const handleQuickPlay = useCallback(() => {
+    const unlocked = CHARACTERS.filter((c) => !c.isLocked);
+    const char = unlocked[Math.floor(Math.random() * unlocked.length)];
+    selectCharacter(char);
+    startMatch();
+    autoLockOrder();
+    router.push("/gameplay");
+  }, [selectCharacter, startMatch, autoLockOrder, router]);
 
   useEffect(() => {
     const fetch_ = () => fetch("/api/online").then(r => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
@@ -119,6 +132,7 @@ export default function ActionOrderLandingPage() {
         .ko-btn-community   { left: 40px; top: 428px; }
         .ko-btn-leaderboard { left: 40px; top: 484px; }
         .ko-btn-profile     { left: 40px; top: 540px; }
+        .ko-btn-challenges  { left: 40px; top: 596px; }
         .ko-btn-join .ko-btn-label,
         .ko-btn-tournament .ko-btn-label,
         .ko-btn-community .ko-btn-label,
@@ -277,12 +291,12 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
-            <Link className="ko-nav-btn ko-btn-leaderboard" href="/challenges">
+            <Link className="ko-nav-btn ko-btn-challenges" href="/challenges">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7 21l5-3 5 3-1.5-5.5L21 9.5l-5.5-.5L13 4l-2 5-5.5.5 4.5 2.5z"/></svg>
               <span className="ko-btn-label">CHALLENGES</span>
             </Link>
 
-            <div className="ko-points-badge">
+            <div className="ko-points-badge" style={{ top: 652 }}>
               <span style={{ fontSize:16, flexShrink:0 }}>⚡</span>
               <div style={{ display:"flex", flexDirection:"column" }}>
                 <span className="ko-points-label">Total Points</span>
@@ -294,7 +308,7 @@ export default function ActionOrderLandingPage() {
             <button
               onClick={() => setShowHowToPlay(true)}
               style={{
-                position:"absolute", left:40, top:654, zIndex:15,
+                position:"absolute", left:40, top:708, zIndex:15,
                 width:180, height:44,
                 display:"flex", alignItems:"center", gap:10, padding:"0 16px",
                 background:"rgba(15,23,42,0.75)", border:"1px solid rgba(86,164,203,0.2)",
@@ -326,6 +340,18 @@ export default function ActionOrderLandingPage() {
                 <span style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>WEEKLY TOURNAMENT — TOP 16 RANKED PLAYERS</span>
               </div>
               <div style={{ display:"flex", gap:12 }}>
+                <button onClick={handleQuickPlay} style={{
+                  display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
+                  background:"linear-gradient(135deg,rgba(74,222,128,0.2),rgba(74,222,128,0.08))",
+                  border:"1.5px solid #4ade80", borderRadius:6, cursor:"pointer",
+                  fontFamily:"inherit", color:"#4ade80", fontSize:13, fontWeight:800,
+                  letterSpacing:2, textTransform:"uppercase",
+                  boxShadow:"0 0 16px rgba(74,222,128,0.25)",
+                  clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                  QUICK PLAY
+                </button>
                 <Link href="/create" style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(86,164,203,0.3))",
@@ -335,7 +361,7 @@ export default function ActionOrderLandingPage() {
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  PLAY NOW
+                  FULL LOBBY
                 </Link>
                 <Link href="/leaderboard" style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 20px",
