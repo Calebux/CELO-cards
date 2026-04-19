@@ -162,57 +162,52 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Main layout */}
-        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -47%)", width: 900, display: "flex", gap: 24 }}>
+        {/* Main layout — 3 columns, pinned below nav, no scroll */}
+        <div style={{ position: "absolute", left: "50%", top: 80, transform: "translateX(-50%)", width: 1300, display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-          {/* Left column */}
-          <div style={{ width: 260, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* ── Col 1: Identity + G$ + Stats ── */}
+          <div style={{ width: 230, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
 
             {/* Identity card */}
-            <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: "1.5px solid rgba(86,164,203,0.3)", borderRadius: 8, backdropFilter: "blur(8px)", padding: "28px 24px", textAlign: "center", boxShadow: "0 0 20px rgba(86,164,203,0.1)" }}>
-              <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${rank.color}33, transparent)`, border: `2px solid ${rank.color}`, position: "relative", margin: "0 auto 16px" }}>
-                <span className="material-icons" style={{ fontSize: 28, color: rank.color }}>person</span>
+            <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: "1.5px solid rgba(86,164,203,0.3)", borderRadius: 8, backdropFilter: "blur(8px)", padding: "20px 18px", textAlign: "center", boxShadow: "0 0 20px rgba(86,164,203,0.1)" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${rank.color}33, transparent)`, border: `2px solid ${rank.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                <span className="material-icons" style={{ fontSize: 24, color: rank.color }}>person</span>
               </div>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: rank.color, textTransform: "uppercase", marginBottom: 6 }}>{rank.label}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: rank.color, textTransform: "uppercase", marginBottom: 5 }}>{rank.label}</div>
 
-              {/* Editable player name */}
               {editingName ? (
-                <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 4 }}>
+                <div style={{ display: "flex", gap: 5, justifyContent: "center", marginBottom: 3 }}>
                   <input
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
                     maxLength={20}
                     autoFocus
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid #56a4cb", borderRadius: 6, padding: "4px 8px", color: "#f1f5f9", fontSize: 13, fontWeight: 700, width: 120, textAlign: "center", outline: "none" }}
+                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid #56a4cb", borderRadius: 6, padding: "3px 6px", color: "#f1f5f9", fontSize: 12, fontWeight: 700, width: 100, textAlign: "center", outline: "none" }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") { setPlayerName(nameInput); setEditingName(false); }
                       if (e.key === "Escape") { setEditingName(false); }
                     }}
                   />
-                  <button onClick={() => { setPlayerName(nameInput); setEditingName(false); }} style={{ background: "#56a4cb", border: "none", borderRadius: 6, padding: "4px 8px", color: "#000", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>✓</button>
-                  <button onClick={() => setEditingName(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 6, padding: "4px 8px", color: "#94a3b8", fontSize: 12, cursor: "pointer" }}>✕</button>
+                  <button onClick={() => { setPlayerName(nameInput); setEditingName(false); }} style={{ background: "#56a4cb", border: "none", borderRadius: 6, padding: "3px 7px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>✓</button>
+                  <button onClick={() => setEditingName(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 6, padding: "3px 7px", color: "#94a3b8", fontSize: 11, cursor: "pointer" }}>✕</button>
                 </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.5 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 3 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.5 }}>
                     {playerName || (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
                   </div>
-                  <button
-                    onClick={() => { setNameInput(playerName); setEditingName(true); }}
-                    title="Edit name"
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 13, padding: 0, lineHeight: 1 }}
-                  >✏️</button>
+                  <button onClick={() => { setNameInput(playerName); setEditingName(true); }} title="Edit name" style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 12, padding: 0, lineHeight: 1 }}>✏️</button>
                 </div>
               )}
 
-              <div style={{ fontSize: 11, color: "#475569", fontFamily: "monospace" }}>
+              <div style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>
                 {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "NOT CONNECTED"}
               </div>
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <div style={{ fontSize: 28, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ fontSize: 24, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>
                   {playerPoints.toLocaleString()}
                 </div>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginTop: 4 }}>TOTAL POINTS</div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginTop: 3 }}>TOTAL POINTS</div>
               </div>
             </div>
 
@@ -220,135 +215,119 @@ export default function ProfilePage() {
             <ClaimGDollar />
 
             {/* Stats */}
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "20px 20px" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 14 }}>Match Stats</div>
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
               {[
-                { label: "Played", value: matchesPlayed, color: "#94a3b8" },
-                { label: "Wins", value: matchesWon, color: "#4ade80" },
-                { label: "Losses", value: matchesLost, color: "#f87171" },
-                { label: "Win Rate", value: winRate(matchesWon, matchesPlayed), color: "#b9e7f4" },
-                { label: "Streak", value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
-                { label: "Best Streak", value: maxWinStreak, color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
-                { label: "Pts Earned", value: totalPointsAllTime > 0 ? `+${totalPointsAllTime.toLocaleString()}` : "—", color: "#fbbf24" },
+                { label: "Played",      value: matchesPlayed,  color: "#94a3b8" },
+                { label: "Wins",        value: matchesWon,     color: "#4ade80" },
+                { label: "Losses",      value: matchesLost,    color: "#f87171" },
+                { label: "Win Rate",    value: winRate(matchesWon, matchesPlayed), color: "#b9e7f4" },
+                { label: "Streak",      value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
+                { label: "Best Streak", value: maxWinStreak,   color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
+                { label: "Pts Earned",  value: totalPointsAllTime > 0 ? `+${totalPointsAllTime.toLocaleString()}` : "—", color: "#fbbf24" },
               ].map(({ label, value, color }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color }}>{value}</span>
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>{label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color }}>{value}</span>
                 </div>
               ))}
             </div>
-          {/* Favourite character + top rival */}
-          {(favouriteChar || topRival) && (
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {favouriteChar && (
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 38, height: 50, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${favouriteChar.color}50`, flexShrink: 0 }}>
-                    <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 1 }}>Main</div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
-                    <div style={{ fontSize: 9, color: "#64748b", marginTop: 1 }}>{favouriteChar.className}</div>
-                  </div>
-                </div>
-              )}
-              {topRival && (
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 38, height: 50, borderRadius: 4, overflow: "hidden", border: `1.5px solid ${topRival.color}50`, flexShrink: 0 }}>
-                    <img src={topRival.standingArt} alt={topRival.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 1 }}>Top Rival</div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: topRival.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{topRival.name}</div>
-                    <div style={{ fontSize: 9, color: "#64748b", marginTop: 1 }}>{topRival.className}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
           </div>
 
-          {/* Right column — achievements */}
-          <div style={{ flex: 1 }}>
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1.5px solid #b9e7f4", borderRadius: 8, backdropFilter: "blur(6px)", padding: "28px 28px 24px", boxShadow: "0 0 20px rgba(185,231,244,0.15)", position: "relative", overflow: "hidden" }}>
-              {/* Scanline */}
+          {/* ── Col 2: Achievements ── */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1.5px solid #b9e7f4", borderRadius: 8, backdropFilter: "blur(6px)", padding: "22px 22px 18px", boxShadow: "0 0 20px rgba(185,231,244,0.15)", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1.5, backgroundColor: "#56a4cb" }} />
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div>
-                  <h2 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: 0 }}>Achievements</h2>
-                  <p style={{ fontSize: 11, color: "#94a3b8", margin: "4px 0 0", letterSpacing: 0.5 }}>
-                    {unlockedCount} / {achievements.length} unlocked
-                  </p>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: 0 }}>Achievements</h2>
+                  <p style={{ fontSize: 10, color: "#94a3b8", margin: "3px 0 0", letterSpacing: 0.5 }}>{unlockedCount} / {achievements.length} unlocked</p>
                 </div>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#56a4cb", textTransform: "uppercase", padding: "4px 10px", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4 }}>
                   {Math.round((unlockedCount / achievements.length) * 100)}% complete
                 </div>
               </div>
 
-              {/* Progress bar */}
-              <div style={{ height: 4, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, marginBottom: 24, overflow: "hidden" }}>
+              <div style={{ height: 3, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, marginBottom: 18, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${(unlockedCount / achievements.length) * 100}%`, background: "linear-gradient(90deg, #56a4cb, #b9e7f4)", borderRadius: 2, transition: "width 0.6s ease" }} />
               </div>
 
-              {/* Achievement grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
                 {achievements.map((a) => (
-                  <div
-                    key={a.id}
-                    style={{
-                      backgroundColor: a.unlocked ? `${a.color}12` : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${a.unlocked ? a.color + "50" : "rgba(255,255,255,0.06)"}`,
-                      borderRadius: 8,
-                      padding: "14px 12px",
-                      textAlign: "center",
-                      opacity: a.unlocked ? 1 : 0.45,
-                      transition: "all 0.2s",
-                      position: "relative",
-                    }}
-                  >
+                  <div key={a.id} style={{ backgroundColor: a.unlocked ? `${a.color}12` : "rgba(255,255,255,0.03)", border: `1px solid ${a.unlocked ? a.color + "50" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: "12px 10px", textAlign: "center", opacity: a.unlocked ? 1 : 0.45, transition: "all 0.2s", position: "relative" }}>
                     {a.unlocked && (
-                      <div style={{ position: "absolute", top: 6, right: 6 }}>
+                      <div style={{ position: "absolute", top: 5, right: 5 }}>
                         <span className="material-icons" style={{ fontSize: 10, color: a.color }}>check_circle</span>
                       </div>
                     )}
-                    <div style={{ fontSize: 24, marginBottom: 8, filter: a.unlocked ? "none" : "grayscale(1)" }}>{a.icon}</div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: a.unlocked ? "#f1f5f9" : "#475569", letterSpacing: 0.5, marginBottom: 4 }}>{a.name}</div>
-                    <div style={{ fontSize: 9, color: "#475569", lineHeight: "12px" }}>{a.description}</div>
+                    <div style={{ fontSize: 22, marginBottom: 6, filter: a.unlocked ? "none" : "grayscale(1)" }}>{a.icon}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: a.unlocked ? "#f1f5f9" : "#475569", letterSpacing: 0.5, marginBottom: 3 }}>{a.name}</div>
+                    <div style={{ fontSize: 8, color: "#475569", lineHeight: "11px" }}>{a.description}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Empty state for new players */}
               {matchesPlayed === 0 && (
-                <div style={{ marginTop: 20, padding: "16px", background: "rgba(86,164,203,0.06)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 12, color: "#64748b", lineHeight: "18px" }}>
-                    Play your first match to unlock achievements and start tracking your stats.
-                  </div>
-                  <button onClick={() => router.push("/create")} style={{ marginTop: 10, background: "linear-gradient(135deg, #56a4cb, #b9e7f4)", border: "none", borderRadius: 6, padding: "8px 20px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer", letterSpacing: 1 }}>PLAY NOW</button>
+                <div style={{ marginTop: 16, padding: "14px", background: "rgba(86,164,203,0.06)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: "#64748b", lineHeight: "17px" }}>Play your first match to unlock achievements and start tracking your stats.</div>
+                  <button onClick={() => router.push("/create")} style={{ marginTop: 8, background: "linear-gradient(135deg, #56a4cb, #b9e7f4)", border: "none", borderRadius: 6, padding: "7px 18px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer", letterSpacing: 1 }}>PLAY NOW</button>
                 </div>
               )}
 
-              {/* Bottom links */}
-              <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
                 <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
-                <button
-                  onClick={() => router.push("/history")}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#56a4cb", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
-                >
+                <button onClick={() => router.push("/history")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#56a4cb", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}>
                   MATCH HISTORY ({matchHistory.length})
                 </button>
                 <div style={{ width: 1, height: 12, backgroundColor: "#1e293b" }} />
-                <button
-                  onClick={() => router.push("/")}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
-                >
+                <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}>
                   ← BACK TO MENU
                 </button>
                 <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
               </div>
             </div>
           </div>
+
+          {/* ── Col 3: Main + Top Rival ── */}
+          <div style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+            {(favouriteChar || topRival) ? (
+              <>
+                {favouriteChar && (
+                  <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: `1px solid ${favouriteChar.color}40`, borderRadius: 8, overflow: "hidden", boxShadow: `0 0 12px ${favouriteChar.color}15` }}>
+                    <div style={{ height: 110, overflow: "hidden", position: "relative" }}>
+                      <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.8) 100%)" }} />
+                      <div style={{ position: "absolute", top: 6, left: 8, fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.5)", textTransform: "uppercase" }}>MAIN</div>
+                    </div>
+                    <div style={{ padding: "10px 12px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
+                      <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>{favouriteChar.className}</div>
+                    </div>
+                  </div>
+                )}
+                {topRival && (
+                  <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: `1px solid ${topRival.color}40`, borderRadius: 8, overflow: "hidden", boxShadow: `0 0 12px ${topRival.color}15` }}>
+                    <div style={{ height: 110, overflow: "hidden", position: "relative" }}>
+                      <img src={topRival.standingArt} alt={topRival.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.8) 100%)" }} />
+                      <div style={{ position: "absolute", top: 6, left: 8, fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.5)", textTransform: "uppercase" }}>TOP RIVAL</div>
+                    </div>
+                    <div style={{ padding: "10px 12px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: topRival.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{topRival.name}</div>
+                      <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>{topRival.className}</div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "20px 14px", textAlign: "center" }}>
+                <div style={{ fontSize: 22, marginBottom: 8 }}>⚔️</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: "#334155", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: "14px" }}>Play matches to reveal your main & rival</div>
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Footer */}
