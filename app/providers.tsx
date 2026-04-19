@@ -6,6 +6,7 @@ import { celo, celoAlfajores } from "wagmi/chains";
 import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { WalletSync } from "./lib/wallet";
+import { PortraitOverlay } from "./components/PortraitOverlay";
 
 const { connectors } = getDefaultWallets({
   appName: "Action Order",
@@ -29,6 +30,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
           <WalletSync />
+          <PortraitOverlay />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
