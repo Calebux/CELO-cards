@@ -7,6 +7,7 @@ import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { WalletSync } from "./lib/wallet";
 import { PortraitOverlay } from "./components/PortraitOverlay";
+import { DailyReward } from "./components/DailyReward";
 
 const { connectors } = getDefaultWallets({
   appName: "Action Order",
@@ -31,6 +32,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <RainbowKitProvider>
           <WalletSync />
           <PortraitOverlay />
+          <DailyReward />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

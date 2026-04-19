@@ -137,12 +137,14 @@ export default function ActionOrderLandingPage() {
         .ko-btn-tournament .ko-btn-label,
         .ko-btn-community .ko-btn-label,
         .ko-btn-leaderboard .ko-btn-label,
-        .ko-btn-profile .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
+        .ko-btn-profile .ko-btn-label,
+        .ko-btn-challenges .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
         .ko-btn-join .ko-btn-icon,
         .ko-btn-tournament .ko-btn-icon,
         .ko-btn-community .ko-btn-icon,
         .ko-btn-leaderboard .ko-btn-icon,
-        .ko-btn-profile .ko-btn-icon { color: #56a4cb; }
+        .ko-btn-profile .ko-btn-icon,
+        .ko-btn-challenges .ko-btn-icon { color: #56a4cb; }
         .ko-nav-btn:hover .ko-btn-label { opacity: 1; text-shadow: 0 0 8px rgba(185,231,244,0.4); }
         .ko-nav-btn:hover .ko-btn-icon  { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(86,164,203,0.8)); }
 
@@ -276,10 +278,10 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">TOURNAMENT</span>
             </a>
 
-            <a className="ko-nav-btn ko-btn-community" href="https://t.me/knockorder" target="_blank" rel="noopener noreferrer">
-              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <span className="ko-btn-label">COMMUNITY</span>
-            </a>
+            <Link className="ko-nav-btn ko-btn-community" href="/challenges">
+              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7 21l5-3 5 3-1.5-5.5L21 9.5l-5.5-.5L13 4l-2 5-5.5.5 4.5 2.5z"/></svg>
+              <span className="ko-btn-label">CHALLENGES</span>
+            </Link>
 
             <Link className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
@@ -289,11 +291,6 @@ export default function ActionOrderLandingPage() {
             <Link className="ko-nav-btn ko-btn-profile" href="/profile">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               <span className="ko-btn-label">PROFILE</span>
-            </Link>
-
-            <Link className="ko-nav-btn ko-btn-challenges" href="/challenges">
-              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7 21l5-3 5 3-1.5-5.5L21 9.5l-5.5-.5L13 4l-2 5-5.5.5 4.5 2.5z"/></svg>
-              <span className="ko-btn-label">CHALLENGES</span>
             </Link>
 
             <div className="ko-points-badge" style={{ top: 652 }}>
@@ -363,23 +360,23 @@ export default function ActionOrderLandingPage() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                   FULL LOBBY
                 </Link>
-                <Link href="/leaderboard" style={{
+                <button onClick={() => setShowHowToPlay(true)} style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
-                  borderRadius:6, textDecoration:"none",
+                  borderRadius:6, cursor:"pointer", fontFamily:"inherit",
                   color:"#b9e7f4", fontSize:13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
                   backdropFilter:"blur(8px)",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-                  RANKINGS
-                </Link>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                  HOW TO PLAY
+                </button>
               </div>
             </div>
 
             {/* ── News Panel ───────────────────────────────────────── */}
             {/* Panel container */}
-            <div style={{ position:"absolute", left:1114, top:181, width:274, height:410, zIndex:10, background:"rgba(10,15,28,0.75)", border:"1px solid rgba(86,164,203,0.2)", borderRadius:6, backdropFilter:"blur(6px)" }} />
+            <div style={{ position:"absolute", left:1114, top:181, width:274, height:450, zIndex:10, background:"rgba(10,15,28,0.75)", border:"1px solid rgba(86,164,203,0.2)", borderRadius:6, backdropFilter:"blur(6px)" }} />
 
             {/* Panel heading */}
             <div style={{ position:"absolute", left:1114, top:181, width:274, height:36, zIndex:12, display:"flex", alignItems:"center", gap:8, padding:"0 16px", borderBottom:"1px solid rgba(86,164,203,0.2)", background:"rgba(86,164,203,0.08)" }}>
