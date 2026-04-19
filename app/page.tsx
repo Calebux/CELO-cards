@@ -301,24 +301,6 @@ export default function ActionOrderLandingPage() {
               </div>
             </div>
 
-            {/* How to Play button */}
-            <button
-              onClick={() => setShowHowToPlay(true)}
-              style={{
-                position:"absolute", left:40, top:708, zIndex:15,
-                width:180, height:44,
-                display:"flex", alignItems:"center", gap:10, padding:"0 16px",
-                background:"rgba(15,23,42,0.75)", border:"1px solid rgba(86,164,203,0.2)",
-                borderRadius:6, backdropFilter:"blur(8px)", cursor:"pointer",
-                fontFamily:"inherit", textDecoration:"none",
-                clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
-                transition:"all 0.25s",
-              }}
-            >
-              <span style={{ fontSize:18, flexShrink:0 }}>❓</span>
-              <span style={{ fontSize:13, fontWeight:700, letterSpacing:1.5, color:"rgba(185,231,244,0.7)", textTransform:"uppercase" }}>HOW TO PLAY</span>
-            </button>
-
             {/* Live player count — bottom right */}
             <div style={{ position:"absolute", right:40, bottom:32, zIndex:15, display:"flex", alignItems:"center", gap:10, padding:"10px 18px", background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:8, backdropFilter:"blur(8px)" }}>
               <div style={{ width:8, height:8, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 8px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite", flexShrink:0 }} />
