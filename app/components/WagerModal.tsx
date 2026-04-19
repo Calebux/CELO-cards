@@ -36,7 +36,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>("cusd");
+  const [currency, setCurrency] = useState<Currency>("celo");
 
   const { writeContractAsync }  = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();

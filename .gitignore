@@ -20,5 +20,6 @@ artifacts/
 cache/
 .vercel
 
-# Leaderboard data (auto-generated)
+# Auto-generated data files
 data/leaderboard.json
+data/daily-claims.json

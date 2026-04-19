@@ -12,6 +12,7 @@ import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT } from "../lib/cusd";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
+import { ShareCard } from "../components/ShareCard";
 
 const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
@@ -54,6 +55,8 @@ export default function Gameplay() {
     maxWinStreak,
     matchesLost,
     playerName,
+    startMatch,
+    autoLockOrder,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -87,6 +90,7 @@ export default function Gameplay() {
   const [matchLoading, setMatchLoading] = useState(true);
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
+  const [showShareCard, setShowShareCard] = useState(false);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -389,6 +393,31 @@ export default function Gameplay() {
     stopBgMusic();
     router.push("/");
   };
+
+  const handleNextOpponent = useCallback(() => {
+    playSound("click");
+    // Reset all local combat state
+    setRevealedSlots(0);
+    setSlotResults([]);
+    setShowResult(false);
+    setTotalPlayerKnock(0);
+    setTotalOpponentKnock(0);
+    setPlayerStreak(0);
+    setOpponentStreak(0);
+    setMomentum(0);
+    setCritBanner(null);
+    setComboBanner(null);
+    setShowBreakdown(false);
+    setShowShareCard(false);
+    setPayoutState("idle");
+    setPayoutTxHash(null);
+    // Pick new opponent and auto-lock cards
+    startMatch();
+    autoLockOrder();
+    // Re-show loading screen
+    setMatchLoading(true);
+    setTimeout(() => setMatchLoading(false), 2200);
+  }, [startMatch, autoLockOrder]);
 
   const toggleMute = () => {
     const next = !muted;
@@ -1318,21 +1347,46 @@ export default function Gameplay() {
                     </button>
                     {showBreakdown && (
                       <div style={{ marginTop: 6, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6, overflow: "hidden" }}>
-                        {/* Header */}
-                        <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 24px 1fr 48px", gap: 0, padding: "6px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)", backgroundColor: "rgba(0,0,0,0.3)" }}>
-                          {["#", "YOU", "", "OPP", "KNK"].map((h, i) => (
-                            <span key={i} style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, color: "#334155", textTransform: "uppercase", textAlign: i === 4 ? "right" : "left" }}>{h}</span>
-                          ))}
-                        </div>
                         {currentRoundResult.slots.map((s, i) => (
-                          <div key={i} style={{ display: "grid", gridTemplateColumns: "20px 1fr 24px 1fr 48px", gap: 0, padding: "7px 10px", borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.04)" : "none", backgroundColor: s.winner === "player" ? "rgba(6,168,249,0.05)" : s.winner === "opponent" ? "rgba(249,6,168,0.05)" : "transparent" }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: "#334155" }}>{i + 1}</span>
-                            <span style={{ fontSize: 9, fontWeight: 600, color: s.winner === "player" ? "#b9e7f4" : "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.playerCard.name}</span>
-                            <span style={{ fontSize: 9, textAlign: "center", color: s.winner === "player" ? "#4ade80" : s.winner === "opponent" ? "#f87171" : "#6b7280" }}>
+                          <div
+                            key={i}
+                            style={{
+                              display: "grid", gridTemplateColumns: "16px 1fr 28px 1fr 44px",
+                              alignItems: "center", gap: 0,
+                              padding: "6px 8px",
+                              borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                              backgroundColor: s.winner === "player" ? "rgba(6,168,249,0.05)" : s.winner === "opponent" ? "rgba(249,6,168,0.05)" : "transparent",
+                            }}
+                          >
+                            <span style={{ fontSize: 8, fontWeight: 700, color: "#334155" }}>{i + 1}</span>
+                            {/* Player card thumbnail */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <div style={{
+                                width: 36, height: 50, borderRadius: 3, overflow: "hidden", flexShrink: 0,
+                                border: `1.5px solid ${s.winner === "player" ? "#4ade80" : "#334155"}`,
+                                boxShadow: s.winner === "player" ? "0 0 6px rgba(74,222,128,0.4)" : "none",
+                              }}>
+                                <img src={s.playerCard.image} alt={s.playerCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              </div>
+                              <span style={{ fontSize: 8, fontWeight: 600, color: s.winner === "player" ? "#b9e7f4" : "#475569", lineHeight: 1.2, wordBreak: "break-word" }}>{s.playerCard.name}</span>
+                            </div>
+                            {/* Arrow */}
+                            <span style={{ fontSize: 11, textAlign: "center", color: s.winner === "player" ? "#4ade80" : s.winner === "opponent" ? "#f87171" : "#6b7280", fontWeight: 700 }}>
                               {s.winner === "player" ? "▶" : s.winner === "opponent" ? "◀" : "="}
                             </span>
-                            <span style={{ fontSize: 9, fontWeight: 600, color: s.winner === "opponent" ? "#f87171" : "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.opponentCard.name}</span>
-                            <span style={{ fontSize: 9, fontWeight: 700, textAlign: "right", color: "#6b7280" }}>{s.playerKnock}–{s.opponentKnock}</span>
+                            {/* Opponent card thumbnail */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
+                              <span style={{ fontSize: 8, fontWeight: 600, color: s.winner === "opponent" ? "#f87171" : "#475569", textAlign: "right", lineHeight: 1.2, wordBreak: "break-word" }}>{s.opponentCard.name}</span>
+                              <div style={{
+                                width: 36, height: 50, borderRadius: 3, overflow: "hidden", flexShrink: 0,
+                                border: `1.5px solid ${s.winner === "opponent" ? "#f87171" : "#334155"}`,
+                                boxShadow: s.winner === "opponent" ? "0 0 6px rgba(248,113,113,0.4)" : "none",
+                              }}>
+                                <img src={s.opponentCard.image} alt={s.opponentCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              </div>
+                            </div>
+                            {/* KNK score */}
+                            <span style={{ fontSize: 8, fontWeight: 700, textAlign: "right", color: "#475569", paddingLeft: 4 }}>{s.playerKnock}–{s.opponentKnock}</span>
                           </div>
                         ))}
                       </div>
@@ -1363,36 +1417,29 @@ export default function Gameplay() {
                     >
                       ⚔ PLAY AGAIN
                     </button>
-                    {/* Rematch */}
+                    {/* Next Opponent — win only */}
+                    {won && (
+                      <button
+                        onClick={handleNextOpponent}
+                        style={{
+                          flex: 2, height: 52,
+                          background: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
+                          border: "1.5px solid #4ade80",
+                          borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                          fontWeight: 800, fontSize: 12, letterSpacing: 1.5,
+                          color: "#4ade80", textTransform: "uppercase",
+                        }}
+                      >
+                        NEXT OPPONENT ▶
+                      </button>
+                    )}
+                    {/* Share card */}
                     <button
-                      onClick={() => {
-                        resetMatch();
-                        router.push("/select-character");
-                      }}
-                      style={{
-                        padding: "12px 28px",
-                        background: "linear-gradient(135deg, #1a3a52, #0f2233)",
-                        border: "1.5px solid #56a4cb",
-                        borderRadius: 6, cursor: "pointer",
-                        fontWeight: 900, fontSize: 14, letterSpacing: 2,
-                        color: "#b9e7f4", textTransform: "uppercase",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      🔄 REMATCH
-                    </button>
-                    {/* Share on X */}
-                    <button
-                      onClick={() => {
-                        const emoji = won ? "🏆" : "⚔️";
-                        const score = `${playerRoundsWon}-${opponentRoundsWon}`;
-                        const tweet = `${emoji} Just ${won ? "won" : "lost"} ${score} as ${selectedCharacter?.name ?? "my fighter"} vs ${opponent?.name ?? "opponent"} on Action Order!\n\nOn-chain card game on @Celo 🎮\n#ActionOrder #Celo`;
-                        window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank", "noopener");
-                      }}
+                      onClick={() => setShowShareCard(true)}
                       style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                      title="Share on X"
+                      title="Share result card"
                     >
-                      <span style={{ fontSize: 17, fontWeight: 900, color: "#e2e8f0", fontFamily: "serif", lineHeight: 1 }}>𝕏</span>
+                      <span className="material-icons" style={{ fontSize: 20, color: "#e2e8f0" }}>share</span>
                     </button>
                     {/* Return to Menu — secondary */}
                     <button onClick={handleBackToMenu} style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11, letterSpacing: 1, color: "#6b7280", textTransform: "uppercase" }}>
@@ -1404,6 +1451,18 @@ export default function Gameplay() {
             </div>
           );
         })()}
+        {/* ── Share Card Modal ── */}
+        {showShareCard && selectedCharacter && opponent && (
+          <ShareCard
+            won={roundWinner === "player"}
+            playerChar={selectedCharacter}
+            opponentChar={opponent}
+            playerRounds={playerRoundsWon}
+            opponentRounds={opponentRoundsWon}
+            onClose={() => setShowShareCard(false)}
+          />
+        )}
+
         {/* ── Clash Cinematic Overlay ── */}
         {clashAnim && (
           <ClashCinematic

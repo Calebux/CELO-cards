@@ -222,7 +222,7 @@ export const CARDS: Card[] = [
         name: "Finisher",
         type: "strike",
         priority: 1,
-        knock: 10,
+        knock: 3,
         energyCost: 4,
         effect: "This order ends here. Can only be used when the opponent is vulnerable.",
         color: "#d4a017",
@@ -260,7 +260,7 @@ export const CARDS: Card[] = [
         name: "Reversal Edge",
         type: "defense",
         priority: 3,
-        knock: 4,
+        knock: 3,
         energyCost: 4,
         effect: "Reflect incoming strike damage back",
         color: "#06b6d4",
@@ -341,9 +341,10 @@ export const CARDS: Card[] = [
         effect: "Type unknown until the moment of clash. Could be anything.",
         color: "#f59e0b",
         bgColor: "#3d2100",
-        image: "/cards/wild_card.webp",
+        image: "/cards/counter.webp",
         isWild: true,
     },
+
 ];
 
 // Helper to get a player's deck of 10 cards (shuffled selection)
