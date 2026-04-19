@@ -106,6 +106,7 @@ export default function CreateMatch() {
   }, []);
 
   const handleCreateMatch = () => {
+    if (!address) return; // wallet gate — button is visually locked when not connected
     resetMatch();
     if (matchType === "vshouse") {
       setVsBot(true);
@@ -115,11 +116,7 @@ export default function CreateMatch() {
     }
     setVsBot(false);
     setPlayerRole("host");
-    if (address) {
-      setShowWager(true);
-    } else {
-      router.push("/ready");
-    }
+    setShowWager(true);
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
@@ -252,26 +249,37 @@ export default function CreateMatch() {
                 {/* Create Match button */}
                 <button
                   onClick={handleCreateMatch}
+                  disabled={!address}
                   style={{
                     width: "100%", height: 56,
-                    background: "linear-gradient(135deg, #1a3a52, #0f2233)",
-                    border: `1.5px solid ${selected.color}`,
-                    borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                    background: address
+                      ? "linear-gradient(135deg, #1a3a52, #0f2233)"
+                      : "rgba(255,255,255,0.03)",
+                    border: address
+                      ? `1.5px solid ${selected.color}`
+                      : "1.5px solid rgba(255,255,255,0.1)",
+                    borderRadius: 6,
+                    cursor: address ? "pointer" : "not-allowed",
+                    fontFamily: "inherit",
                     fontWeight: 900, fontSize: 16, letterSpacing: 3,
-                    color: "#b9e7f4", textTransform: "uppercase",
+                    color: address ? "#b9e7f4" : "#475569",
+                    textTransform: "uppercase",
                     clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
-                    boxShadow: `0 0 24px ${selected.color}30`,
+                    boxShadow: address ? `0 0 24px ${selected.color}30` : "none",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
                     transition: "all 0.2s ease",
+                    opacity: address ? 1 : 0.6,
                   }}
                 >
-                  <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>radar</span>
-                  CREATE MATCH
-                  <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>
+                  <span className="material-icons" style={{ fontSize: 20, color: address ? selected.color : "#475569" }}>
+                    {address ? "radar" : "lock"}
+                  </span>
+                  {address ? "CREATE MATCH" : "CONNECT WALLET TO PLAY"}
+                  {address && <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>}
                 </button>
 
-                <p style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 10, letterSpacing: 1, textTransform: "uppercase" }}>
-                  Secure connection via Celo network
+                <p style={{ fontSize: 10, color: address ? "#475569" : "#56a4cb", textAlign: "center", marginTop: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                  {address ? "Secure connection via Celo network" : "Use the Connect button in the top right ↗"}
                 </p>
               </div>
             </div>

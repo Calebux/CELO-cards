@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
-import { CHARACTERS } from "../lib/gameData";
+import { CHARACTERS, CARDS } from "../lib/gameData";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
@@ -173,7 +173,9 @@ export default function HistoryPage() {
 
                       {/* Expanded breakdown */}
                       {isExpanded && (
-                        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "20px 24px" }}>
+                          {/* Top row: 3 columns */}
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: match.rounds?.length ? 16 : 0 }}>
                           {/* Rounds breakdown */}
                           <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "14px 18px" }}>
                             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 12 }}>Round Breakdown</div>
@@ -181,7 +183,7 @@ export default function HistoryPage() {
                               {Array.from({ length: totalRounds }).map((_, i) => {
                                 const playerWon = i < match.playerRoundsWon;
                                 return (
-                                  <div key={i} style={{ flex: 1, padding: "8px 6px", borderRadius: 6, textAlign: "center", background: playerWon ? "rgba(6,168,249,0.12)" : `rgba(${char ? "var(--opp-rgb, 248,113,113)" : "248,113,113"},0.12)`, border: `1px solid ${playerWon ? "rgba(6,168,249,0.3)" : "rgba(248,113,113,0.3)"}` }}>
+                                  <div key={i} style={{ flex: 1, padding: "8px 6px", borderRadius: 6, textAlign: "center", background: playerWon ? "rgba(6,168,249,0.12)" : `rgba(248,113,113,0.12)`, border: `1px solid ${playerWon ? "rgba(6,168,249,0.3)" : "rgba(248,113,113,0.3)"}` }}>
                                     <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: playerWon ? "#06a8f9" : "#f87171" }}>R{i + 1}</div>
                                     <div style={{ fontSize: 12, fontWeight: 800, color: "#fff", marginTop: 2 }}>{playerWon ? "WIN" : "LOSS"}</div>
                                   </div>
@@ -238,6 +240,56 @@ export default function HistoryPage() {
                               </div>
                             </div>
                           </div>
+                          </div>{/* end top row */}
+
+                          {/* Card replay — only shown when round data exists */}
+                          {match.rounds && match.rounds.length > 0 && (
+                            <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 8, padding: "14px 18px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 12 }}>Card Replay</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                {match.rounds.map((round, ri) => {
+                                  const roundWon = ri < match.playerRoundsWon;
+                                  return (
+                                    <div key={ri}>
+                                      <div style={{ fontSize: 9, fontWeight: 700, color: roundWon ? "#06a8f9" : "#f87171", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>
+                                        Round {ri + 1} — {roundWon ? "WON" : "LOST"}
+                                      </div>
+                                      {/* Header */}
+                                      <div style={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr 44px", gap: 4, marginBottom: 4 }}>
+                                        <span style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>Your card</span>
+                                        <span />
+                                        <span style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1 }}>Opponent</span>
+                                        <span style={{ fontSize: 8, color: "#475569", textTransform: "uppercase", letterSpacing: 1, textAlign: "right" }}>KNK</span>
+                                      </div>
+                                      {round.slotWinners.map((winner, si) => {
+                                        const pCard = CARDS.find((c) => c.id === round.playerCards[si]);
+                                        const oCard = CARDS.find((c) => c.id === round.opponentCards[si]);
+                                        const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
+                                        const pCol = typeColors[pCard?.type ?? ""] ?? "#475569";
+                                        const oCol = typeColors[oCard?.type ?? ""] ?? "#475569";
+                                        return (
+                                          <div key={si} style={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr 44px", gap: 4, padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                                            <span style={{ fontSize: 11, color: winner === "player" ? "#b9e7f4" : "#64748b", fontWeight: winner === "player" ? 700 : 400 }}>
+                                              <span style={{ fontSize: 8, color: pCol, marginRight: 4, textTransform: "uppercase" }}>{pCard?.type?.slice(0,3) ?? ""}</span>
+                                              {pCard?.name ?? round.playerCards[si]}
+                                            </span>
+                                            <span style={{ fontSize: 10, textAlign: "center", color: winner === "player" ? "#4ade80" : winner === "opponent" ? "#f87171" : "#475569" }}>
+                                              {winner === "player" ? "▶" : winner === "opponent" ? "◀" : "="}
+                                            </span>
+                                            <span style={{ fontSize: 11, color: winner === "opponent" ? "#f87171" : "#64748b", fontWeight: winner === "opponent" ? 700 : 400 }}>
+                                              <span style={{ fontSize: 8, color: oCol, marginRight: 4, textTransform: "uppercase" }}>{oCard?.type?.slice(0,3) ?? ""}</span>
+                                              {oCard?.name ?? round.opponentCards[si]}
+                                            </span>
+                                            <span style={{ fontSize: 11, color: "#64748b", textAlign: "right" }}>{round.playerKnocks[si]}–{round.opponentKnocks[si]}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -1,0 +1,20 @@
+{
+  "name": "Action Order",
+  "short_name": "Action Order",
+  "description": "On-chain card fighting game on Celo",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#050505",
+  "theme_color": "#56a4cb",
+  "icons": [
+    {
+      "src": "/characters/characters /Adobe Express - file (4).webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games"],
+  "lang": "en"
+}

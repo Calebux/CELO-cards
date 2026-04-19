@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
+import { useAccount } from "wagmi";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -17,6 +18,7 @@ function JoinMatchContent() {
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
+  const { address } = useAccount();
   const searchParams = useSearchParams();
   const [code, setCode] = useState(() => searchParams.get("id") ?? "");
   const [error, setError] = useState("");
@@ -48,6 +50,7 @@ function JoinMatchContent() {
   }, []);
 
   const handleJoin = async () => {
+    if (!address) return;
     const trimmed = code.trim();
     if (!trimmed) {
       setError("Paste a match link or code first.");
@@ -163,16 +166,21 @@ function JoinMatchContent() {
             {/* Join button */}
             <button
               onClick={() => void handleJoin()}
-                disabled={joining}
+              disabled={joining || !address}
               className="ko-btn ko-btn-primary"
-              style={{ width: "100%", padding: "15px 0" }}
+              style={{ width: "100%", padding: "15px 0", opacity: address ? 1 : 0.55, cursor: address ? "pointer" : "not-allowed" }}
             >
-              <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>sports_kabaddi</span>
+              <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>{address ? "sports_kabaddi" : "lock"}</span>
               <span className="ko-btn-text" style={{ fontSize: 15, fontWeight: 700, textTransform: "uppercase", letterSpacing: 6, color: "#fff" }}>
-                Enter Arena
+                {address ? "Enter Arena" : "Connect Wallet"}
               </span>
-              <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>arrow_forward_ios</span>
+              {address && <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>arrow_forward_ios</span>}
             </button>
+            {!address && (
+              <p style={{ fontSize: 10, color: "#56a4cb", textAlign: "center", marginTop: 8, letterSpacing: 1, textTransform: "uppercase" }}>
+                Use the Connect button in the top right ↗
+              </p>
+            )}
 
             {/* Divider + back */}
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 28 }}>

@@ -11,6 +11,14 @@ import {
     RoundOptions,
 } from "./combatEngine";
 
+export type ReplayRound = {
+    playerCards: string[];    // card ids
+    opponentCards: string[];  // card ids
+    slotWinners: ("player" | "opponent" | "draw")[];
+    playerKnocks: number[];
+    opponentKnocks: number[];
+};
+
 export type MatchRecord = {
     id: string;
     date: string;
@@ -20,6 +28,7 @@ export type MatchRecord = {
     pointsEarned: number;
     playerRoundsWon: number;
     opponentRoundsWon: number;
+    rounds?: ReplayRound[]; // per-round card data for replay
 };
 
 export type DeckPreset = {
@@ -100,6 +109,9 @@ interface GameState {
     // Match history log
     matchHistory: MatchRecord[];
 
+    // Accumulates per-round replay data during an active match; cleared on resetMatch
+    currentMatchRounds: ReplayRound[];
+
     // Player profile
     playerName: string;
 
@@ -177,6 +189,7 @@ export const useGameStore = create<GameState>()(
     lossStreak: 0,
     maxWinStreak: 0,
     matchHistory: [],
+    currentMatchRounds: [],
     playerName: "",
     deckPresets: [],
     ultimateActivated: false,
@@ -354,7 +367,7 @@ export const useGameStore = create<GameState>()(
     },
 
     finishRound: () => {
-        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, matchId, selectedCharacter, opponentCharacter } = get();
+        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, currentMatchRounds, matchId, selectedCharacter, opponentCharacter } = get();
         if (!precomputedRound) return;
 
         const totalPlayerKnock = precomputedRound.reduce((s, r) => s + r.playerKnock, 0);
@@ -405,6 +418,16 @@ export const useGameStore = create<GameState>()(
         }
         const newMaxWinStreak = Math.max(maxWinStreak, newWinStreak);
 
+        // Build replay data for this round
+        const thisRound: ReplayRound = {
+            playerCards: precomputedRound.map((s: SlotResult) => s.playerCard.id),
+            opponentCards: precomputedRound.map((s: SlotResult) => s.opponentCard.id),
+            slotWinners: precomputedRound.map((s: SlotResult) => s.winner),
+            playerKnocks: precomputedRound.map((s: SlotResult) => s.playerKnock),
+            opponentKnocks: precomputedRound.map((s: SlotResult) => s.opponentKnock),
+        };
+        const updatedMatchRounds = [...currentMatchRounds, thisRound];
+
         const newMatchHistory = isMatchEnd
             ? [
                 {
@@ -416,6 +439,7 @@ export const useGameStore = create<GameState>()(
                     pointsEarned: earned,
                     playerRoundsWon: pWon,
                     opponentRoundsWon: oWon,
+                    rounds: updatedMatchRounds,
                 },
                 ...matchHistory,
               ].slice(0, 50) // keep last 50
@@ -430,6 +454,7 @@ export const useGameStore = create<GameState>()(
             pointsThisRound: earned,
             precomputedRound: null, // consumed — second calls are now no-ops
             matchHistory: newMatchHistory,
+            currentMatchRounds: isMatchEnd ? [] : updatedMatchRounds,
             ...(isMatchEnd && {
                 matchesPlayed: matchesPlayed + 1,
                 matchesWon: matchWon ? matchesWon + 1 : matchesWon,
@@ -485,6 +510,7 @@ export const useGameStore = create<GameState>()(
             ultimateUsed: false,
             playerTaunt: null,
             wagerMultiplier: 1,
+            currentMatchRounds: [],
         }));
     },
     }),

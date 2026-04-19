@@ -85,8 +85,8 @@ export default function Gameplay() {
   const [showDoubleDown, setShowDoubleDown] = useState(false);
   const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
-  const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string } | null>(null);
-  const achievementQueueRef = useRef<{ id: string; name: string; icon: string }[]>([]);
+  const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
+  const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -357,7 +357,29 @@ export default function Gameplay() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ address, won }),
-    });
+    }).then(() =>
+      fetch(`/api/challenges?address=${address}`)
+        .then((r) => r.json())
+        .then((data: { challenges?: { id: string; title: string; eligible: boolean }[] }) => {
+          const readyChallenges = (data.challenges ?? []).filter((c) => c.eligible);
+          if (readyChallenges.length > 0) {
+            // Queue challenge toasts after any achievement toasts
+            const challengeItems = readyChallenges.map((c) => ({
+              id: `challenge-${c.id}`,
+              name: c.title,
+              icon: "🎯",
+              label: "Challenge Ready to Claim",
+            }));
+            const existingQueue = achievementQueueRef.current ?? [];
+            achievementQueueRef.current = [...existingQueue, ...challengeItems];
+            if (!achievementToast) {
+              setAchievementToast(achievementQueueRef.current[0]);
+              achievementQueueRef.current = achievementQueueRef.current.slice(1);
+            }
+          }
+        })
+        .catch(() => {})
+    ).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchPhase]);
 
@@ -1359,19 +1381,18 @@ export default function Gameplay() {
                     >
                       🔄 REMATCH
                     </button>
-                    {/* Share result */}
+                    {/* Share on X */}
                     <button
                       onClick={() => {
-                        const result = won ? "won" : "lost";
+                        const emoji = won ? "🏆" : "⚔️";
                         const score = `${playerRoundsWon}-${opponentRoundsWon}`;
-                        const text = `I just ${result} ${score} against ${opponent?.name ?? "my opponent"} in Action Order! 🎮 #ActionOrder`;
-                        if (navigator.share) { navigator.share({ text }).catch(() => {}); }
-                        else { navigator.clipboard.writeText(text).catch(() => {}); }
+                        const tweet = `${emoji} Just ${won ? "won" : "lost"} ${score} as ${selectedCharacter?.name ?? "my fighter"} vs ${opponent?.name ?? "opponent"} on Action Order!\n\nOn-chain card game on @Celo 🎮\n#ActionOrder #Celo`;
+                        window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank", "noopener");
                       }}
-                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", position: "relative" }}
-                      title="Share result"
+                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      title="Share on X"
                     >
-                      <span className="material-icons" style={{ fontSize: 18, color: "#6b7280" }}>share</span>
+                      <span style={{ fontSize: 17, fontWeight: 900, color: "#e2e8f0", fontFamily: "serif", lineHeight: 1 }}>𝕏</span>
                     </button>
                     {/* Return to Menu — secondary */}
                     <button onClick={handleBackToMenu} style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11, letterSpacing: 1, color: "#6b7280", textTransform: "uppercase" }}>
@@ -1474,7 +1495,7 @@ export default function Gameplay() {
           >
             <div style={{ fontSize: 30, lineHeight: 1 }}>{achievementToast.icon}</div>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#56a4cb", textTransform: "uppercase", marginBottom: 2 }}>Achievement Unlocked</div>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#56a4cb", textTransform: "uppercase", marginBottom: 2 }}>{achievementToast.label ?? "Achievement Unlocked"}</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.3 }}>{achievementToast.name}</div>
             </div>
             <div style={{ marginLeft: "auto", width: 24, height: 24, borderRadius: "50%", background: "rgba(74,222,128,0.15)", border: "1.5px solid rgba(74,222,128,0.5)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
