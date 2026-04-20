@@ -4,6 +4,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { resolve } from "path";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -25,23 +27,39 @@ interface ServerMatch {
   resolvedSlots: SlotResult[] | null; // host perspective
 }
 
-// ── In-memory store ────────────────────────────────────────────────────────
+// ── File-based store (persists across serverless instances) ────────────────
 
-const matches = new Map<string, ServerMatch>();
+const DATA_DIR  = resolve(process.cwd(), "data");
+const STORE_PATH = resolve(DATA_DIR, "matches.json");
+
+function readStore(): Record<string, ServerMatch> {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    if (!existsSync(STORE_PATH)) return {};
+    return JSON.parse(readFileSync(STORE_PATH, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeStore(store: Record<string, ServerMatch>) {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(STORE_PATH, JSON.stringify(store));
+  } catch { /* ignore write errors on read-only fs */ }
+}
 
 const TWO_HOURS = 2 * 60 * 60 * 1000;
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
-function pruneOldMatches() {
+function pruneOldMatches(store: Record<string, ServerMatch>) {
   const now = Date.now();
-  for (const [id, m] of matches) {
-    if (now - m.createdAt > TWO_HOURS) matches.delete(id);
+  for (const id of Object.keys(store)) {
+    if (now - store[id].createdAt > TWO_HOURS) delete store[id];
   }
 }
 
 function isTimedOut(match: ServerMatch): boolean {
-  // Only time out if neither player has registered a character yet
-  // (i.e. opponent never showed up). Active matches are not timed out.
   const bothJoined = match.host.charId && match.joiner.charId;
   if (bothJoined) return false;
   return Date.now() - match.lastActivity > INACTIVITY_TIMEOUT;
@@ -85,9 +103,10 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
   const role = req.nextUrl.searchParams.get("role") as "host" | "joiner" | null;
 
-  let match = matches.get(matchId);
+  const store = readStore();
+  let match = store[matchId];
 
-  // Auto-create if host polls and match doesn't exist yet
+  // Auto-create if match doesn't exist yet
   if (!match) {
     const now = Date.now();
     match = {
@@ -101,20 +120,18 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       joinerWins: 0,
       resolvedSlots: null,
     };
-    matches.set(matchId, match);
+    store[matchId] = match;
+    writeStore(store);
   }
 
-  // Check inactivity timeout
   if (isTimedOut(match)) {
     return NextResponse.json({ phase: "timed-out" });
   }
 
   const self = role === "host" ? match.host : match.joiner;
   const other = role === "host" ? match.joiner : match.host;
-
   const opponentCharId = other.charId;
 
-  // Determine phase from this player's perspective
   let phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
   if (match.resolvedSlots !== null) {
     phase = "resolved";
@@ -143,7 +160,6 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 // POST — register character
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  pruneOldMatches();
 
   let body: unknown;
   try {
@@ -161,10 +177,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid characterId" }, { status: 400 });
   }
 
+  const store = readStore();
+  pruneOldMatches(store);
+
   const now = Date.now();
-  let match = matches.get(matchId);
-  if (!match) {
-    match = {
+  if (!store[matchId]) {
+    store[matchId] = {
       id: matchId,
       createdAt: now,
       lastActivity: now,
@@ -175,13 +193,14 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       joinerWins: 0,
       resolvedSlots: null,
     };
-    matches.set(matchId, match);
   }
 
+  const match = store[matchId];
   match.lastActivity = now;
   if (role === "host") match.host.charId = characterId;
   else match.joiner.charId = characterId;
 
+  writeStore(store);
   return NextResponse.json({ ok: true });
 }
 
@@ -212,20 +231,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "round must be a positive integer" }, { status: 400 });
   }
 
-  // Validate each card ID exists in the game data
   const invalidCard = cardIds.find((id) => !CARDS.find((c) => c.id === id));
   if (invalidCard) {
     return NextResponse.json({ error: `Unknown card: ${invalidCard}` }, { status: 400 });
   }
 
-  const match = matches.get(matchId);
+  const store = readStore();
+  const match = store[matchId];
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
   match.lastActivity = Date.now();
 
-  // Advance server round if client is submitting for a newer round
   if (round > match.round) {
     match.round = round;
     match.host.cardIds = null;
@@ -235,20 +253,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     match.resolvedSlots = null;
   }
 
-  // Store this player's order
   const slot = role === "host" ? match.host : match.joiner;
   slot.cardIds = cardIds;
   slot.orderRound = round;
 
-  // Resolve if both orders are in for the current round
   if (
     match.host.cardIds &&
     match.joiner.cardIds &&
     match.host.orderRound === match.round &&
     match.joiner.orderRound === match.round
   ) {
-    const hostChar = CHARACTERS.find((c) => c.id === match!.host.charId);
-    const joinerChar = CHARACTERS.find((c) => c.id === match!.joiner.charId);
+    const hostChar = CHARACTERS.find((c) => c.id === match.host.charId);
+    const joinerChar = CHARACTERS.find((c) => c.id === match.joiner.charId);
 
     if (!hostChar || !joinerChar) {
       return NextResponse.json({ error: "Character data missing — re-select characters" }, { status: 422 });
@@ -264,18 +280,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar);
     match.resolvedSlots = result.slots;
 
-    // Update win counters
     if (result.roundWinner === "player") match.hostWins++;
     else if (result.roundWinner === "opponent") match.joinerWins++;
   }
 
+  writeStore(store);
   return NextResponse.json({ ok: true, round: match.round });
 }
 
 // DELETE — explicitly clean up a finished or abandoned match
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  const existed = matches.has(matchId);
-  matches.delete(matchId);
+  const store = readStore();
+  const existed = !!store[matchId];
+  delete store[matchId];
+  writeStore(store);
   return NextResponse.json({ ok: true, deleted: existed });
 }
