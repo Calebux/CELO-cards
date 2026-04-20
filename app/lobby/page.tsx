@@ -26,7 +26,7 @@ function getPairBg(id1: string, id2: string): string {
 export default function Lobby() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { selectedCharacter, opponentCharacter, matchId, playerRole, wagerActive, wagerCurrency, setOpponentCharacterFromServer } = useGameStore();
+  const { selectedCharacter, opponentCharacter, matchId, playerRole, wagerActive, wagerCurrency, setOpponentCharacterFromServer, setOpponentWagered } = useGameStore();
   const [p1Ready, setP1Ready] = useState(false);
   const [p2Ready, setP2Ready] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -80,13 +80,14 @@ export default function Lobby() {
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { opponentCharId: string | null; phase?: string };
+        const data = await res.json() as { opponentCharId: string | null; phase?: string; opponentWagered?: boolean };
         if (data.phase === "timed-out") {
           clearInterval(poll);
           clearInterval(waitTick);
           router.replace("/");
           return;
         }
+        if (data.opponentWagered) setOpponentWagered(true);
         if (data.opponentCharId) {
           setOpponentCharacterFromServer(data.opponentCharId);
           setP2Ready(true);

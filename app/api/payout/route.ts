@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, createWalletClient, http, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
-import { ERC20_ABI, CUSD_CONTRACT, PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO } from "../../lib/cusd";
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
+import {
+  ERC20_ABI, CUSD_CONTRACT,
+  PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO,
+  DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO,
+} from "../../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
 import {
   GDOLLAR_CONTRACT,
@@ -11,7 +17,24 @@ import {
   CFA_FORWARDER,
   CFA_FORWARDER_ABI,
   STREAM_FLOW_RATE,
+  STREAM_FLOW_RATE_DUAL,
 } from "../../lib/gooddollar";
+
+// Read match store to check if both players wagered
+function checkBothWagered(matchId: string): boolean {
+  try {
+    const path = resolve(process.cwd(), "data", "matches.json");
+    if (!existsSync(path)) return false;
+    const store = JSON.parse(readFileSync(path, "utf8")) as Record<string, {
+      hostWagerTx?: string | null;
+      joinerWagerTx?: string | null;
+    }>;
+    const match = store[matchId];
+    return !!(match?.hostWagerTx && match?.joinerWagerTx);
+  } catch {
+    return false;
+  }
+}
 
 const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
@@ -46,6 +69,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid winner address" }, { status: 400 });
   }
 
+  // Check if both players wagered — determines winner-takes-all dual payout
+  const bothWagered = checkBothWagered(matchId);
+
   try {
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);
 
@@ -64,8 +90,8 @@ export async function POST(req: NextRequest) {
 
     // ── G$ path: stream payout via Superfluid CFAv1Forwarder ─────────────────
     if (currency === "gdollar") {
-      // Create a Superfluid stream from treasury → winner at STREAM_FLOW_RATE wei/sec
-      // At this rate, 0.000007 G$ arrives over 24 hours
+      // Both-wagered → dual flow rate (90% of combined pot); solo → standard rate
+      const baseFlowRate = bothWagered ? STREAM_FLOW_RATE_DUAL : STREAM_FLOW_RATE;
       const { request } = await publicClient.simulateContract({
         account,
         address: CFA_FORWARDER,
@@ -75,12 +101,13 @@ export async function POST(req: NextRequest) {
           GDOLLAR_CONTRACT,
           account.address,
           winner,
-          STREAM_FLOW_RATE * mult, // int96 flow rate (wei/sec), doubled on double-down
-          "0x",                   // userData
+          baseFlowRate * mult,
+          "0x",
         ],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId}: G$ stream started to ${winner} @ ${STREAM_FLOW_RATE * mult} wei/sec (×${mult}) — tx ${txHash}`);
+      const payoutTag = bothWagered ? "dual-wager" : "solo";
+      console.log(`Payout ${matchId} [${payoutTag}]: G$ stream started to ${winner} @ ${baseFlowRate * mult} wei/sec (×${mult}) — tx ${txHash}`);
 
       // Schedule stream deletion after 24h (fire and forget — best effort)
       void scheduleStreamDeletion(walletClient, account, account.address, winner).catch((e) =>
@@ -103,25 +130,24 @@ export async function POST(req: NextRequest) {
       console.log(`Payout ${matchId}: completeMatch(${winner}) — tx ${txHash}`);
     } else if (currency === "celo") {
       // Native CELO direct transfer
-      txHash = await walletClient.sendTransaction({
-        to: winner,
-        value: PAYOUT_AMOUNT_CELO * mult,
-      });
-      console.log(`Payout ${matchId}: direct CELO ${formatUnits(PAYOUT_AMOUNT_CELO * mult, 18)} (×${mult}) to ${winner} — tx ${txHash}`);
+      const celoAmt = (bothWagered ? DUAL_WAGER_PAYOUT_CELO : PAYOUT_AMOUNT_CELO) * mult;
+      txHash = await walletClient.sendTransaction({ to: winner, value: celoAmt });
+      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct CELO ${formatUnits(celoAmt, 18)} (×${mult}) to ${winner} — tx ${txHash}`);
     } else {
       // cUSD direct transfer
+      const cusdAmt = (bothWagered ? DUAL_WAGER_PAYOUT : PAYOUT_AMOUNT) * mult;
       const { request } = await publicClient.simulateContract({
         account,
         address: CUSD_CONTRACT,
         abi: ERC20_ABI,
         functionName: "transfer",
-        args: [winner, PAYOUT_AMOUNT * mult],
+        args: [winner, cusdAmt],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId}: direct transfer ${formatUnits(PAYOUT_AMOUNT * mult, 18)} cUSD (×${mult}) to ${winner} — tx ${txHash}`);
+      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct transfer ${formatUnits(cusdAmt, 18)} cUSD (×${mult}) to ${winner} — tx ${txHash}`);
     }
 
-    return NextResponse.json({ txHash });
+    return NextResponse.json({ txHash, bothWagered });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Payout failed";
     console.error("Payout error:", msg);

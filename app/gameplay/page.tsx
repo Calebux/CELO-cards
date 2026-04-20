@@ -9,7 +9,8 @@ import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
 import { SoundSettings } from "../components/SoundSettings";
 import { formatUnits } from "viem";
-import { PAYOUT_AMOUNT } from "../lib/cusd";
+import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
+import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
 import { ShareCard } from "../components/ShareCard";
@@ -47,6 +48,7 @@ export default function Gameplay() {
     playerTaunt,
     wagerMultiplier,
     setWagerMultiplier,
+    opponentWagered,
     ultimateActivated,
     ultimateUsed,
     activateUltimate,
@@ -442,7 +444,11 @@ export default function Gameplay() {
 
   const isMatchEnd = matchPhase === "match-end";
   const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : wagerCurrency === "gdollar" ? "G$" : "cUSD";
-  const payoutAmountDisplay = `${formatUnits(PAYOUT_AMOUNT, 18)} ${payoutTokenSymbol}`;
+  const effectivePayoutAmt =
+    opponentWagered
+      ? (wagerCurrency === "gdollar" ? DUAL_WAGER_PAYOUT_GDOLLAR : wagerCurrency === "celo" ? DUAL_WAGER_PAYOUT_CELO : DUAL_WAGER_PAYOUT)
+      : PAYOUT_AMOUNT;
+  const payoutAmountDisplay = `${formatUnits(effectivePayoutAmt, 18)} ${payoutTokenSymbol}`;
   const isGDollar = wagerCurrency === "gdollar";
   const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 

@@ -25,6 +25,8 @@ interface ServerMatch {
   hostWins: number;
   joinerWins: number;
   resolvedSlots: SlotResult[] | null; // host perspective
+  hostWagerTx:   string | null;       // wager TX hash from host
+  joinerWagerTx: string | null;       // wager TX hash from joiner
 }
 
 // ── File-based store (persists across serverless instances) ────────────────
@@ -119,6 +121,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       hostWins: 0,
       joinerWins: 0,
       resolvedSlots: null,
+      hostWagerTx: null,
+      joinerWagerTx: null,
     };
     store[matchId] = match;
     writeStore(store);
@@ -152,8 +156,10 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     selfCharId: self.charId,
     phase,
     slots,
-    hostWins: role === "host" ? match.hostWins : match.joinerWins,
-    opponentWins: role === "host" ? match.joinerWins : match.hostWins,
+    hostWins:      role === "host" ? match.hostWins   : match.joinerWins,
+    opponentWins:  role === "host" ? match.joinerWins : match.hostWins,
+    selfWagered:   role === "host" ? !!match.hostWagerTx   : !!match.joinerWagerTx,
+    opponentWagered: role === "host" ? !!match.joinerWagerTx : !!match.hostWagerTx,
   });
 }
 
@@ -192,6 +198,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       hostWins: 0,
       joinerWins: 0,
       resolvedSlots: null,
+      hostWagerTx: null,
+      joinerWagerTx: null,
     };
   }
 
@@ -215,14 +223,28 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { role, cardIds, round } = body as {
+  const { role, cardIds, round, action, wagerTx } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
+    action?: string;
+    wagerTx?: string;
   };
 
   if (!validRole(role)) {
     return NextResponse.json({ error: "role must be 'host' or 'joiner'" }, { status: 400 });
+  }
+
+  // ── Register wager TX for this player ───────────────────────────────────
+  if (action === "wager") {
+    const store = readStore();
+    const match = store[matchId];
+    if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    if (role === "host") match.hostWagerTx = wagerTx ?? null;
+    else match.joinerWagerTx = wagerTx ?? null;
+    match.lastActivity = Date.now();
+    writeStore(store);
+    return NextResponse.json({ ok: true });
   }
   if (!Array.isArray(cardIds) || cardIds.length !== 5 || cardIds.some((id) => typeof id !== "string")) {
     return NextResponse.json({ error: "cardIds must be an array of 5 card ID strings" }, { status: 400 });

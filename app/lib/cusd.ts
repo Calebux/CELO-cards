@@ -14,6 +14,14 @@ export const PAYOUT_AMOUNT = 7_000_000_000_000n; // 0.000007 cUSD (entry == payo
 export const WAGER_AMOUNT_CELO  = 7_000_000_000_000n; // 0.000007 CELO
 export const PAYOUT_AMOUNT_CELO = 7_000_000_000_000n; // 0.000007 CELO
 
+// Platform fee — 10% from each player when both wager (winner-takes-all)
+export const PLATFORM_FEE_BPS = 1000n; // 10% in basis points (1000/10000)
+
+// Dual-wager payout: winner gets 90% of the combined pot (both players' wagers)
+// = 2 × WAGER_AMOUNT × (1 − 10%) = 0.0000126
+export const DUAL_WAGER_PAYOUT      = 2n * WAGER_AMOUNT      * (10000n - PLATFORM_FEE_BPS) / 10000n;
+export const DUAL_WAGER_PAYOUT_CELO = 2n * WAGER_AMOUNT_CELO * (10000n - PLATFORM_FEE_BPS) / 10000n;
+
 // Minimal ERC-20 ABI — only what we need
 export const ERC20_ABI = [
   {

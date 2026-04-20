@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
+import { WagerModal } from "../components/WagerModal";
 import { useAccount } from "wagmi";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
@@ -18,11 +19,13 @@ function JoinMatchContent() {
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
+  const setWager = useGameStore((s) => s.setWager);
   const { address } = useAccount();
   const searchParams = useSearchParams();
   const [code, setCode] = useState(() => searchParams.get("id") ?? "");
   const [error, setError] = useState("");
   const [joining] = useState(false);
+  const [showWager, setShowWager] = useState(false);
 
   useEffect(() => {
     const scale = () => {
@@ -74,7 +77,7 @@ function JoinMatchContent() {
     resetMatch();
     setMatchId(matchCode);
     setPlayerRole("joiner");
-    router.push("/select-character");
+    setShowWager(true); // prompt joiner to wager before selecting character
   };
 
   return (
@@ -203,6 +206,13 @@ function JoinMatchContent() {
         </div>
 
       </div>
+
+      {showWager && (
+        <WagerModal
+          onConfirmed={() => { setShowWager(false); router.push("/select-character"); }}
+          onSkip={() => { setWager(false, null); setShowWager(false); router.push("/select-character"); }}
+        />
+      )}
     </div>
   );
 }

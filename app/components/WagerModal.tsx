@@ -8,10 +8,11 @@ import {
   useReadContract,
   useSendTransaction,
 } from "wagmi";
-import { CUSD_CONTRACT, WAGER_AMOUNT, ERC20_ABI, WAGER_AMOUNT_CELO } from "../lib/cusd";
+import { CUSD_CONTRACT, WAGER_AMOUNT, ERC20_ABI, WAGER_AMOUNT_CELO, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
-import { GDOLLAR_CONTRACT, GDOLLAR_ABI, WAGER_AMOUNT_GDOLLAR, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { GDOLLAR_CONTRACT, GDOLLAR_ABI, WAGER_AMOUNT_GDOLLAR, GDOLLAR_COLOR, DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
+import { formatUnits } from "viem";
 
 type Props = {
   onConfirmed: () => void;
@@ -31,8 +32,9 @@ const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: 
 
 export function WagerModal({ onConfirmed, onSkip }: Props) {
   const { address } = useAccount();
-  const setWager = useGameStore((s) => s.setWager);
-  const matchId  = useGameStore((s) => s.matchId);
+  const setWager     = useGameStore((s) => s.setWager);
+  const matchId      = useGameStore((s) => s.matchId);
+  const playerRole   = useGameStore((s) => s.playerRole);
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
@@ -60,11 +62,22 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
     }
   }, [txSuccess, step]);
 
+  // Register wager TX with the match server so payout knows both players wagered
+  const registerWagerOnServer = (hash: `0x${string}`) => {
+    if (!matchId || !playerRole) return;
+    void fetch(`/api/match/${matchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "wager", role: playerRole, wagerTx: hash }),
+    });
+  };
+
   // After enterMatch confirms → done
   useEffect(() => {
     if (txSuccess && step === "entering") {
       setStep("done");
       setWager(true, txHash ?? null, currency);
+      if (txHash) registerWagerOnServer(txHash);
       onConfirmed();
     }
   }, [txSuccess, step]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -222,9 +235,16 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
 
   const cfg = CURRENCY_CONFIG[currency];
   const wagerDisplay = `0.000007 ${cfg.symbol}`;
+
+  const dualPayoutBig =
+    currency === "gdollar"  ? DUAL_WAGER_PAYOUT_GDOLLAR :
+    currency === "celo"     ? DUAL_WAGER_PAYOUT_CELO    :
+    DUAL_WAGER_PAYOUT;
+  const dualPayoutDisplay = `${formatUnits(dualPayoutBig, 18)} ${cfg.symbol}`;
+
   const payoutNote = currency === "gdollar"
     ? "Winnings stream to your wallet via Superfluid"
-    : `Win and claim 0.000007 ${cfg.symbol} back.`;
+    : `If opponent also wagers, winner takes ${dualPayoutDisplay}`;
 
   return (
     <div style={{
@@ -313,9 +333,10 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
           display: "flex", flexDirection: "column", gap: 8,
         }}>
           {[
-            { label: "Entry fee",  value: wagerDisplay, color: cfg.color },
-            { label: "Win payout", value: currency === "gdollar" ? "Streamed via Superfluid" : wagerDisplay, color: currency === "gdollar" ? GDOLLAR_COLOR : "#4ade80" },
-            { label: "House cut",  value: "0%", color: "#6b7280" },
+            { label: "Your entry fee",       value: wagerDisplay,    color: cfg.color },
+            { label: "Platform fee (10% each)", value: "from both sides", color: "#6b7280" },
+            { label: "Win vs wagered opponent", value: currency === "gdollar" ? `~${dualPayoutDisplay} (streamed)` : dualPayoutDisplay, color: "#4ade80" },
+            { label: "Win uncontested",       value: wagerDisplay,    color: "#94a3b8" },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, color: "#6b7280", letterSpacing: 0.5 }}>{label}</span>
