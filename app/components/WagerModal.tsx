@@ -108,7 +108,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
 
   // ── G$: direct ERC-20 transfer to treasury ────────────────────────────────
   const handleGDollarTransfer = async () => {
-    const TREASURY = (process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "0x0000000000000000000000000000000000000000") as `0x${string}`;
+    const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
     setStep("entering");
     try {
       const hash = await writeContractAsync({
@@ -180,7 +180,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
 
   // ── Fallbacks (no contract deployed) ─────────────────────────────────────
   const handleDirectTransfer = async () => {
-    const TREASURY = (process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "0x0000000000000000000000000000000000000000") as `0x${string}`;
+    const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
     setStep("entering");
     try {
       const hash = await writeContractAsync({
@@ -197,7 +197,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
   };
 
   const handleDirectCeloTransfer = async () => {
-    const TREASURY = (process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "0x0000000000000000000000000000000000000000") as `0x${string}`;
+    const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
     setStep("entering");
     try {
       const hash = await sendTransactionAsync({
