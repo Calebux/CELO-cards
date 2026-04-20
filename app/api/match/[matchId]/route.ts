@@ -25,8 +25,10 @@ interface ServerMatch {
   hostWins: number;
   joinerWins: number;
   resolvedSlots: SlotResult[] | null; // host perspective
-  hostWagerTx:   string | null;       // wager TX hash from host
-  joinerWagerTx: string | null;       // wager TX hash from joiner
+  hostWagerTx:     string | null;  // wager TX hash from host
+  joinerWagerTx:   string | null;  // wager TX hash from joiner
+  hostWagerAmount:   string | null;  // stake in wei (as decimal string)
+  joinerWagerAmount: string | null;
 }
 
 // ── File-based store (persists across serverless instances) ────────────────
@@ -123,6 +125,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       resolvedSlots: null,
       hostWagerTx: null,
       joinerWagerTx: null,
+      hostWagerAmount: null,
+      joinerWagerAmount: null,
     };
     store[matchId] = match;
     writeStore(store);
@@ -158,8 +162,9 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     slots,
     hostWins:      role === "host" ? match.hostWins   : match.joinerWins,
     opponentWins:  role === "host" ? match.joinerWins : match.hostWins,
-    selfWagered:   role === "host" ? !!match.hostWagerTx   : !!match.joinerWagerTx,
-    opponentWagered: role === "host" ? !!match.joinerWagerTx : !!match.hostWagerTx,
+    selfWagered:      role === "host" ? !!match.hostWagerTx     : !!match.joinerWagerTx,
+    opponentWagered:  role === "host" ? !!match.joinerWagerTx   : !!match.hostWagerTx,
+    hostWagerAmount:  match.hostWagerAmount,   // always expose so joiner knows what to match
   });
 }
 
@@ -200,6 +205,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       resolvedSlots: null,
       hostWagerTx: null,
       joinerWagerTx: null,
+      hostWagerAmount: null,
+      joinerWagerAmount: null,
     };
   }
 
@@ -223,12 +230,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { role, cardIds, round, action, wagerTx } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
     action?: string;
     wagerTx?: string;
+    wagerAmount?: string; // stake in wei as decimal string
   };
 
   if (!validRole(role)) {
@@ -240,8 +248,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const store = readStore();
     const match = store[matchId];
     if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
-    if (role === "host") match.hostWagerTx = wagerTx ?? null;
-    else match.joinerWagerTx = wagerTx ?? null;
+    if (role === "host") {
+      match.hostWagerTx = wagerTx ?? null;
+      match.hostWagerAmount = wagerAmount ?? null;
+    } else {
+      match.joinerWagerTx = wagerTx ?? null;
+      match.joinerWagerAmount = wagerAmount ?? null;
+    }
     match.lastActivity = Date.now();
     writeStore(store);
     return NextResponse.json({ ok: true });

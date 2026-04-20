@@ -20,19 +20,30 @@ import {
   STREAM_FLOW_RATE_DUAL,
 } from "../../lib/gooddollar";
 
-// Read match store to check if both players wagered
-function checkBothWagered(matchId: string): boolean {
+interface MatchWagerInfo {
+  bothWagered: boolean;
+  winnerPayout: bigint; // 90% of combined pot
+}
+
+// Read match store to get wager state and calculate actual payout
+function getMatchWagerInfo(matchId: string): MatchWagerInfo {
   try {
     const path = resolve(process.cwd(), "data", "matches.json");
-    if (!existsSync(path)) return false;
+    if (!existsSync(path)) return { bothWagered: false, winnerPayout: 0n };
     const store = JSON.parse(readFileSync(path, "utf8")) as Record<string, {
-      hostWagerTx?: string | null;
-      joinerWagerTx?: string | null;
+      hostWagerTx?:     string | null;
+      joinerWagerTx?:   string | null;
+      hostWagerAmount?:   string | null;
+      joinerWagerAmount?: string | null;
     }>;
     const match = store[matchId];
-    return !!(match?.hostWagerTx && match?.joinerWagerTx);
+    if (!match?.hostWagerTx || !match?.joinerWagerTx) return { bothWagered: false, winnerPayout: 0n };
+    const hostAmt   = BigInt(match.hostWagerAmount   ?? "0");
+    const joinerAmt = BigInt(match.joinerWagerAmount ?? "0");
+    const pot = hostAmt + joinerAmt;
+    return { bothWagered: true, winnerPayout: pot * 9000n / 10000n }; // 90%
   } catch {
-    return false;
+    return { bothWagered: false, winnerPayout: 0n };
   }
 }
 
@@ -69,8 +80,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid winner address" }, { status: 400 });
   }
 
-  // Check if both players wagered — determines winner-takes-all dual payout
-  const bothWagered = checkBothWagered(matchId);
+  // Check if both players wagered and get the actual payout amount from their stakes
+  const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(matchId);
 
   try {
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);
@@ -90,8 +101,10 @@ export async function POST(req: NextRequest) {
 
     // ── G$ path: stream payout via Superfluid CFAv1Forwarder ─────────────────
     if (currency === "gdollar") {
-      // Both-wagered → dual flow rate (90% of combined pot); solo → standard rate
-      const baseFlowRate = bothWagered ? STREAM_FLOW_RATE_DUAL : STREAM_FLOW_RATE;
+      // Both-wagered → flow rate from actual stakes (90% of pot over 24h); solo → standard rate
+      const baseFlowRate = bothWagered && dualPayout > 0n
+        ? dualPayout / 86_400n
+        : STREAM_FLOW_RATE;
       const { request } = await publicClient.simulateContract({
         account,
         address: CFA_FORWARDER,
@@ -130,12 +143,12 @@ export async function POST(req: NextRequest) {
       console.log(`Payout ${matchId}: completeMatch(${winner}) — tx ${txHash}`);
     } else if (currency === "celo") {
       // Native CELO direct transfer
-      const celoAmt = (bothWagered ? DUAL_WAGER_PAYOUT_CELO : PAYOUT_AMOUNT_CELO) * mult;
+      const celoAmt = (bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO) * mult;
       txHash = await walletClient.sendTransaction({ to: winner, value: celoAmt });
       console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct CELO ${formatUnits(celoAmt, 18)} (×${mult}) to ${winner} — tx ${txHash}`);
     } else {
       // cUSD direct transfer
-      const cusdAmt = (bothWagered ? DUAL_WAGER_PAYOUT : PAYOUT_AMOUNT) * mult;
+      const cusdAmt = (bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT) * mult;
       const { request } = await publicClient.simulateContract({
         account,
         address: CUSD_CONTRACT,

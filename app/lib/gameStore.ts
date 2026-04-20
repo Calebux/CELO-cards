@@ -91,6 +91,8 @@ interface GameState {
     wagerActive: boolean;
     wagerTxHash: string | null;
     wagerCurrency: "cusd" | "celo" | "gdollar";
+    wagerAmountInput: string;        // human-readable stake, e.g. "0.01"
+    setWagerAmountInput: (v: string) => void;
     opponentWagered: boolean;
     setOpponentWagered: (v: boolean) => void;
 
@@ -182,6 +184,8 @@ export const useGameStore = create<GameState>()(
     wagerActive: false,
     wagerTxHash: null,
     wagerCurrency: "cusd" as "cusd" | "celo" | "gdollar",
+    wagerAmountInput: "0.01",
+    setWagerAmountInput: (v) => set({ wagerAmountInput: v }),
     opponentWagered: false,
     setOpponentWagered: (v) => set({ opponentWagered: v }),
     playerPoints: 0,
@@ -510,6 +514,7 @@ export const useGameStore = create<GameState>()(
             wagerActive: false,
             wagerTxHash: null,
             wagerCurrency: "cusd",
+            wagerAmountInput: "0.01",
             opponentWagered: false,
             ultimateActivated: false,
             ultimateUsed: false,

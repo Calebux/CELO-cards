@@ -26,6 +26,7 @@ function JoinMatchContent() {
   const [error, setError] = useState("");
   const [joining] = useState(false);
   const [showWager, setShowWager] = useState(false);
+  const [hostStakeAmount, setHostStakeAmount] = useState<string | undefined>();
 
   useEffect(() => {
     const scale = () => {
@@ -81,11 +82,14 @@ function JoinMatchContent() {
     // Only show wager prompt if the host already wagered on this match
     try {
       const res = await fetch(`/api/match/${matchCode}?role=joiner`);
-      const data = await res.json() as { selfWagered?: boolean; opponentWagered?: boolean };
-      if (data.opponentWagered) {
-        setShowWager(true); // host wagered — give joiner the option to match
+      const data = await res.json() as { opponentWagered?: boolean; hostWagerAmount?: string | null };
+      if (data.opponentWagered && data.hostWagerAmount) {
+        // Convert wei string to human-readable (18 decimals)
+        const { formatUnits } = await import("viem");
+        setHostStakeAmount(formatUnits(BigInt(data.hostWagerAmount), 18));
+        setShowWager(true);
       } else {
-        router.push("/select-character"); // free match, no wager prompt
+        router.push("/select-character");
       }
     } catch {
       router.push("/select-character");
@@ -221,6 +225,7 @@ function JoinMatchContent() {
 
       {showWager && (
         <WagerModal
+          lockedAmount={hostStakeAmount}
           onConfirmed={() => { setShowWager(false); router.push("/select-character"); }}
           onSkip={() => { setWager(false, null); setShowWager(false); router.push("/select-character"); }}
         />

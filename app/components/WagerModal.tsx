@@ -17,6 +17,7 @@ import { formatUnits } from "viem";
 type Props = {
   onConfirmed: () => void;
   onSkip: () => void;
+  lockedAmount?: string; // pre-filled, read-only (joiner matching host's stake, e.g. "0.01")
 };
 
 type Step = "idle" | "approving" | "approved" | "entering" | "done" | "error";
@@ -30,15 +31,17 @@ const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: 
   gdollar: { label: "G$",      color: GDOLLAR_COLOR, symbol: "G$" },
 };
 
-export function WagerModal({ onConfirmed, onSkip }: Props) {
+export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   const { address } = useAccount();
-  const setWager     = useGameStore((s) => s.setWager);
-  const matchId      = useGameStore((s) => s.matchId);
-  const playerRole   = useGameStore((s) => s.playerRole);
+  const setWager            = useGameStore((s) => s.setWager);
+  const matchId             = useGameStore((s) => s.matchId);
+  const playerRole          = useGameStore((s) => s.playerRole);
+  const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
   const [currency, setCurrency] = useState<Currency>("celo");
+  const [amountInput, setAmountInput] = useState(lockedAmount ?? "0.01");
 
   const { writeContractAsync }  = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
@@ -62,13 +65,30 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
     }
   }, [txSuccess, step]);
 
-  // Register wager TX with the match server so payout knows both players wagered
+  // Parse amount input to bigint (18 decimals). Returns 0n on invalid input.
+  const parsedAmount = (): bigint => {
+    try {
+      const { parseUnits } = require("viem") as typeof import("viem");
+      const val = amountInput.trim();
+      if (!val || isNaN(Number(val)) || Number(val) <= 0) return 0n;
+      return parseUnits(val as `${number}`, 18);
+    } catch {
+      return 0n;
+    }
+  };
+
+  // Register wager TX + amount with the match server
   const registerWagerOnServer = (hash: `0x${string}`) => {
     if (!matchId || !playerRole) return;
     void fetch(`/api/match/${matchId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "wager", role: playerRole, wagerTx: hash }),
+      body: JSON.stringify({
+        action: "wager",
+        role: playerRole,
+        wagerTx: hash,
+        wagerAmount: parsedAmount().toString(),
+      }),
     });
   };
 
@@ -77,6 +97,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
     if (txSuccess && step === "entering") {
       setStep("done");
       setWager(true, txHash ?? null, currency);
+      setWagerAmountInput(amountInput);
       if (txHash) registerWagerOnServer(txHash);
       onConfirmed();
     }
@@ -111,7 +132,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
       return;
     }
 
-    const alreadyApproved = (allowance ?? 0n) >= WAGER_AMOUNT;
+    const alreadyApproved = (allowance ?? 0n) >= parsedAmount();
     if (alreadyApproved) {
       setStep("approved");
     } else {
@@ -122,13 +143,15 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
   // ── G$: direct ERC-20 transfer to treasury ────────────────────────────────
   const handleGDollarTransfer = async () => {
     const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+    const amt = parsedAmount();
+    if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
       const hash = await writeContractAsync({
         address: GDOLLAR_CONTRACT,
         abi: GDOLLAR_ABI,
         functionName: "transfer",
-        args: [TREASURY, WAGER_AMOUNT_GDOLLAR],
+        args: [TREASURY, amt],
       });
       setTxHash(hash);
     } catch (e) {
@@ -139,13 +162,15 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
 
   // ── cUSD: approve ────────────────────────────────────────────────────────
   const handleApprove = async () => {
+    const amt = parsedAmount();
+    if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("approving");
     try {
       const hash = await writeContractAsync({
         address: CUSD_CONTRACT,
         abi: APPROVE_ABI,
         functionName: "approve",
-        args: [ARENA_ADDRESS, WAGER_AMOUNT],
+        args: [ARENA_ADDRESS, amt],
       });
       setTxHash(hash);
     } catch (e) {
@@ -175,6 +200,8 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
   // ── CELO: enterMatchWithCelo ──────────────────────────────────────────────
   const handleEnterMatchWithCelo = async () => {
     if (!matchId) { setErrMsg("No match ID."); setStep("error"); return; }
+    const amt = parsedAmount();
+    if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
       const hash = await writeContractAsync({
@@ -182,7 +209,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
         abi: ARENA_ABI,
         functionName: "enterMatchWithCelo",
         args: [matchIdToBytes32(matchId)],
-        value: WAGER_AMOUNT_CELO,
+        value: amt,
       });
       setTxHash(hash);
     } catch (e) {
@@ -194,13 +221,15 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
   // ── Fallbacks (no contract deployed) ─────────────────────────────────────
   const handleDirectTransfer = async () => {
     const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+    const amt = parsedAmount();
+    if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
       const hash = await writeContractAsync({
         address: CUSD_CONTRACT,
         abi: ERC20_ABI,
         functionName: "transfer",
-        args: [TREASURY, WAGER_AMOUNT],
+        args: [TREASURY, amt],
       });
       setTxHash(hash);
     } catch (e) {
@@ -211,11 +240,13 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
 
   const handleDirectCeloTransfer = async () => {
     const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+    const amt = parsedAmount();
+    if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
       const hash = await sendTransactionAsync({
         to: TREASURY,
-        value: WAGER_AMOUNT_CELO,
+        value: amt,
       });
       setTxHash(hash);
     } catch (e) {
@@ -234,17 +265,15 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
   };
 
   const cfg = CURRENCY_CONFIG[currency];
-  const wagerDisplay = `0.000007 ${cfg.symbol}`;
-
-  const dualPayoutBig =
-    currency === "gdollar"  ? DUAL_WAGER_PAYOUT_GDOLLAR :
-    currency === "celo"     ? DUAL_WAGER_PAYOUT_CELO    :
-    DUAL_WAGER_PAYOUT;
-  const dualPayoutDisplay = `${formatUnits(dualPayoutBig, 18)} ${cfg.symbol}`;
+  const stakeAmt = parsedAmount();
+  const wagerDisplay = `${amountInput || "0"} ${cfg.symbol}`;
+  const dualPayoutDisplay = stakeAmt > 0n
+    ? `${formatUnits(stakeAmt * 2n * 9000n / 10000n, 18)} ${cfg.symbol}`
+    : `— ${cfg.symbol}`;
 
   const payoutNote = currency === "gdollar"
     ? "Winnings stream to your wallet via Superfluid"
-    : `If opponent also wagers, winner takes ${dualPayoutDisplay}`;
+    : `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
 
   return (
     <div style={{
@@ -321,10 +350,37 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
           </div>
         )}
 
-        <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 24, lineHeight: 1.6 }}>
-          Stake <strong style={{ color: cfg.color }}>{wagerDisplay}</strong> to play.{" "}
-          <span style={{ color: currency === "gdollar" ? GDOLLAR_COLOR : "#4ade80" }}>{payoutNote}</span>
-        </p>
+        {/* Stake amount input */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>
+            {lockedAmount ? "Host's Stake (must match)" : "Your Stake Amount"}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 0, border: `1.5px solid ${lockedAmount ? "#334155" : cfg.color}`, borderRadius: 6, overflow: "hidden" }}>
+            <input
+              type="number"
+              min="0"
+              step="0.001"
+              value={amountInput}
+              onChange={(e) => { if (!busy && !lockedAmount) setAmountInput(e.target.value); }}
+              disabled={busy || !!lockedAmount}
+              style={{
+                flex: 1, padding: "10px 14px",
+                background: "rgba(0,0,0,0.4)",
+                border: "none", outline: "none",
+                fontSize: 18, fontWeight: 700, color: lockedAmount ? "#6b7280" : "#f1f5f9",
+                fontFamily: "inherit",
+              }}
+            />
+            <div style={{ padding: "10px 14px", background: "rgba(255,255,255,0.04)", fontSize: 13, fontWeight: 700, color: cfg.color, letterSpacing: 1 }}>
+              {cfg.symbol}
+            </div>
+          </div>
+          {lockedAmount && (
+            <p style={{ fontSize: 11, color: "#6b7280", margin: "6px 0 0", letterSpacing: 0.3 }}>
+              Amount set by the match host.
+            </p>
+          )}
+        </div>
 
         {/* Wager breakdown */}
         <div style={{
@@ -374,7 +430,7 @@ export function WagerModal({ onConfirmed, onSkip }: Props) {
             {busy ? "hourglass_empty" : currency === "gdollar" ? "stream" : "payments"}
           </span>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 3 }}>
-            {busy ? "Processing…" : `Pay ${wagerDisplay}`}
+            {busy ? "Processing…" : `Stake ${amountInput || "0"} ${cfg.symbol}`}
           </span>
         </button>
 
