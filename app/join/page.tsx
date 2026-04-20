@@ -77,7 +77,19 @@ function JoinMatchContent() {
     resetMatch();
     setMatchId(matchCode);
     setPlayerRole("joiner");
-    setShowWager(true); // prompt joiner to wager before selecting character
+
+    // Only show wager prompt if the host already wagered on this match
+    try {
+      const res = await fetch(`/api/match/${matchCode}?role=joiner`);
+      const data = await res.json() as { selfWagered?: boolean; opponentWagered?: boolean };
+      if (data.opponentWagered) {
+        setShowWager(true); // host wagered — give joiner the option to match
+      } else {
+        router.push("/select-character"); // free match, no wager prompt
+      }
+    } catch {
+      router.push("/select-character");
+    }
   };
 
   return (

@@ -10,7 +10,7 @@ import { useAccount } from "wagmi";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-type MatchType = "casual" | "ranked" | "tourney" | "vshouse";
+type MatchType = "wager" | "ranked" | "tourney" | "vshouse";
 
 const MATCH_TYPES: {
   key: MatchType;
@@ -22,12 +22,13 @@ const MATCH_TYPES: {
   badge?: string;
 }[] = [
   {
-    key: "casual",
-    icon: "sports_esports",
-    label: "CASUAL",
-    sub: "No Stakes",
-    desc: "Play for fun. Win streaks still track. No leaderboard points.",
-    color: "#56a4cb",
+    key: "wager",
+    icon: "toll",
+    label: "WAGER",
+    sub: "Winner Takes All",
+    desc: "Both players stake tokens. Winner claims 90% of the pot. 10% platform fee from each side.",
+    color: "#fbbf24",
+    badge: "NEW",
   },
   {
     key: "ranked",
@@ -59,7 +60,7 @@ const MATCH_TYPES: {
 
 export default function CreateMatch() {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [matchType, setMatchType] = useState<MatchType>("ranked");
+  const [matchType, setMatchType] = useState<MatchType>("wager");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const router = useRouter();
@@ -106,7 +107,7 @@ export default function CreateMatch() {
   }, []);
 
   const handleCreateMatch = () => {
-    if (!address) return; // wallet gate — button is visually locked when not connected
+    if (!address) return;
     resetMatch();
     if (matchType === "vshouse") {
       setVsBot(true);
@@ -116,7 +117,12 @@ export default function CreateMatch() {
     }
     setVsBot(false);
     setPlayerRole("host");
-    setShowWager(true);
+    if (matchType === "wager") {
+      setShowWager(true); // wager match — prompt for token stake
+    } else {
+      setWager(false, null);
+      router.push("/ready");
+    }
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
