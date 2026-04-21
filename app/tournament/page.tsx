@@ -11,17 +11,20 @@ type MatchResult = { match: number; winner: "top" | "bottom" | null };
 type BracketSlot = { top: BracketPlayer | null; bottom: BracketPlayer | null };
 type TournamentState = {
   weekId: string;
-  status: "pending" | "active" | "complete";
+  status: "registration" | "active" | "complete";
+  registered: string[];
+  maxPlayers: number;
   seeded: BracketPlayer[];
   results: { r16: MatchResult[]; qf: MatchResult[]; sf: MatchResult[]; final: MatchResult[] };
   champion: string | null;
+  prizePool: string;
+  payouts: Record<string, string>;
   slots: { r16: BracketSlot[]; qf: BracketSlot[]; sf: BracketSlot[]; final: BracketSlot[]; champion: BracketPlayer | null } | null;
 };
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-const PRIZE_POOL = "500 CELO";
 const SPOTS = 16;
 
 function useCountdown() {
@@ -58,8 +61,8 @@ const HOW_IT_WORKS = [
   },
   {
     step: "02",
-    title: "REACH THE TOP 16",
-    body: "At the end of each week the leaderboard locks. The 16 players with the most ranked Points automatically qualify for that week's tournament.",
+    title: "REGISTER YOUR WALLET",
+    body: "Click Register on this page while registration is open. First 16 wallets get in. Bracket seeding is based on your ranked Points — more wins = better seed.",
     icon: "🏆",
     color: "#f59e0b",
   },
@@ -73,19 +76,19 @@ const HOW_IT_WORKS = [
   {
     step: "04",
     title: "CLAIM YOUR PRIZE",
-    body: `The champion takes the prize pool. Payouts are sent automatically to your connected wallet. Top 4 finishers earn Glory Points that carry into the next season.`,
+    body: `Prizes stream directly to your wallet in G$ (GoodDollar) via Superfluid — no claim needed. 1st gets 60%, 2nd 25%, 3rd and 4th split the remaining 15%.`,
     icon: "💰",
     color: "#4ade80",
   },
 ];
 
 const RULES = [
-  "Top 16 ranked players qualify each week — no sign-up required",
-  "Bracket is single-elimination, best-of-1 per match",
+  "Register your wallet — spots are first-come, first-served (max 16)",
+  "Bracket is seeded from ranked points when registration closes",
+  "Single-elimination, best-of-1 per match — one loss and you're out",
   "Matches are played live — failure to show forfeits the match",
-  "Prize pool is split: 1st 60% · 2nd 25% · 3rd–4th 7.5% each",
-  "Ranked leaderboard resets every Monday at 00:00 UTC",
-  "You must have a connected wallet to receive prize payouts",
+  "Prize pool split: 1st 60% · 2nd 25% · 3rd–4th 7.5% each (paid in G$)",
+  "Prizes stream directly to your wallet via Superfluid — no claim needed",
 ];
 
 function WalletSection() {
@@ -147,6 +150,8 @@ export default function TournamentPage() {
   const [bracketPlayers, setBracketPlayers] = useState<{ address: string; points: number }[]>([]);
   const [tournament, setTournament] = useState<TournamentState | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const countdown = useCountdown();
 
   useEffect(() => {
@@ -194,7 +199,32 @@ export default function TournamentPage() {
 
   useEffect(() => { fetchTournament(); }, [fetchTournament]);
 
-  // Seed bracket from current leaderboard top 16
+  // Check if current address is already registered
+  useEffect(() => {
+    if (!address || !tournament) return;
+    setRegistered(tournament.registered?.includes(address.toLowerCase()) ?? false);
+  }, [address, tournament]);
+
+  // Register player for the tournament
+  const handleRegister = useCallback(async () => {
+    if (!address) return;
+    setRegistering(true);
+    try {
+      const res = await fetch("/api/tournament", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "register", address: address.toLowerCase() }),
+      });
+      if (res.ok) {
+        setRegistered(true);
+        fetchTournament();
+      }
+    } finally {
+      setRegistering(false);
+    }
+  }, [address, fetchTournament]);
+
+  // Seed bracket from current leaderboard top 16 (admin action)
   const seedBracket = useCallback(async () => {
     if (bracketPlayers.length === 0) return;
     setSeeding(true);
@@ -202,7 +232,7 @@ export default function TournamentPage() {
       const res = await fetch("/api/tournament", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ players: bracketPlayers }),
+        body: JSON.stringify({ action: "seed", players: bracketPlayers }),
       });
       if (res.ok) {
         const data = await res.json() as TournamentState;
@@ -283,8 +313,18 @@ export default function TournamentPage() {
           {/* Key stats row */}
           <div style={{ display: "flex", gap: 32, marginTop: 8, alignItems: "flex-start" }}>
             {[
-              { label: "PRIZE POOL", value: PRIZE_POOL, color: "#4ade80" },
-              { label: "SPOTS", value: `TOP ${SPOTS}`, color: "#56a4cb" },
+              {
+                label: "PRIZE POOL",
+                value: tournament?.prizePool && tournament.prizePool !== "0"
+                  ? `${(Number(BigInt(tournament.prizePool)) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 0 })} G$`
+                  : "120,000 G$",
+                color: "#4ade80",
+              },
+              {
+                label: "REGISTERED",
+                value: tournament ? `${tournament.registered?.length ?? 0} / ${tournament.maxPlayers ?? SPOTS}` : `0 / ${SPOTS}`,
+                color: "#56a4cb",
+              },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>{label}</div>
@@ -381,6 +421,25 @@ export default function TournamentPage() {
             </div>
 
             {/* CTA buttons */}
+            {tournament?.status === "registration" && address && (
+              <button
+                onClick={() => void handleRegister()}
+                disabled={registering || registered}
+                style={{
+                  width: "100%", height: 52,
+                  background: registered ? "rgba(74,222,128,0.1)" : "linear-gradient(135deg, #1a4a2a, #0f2a18)",
+                  border: `1.5px solid ${registered ? "#4ade80" : "#4ade80"}`,
+                  borderRadius: 6, cursor: registered ? "default" : "pointer",
+                  fontFamily: "inherit", fontWeight: 800, fontSize: 15, letterSpacing: 2.5,
+                  color: "#4ade80", textTransform: "uppercase",
+                  clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
+                  boxShadow: "0 0 20px rgba(74,222,128,0.2)",
+                  opacity: registering ? 0.6 : 1,
+                }}
+              >
+                {registered ? "✓ REGISTERED" : registering ? "REGISTERING…" : "REGISTER NOW ▸"}
+              </button>
+            )}
             <button
               onClick={() => router.push("/select-character")}
               style={{ width: "100%", height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 15, letterSpacing: 2.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)", boxShadow: "0 0 20px rgba(86,164,203,0.25)" }}
@@ -408,17 +467,18 @@ export default function TournamentPage() {
         {/* Bracket controls */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ fontSize: 11, color: "#475569" }}>
+            {tournament?.status === "registration" && `Week ${tournament.weekId} · Registration open — ${tournament.registered?.length ?? 0}/${tournament.maxPlayers ?? SPOTS} signed up`}
             {tournament?.status === "active" && `Week ${tournament.weekId} · Active`}
             {tournament?.status === "complete" && `Week ${tournament.weekId} · Champion crowned`}
-            {(!tournament || tournament.status === "pending") && "No bracket seeded yet"}
+            {!tournament && "No tournament open yet"}
           </div>
-          {tournament?.status !== "active" && tournament?.status !== "complete" && (
+          {tournament?.status === "registration" && (
             <button
               onClick={seedBracket}
               disabled={seeding || bracketPlayers.length === 0}
               style={{ background: seeding ? "rgba(86,164,203,0.1)" : "rgba(86,164,203,0.15)", border: "1px solid #56a4cb", borderRadius: 5, padding: "7px 18px", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", opacity: seeding ? 0.6 : 1 }}
             >
-              {seeding ? "SEEDING…" : "LOCK THIS WEEK'S BRACKET"}
+              {seeding ? "SEEDING…" : "LOCK & SEED BRACKET"}
             </button>
           )}
           {tournament?.champion && (

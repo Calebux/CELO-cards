@@ -198,7 +198,7 @@ export default function Loadout() {
       } catch {
         // ignore transient network errors
       }
-    }, 800);
+    }, 2000);
   }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);

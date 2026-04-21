@@ -313,10 +313,24 @@ export default function ActionOrderLandingPage() {
             </div>
 
             {/* ── Centre: Tournament CTA ────────────────────────────── */}
-            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:620, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+              {/* Tournament live banner */}
+              <a href="/tournament" style={{
+                display:"flex", alignItems:"center", gap:10, padding:"8px 20px",
+                background:"linear-gradient(135deg, rgba(0,197,142,0.15), rgba(251,204,92,0.1))",
+                border:"1.5px solid rgba(251,204,92,0.6)", borderRadius:5, textDecoration:"none",
+                boxShadow:"0 0 18px rgba(251,204,92,0.2)",
+                animation:"ko-pulse 2.5s ease-in-out infinite",
+              }}>
+                <div style={{ width:7, height:7, borderRadius:"50%", background:"#fbbf24", boxShadow:"0 0 8px #fbbf24", animation:"ko-dot-pulse 1.2s ease-in-out infinite" }} />
+                <span style={{ fontSize:10, fontWeight:800, letterSpacing:2.5, color:"#fbbf24", textTransform:"uppercase" }}>🏆 TOURNAMENT LIVE</span>
+                <div style={{ width:1, height:14, background:"rgba(251,204,92,0.3)" }} />
+                <span style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"#4ade80", textTransform:"uppercase" }}>120,000 G$ PRIZE POOL</span>
+                <span style={{ fontSize:9, color:"rgba(185,231,244,0.5)", letterSpacing:1 }}>→ REGISTER</span>
+              </a>
               <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 14px", background:"rgba(86,164,203,0.1)", border:"1px solid rgba(86,164,203,0.3)", borderRadius:3 }}>
                 <div style={{ width:5, height:5, borderRadius:"50%", background:"#4ade80", animation:"ko-dot-pulse 1.5s ease-in-out infinite" }} />
-                <span style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>WEEKLY TOURNAMENT — TOP 16 RANKED PLAYERS</span>
+                <span style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>16-PLAYER BRACKET · WIN TO EARN G$</span>
               </div>
               <div style={{ display:"flex", gap:12 }}>
                 <button onClick={handleQuickPlay} style={{
@@ -380,10 +394,11 @@ export default function ActionOrderLandingPage() {
 
             {/* News card 2 */}
             <div className="ko-news-card" style={{ position:"absolute", left:1130, top:430, width:237, zIndex:15 }}>
-              <img className="ko-card-img" src="/new-assets/fighters-rooftop.jpeg" alt="New Character" />
+              <img className="ko-card-img" src="/new-assets/fighters-rooftop.jpeg" alt="Tournament" />
               <div className="ko-card-title">
-                <p style={{ color:"#56a4cb", fontSize:10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>CHARACTER</p>
-                <p>NEW REVEAL: KAZUMA, THE BLAZING SWORD</p>
+                <p style={{ color:"#fbbf24", fontSize:10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>TOURNAMENT</p>
+                <p>120,000 G$ PRIZE POOL — REGISTRATION OPEN</p>
+                <p style={{ color:"#4ade80", fontSize:11 }}>TOP 4 WIN G$ STREAMS →</p>
               </div>
             </div>
 
