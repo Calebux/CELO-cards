@@ -149,36 +149,52 @@ export default function Leaderboard() {
                   Leaderboard
                 </h2>
                 <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0", letterSpacing: 0.5 }}>
-                  Global rankings across all players
+                  {tab === "casual"
+                    ? "All matches — VS House, PvP, and wager"
+                    : "Wager matches only — points count toward prizes"}
                 </p>
               </div>
 
               {/* Tabs */}
               <div style={{ display: "flex", gap: 8 }}>
-                {(["casual", "ranked"] as Tab[]).map((t) => (
+                {([
+                  { key: "casual" as Tab, label: "Casual", icon: "sports_esports", hint: "All matches" },
+                  { key: "ranked" as Tab, label: "Ranked", icon: "emoji_events",   hint: "Wager only" },
+                ] as const).map(({ key, label, icon, hint }) => (
                   <button
-                    key={t}
-                    onClick={() => setTab(t)}
+                    key={key}
+                    onClick={() => setTab(key)}
                     style={{
-                      padding: "7px 20px",
-                      border: `1.5px solid ${tab === t ? "#56a4cb" : "#334155"}`,
+                      padding: "7px 18px",
+                      border: `1.5px solid ${tab === key ? "#56a4cb" : "#334155"}`,
                       borderRadius: 5,
-                      background: tab === t ? "rgba(86,164,203,0.15)" : "rgba(17,10,24,0.4)",
-                      color: tab === t ? "#b9e7f4" : "#6b7280",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: 1.5,
-                      textTransform: "uppercase",
+                      background: tab === key ? "rgba(86,164,203,0.15)" : "rgba(17,10,24,0.4)",
+                      color: tab === key ? "#b9e7f4" : "#6b7280",
                       cursor: "pointer",
                       fontFamily: "inherit",
                       transition: "all 0.2s",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
                     }}
                   >
-                    {t === "casual" ? "Casual" : "Ranked"}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="material-icons" style={{ fontSize: 13, color: tab === key ? "#56a4cb" : "#475569" }}>{icon}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
+                    </div>
+                    <span style={{ fontSize: 9, color: tab === key ? "#56a4cb99" : "#334155", letterSpacing: 0.5, textTransform: "uppercase" }}>{hint}</span>
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* Ranked explainer callout */}
+            {tab === "ranked" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", marginBottom: 12, background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 5 }}>
+                <span className="material-icons" style={{ fontSize: 14, color: "#fbbf24" }}>toll</span>
+                <span style={{ fontSize: 11, color: "#94a3b8", letterSpacing: 0.3 }}>
+                  Only <strong style={{ color: "#fbbf24" }}>Wager matches</strong> count here. Play a wager match to appear on the ranked board.
+                </span>
+              </div>
+            )}
 
             {/* Table header */}
             <div style={{

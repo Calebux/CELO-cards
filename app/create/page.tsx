@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { useAccount } from "wagmi";
+
+type QueueState =
+  | { status: "idle" }
+  | { status: "searching"; queueId: string; elapsedMs: number }
+  | { status: "found"; matchId: string; role: "host" | "joiner" };
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -63,9 +68,12 @@ export default function CreateMatch() {
   const [matchType, setMatchType] = useState<MatchType>("wager");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
+  const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
+  const setMatchId = useGameStore((s) => s.setMatchId);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
@@ -105,6 +113,77 @@ export default function CreateMatch() {
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
   }, []);
+
+  // Tick elapsed time while searching
+  useEffect(() => {
+    if (queueState.status !== "searching") return;
+    const id = setInterval(() => {
+      setQueueState((prev) =>
+        prev.status === "searching"
+          ? { ...prev, elapsedMs: prev.elapsedMs + 1000 }
+          : prev
+      );
+    }, 1000);
+    return () => clearInterval(id);
+  }, [queueState.status]);
+
+  const cancelQueue = useCallback(async () => {
+    if (queueState.status !== "searching") return;
+    if (queuePollRef.current) clearInterval(queuePollRef.current);
+    await fetch(`/api/queue?id=${queueState.queueId}`, { method: "DELETE" }).catch(() => {});
+    setQueueState({ status: "idle" });
+  }, [queueState]);
+
+  const handleFindMatch = async () => {
+    if (!address) return;
+    resetMatch();
+    setVsBot(false);
+    setPlayerRole("host");
+    setWager(false, null);
+
+    const res = await fetch("/api/queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+    const data = await res.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; queueId?: string };
+
+    if (data.matched && data.matchId && data.role) {
+      // Immediate match found
+      setMatchId(data.matchId);
+      setPlayerRole(data.role);
+      setQueueState({ status: "found", matchId: data.matchId, role: data.role });
+      setTimeout(() => router.push("/select-character"), 800);
+      return;
+    }
+
+    if (!data.queueId) return;
+    setQueueState({ status: "searching", queueId: data.queueId, elapsedMs: 0 });
+
+    // Poll every 2s for a match
+    queuePollRef.current = setInterval(async () => {
+      try {
+        const pollRes = await fetch(`/api/queue?id=${data.queueId}`);
+        const pollData = await pollRes.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; expired?: boolean };
+
+        if (pollData.expired) {
+          clearInterval(queuePollRef.current!);
+          setQueueState({ status: "idle" });
+          return;
+        }
+
+        if (pollData.matched && pollData.matchId && pollData.role) {
+          clearInterval(queuePollRef.current!);
+          setMatchId(pollData.matchId);
+          setPlayerRole(pollData.role);
+          setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role });
+          setTimeout(() => router.push("/select-character"), 800);
+        }
+      } catch {
+        // ignore transient errors
+      }
+    }, 2000);
+  };
 
   const handleCreateMatch = () => {
     if (!address) return;
@@ -252,40 +331,76 @@ export default function CreateMatch() {
                   </div>
                 )}
 
-                {/* Create Match button */}
-                <button
-                  onClick={handleCreateMatch}
-                  disabled={!address}
-                  style={{
-                    width: "100%", height: 56,
-                    background: address
-                      ? "linear-gradient(135deg, #1a3a52, #0f2233)"
-                      : "rgba(255,255,255,0.03)",
-                    border: address
-                      ? `1.5px solid ${selected.color}`
-                      : "1.5px solid rgba(255,255,255,0.1)",
-                    borderRadius: 6,
-                    cursor: address ? "pointer" : "not-allowed",
-                    fontFamily: "inherit",
-                    fontWeight: 900, fontSize: 16, letterSpacing: 3,
-                    color: address ? "#b9e7f4" : "#475569",
-                    textTransform: "uppercase",
-                    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
-                    boxShadow: address ? `0 0 24px ${selected.color}30` : "none",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-                    transition: "all 0.2s ease",
-                    opacity: address ? 1 : 0.6,
-                  }}
-                >
-                  <span className="material-icons" style={{ fontSize: 20, color: address ? selected.color : "#475569" }}>
-                    {address ? "radar" : "lock"}
-                  </span>
-                  {address ? "CREATE MATCH" : "CONNECT WALLET TO PLAY"}
-                  {address && <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>}
-                </button>
+                {/* Searching state */}
+                {queueState.status === "searching" && (
+                  <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(86,164,203,0.06)", border: "1.5px solid rgba(86,164,203,0.35)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#56a4cb", boxShadow: "0 0 6px #56a4cb", animation: "pulse 1s ease-in-out infinite" }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#b9e7f4", letterSpacing: 2, textTransform: "uppercase" }}>Finding Opponent…</span>
+                      <span style={{ marginLeft: "auto", fontSize: 11, color: "#6b7280", fontVariantNumeric: "tabular-nums" }}>
+                        {Math.floor(queueState.elapsedMs / 60000)}:{String(Math.floor((queueState.elapsedMs % 60000) / 1000)).padStart(2, "0")}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => void cancelQueue()}
+                      style={{ width: "100%", height: 36, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
+                    >
+                      CANCEL
+                    </button>
+                  </div>
+                )}
+
+                {/* Found state */}
+                {queueState.status === "found" && (
+                  <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(74,222,128,0.08)", border: "1.5px solid rgba(74,222,128,0.4)", borderRadius: 8, textAlign: "center" }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", letterSpacing: 2, textTransform: "uppercase" }}>✓ Opponent Found — Entering Match</span>
+                  </div>
+                )}
+
+                {/* Create/Find Match button */}
+                {queueState.status === "idle" && (
+                  <button
+                    onClick={matchType === "ranked" ? () => void handleFindMatch() : handleCreateMatch}
+                    disabled={!address}
+                    style={{
+                      width: "100%", height: 56,
+                      background: address
+                        ? "linear-gradient(135deg, #1a3a52, #0f2233)"
+                        : "rgba(255,255,255,0.03)",
+                      border: address
+                        ? `1.5px solid ${selected.color}`
+                        : "1.5px solid rgba(255,255,255,0.1)",
+                      borderRadius: 6,
+                      cursor: address ? "pointer" : "not-allowed",
+                      fontFamily: "inherit",
+                      fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                      color: address ? "#b9e7f4" : "#475569",
+                      textTransform: "uppercase",
+                      clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
+                      boxShadow: address ? `0 0 24px ${selected.color}30` : "none",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                      transition: "all 0.2s ease",
+                      opacity: address ? 1 : 0.6,
+                    }}
+                  >
+                    <span className="material-icons" style={{ fontSize: 20, color: address ? selected.color : "#475569" }}>
+                      {!address ? "lock" : matchType === "ranked" ? "manage_search" : "radar"}
+                    </span>
+                    {!address
+                      ? "CONNECT WALLET TO PLAY"
+                      : matchType === "ranked"
+                        ? "FIND MATCH"
+                        : "CREATE MATCH"}
+                    {address && <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>}
+                  </button>
+                )}
 
                 <p style={{ fontSize: 10, color: address ? "#475569" : "#56a4cb", textAlign: "center", marginTop: 10, letterSpacing: 1, textTransform: "uppercase" }}>
-                  {address ? "Secure connection via Celo network" : "Use the Connect button in the top right ↗"}
+                  {address
+                    ? matchType === "ranked"
+                      ? "Auto-matched with a random opponent"
+                      : "Secure connection via Celo network"
+                    : "Use the Connect button in the top right ↗"}
                 </p>
               </div>
             </div>

@@ -102,6 +102,7 @@ export default function Loadout() {
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const [pollErrorCount, setPollErrorCount] = useState(0);
   const [showPresets, setShowPresets] = useState(false);
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState("");
@@ -191,13 +192,14 @@ export default function Loadout() {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
         const data = await res.json() as { phase: string; slots: unknown };
+        setPollErrorCount(0); // successful response
         if (data.phase === "resolved" && data.slots) {
           if (pollRef.current) clearInterval(pollRef.current);
           setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
           router.push("/game-action");
         }
       } catch {
-        // ignore transient network errors
+        setPollErrorCount((n) => n + 1);
       }
     }, 2000);
   }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router]);
@@ -794,6 +796,12 @@ export default function Loadout() {
             <span style={{ fontSize: 20, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 3 }}>
               Waiting for opponent...
             </span>
+            {pollErrorCount >= 3 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6 }}>
+                <span className="material-icons" style={{ color: "#fbbf24", fontSize: 14 }}>wifi_off</span>
+                <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600 }}>Connection issues — retrying…</span>
+              </div>
+            )}
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
