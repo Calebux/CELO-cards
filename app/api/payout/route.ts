@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, createWalletClient, http, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
+import { getMatch } from "../../lib/redis";
+import { ServerMatch } from "../match/[matchId]/route";
 import {
   ERC20_ABI, CUSD_CONTRACT,
   PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO,
@@ -22,26 +22,17 @@ import {
 
 interface MatchWagerInfo {
   bothWagered: boolean;
-  winnerPayout: bigint; // 90% of combined pot
+  winnerPayout: bigint;
 }
 
-// Read match store to get wager state and calculate actual payout
-function getMatchWagerInfo(matchId: string): MatchWagerInfo {
+async function getMatchWagerInfo(matchId: string): Promise<MatchWagerInfo> {
   try {
-    const path = resolve(process.cwd(), "data", "matches.json");
-    if (!existsSync(path)) return { bothWagered: false, winnerPayout: 0n };
-    const store = JSON.parse(readFileSync(path, "utf8")) as Record<string, {
-      hostWagerTx?:     string | null;
-      joinerWagerTx?:   string | null;
-      hostWagerAmount?:   string | null;
-      joinerWagerAmount?: string | null;
-    }>;
-    const match = store[matchId];
+    const match = await getMatch<ServerMatch>(matchId);
     if (!match?.hostWagerTx || !match?.joinerWagerTx) return { bothWagered: false, winnerPayout: 0n };
     const hostAmt   = BigInt(match.hostWagerAmount   ?? "0");
     const joinerAmt = BigInt(match.joinerWagerAmount ?? "0");
     const pot = hostAmt + joinerAmt;
-    return { bothWagered: true, winnerPayout: pot * 9000n / 10000n }; // 90%
+    return { bothWagered: true, winnerPayout: pot * 9000n / 10000n };
   } catch {
     return { bothWagered: false, winnerPayout: 0n };
   }
@@ -81,7 +72,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Check if both players wagered and get the actual payout amount from their stakes
-  const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(matchId);
+  const { bothWagered, winnerPayout: dualPayout } = await getMatchWagerInfo(matchId);
 
   try {
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);

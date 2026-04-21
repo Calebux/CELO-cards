@@ -4,64 +4,33 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { resolve } from "path";
+import { getMatch, setMatch, deleteMatch } from "../../../lib/redis";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface PlayerSlot {
   charId: string | null;
-  cardIds: string[] | null; // current round order
-  orderRound: number;       // which round these cards are for
+  cardIds: string[] | null;
+  orderRound: number;
 }
 
-interface ServerMatch {
+export interface ServerMatch {
   id: string;
   createdAt: number;
-  lastActivity: number;     // updated on every POST/PATCH
+  lastActivity: number;
   host: PlayerSlot;
   joiner: PlayerSlot;
-  round: number;            // server's current round (starts at 1)
+  round: number;
   hostWins: number;
   joinerWins: number;
-  resolvedSlots: SlotResult[] | null; // host perspective
-  hostWagerTx:     string | null;  // wager TX hash from host
-  joinerWagerTx:   string | null;  // wager TX hash from joiner
-  hostWagerAmount:   string | null;  // stake in wei (as decimal string)
+  resolvedSlots: SlotResult[] | null;
+  hostWagerTx:      string | null;
+  joinerWagerTx:    string | null;
+  hostWagerAmount:  string | null;
   joinerWagerAmount: string | null;
 }
 
-// ── File-based store (persists across serverless instances) ────────────────
-
-const DATA_DIR  = resolve(process.cwd(), "data");
-const STORE_PATH = resolve(DATA_DIR, "matches.json");
-
-function readStore(): Record<string, ServerMatch> {
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    if (!existsSync(STORE_PATH)) return {};
-    return JSON.parse(readFileSync(STORE_PATH, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeStore(store: Record<string, ServerMatch>) {
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(STORE_PATH, JSON.stringify(store));
-  } catch { /* ignore write errors on read-only fs */ }
-}
-
-const TWO_HOURS = 2 * 60 * 60 * 1000;
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-
-function pruneOldMatches(store: Record<string, ServerMatch>) {
-  const now = Date.now();
-  for (const id of Object.keys(store)) {
-    if (now - store[id].createdAt > TWO_HOURS) delete store[id];
-  }
-}
 
 function isTimedOut(match: ServerMatch): boolean {
   const bothJoined = match.host.charId && match.joiner.charId;
@@ -75,6 +44,25 @@ function emptySlot(): PlayerSlot {
 
 function validRole(role: unknown): role is "host" | "joiner" {
   return role === "host" || role === "joiner";
+}
+
+function newMatch(matchId: string): ServerMatch {
+  const now = Date.now();
+  return {
+    id: matchId,
+    createdAt: now,
+    lastActivity: now,
+    host: emptySlot(),
+    joiner: emptySlot(),
+    round: 1,
+    hostWins: 0,
+    joinerWins: 0,
+    resolvedSlots: null,
+    hostWagerTx: null,
+    joinerWagerTx: null,
+    hostWagerAmount: null,
+    joinerWagerAmount: null,
+  };
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -107,29 +95,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
   const role = req.nextUrl.searchParams.get("role") as "host" | "joiner" | null;
 
-  const store = readStore();
-  let match = store[matchId];
+  let match = await getMatch<ServerMatch>(matchId);
 
-  // Auto-create if match doesn't exist yet
   if (!match) {
-    const now = Date.now();
-    match = {
-      id: matchId,
-      createdAt: now,
-      lastActivity: now,
-      host: emptySlot(),
-      joiner: emptySlot(),
-      round: 1,
-      hostWins: 0,
-      joinerWins: 0,
-      resolvedSlots: null,
-      hostWagerTx: null,
-      joinerWagerTx: null,
-      hostWagerAmount: null,
-      joinerWagerAmount: null,
-    };
-    store[matchId] = match;
-    writeStore(store);
+    match = newMatch(matchId);
+    await setMatch(matchId, match);
   }
 
   if (isTimedOut(match)) {
@@ -160,11 +130,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     selfCharId: self.charId,
     phase,
     slots,
-    hostWins:      role === "host" ? match.hostWins   : match.joinerWins,
-    opponentWins:  role === "host" ? match.joinerWins : match.hostWins,
-    selfWagered:      role === "host" ? !!match.hostWagerTx     : !!match.joinerWagerTx,
-    opponentWagered:  role === "host" ? !!match.joinerWagerTx   : !!match.hostWagerTx,
-    hostWagerAmount:  match.hostWagerAmount,   // always expose so joiner knows what to match
+    hostWins:        role === "host" ? match.hostWins   : match.joinerWins,
+    opponentWins:    role === "host" ? match.joinerWins : match.hostWins,
+    selfWagered:     role === "host" ? !!match.hostWagerTx   : !!match.joinerWagerTx,
+    opponentWagered: role === "host" ? !!match.joinerWagerTx : !!match.hostWagerTx,
+    hostWagerAmount: match.hostWagerAmount,
   });
 }
 
@@ -173,11 +143,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
 
   let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   const { role, characterId } = body as { role: unknown; characterId: unknown };
 
@@ -188,47 +155,22 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid characterId" }, { status: 400 });
   }
 
-  const store = readStore();
-  pruneOldMatches(store);
-
-  const now = Date.now();
-  if (!store[matchId]) {
-    store[matchId] = {
-      id: matchId,
-      createdAt: now,
-      lastActivity: now,
-      host: emptySlot(),
-      joiner: emptySlot(),
-      round: 1,
-      hostWins: 0,
-      joinerWins: 0,
-      resolvedSlots: null,
-      hostWagerTx: null,
-      joinerWagerTx: null,
-      hostWagerAmount: null,
-      joinerWagerAmount: null,
-    };
-  }
-
-  const match = store[matchId];
-  match.lastActivity = now;
+  let match = await getMatch<ServerMatch>(matchId) ?? newMatch(matchId);
+  match.lastActivity = Date.now();
   if (role === "host") match.host.charId = characterId;
   else match.joiner.charId = characterId;
 
-  writeStore(store);
+  await setMatch(matchId, match);
   return NextResponse.json({ ok: true });
 }
 
-// PATCH — submit card order; resolve when both submitted
+// PATCH — wager registration OR card order submission
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
 
   let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   const { role, cardIds, round, action, wagerTx, wagerAmount } = body as {
     role: unknown;
@@ -236,17 +178,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     round: unknown;
     action?: string;
     wagerTx?: string;
-    wagerAmount?: string; // stake in wei as decimal string
+    wagerAmount?: string;
   };
 
   if (!validRole(role)) {
     return NextResponse.json({ error: "role must be 'host' or 'joiner'" }, { status: 400 });
   }
 
-  // ── Register wager TX for this player ───────────────────────────────────
+  // ── Register wager TX ───────────────────────────────────────────────────
   if (action === "wager") {
-    const store = readStore();
-    const match = store[matchId];
+    const match = await getMatch<ServerMatch>(matchId);
     if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
     if (role === "host") {
       match.hostWagerTx = wagerTx ?? null;
@@ -256,26 +197,24 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match.joinerWagerAmount = wagerAmount ?? null;
     }
     match.lastActivity = Date.now();
-    writeStore(store);
+    await setMatch(matchId, match);
     return NextResponse.json({ ok: true });
   }
+
+  // ── Submit card order ───────────────────────────────────────────────────
   if (!Array.isArray(cardIds) || cardIds.length !== 5 || cardIds.some((id) => typeof id !== "string")) {
     return NextResponse.json({ error: "cardIds must be an array of 5 card ID strings" }, { status: 400 });
   }
   if (typeof round !== "number" || round < 1) {
     return NextResponse.json({ error: "round must be a positive integer" }, { status: 400 });
   }
-
   const invalidCard = cardIds.find((id) => !CARDS.find((c) => c.id === id));
   if (invalidCard) {
     return NextResponse.json({ error: `Unknown card: ${invalidCard}` }, { status: 400 });
   }
 
-  const store = readStore();
-  const match = store[matchId];
-  if (!match) {
-    return NextResponse.json({ error: "Match not found" }, { status: 404 });
-  }
+  const match = await getMatch<ServerMatch>(matchId);
+  if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
   match.lastActivity = Date.now();
 
@@ -298,7 +237,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     match.host.orderRound === match.round &&
     match.joiner.orderRound === match.round
   ) {
-    const hostChar = CHARACTERS.find((c) => c.id === match.host.charId);
+    const hostChar   = CHARACTERS.find((c) => c.id === match.host.charId);
     const joinerChar = CHARACTERS.find((c) => c.id === match.joiner.charId);
 
     if (!hostChar || !joinerChar) {
@@ -319,16 +258,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     else if (result.roundWinner === "opponent") match.joinerWins++;
   }
 
-  writeStore(store);
+  await setMatch(matchId, match);
   return NextResponse.json({ ok: true, round: match.round });
 }
 
-// DELETE — explicitly clean up a finished or abandoned match
+// DELETE — clean up a finished or abandoned match
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  const store = readStore();
-  const existed = !!store[matchId];
-  delete store[matchId];
-  writeStore(store);
-  return NextResponse.json({ ok: true, deleted: existed });
+  await deleteMatch(matchId);
+  return NextResponse.json({ ok: true });
 }
