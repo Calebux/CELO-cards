@@ -36,6 +36,7 @@ export default function Gameplay() {
     finishRound,
     nextRound,
     resetMatch,
+    rematch,
     currentRoundResult,
     matchPhase,
     playerPoints,
@@ -1439,12 +1440,19 @@ export default function Gameplay() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
-                    {/* Play Again — primary */}
+                    {/* Rematch — same opponent */}
+                    <button
+                      onClick={() => { rematch(); router.push("/loadout"); }}
+                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
+                    >
+                      🔄 REMATCH
+                    </button>
+                    {/* Play Again — new character */}
                     <button
                       onClick={() => { resetMatch(); router.push("/select-character"); }}
-                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(86,164,203,0.2)" }}
+                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 12, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" }}
                     >
-                      ⚔ PLAY AGAIN
+                      NEW MATCH
                     </button>
                     {/* Next Opponent — win only */}
                     {won && (
@@ -1459,7 +1467,7 @@ export default function Gameplay() {
                           color: "#4ade80", textTransform: "uppercase",
                         }}
                       >
-                        NEXT OPPONENT ▶
+                        NEXT ▶
                       </button>
                     )}
                     {/* Share card */}

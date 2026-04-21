@@ -154,6 +154,7 @@ interface GameState {
     finishRound: () => void;
     nextRound: () => void;
     resetMatch: () => void;
+    rematch: () => void;
 }
 
 export const useGameStore = create<GameState>()(
@@ -522,6 +523,36 @@ export const useGameStore = create<GameState>()(
             wagerMultiplier: 1,
             currentMatchRounds: [],
         }));
+    },
+
+    rematch: () => {
+        const { selectedCharacter, opponentCharacter } = get();
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+        const deck = buildDeck();
+        const maxEnergy = selectedCharacter ? calcEnergyPool(selectedCharacter) : 10;
+        set({
+            playerDeck: deck,
+            currentOrder: [null, null, null, null, null],
+            opponentOrder: [],
+            matchPhase: "loadout",
+            roundNumber: 1,
+            playerRoundsWon: 0,
+            opponentRoundsWon: 0,
+            currentRoundResult: null,
+            precomputedRound: null,
+            revealedSlots: 0,
+            matchId: `AO-${suffix}`,
+            maxEnergy,
+            pointsThisRound: 0,
+            wagerActive: false,
+            wagerTxHash: null,
+            opponentWagered: false,
+            ultimateActivated: false,
+            ultimateUsed: false,
+            playerTaunt: null,
+            wagerMultiplier: 1,
+            currentMatchRounds: [],
+        });
     },
     }),
     {
