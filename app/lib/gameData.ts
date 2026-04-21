@@ -372,7 +372,7 @@ export const CARDS: Card[] = [
         name: "Javelin Dive",
         type: "strike",
         priority: 2,
-        knock: 8,
+        knock: 2,
         energyCost: 3,
         effect: "An unstoppable human javelin. Guarantees piercing damage that cannot be shielded.",
         color: "#93c5fd",

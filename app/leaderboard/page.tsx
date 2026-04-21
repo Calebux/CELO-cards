@@ -44,6 +44,7 @@ export default function Leaderboard() {
   const { address } = useAccount();
   const [tab, setTab] = useState<Tab>("casual");
   const [players, setPlayers] = useState<Player[]>([]);
+  const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -78,8 +79,17 @@ export default function Leaderboard() {
     void fetch(`/api/leaderboard?tab=${tab}&limit=50`)
       .then((r) => r.json())
       .then((data: { players: Player[] }) => {
-        setPlayers(data.players ?? []);
+        const list = data.players ?? [];
+        setPlayers(list);
         setLoading(false);
+        // Overlay Redis usernames on top of file-based names
+        const addrs = list.map((p) => p.address).join(",");
+        if (addrs) {
+          void fetch(`/api/username?addresses=${addrs}`)
+            .then((r) => r.json())
+            .then((u: { map: Record<string, string> }) => setUsernames(u.map ?? {}))
+            .catch(() => {});
+        }
       })
       .catch(() => { setLoading(false); setFetchError(true); });
   };
@@ -240,29 +250,34 @@ export default function Leaderboard() {
                       </span>
 
                       {/* Name / Address */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{
-                            fontSize: p.name ? 13 : 12,
-                            fontWeight: isMe ? 700 : 500,
-                            color: isMe ? "#b9e7f4" : p.name ? "#e2e8f0" : "#94a3b8",
-                            fontFamily: p.name ? "inherit" : "monospace",
-                            letterSpacing: p.name ? 0.3 : 0.5,
-                          }}>
-                            {p.name ?? truncateAddress(p.address)}
-                          </span>
-                          {isMe && (
-                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
-                              YOU
+                      {(() => {
+                        const displayName = usernames[p.address.toLowerCase()] ?? p.name;
+                        return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{
+                              fontSize: displayName ? 13 : 12,
+                              fontWeight: isMe ? 700 : 500,
+                              color: isMe ? "#b9e7f4" : displayName ? "#e2e8f0" : "#94a3b8",
+                              fontFamily: displayName ? "inherit" : "monospace",
+                              letterSpacing: displayName ? 0.3 : 0.5,
+                            }}>
+                              {displayName ?? truncateAddress(p.address)}
+                            </span>
+                            {isMe && (
+                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
+                                YOU
+                              </span>
+                            )}
+                          </div>
+                          {displayName && (
+                            <span style={{ fontSize: 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
+                              {truncateAddress(p.address)}
                             </span>
                           )}
                         </div>
-                        {p.name && (
-                          <span style={{ fontSize: 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
-                            {truncateAddress(p.address)}
-                          </span>
-                        )}
-                      </div>
+                        );
+                      })()}
 
                       {/* Points */}
                       <span style={{ fontSize: 14, fontWeight: 800, color: "#f1f5f9" }}>
