@@ -219,7 +219,7 @@ export default function Loadout() {
           </div>
 
           {/* Round + score */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 14px", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6 }}>
+          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 10, padding: "5px 14px", background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 2 }}>Round {roundNumber}</span>
             <div style={{ width: 1, height: 14, backgroundColor: "rgba(255,255,255,0.12)" }} />
             <span style={{ fontSize: 16, fontWeight: 800, color: "#56a4cb", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>{playerRoundsWon}</span>
@@ -615,9 +615,14 @@ export default function Loadout() {
               )}
             </div>
 
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
-              ⚡ {usedEnergy} / {maxEnergy}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
+                CARDS: {filledSlots} / 5
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
+                ⚡ {usedEnergy} / {maxEnergy}
+              </span>
+            </div>
             <div style={{ width: 120, height: 8, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(90,191,230,0.3)", overflow: "hidden" }}>
               <div style={{
                 height: "100%",
@@ -657,6 +662,16 @@ export default function Loadout() {
                       <img src={card.image} alt={card.name} style={{
                         position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                       }} />
+                      {/* Name gradient background */}
+                      <div style={{
+                        position: "absolute", bottom: 0, left: 0, right: 0,
+                        background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent)",
+                        padding: "20px 4px 6px 4px", textAlign: "center"
+                      }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.5, textShadow: "0 1px 4px #000" }}>
+                          {card.name}
+                        </span>
+                      </div>
                       <div style={{
                         position: "absolute", top: 4, right: 4,
                         width: 20, height: 20, borderRadius: "50%",

@@ -654,7 +654,11 @@ export default function Gameplay() {
         {/* Abort / Back button */}
         {!isMatchEnd && (
           <button
-            onClick={handleBackToMenu}
+            onClick={() => {
+              if (window.confirm("Are you sure you want to quit? This will abandon the match.")) {
+                handleBackToMenu();
+              }
+            }}
             style={{
               position: "absolute", bottom: 16, left: 32, zIndex: 20,
               display: "flex", alignItems: "center", gap: 6,
