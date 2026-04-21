@@ -234,8 +234,8 @@ export default function ActionOrderLandingPage() {
                 </div>
               </div>
 
-              {/* Center: live season badge */}
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 18px", border:"1px solid rgba(86,164,203,0.28)", borderRadius:4, background:"rgba(86,164,203,0.07)" }}>
+              {/* Center: live season badge — absolutely centered */}
+              <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", display:"flex", alignItems:"center", gap:8, padding:"6px 18px", border:"1px solid rgba(86,164,203,0.28)", borderRadius:4, background:"rgba(86,164,203,0.07)" }}>
                 <div style={{ width:6, height:6, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 6px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite" }} />
                 <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"#b9e7f4", textTransform:"uppercase" }}>SEASON 1 · ORDER ASCENSION · LIVE</span>
               </div>
@@ -243,6 +243,22 @@ export default function ActionOrderLandingPage() {
               {/* Right: wallet */}
               <WalletSection />
             </div>
+
+            {/* ── Tournament Live Banner ───────────────────────────── */}
+            <a href="/tournament" style={{
+              position:"absolute", left:0, right:0, top:62, height:36, zIndex:15,
+              display:"flex", alignItems:"center", justifyContent:"center", gap:14,
+              background:"linear-gradient(90deg, rgba(251,204,92,0.12) 0%, rgba(74,222,128,0.1) 50%, rgba(251,204,92,0.12) 100%)",
+              borderBottom:"1px solid rgba(251,204,92,0.35)",
+              textDecoration:"none",
+            }}>
+              <div style={{ width:6, height:6, borderRadius:"50%", background:"#fbbf24", boxShadow:"0 0 8px #fbbf24", animation:"ko-dot-pulse 1.2s ease-in-out infinite" }} />
+              <span style={{ fontSize:11, fontWeight:800, letterSpacing:2.5, color:"#fbbf24", textTransform:"uppercase" }}>🏆 TOURNAMENT LIVE</span>
+              <div style={{ width:1, height:16, background:"rgba(251,204,92,0.3)" }} />
+              <span style={{ fontSize:11, fontWeight:700, letterSpacing:2, color:"#4ade80", textTransform:"uppercase" }}>120,000 G$ PRIZE POOL</span>
+              <div style={{ width:1, height:16, background:"rgba(251,204,92,0.3)" }} />
+              <span style={{ fontSize:10, fontWeight:600, letterSpacing:1.5, color:"rgba(185,231,244,0.6)", textTransform:"uppercase" }}>REGISTER NOW →</span>
+            </a>
 
             {/* ── G$ Claim Banner ──────────────────────────────────── */}
             <Link href="/profile" style={{
@@ -312,22 +328,8 @@ export default function ActionOrderLandingPage() {
               </div>
             </div>
 
-            {/* ── Centre: Tournament CTA ────────────────────────────── */}
-            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:620, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
-              {/* Tournament live banner */}
-              <a href="/tournament" style={{
-                display:"flex", alignItems:"center", gap:10, padding:"8px 20px",
-                background:"linear-gradient(135deg, rgba(0,197,142,0.15), rgba(251,204,92,0.1))",
-                border:"1.5px solid rgba(251,204,92,0.6)", borderRadius:5, textDecoration:"none",
-                boxShadow:"0 0 18px rgba(251,204,92,0.2)",
-                animation:"ko-pulse 2.5s ease-in-out infinite",
-              }}>
-                <div style={{ width:7, height:7, borderRadius:"50%", background:"#fbbf24", boxShadow:"0 0 8px #fbbf24", animation:"ko-dot-pulse 1.2s ease-in-out infinite" }} />
-                <span style={{ fontSize:10, fontWeight:800, letterSpacing:2.5, color:"#fbbf24", textTransform:"uppercase" }}>🏆 TOURNAMENT LIVE</span>
-                <div style={{ width:1, height:14, background:"rgba(251,204,92,0.3)" }} />
-                <span style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, color:"#4ade80", textTransform:"uppercase" }}>120,000 G$ PRIZE POOL</span>
-                <span style={{ fontSize:9, color:"rgba(185,231,244,0.5)", letterSpacing:1 }}>→ REGISTER</span>
-              </a>
+            {/* ── Centre: CTA ───────────────────────────────────────── */}
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 14px", background:"rgba(86,164,203,0.1)", border:"1px solid rgba(86,164,203,0.3)", borderRadius:3 }}>
                 <div style={{ width:5, height:5, borderRadius:"50%", background:"#4ade80", animation:"ko-dot-pulse 1.5s ease-in-out infinite" }} />
                 <span style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>16-PLAYER BRACKET · WIN TO EARN G$</span>
