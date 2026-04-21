@@ -142,6 +142,10 @@ interface GameState {
     loadPreset: (index: number) => void;
     deletePreset: (index: number) => void;
     setOpponentCharacterFromServer: (charId: string) => void;
+
+    // Premium Cards
+    unlockedPremiumCards: string[];
+    purchaseCard: (cardId: string, price: number) => void;
     setPrecomputedFromServer: (slots: SlotResult[]) => void;
     setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar") => void;
     selectCharacter: (character: Character) => void;
@@ -205,6 +209,17 @@ export const useGameStore = create<GameState>()(
     ultimateUsed: false,
     playerTaunt: null,
     wagerMultiplier: 1,
+    unlockedPremiumCards: [],
+
+    purchaseCard: (cardId, price) => set((state) => {
+        if (state.playerPoints >= price && !state.unlockedPremiumCards.includes(cardId)) {
+            return {
+                playerPoints: state.playerPoints - price,
+                unlockedPremiumCards: [...state.unlockedPremiumCards, cardId],
+            };
+        }
+        return state;
+    }),
 
     activateUltimate: () => {
         const { ultimateUsed, selectedCharacter } = get();
@@ -273,7 +288,7 @@ export const useGameStore = create<GameState>()(
             (c) => c.id !== selectedCharacter?.id && !c.isLocked
         );
         const opponent = available[Math.floor(Math.random() * available.length)];
-        const deck = buildDeck();
+        const deck = buildDeck(get().unlockedPremiumCards);
 
         // Energy pool from character's drainStat
         const maxEnergy = selectedCharacter ? calcEnergyPool(selectedCharacter) : 10;

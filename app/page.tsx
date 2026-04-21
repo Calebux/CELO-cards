@@ -136,12 +136,14 @@ export default function ActionOrderLandingPage() {
         .ko-btn-join .ko-btn-label,
         .ko-btn-tournament .ko-btn-label,
         .ko-btn-community .ko-btn-label,
+        .ko-btn-market .ko-btn-label,
         .ko-btn-leaderboard .ko-btn-label,
         .ko-btn-profile .ko-btn-label,
         .ko-btn-challenges .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
         .ko-btn-join .ko-btn-icon,
         .ko-btn-tournament .ko-btn-icon,
         .ko-btn-community .ko-btn-icon,
+        .ko-btn-market .ko-btn-icon,
         .ko-btn-leaderboard .ko-btn-icon,
         .ko-btn-profile .ko-btn-icon,
         .ko-btn-challenges .ko-btn-icon { color: #56a4cb; }
@@ -315,7 +317,12 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
-            <div className="ko-points-badge" style={{ top: 652 }}>
+            <Link className="ko-nav-btn ko-btn-market" href="/lobby" style={{ left: 40, top: 652 }}>
+              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+              <span className="ko-btn-label">BLACK MARKET</span>
+            </Link>
+
+            <div className="ko-points-badge" style={{ top: 708 }}>
               <span style={{ fontSize:16, flexShrink:0 }}>⚡</span>
               <div style={{ display:"flex", flexDirection:"column" }}>
                 <span className="ko-points-label">Total Points</span>
