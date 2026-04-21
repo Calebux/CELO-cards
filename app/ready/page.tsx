@@ -178,8 +178,8 @@ export default function ReadyYourDeck() {
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
                 }}
               >
-                <span className="material-icons" style={{ fontSize: 20 }}>person</span>
-                ENTER SOLO
+                <span className="material-icons" style={{ fontSize: 20 }}>group</span>
+                PROCEED TO MATCH
                 <span className="material-icons" style={{ fontSize: 18 }}>arrow_forward_ios</span>
               </button>
 

@@ -466,9 +466,8 @@ export default function Gameplay() {
           to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);    }
         }
         @keyframes popIn {
-          0%   { opacity: 0; transform: scale(0.8) translateY(20px) rotateX(-20deg); }
-          60%  { opacity: 1; transform: scale(1.05) translateY(-5px) rotateX(10deg); }
-          100% { opacity: 1; transform: scale(1) translateY(0) rotateX(0); }
+          0%   { opacity: 0; transform: scale(0.95) translateY(10px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
         }
       ` }} />
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", willChange: "transform" }}>
@@ -813,7 +812,7 @@ export default function Gameplay() {
               display: "flex", alignItems: "center", gap: 40,
               backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)",
               border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "20px 40px",
-              animation: "popIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards",
+              animation: "popIn 0.3s ease-out forwards",
               transformOrigin: "center center"
             }}>
               {/* Last revealed slot result */}
