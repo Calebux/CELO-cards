@@ -129,6 +129,7 @@ export default function WeeklyChallengePage() {
   const { address } = useAccount();
 
   const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [rank, setRank] = useState<number | null>(null);
   const [points, setPoints] = useState<number | null>(null);
@@ -169,6 +170,7 @@ export default function WeeklyChallengePage() {
 
   // Fetch leaderboard
   const fetchLeaderboard = useCallback(() => {
+    setIsLoading(true);
     fetch("/api/leaderboard?tab=ranked&limit=10")
       .then((r) => r.json())
       .then((data: { players: LeaderboardPlayer[] }) => {
@@ -182,7 +184,8 @@ export default function WeeklyChallengePage() {
             .then((u: { map: Record<string, string> }) => setUsernames(u.map ?? {}));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
@@ -343,7 +346,20 @@ export default function WeeklyChallengePage() {
               </div>
               
               <div style={{ overflowY: "auto", flex: 1 }}>
-                {players.length === 0 ? (
+                {isLoading ? (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.05)", animation: "pulse 1.5s infinite" }} />
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ width: "40%", height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+                          <div style={{ width: "25%", height: 8, background: "rgba(255,255,255,0.04)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+                        </div>
+                        <div style={{ width: 40, height: 16, background: "rgba(255,255,255,0.05)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : players.length === 0 ? (
                   <div style={{ padding: "32px 20px", textAlign: "center", color: "#334155", fontSize: 12 }}>
                     No ranked matches yet — be the first to compete.
                   </div>

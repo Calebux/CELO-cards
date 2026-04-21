@@ -36,7 +36,7 @@ export default function SelectCharacter() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
   const router = useRouter();
-  const { selectCharacter, startMatch, playerAddress, playerRole, matchId } = useGameStore();
+  const { selectCharacter, startMatch, playerAddress, playerRole, matchId, vsBot } = useGameStore();
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -96,7 +96,11 @@ export default function SelectCharacter() {
         body: JSON.stringify({ role: playerRole, characterId: activeChar.id }),
       });
     }
-    router.push("/lobby");
+    if (vsBot) {
+      router.push("/loadout");
+    } else {
+      router.push("/lobby");
+    }
   };
 
   return (

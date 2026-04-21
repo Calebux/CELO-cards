@@ -7,7 +7,7 @@ import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
-import { SoundSettings } from "../components/SoundSettings";
+import { SoundSettings, SoundSettingsButton } from "../components/SoundSettings";
 import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
@@ -465,6 +465,11 @@ export default function Gameplay() {
           from { opacity: 0; transform: translateX(-50%) translateY(24px) scale(0.88); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);    }
         }
+        @keyframes popIn {
+          0%   { opacity: 0; transform: scale(0.8) translateY(20px) rotateX(-20deg); }
+          60%  { opacity: 1; transform: scale(1.05) translateY(-5px) rotateX(10deg); }
+          100% { opacity: 1; transform: scale(1) translateY(0) rotateX(0); }
+        }
       ` }} />
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", willChange: "transform" }}>
 
@@ -652,28 +657,30 @@ export default function Gameplay() {
           </div>
         </div>
 
-        {/* Abort / Back button */}
-        {!isMatchEnd && (
-          <button
-            onClick={() => {
-              if (window.confirm("Are you sure you want to quit? This will abandon the match.")) {
-                handleBackToMenu();
-              }
-            }}
-            style={{
-              position: "absolute", bottom: 16, left: 32, zIndex: 20,
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "6px 14px",
-              background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
-              backdropFilter: "blur(6px)",
-              transition: "all 0.2s ease",
-            }}
-          >
-            <span className="material-icons" style={{ fontSize: 14, color: "#6b7280" }}>arrow_back</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>QUIT</span>
-          </button>
-        )}
+        {/* Bottom Left Controls */}
+        <div style={{ position: "absolute", bottom: 16, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
+          <SoundSettingsButton />
+          {!isMatchEnd && (
+            <button
+              onClick={() => {
+                if (window.confirm("Are you sure you want to quit? This will abandon the match.")) {
+                  handleBackToMenu();
+                }
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "6px 14px",
+                background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
+                backdropFilter: "blur(6px)",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <span className="material-icons" style={{ fontSize: 14, color: "#6b7280" }}>arrow_back</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>QUIT</span>
+            </button>
+          )}
+        </div>
 
         {/* ── HUD ──────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 16, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
@@ -802,10 +809,12 @@ export default function Gameplay() {
 
           {/* Current Slot Display */}
           {slotResults.length > 0 && (
-            <div style={{
+            <div key={slotResults.length} style={{
               display: "flex", alignItems: "center", gap: 40,
               backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)",
               border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "20px 40px",
+              animation: "popIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards",
+              transformOrigin: "center center"
             }}>
               {/* Last revealed slot result */}
               {(() => {
