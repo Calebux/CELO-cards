@@ -343,7 +343,7 @@ export default function ActionOrderLandingPage() {
                 <span style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>16-PLAYER BRACKET · WIN TO EARN G$</span>
               </div>
               <div style={{ display:"flex", gap:12 }}>
-                <Link href="/lobby" style={{
+                <Link href="/black-market" style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
                   border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",

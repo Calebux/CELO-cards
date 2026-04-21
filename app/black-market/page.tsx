@@ -62,10 +62,16 @@ export default function BlackMarket() {
 
         {/* Top bar */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(255,0,0,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,0,0,0.8)", zIndex: 10 }}>
-          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
-            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #ef4444, #f87171)", borderRadius: 2 }} />
-            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#f87171", textTransform: "uppercase" }}>ACTION ORDER</span>
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: 1, color: "#f87171", textTransform: "uppercase" }}>BACK</span>
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #ef4444, #f87171)", borderRadius: 2 }} />
+              <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#f87171", textTransform: "uppercase", opacity: 0.8 }}>ACTION ORDER</span>
+            </div>
+          </div>
 
           <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8, padding: "5px 16px", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 4, background: "rgba(239,68,68,0.1)" }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#fca5a5", textTransform: "uppercase" }}>BLACK MARKET</span>
