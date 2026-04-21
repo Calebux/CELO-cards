@@ -527,6 +527,24 @@ export const useGameStore = create<GameState>()(
     {
       name: "action-order-store",
       partialize: (state) => ({
+        // Game flow state — survives reloads so you don't lose progress mid-match
+        matchId: state.matchId,
+        playerRole: state.playerRole,
+        selectedCharacter: state.selectedCharacter,
+        opponentCharacter: state.opponentCharacter,
+        matchPhase: state.matchPhase,
+        vsBot: state.vsBot,
+        aiDifficulty: state.aiDifficulty,
+        wagerActive: state.wagerActive,
+        wagerTxHash: state.wagerTxHash,
+        wagerCurrency: state.wagerCurrency,
+        wagerAmountInput: state.wagerAmountInput,
+        roundNumber: state.roundNumber,
+        playerRoundsWon: state.playerRoundsWon,
+        opponentRoundsWon: state.opponentRoundsWon,
+        maxEnergy: state.maxEnergy,
+
+        // Persistent stats & history
         playerPoints: state.playerPoints,
         matchesPlayed: state.matchesPlayed,
         matchesWon: state.matchesWon,
