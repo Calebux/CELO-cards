@@ -317,7 +317,7 @@ export default function TournamentPage() {
                 label: "PRIZE POOL",
                 value: tournament?.prizePool && tournament.prizePool !== "0"
                   ? `${(Number(BigInt(tournament.prizePool)) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 0 })} G$`
-                  : "700,000 G$",
+                  : "120,000 G$",
                 color: "#4ade80",
               },
               {
