@@ -154,6 +154,7 @@ interface GameState {
     finishRound: () => void;
     nextRound: () => void;
     resetMatch: () => void;
+    rematch: () => void;
 }
 
 export const useGameStore = create<GameState>()(
@@ -399,16 +400,16 @@ export const useGameStore = create<GameState>()(
         if (result.roundWinner === "player") pWon++;
         if (result.roundWinner === "opponent") oWon++;
 
-        const isMatchEnd = pWon >= 2 || oWon >= 2;
+        const isMatchEnd = pWon >= 3 || oWon >= 3;
 
         const slotWins = result.slots.filter((s: SlotResult) => s.winner === "player").length;
         let earned = slotWins * 10;
         if (result.roundWinner === "player") earned += 50;
-        if (isMatchEnd && pWon >= 2) earned += 100;
+        if (isMatchEnd && pWon >= 3) earned += 100;
 
         // Update match history counters and streak when the match concludes
-        const matchWon = isMatchEnd && pWon >= 2;
-        const matchLost = isMatchEnd && oWon >= 2;
+        const matchWon = isMatchEnd && pWon >= 3;
+        const matchLost = isMatchEnd && oWon >= 3;
 
         let newWinStreak = winStreak;
         let newLossStreak = lossStreak;
@@ -523,10 +524,58 @@ export const useGameStore = create<GameState>()(
             currentMatchRounds: [],
         }));
     },
+
+    rematch: () => {
+        const { selectedCharacter, opponentCharacter } = get();
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+        const deck = buildDeck();
+        const maxEnergy = selectedCharacter ? calcEnergyPool(selectedCharacter) : 10;
+        set({
+            playerDeck: deck,
+            currentOrder: [null, null, null, null, null],
+            opponentOrder: [],
+            matchPhase: "loadout",
+            roundNumber: 1,
+            playerRoundsWon: 0,
+            opponentRoundsWon: 0,
+            currentRoundResult: null,
+            precomputedRound: null,
+            revealedSlots: 0,
+            matchId: `AO-${suffix}`,
+            maxEnergy,
+            pointsThisRound: 0,
+            wagerActive: false,
+            wagerTxHash: null,
+            opponentWagered: false,
+            ultimateActivated: false,
+            ultimateUsed: false,
+            playerTaunt: null,
+            wagerMultiplier: 1,
+            currentMatchRounds: [],
+        });
+    },
     }),
     {
       name: "action-order-store",
       partialize: (state) => ({
+        // Game flow state — survives reloads so you don't lose progress mid-match
+        matchId: state.matchId,
+        playerRole: state.playerRole,
+        selectedCharacter: state.selectedCharacter,
+        opponentCharacter: state.opponentCharacter,
+        matchPhase: state.matchPhase,
+        vsBot: state.vsBot,
+        aiDifficulty: state.aiDifficulty,
+        wagerActive: state.wagerActive,
+        wagerTxHash: state.wagerTxHash,
+        wagerCurrency: state.wagerCurrency,
+        wagerAmountInput: state.wagerAmountInput,
+        roundNumber: state.roundNumber,
+        playerRoundsWon: state.playerRoundsWon,
+        opponentRoundsWon: state.opponentRoundsWon,
+        maxEnergy: state.maxEnergy,
+
+        // Persistent stats & history
         playerPoints: state.playerPoints,
         matchesPlayed: state.matchesPlayed,
         matchesWon: state.matchesWon,

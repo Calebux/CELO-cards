@@ -12,7 +12,7 @@ const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 export default function ActionOrderLandingPage() {
-  const playerPoints = useGameStore((s) => s.playerPoints);
+  const { playerPoints, winStreak } = useGameStore();
   const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -151,7 +151,7 @@ export default function ActionOrderLandingPage() {
         /* ── Points badge ─────────────────────────────── */
         .ko-points-badge {
           position: absolute; left: 40px; top: 596px;
-          width: 180px; height: 44px; z-index: 15;
+          min-width: 180px; height: 44px; z-index: 15;
           display: flex; align-items: center; gap: 10px; padding: 0 16px;
           background: linear-gradient(135deg,rgba(15,23,42,0.9),rgba(168,85,247,0.15));
           border: 1px solid rgba(168,85,247,0.45); border-radius: 6px;
@@ -321,6 +321,15 @@ export default function ActionOrderLandingPage() {
                 <span className="ko-points-label">Total Points</span>
                 <span className="ko-points-value">{playerPoints.toLocaleString()}</span>
               </div>
+              {winStreak > 1 && (
+                <>
+                  <div style={{ width:1, height:24, background:"rgba(168,85,247,0.3)", marginLeft:8, marginRight:8 }} />
+                  <div style={{ display:"flex", flexDirection:"column" }}>
+                    <span className="ko-points-label" style={{ color: "#f97316" }}>Win Streak</span>
+                    <span className="ko-points-value" style={{ color: "#f97316", textShadow: "0 0 12px rgba(249,115,22,0.6)" }}>🔥 {winStreak}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Live player count — bottom right */}

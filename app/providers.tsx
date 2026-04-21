@@ -9,6 +9,7 @@ import { WalletSync } from "./lib/wallet";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
 
+
 const { connectors } = getDefaultWallets({
   appName: "Action Order",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "action-order",

@@ -7,7 +7,7 @@ import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
-import { SoundSettings } from "../components/SoundSettings";
+import { SoundSettings, SoundSettingsButton } from "../components/SoundSettings";
 import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
@@ -36,6 +36,7 @@ export default function Gameplay() {
     finishRound,
     nextRound,
     resetMatch,
+    rematch,
     currentRoundResult,
     matchPhase,
     playerPoints,
@@ -464,6 +465,11 @@ export default function Gameplay() {
           from { opacity: 0; transform: translateX(-50%) translateY(24px) scale(0.88); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);    }
         }
+        @keyframes popIn {
+          0%   { opacity: 0; transform: scale(0.8) translateY(20px) rotateX(-20deg); }
+          60%  { opacity: 1; transform: scale(1.05) translateY(-5px) rotateX(10deg); }
+          100% { opacity: 1; transform: scale(1) translateY(0) rotateX(0); }
+        }
       ` }} />
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", willChange: "transform" }}>
 
@@ -651,6 +657,31 @@ export default function Gameplay() {
           </div>
         </div>
 
+        {/* Bottom Left Controls */}
+        <div style={{ position: "absolute", bottom: 16, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
+          <SoundSettingsButton />
+          {!isMatchEnd && (
+            <button
+              onClick={() => {
+                if (window.confirm("Are you sure you want to quit? This will abandon the match.")) {
+                  handleBackToMenu();
+                }
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "6px 14px",
+                background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
+                backdropFilter: "blur(6px)",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <span className="material-icons" style={{ fontSize: 14, color: "#6b7280" }}>arrow_back</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>QUIT</span>
+            </button>
+          )}
+        </div>
+
         {/* ── HUD ──────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 16, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
 
@@ -778,10 +809,12 @@ export default function Gameplay() {
 
           {/* Current Slot Display */}
           {slotResults.length > 0 && (
-            <div style={{
+            <div key={slotResults.length} style={{
               display: "flex", alignItems: "center", gap: 40,
               backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)",
               border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "20px 40px",
+              animation: "popIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards",
+              transformOrigin: "center center"
             }}>
               {/* Last revealed slot result */}
               {(() => {
@@ -1416,12 +1449,19 @@ export default function Gameplay() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
-                    {/* Play Again — primary */}
+                    {/* Rematch — same opponent */}
+                    <button
+                      onClick={() => { rematch(); router.push("/loadout"); }}
+                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
+                    >
+                      🔄 REMATCH
+                    </button>
+                    {/* Play Again — new character */}
                     <button
                       onClick={() => { resetMatch(); router.push("/select-character"); }}
-                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(86,164,203,0.2)" }}
+                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 12, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" }}
                     >
-                      ⚔ PLAY AGAIN
+                      NEW MATCH
                     </button>
                     {/* Next Opponent — win only */}
                     {won && (
@@ -1436,7 +1476,7 @@ export default function Gameplay() {
                           color: "#4ade80", textTransform: "uppercase",
                         }}
                       >
-                        NEXT OPPONENT ▶
+                        NEXT ▶
                       </button>
                     )}
                     {/* Share card */}

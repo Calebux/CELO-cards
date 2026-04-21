@@ -35,7 +35,7 @@ export function charToCombat(c: Character): CombatChar {
 }
 
 export function calcEnergyPool(c: Character): number {
-    return Math.round(4 + (c.drainStat / 100) * 6);
+    return Math.round(7 + (c.drainStat / 100) * 6);
 }
 
 const DEFAULT_CHAR: CombatChar = { knockMult: 1, priorityBonus: 0 };

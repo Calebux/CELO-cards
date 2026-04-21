@@ -129,6 +129,7 @@ export default function WeeklyChallengePage() {
   const { address } = useAccount();
 
   const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [rank, setRank] = useState<number | null>(null);
   const [points, setPoints] = useState<number | null>(null);
@@ -169,6 +170,7 @@ export default function WeeklyChallengePage() {
 
   // Fetch leaderboard
   const fetchLeaderboard = useCallback(() => {
+    setIsLoading(true);
     fetch("/api/leaderboard?tab=ranked&limit=10")
       .then((r) => r.json())
       .then((data: { players: LeaderboardPlayer[] }) => {
@@ -182,7 +184,8 @@ export default function WeeklyChallengePage() {
             .then((u: { map: Record<string, string> }) => setUsernames(u.map ?? {}));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
@@ -332,55 +335,91 @@ export default function WeeklyChallengePage() {
         {/* ── Main content: leaderboard + sidebar ──────────────────────── */}
         <div style={{ position: "absolute", top: 306, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-          {/* Live Leaderboard */}
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(86,164,203,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase" }}>LIVE STANDINGS — TOP 10</div>
-              <div style={{ fontSize: 10, color: "#475569", letterSpacing: 1 }}>POINTS THIS WEEK</div>
+          {/* Left column: Live Leaderboard + How It Works below */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
+
+            {/* Live Leaderboard */}
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, overflow: "hidden", maxHeight: 480, display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(86,164,203,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase" }}>LIVE STANDINGS — TOP 10</div>
+                <div style={{ fontSize: 10, color: "#475569", letterSpacing: 1 }}>POINTS THIS WEEK</div>
+              </div>
+              
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                {isLoading ? (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.05)", animation: "pulse 1.5s infinite" }} />
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ width: "40%", height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+                          <div style={{ width: "25%", height: 8, background: "rgba(255,255,255,0.04)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+                        </div>
+                        <div style={{ width: 40, height: 16, background: "rgba(255,255,255,0.05)", borderRadius: 4, animation: "pulse 1.5s infinite" }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : players.length === 0 ? (
+                  <div style={{ padding: "32px 20px", textAlign: "center", color: "#334155", fontSize: 12 }}>
+                    No ranked matches yet — be the first to compete.
+                  </div>
+                ) : (
+                  <div>
+                    {players.map((p, i) => {
+                    const isFirst = i === 0;
+                    const isMe = address && p.address.toLowerCase() === address.toLowerCase();
+                    const rankColor = i === 0 ? "#f59e0b" : i === 1 ? "#94a3b8" : i === 2 ? "#cd7c3a" : "#475569";
+                    return (
+                      <div key={p.address} style={{
+                        display: "flex", alignItems: "center", gap: 14, padding: "13px 20px",
+                        background: isFirst ? "rgba(251,204,92,0.04)" : isMe ? "rgba(86,164,203,0.07)" : "transparent",
+                        borderBottom: "1px solid rgba(255,255,255,0.03)",
+                      }}>
+                        <div style={{ width: 28, textAlign: "center", fontSize: isFirst ? 18 : 13, fontWeight: 900, color: rankColor, flexShrink: 0 }}>
+                          {i === 0 ? "👑" : `#${i + 1}`}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isMe ? "#b9e7f4" : "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {displayName(p.address)}
+                            {isMe && <span style={{ marginLeft: 6, fontSize: 10, color: "#4ade80", fontWeight: 800 }}>YOU</span>}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#475569", marginTop: 1, fontFamily: "monospace" }}>
+                            {p.address.slice(0, 6)}…{p.address.slice(-4)}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 16, alignItems: "center", flexShrink: 0 }}>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: isFirst ? "#f59e0b" : "#94a3b8" }}>{p.points.toLocaleString()}</div>
+                            <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>PTS</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#4ade80" }}>{p.wins}W</div>
+                            <div style={{ fontSize: 9, color: "#475569" }}>{p.losses}L</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  </div>
+                )}
+              </div>
             </div>
-            {players.length === 0 ? (
-              <div style={{ padding: "32px 20px", textAlign: "center", color: "#334155", fontSize: 12 }}>
-                No ranked matches yet — be the first to compete.
+
+            {/* ── How It Works — directly below leaderboard ────────────── */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 14 }}>HOW IT WORKS</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+                {HOW_IT_WORKS.map((item) => (
+                  <div key={item.step} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${item.color}28`, borderRadius: 8, padding: "16px 14px", position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: -6, right: 10, fontSize: 48, fontWeight: 900, color: `${item.color}0d`, letterSpacing: -2, lineHeight: 1, userSelect: "none" }}>{item.step}</div>
+                    <div style={{ fontSize: 20, marginBottom: 6 }}>{item.icon}</div>
+                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: item.color, textTransform: "uppercase", marginBottom: 4 }}>{item.step} · {item.title}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>{item.body}</div>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div>
-                {players.map((p, i) => {
-                  const isFirst = i === 0;
-                  const isMe = address && p.address.toLowerCase() === address.toLowerCase();
-                  const rankColor = i === 0 ? "#f59e0b" : i === 1 ? "#94a3b8" : i === 2 ? "#cd7c3a" : "#475569";
-                  return (
-                    <div key={p.address} style={{
-                      display: "flex", alignItems: "center", gap: 14, padding: "13px 20px",
-                      background: isFirst ? "rgba(251,204,92,0.04)" : isMe ? "rgba(86,164,203,0.07)" : "transparent",
-                      borderBottom: "1px solid rgba(255,255,255,0.03)",
-                    }}>
-                      <div style={{ width: 28, textAlign: "center", fontSize: isFirst ? 18 : 13, fontWeight: 900, color: rankColor, flexShrink: 0 }}>
-                        {i === 0 ? "👑" : `#${i + 1}`}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: isMe ? "#b9e7f4" : "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {displayName(p.address)}
-                          {isMe && <span style={{ marginLeft: 6, fontSize: 10, color: "#4ade80", fontWeight: 800 }}>YOU</span>}
-                        </div>
-                        <div style={{ fontSize: 10, color: "#475569", marginTop: 1, fontFamily: "monospace" }}>
-                          {p.address.slice(0, 6)}…{p.address.slice(-4)}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 16, alignItems: "center", flexShrink: 0 }}>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: isFirst ? "#f59e0b" : "#94a3b8" }}>{p.points.toLocaleString()}</div>
-                          <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>PTS</div>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "#4ade80" }}>{p.wins}W</div>
-                          <div style={{ fontSize: 9, color: "#475569" }}>{p.losses}L</div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            </div>
+
           </div>
 
           {/* Sidebar: player status + username + CTA */}
@@ -468,21 +507,6 @@ export default function WeeklyChallengePage() {
               style={{ width: "100%", height: 44, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 13, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}>
               FULL LEADERBOARD
             </button>
-          </div>
-        </div>
-
-        {/* ── How It Works ─────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 820, left: 64, right: 64 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 14 }}>HOW IT WORKS</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-            {HOW_IT_WORKS.map((item) => (
-              <div key={item.step} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${item.color}28`, borderRadius: 8, padding: "18px 16px", position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", top: -6, right: 10, fontSize: 56, fontWeight: 900, color: `${item.color}0d`, letterSpacing: -2, lineHeight: 1, userSelect: "none" }}>{item.step}</div>
-                <div style={{ fontSize: 22, marginBottom: 8 }}>{item.icon}</div>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: item.color, textTransform: "uppercase", marginBottom: 6 }}>{item.step} · {item.title}</div>
-                <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7 }}>{item.body}</div>
-              </div>
-            ))}
           </div>
         </div>
 

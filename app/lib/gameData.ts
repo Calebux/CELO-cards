@@ -130,16 +130,16 @@ export const CHARACTERS: Character[] = [
 // Reverse images exist for when the same pair fights with swapped roles.
 export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     kaira: {
-        kenji: "/arena-backgrounds/arena_kaira_kenji.webp",
+        kenji: "/arena-backgrounds/arena_kaira_kenji_new.webp",
         riven: "/arena-backgrounds/arena_kaira_riven.webp",
         zane:  "/arena-backgrounds/arena_kaira_zane.webp",
-        elara: "/arena-backgrounds/arena_kaira_riven.webp",
+        elara: "/arena-backgrounds/arena_kaira_elara.jpg",
     },
     kenji: {
-        kaira: "/arena-backgrounds/arena_kenji_kaira.webp",
+        kaira: "/arena-backgrounds/arena_kenji_kaira_new.webp",
         riven: "/arena-backgrounds/arena_kenji_riven.webp",
         zane:  "/arena-backgrounds/arena_kenji_zane.webp",
-        elara: "/Characters standing/kenji_new.webp",
+        elara: "/arena-backgrounds/arena_kenji_elara.webp",
     },
     riven: {
         kaira: "/arena-backgrounds/arena_riven_kaira.webp",
@@ -156,8 +156,8 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     elara: {
         riven: "/arena-backgrounds/arena_elara_riven.webp",
         zane:  "/arena-backgrounds/arena_zane_elara.webp",
-        kaira: "/arena-backgrounds/arena_kaira_riven.webp",
-        kenji: "/Characters standing/elara_kenji_vs.webp",
+        kaira: "/arena-backgrounds/arena_elara_kaira.jpg",
+        kenji: "/arena-backgrounds/arena_elara_kenji.webp",
     },
 };
 
@@ -261,7 +261,7 @@ export const CARDS: Card[] = [
         type: "defense",
         priority: 3,
         knock: 3,
-        energyCost: 4,
+        energyCost: 3,
         effect: "Reflect incoming strike damage back",
         color: "#06b6d4",
         bgColor: "#164e63",
@@ -287,7 +287,7 @@ export const CARDS: Card[] = [
         type: "control",
         priority: 4,
         knock: 3,
-        energyCost: 3,
+        energyCost: 2,
         effect: "The threat you fear is never the real one. Baits blocks and disrupts reads.",
         color: "#a855f7",
         bgColor: "#3b0764",
@@ -337,7 +337,7 @@ export const CARDS: Card[] = [
         type: "strike",
         priority: 1,
         knock: 9,
-        energyCost: 4,
+        energyCost: 3,
         effect: "Consumed by abyssal fury. Strikes with catastrophic, unyielding force that crushes all defense.",
         color: "#ef4444",
         bgColor: "#450a0a",
@@ -373,7 +373,7 @@ export const CARDS: Card[] = [
         type: "strike",
         priority: 2,
         knock: 2,
-        energyCost: 3,
+        energyCost: 2,
         effect: "An unstoppable human javelin. Guarantees piercing damage that cannot be shielded.",
         color: "#93c5fd",
         bgColor: "#1e3a5f",

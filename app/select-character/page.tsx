@@ -36,7 +36,7 @@ export default function SelectCharacter() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
   const router = useRouter();
-  const { selectCharacter, startMatch, playerAddress, playerRole, matchId } = useGameStore();
+  const { selectCharacter, startMatch, playerAddress, playerRole, matchId, vsBot } = useGameStore();
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -71,11 +71,19 @@ export default function SelectCharacter() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Countdown timer
+  // Countdown timer — auto-lock when it runs out
   useEffect(() => {
     if (timer <= 0) return;
     const t = setInterval(() => setTimer((p) => Math.max(0, p - 1)), 1000);
     return () => clearInterval(t);
+  }, [timer]);
+
+  // Auto-lock when timer expires
+  useEffect(() => {
+    if (timer === 0) {
+      void handleLock();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timer]);
 
   const handleLock = async () => {
@@ -88,7 +96,11 @@ export default function SelectCharacter() {
         body: JSON.stringify({ role: playerRole, characterId: activeChar.id }),
       });
     }
-    router.push("/lobby");
+    if (vsBot) {
+      router.push("/loadout");
+    } else {
+      router.push("/lobby");
+    }
   };
 
   return (
@@ -108,7 +120,7 @@ export default function SelectCharacter() {
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
           </button>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>SELECT FIGHTER</div>
+          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>SELECT FIGHTER</div>
           <WalletSection />
         </div>
 
