@@ -399,7 +399,7 @@ export default function ActionOrderLandingPage() {
               <img className="ko-card-img" src="/new-assets/fighters-rooftop.jpeg" alt="Tournament" />
               <div className="ko-card-title">
                 <p style={{ color:"#fbbf24", fontSize:10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>TOURNAMENT</p>
-                <p>120,000 G$ PRIZE POOL — REGISTRATION OPEN</p>
+                <p>120K G$ PRIZE POOL · LIVE</p>
                 <p style={{ color:"#4ade80", fontSize:11 }}>TOP 4 WIN G$ STREAMS →</p>
               </div>
             </div>
