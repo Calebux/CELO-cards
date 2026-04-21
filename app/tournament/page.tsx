@@ -24,6 +24,7 @@ type TournamentState = {
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
+const DESIGN_CONTENT_H = 1540; // full page height including bracket
 
 const SPOTS = 16;
 
@@ -142,6 +143,7 @@ function WalletSection() {
 }
 
 export default function TournamentPage() {
+  const outerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address } = useAccount();
@@ -156,23 +158,23 @@ export default function TournamentPage() {
 
   useEffect(() => {
     const scale = () => {
-      if (!wrapRef.current) return;
+      if (!wrapRef.current || !outerRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
-      let transform: string;
       if (isPortrait) {
         const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
         const tx = vw / 2 + (DESIGN_H * s) / 2;
         const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+        wrapRef.current.style.transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+        outerRef.current.style.height = `${vh}px`;
       } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        // Scale to fit width; let height scroll
+        const s = vw / DESIGN_W;
         const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+        wrapRef.current.style.transform = `translate(${tx}px, 0px) scale(${s})`;
+        outerRef.current.style.height = `${DESIGN_CONTENT_H * s}px`;
       }
-      wrapRef.current.style.transform = transform;
     };
     scale();
     window.addEventListener("resize", scale);
@@ -263,7 +265,7 @@ export default function TournamentPage() {
   const qualified = rank !== null && rank <= SPOTS;
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div ref={outerRef} style={{ width: "100vw", overflowX: "hidden", overflowY: "auto", position: "relative", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
 
       {/* Background */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
