@@ -399,16 +399,16 @@ export const useGameStore = create<GameState>()(
         if (result.roundWinner === "player") pWon++;
         if (result.roundWinner === "opponent") oWon++;
 
-        const isMatchEnd = pWon >= 2 || oWon >= 2;
+        const isMatchEnd = pWon >= 3 || oWon >= 3;
 
         const slotWins = result.slots.filter((s: SlotResult) => s.winner === "player").length;
         let earned = slotWins * 10;
         if (result.roundWinner === "player") earned += 50;
-        if (isMatchEnd && pWon >= 2) earned += 100;
+        if (isMatchEnd && pWon >= 3) earned += 100;
 
         // Update match history counters and streak when the match concludes
-        const matchWon = isMatchEnd && pWon >= 2;
-        const matchLost = isMatchEnd && oWon >= 2;
+        const matchWon = isMatchEnd && pWon >= 3;
+        const matchLost = isMatchEnd && oWon >= 3;
 
         let newWinStreak = winStreak;
         let newLossStreak = lossStreak;

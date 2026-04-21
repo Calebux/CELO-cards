@@ -615,14 +615,9 @@ export default function Loadout() {
               )}
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
-                CARDS: {filledSlots} / 5
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
-                ⚡ {usedEnergy} / {maxEnergy}
-              </span>
-            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
+              ⚡ {usedEnergy} / {maxEnergy}
+            </span>
             <div style={{ width: 120, height: 8, borderRadius: 4, backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(90,191,230,0.3)", overflow: "hidden" }}>
               <div style={{
                 height: "100%",
