@@ -250,7 +250,7 @@ export default function ActionOrderLandingPage() {
 
             {/* ── Tournament Live Banner — centered, blinking ───────── */}
             <a href="/tournament" style={{
-              position:"absolute", left:"50%", transform:"translateX(-50%)", top:100, zIndex:15,
+              position:"absolute", left:"50%", transform:"translateX(-50%)", top:200, zIndex:15,
               display:"flex", alignItems:"center", gap:16, padding:"14px 28px",
               background:"linear-gradient(135deg, rgba(15,12,5,0.92), rgba(40,30,5,0.88))",
               border:"1.5px solid rgba(251,204,92,0.8)", borderRadius:8,
