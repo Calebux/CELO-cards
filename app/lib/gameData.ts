@@ -423,12 +423,12 @@ export const CARDS: Card[] = [
         effect: "A quick, brutal intercept to stagger the opponent.", color: "#d946ef", bgColor: "#701a75", image: "/cards/market/Headbutt.png", isPremium: true, price: 400
     },
     {
-        id: "darkness_repellent", name: "Darkness Repellent", type: "defense", priority: 7, knock: 0, energyCost: 3,
-        effect: "A perfect guard against all but the most unyielding strikes.", color: "#8b5cf6", bgColor: "#2e1065", image: "/cards/market/Darkness repellent.png", isPremium: true, price: 600
+        id: "darkness_repellent", name: "Darkness Repellant 2", type: "defense", priority: 7, knock: 0, energyCost: 3,
+        effect: "A perfect guard against all but the most unyielding strikes.", color: "#8b5cf6", bgColor: "#2e1065", image: "/cards/market/darkness_repellant_2.png", isPremium: true, price: 600
     },
     {
-        id: "no_drain", name: "No Drain", type: "control", priority: 5, knock: 4, energyCost: 1,
-        effect: "Disrupts the opponent without burning out your stamina.", color: "#4ade80", bgColor: "#052e16", image: "/cards/market/No drain.png", isPremium: true, price: 300
+        id: "no_drain", name: "No Drain 2", type: "control", priority: 5, knock: 4, energyCost: 1,
+        effect: "Disrupts the opponent without burning out your stamina.", color: "#4ade80", bgColor: "#052e16", image: "/cards/market/no_drain_2.png", isPremium: true, price: 300
     },
     {
         id: "bite", name: "Bite", type: "strike", priority: 6, knock: 3, energyCost: 1,
