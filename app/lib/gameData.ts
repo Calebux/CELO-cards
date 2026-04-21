@@ -130,13 +130,13 @@ export const CHARACTERS: Character[] = [
 // Reverse images exist for when the same pair fights with swapped roles.
 export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     kaira: {
-        kenji: "/arena-backgrounds/arena_kaira_kenji.webp",
+        kenji: "/arena-backgrounds/arena_kaira_kenji_new.webp",
         riven: "/arena-backgrounds/arena_kaira_riven.webp",
         zane:  "/arena-backgrounds/arena_kaira_zane.webp",
-        elara: "/arena-backgrounds/arena_kaira_riven.webp",
+        elara: "/arena-backgrounds/arena_kaira_elara.jpg",
     },
     kenji: {
-        kaira: "/arena-backgrounds/arena_kenji_kaira.webp",
+        kaira: "/arena-backgrounds/arena_kenji_kaira_new.webp",
         riven: "/arena-backgrounds/arena_kenji_riven.webp",
         zane:  "/arena-backgrounds/arena_kenji_zane.webp",
         elara: "/Characters standing/kenji_new.webp",
@@ -156,7 +156,7 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     elara: {
         riven: "/arena-backgrounds/arena_elara_riven.webp",
         zane:  "/arena-backgrounds/arena_zane_elara.webp",
-        kaira: "/arena-backgrounds/arena_kaira_riven.webp",
+        kaira: "/arena-backgrounds/arena_elara_kaira.jpg",
         kenji: "/Characters standing/elara_kenji_vs.webp",
     },
 };
@@ -390,6 +390,30 @@ export const CARDS: Card[] = [
         color: "#f97316",
         bgColor: "#431407",
         image: "/cards/aerial_spear_fist.webp",
+    },
+    {
+        id: "kaira_vs_kenji",
+        name: "Clash of Rivals",
+        type: "strike",
+        priority: 4,
+        knock: 7,
+        energyCost: 3,
+        effect: "A furious exchange of blows. Deals high damage but leaves you open.",
+        color: "#3b82f6",
+        bgColor: "#1e3a8a",
+        image: "/cards/kaira_kenji_clash.webp",
+    },
+    {
+        id: "kenji_and_kaira",
+        name: "Synchronised Strike",
+        type: "control",
+        priority: 2,
+        knock: 5,
+        energyCost: 2,
+        effect: "Overwhelm the opponent with perfect synergy.",
+        color: "#f59e0b",
+        bgColor: "#78350f",
+        image: "/cards/kenji_kaira_clash.webp",
     },
 
     // Wild card
