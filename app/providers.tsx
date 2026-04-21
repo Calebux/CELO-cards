@@ -8,6 +8,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { WalletSync } from "./lib/wallet";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
+import { SoundSettingsButton } from "./components/SoundSettings";
 
 const { connectors } = getDefaultWallets({
   appName: "Action Order",
@@ -33,6 +34,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <WalletSync />
           <PortraitOverlay />
           <DailyReward />
+          {/* Global floating sound toggle — bottom-right corner */}
+          <div style={{ position: "fixed", bottom: 16, right: 16, zIndex: 100 }}>
+            <SoundSettingsButton />
+          </div>
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

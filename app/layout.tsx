@@ -10,13 +10,22 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Action Order",
-  description: "On-chain card fighting game on Celo",
+  title: {
+    default: "Action Order — On-Chain Card Fighting Game on Celo",
+    template: "%s | Action Order",
+  },
+  description: "Action Order is an on-chain card fighting game built on Celo. Pick your fighter, arrange your cards, and battle for G$ rewards in ranked matches and tournaments.",
+  keywords: ["action order", "celo", "card game", "fighting game", "web3", "blockchain", "gooddollar", "on-chain game"],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Action Order",
+  },
+  openGraph: {
+    title: "Action Order — On-Chain Card Fighting Game",
+    description: "Pick your fighter, arrange your cards, and battle for G$ rewards on Celo.",
+    type: "website",
   },
 };
 

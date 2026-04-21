@@ -651,6 +651,25 @@ export default function Gameplay() {
           </div>
         </div>
 
+        {/* Abort / Back button */}
+        {!isMatchEnd && (
+          <button
+            onClick={handleBackToMenu}
+            style={{
+              position: "absolute", bottom: 16, left: 32, zIndex: 20,
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 14px",
+              background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
+              backdropFilter: "blur(6px)",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <span className="material-icons" style={{ fontSize: 14, color: "#6b7280" }}>arrow_back</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>QUIT</span>
+          </button>
+        )}
+
         {/* ── HUD ──────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 16, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
 
