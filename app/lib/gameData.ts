@@ -401,7 +401,7 @@ export const CARDS: Card[] = [
         effect: "A furious exchange of blows. Deals high damage but leaves you open.",
         color: "#3b82f6",
         bgColor: "#1e3a8a",
-        image: "/cards/kaira_kenji_clash.webp",
+        image: "/cards/kaira_vs_kenji.jpg",
     },
     {
         id: "kenji_and_kaira",
@@ -413,7 +413,7 @@ export const CARDS: Card[] = [
         effect: "Overwhelm the opponent with perfect synergy.",
         color: "#f59e0b",
         bgColor: "#78350f",
-        image: "/cards/kenji_kaira_clash.webp",
+        image: "/cards/kenji_and_kaira.jpg",
     },
 
     // Wild card
