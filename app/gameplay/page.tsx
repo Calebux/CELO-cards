@@ -465,7 +465,7 @@ export default function Gameplay() {
           to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);    }
         }
       ` }} />
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", willChange: "transform" }}>
 
         {/* VS loading screen — inside the canvas so it gets the portrait rotation */}
         {matchLoading && (
@@ -661,7 +661,7 @@ export default function Gameplay() {
               <span style={{ fontSize: 10, letterSpacing: "1px", fontWeight: 500, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{player?.className}</span>
             </div>
             <div style={{ position: "relative", height: 16, backgroundColor: "rgba(0,0,0,0.7)", border: "1px solid rgba(6,168,249,0.2)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ position: "absolute", inset: 0, width: `${(displayPlayerHP / maxHP) * 100}%`, background: "linear-gradient(90deg, #034e75 0%, #06a8f9 60%, #06d4f9 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)", transition: "width 0.8s ease" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, #034e75 0%, #06a8f9 60%, #06d4f9 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)", transform: `scaleX(${displayPlayerHP / maxHP})`, transformOrigin: "left center", transition: "transform 0.8s ease", willChange: "transform" }} />
               <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(90deg, transparent 0px, transparent 28px, rgba(0,0,0,0.15) 28px, rgba(0,0,0,0.15) 30px)" }} />
             </div>
             <div style={{ display: "flex", gap: 5, marginTop: 7 }}>
@@ -691,7 +691,7 @@ export default function Gameplay() {
               <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.5px", color: "white", textTransform: "uppercase", textShadow: `0 0 12px ${opponent?.color || "#f906a8"}99` }}>{opponent?.name || "OPPONENT"}</span>
             </div>
             <div style={{ position: "relative", height: 16, backgroundColor: "rgba(0,0,0,0.7)", border: `1px solid ${opponent?.color || "#f906a8"}33`, borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ position: "absolute", inset: 0, width: `${(displayOpponentHP / maxHP) * 100}%`, background: `linear-gradient(270deg, ${opponent?.color || "#f906a8"}88 0%, ${opponent?.color || "#f906a8"} 60%, ${opponent?.color || "#f906d4"} 100%)`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)", transition: "width 0.8s ease" }} />
+              <div style={{ position: "absolute", inset: 0, background: `linear-gradient(270deg, ${opponent?.color || "#f906a8"}88 0%, ${opponent?.color || "#f906a8"} 60%, ${opponent?.color || "#f906d4"} 100%)`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)", transform: `scaleX(${displayOpponentHP / maxHP})`, transformOrigin: "left center", transition: "transform 0.8s ease", willChange: "transform" }} />
               <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(90deg, transparent 0px, transparent 28px, rgba(0,0,0,0.15) 28px, rgba(0,0,0,0.15) 30px)" }} />
             </div>
             <div style={{ display: "flex", gap: 5, marginTop: 7, justifyContent: "flex-end" }}>
