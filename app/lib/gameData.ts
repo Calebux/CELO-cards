@@ -391,30 +391,6 @@ export const CARDS: Card[] = [
         bgColor: "#431407",
         image: "/cards/aerial_spear_fist.webp",
     },
-    {
-        id: "kaira_vs_kenji",
-        name: "Clash of Rivals",
-        type: "strike",
-        priority: 4,
-        knock: 7,
-        energyCost: 3,
-        effect: "A furious exchange of blows. Deals high damage but leaves you open.",
-        color: "#3b82f6",
-        bgColor: "#1e3a8a",
-        image: "/cards/kaira_vs_kenji.jpg",
-    },
-    {
-        id: "kenji_and_kaira",
-        name: "Synchronised Strike",
-        type: "control",
-        priority: 2,
-        knock: 5,
-        energyCost: 2,
-        effect: "Overwhelm the opponent with perfect synergy.",
-        color: "#f59e0b",
-        bgColor: "#78350f",
-        image: "/cards/kenji_and_kaira.jpg",
-    },
 
     // Wild card
     {
