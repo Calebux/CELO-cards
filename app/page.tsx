@@ -211,6 +211,10 @@ export default function ActionOrderLandingPage() {
         @keyframes ko-dot-pulse {
           0%,100% { opacity:1; } 50% { opacity:0.4; }
         }
+        @keyframes ko-tournament-blink {
+          0%,100% { box-shadow: 0 0 18px rgba(251,204,92,0.5), 0 0 40px rgba(251,204,92,0.2); border-color: rgba(251,204,92,0.9); }
+          50%     { box-shadow: 0 0 6px rgba(251,204,92,0.2), 0 0 12px rgba(251,204,92,0.05); border-color: rgba(251,204,92,0.4); }
+        }
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
@@ -244,20 +248,22 @@ export default function ActionOrderLandingPage() {
               <WalletSection />
             </div>
 
-            {/* ── Tournament Live Banner ───────────────────────────── */}
+            {/* ── Tournament Live Banner — centered, blinking ───────── */}
             <a href="/tournament" style={{
-              position:"absolute", left:0, right:0, top:62, height:36, zIndex:15,
-              display:"flex", alignItems:"center", justifyContent:"center", gap:14,
-              background:"linear-gradient(90deg, rgba(251,204,92,0.12) 0%, rgba(74,222,128,0.1) 50%, rgba(251,204,92,0.12) 100%)",
-              borderBottom:"1px solid rgba(251,204,92,0.35)",
-              textDecoration:"none",
+              position:"absolute", left:"50%", transform:"translateX(-50%)", top:100, zIndex:15,
+              display:"flex", alignItems:"center", gap:16, padding:"14px 28px",
+              background:"linear-gradient(135deg, rgba(15,12,5,0.92), rgba(40,30,5,0.88))",
+              border:"1.5px solid rgba(251,204,92,0.8)", borderRadius:8,
+              textDecoration:"none", whiteSpace:"nowrap",
+              animation:"ko-tournament-blink 1.4s ease-in-out infinite",
             }}>
-              <div style={{ width:6, height:6, borderRadius:"50%", background:"#fbbf24", boxShadow:"0 0 8px #fbbf24", animation:"ko-dot-pulse 1.2s ease-in-out infinite" }} />
-              <span style={{ fontSize:11, fontWeight:800, letterSpacing:2.5, color:"#fbbf24", textTransform:"uppercase" }}>🏆 TOURNAMENT LIVE</span>
-              <div style={{ width:1, height:16, background:"rgba(251,204,92,0.3)" }} />
-              <span style={{ fontSize:11, fontWeight:700, letterSpacing:2, color:"#4ade80", textTransform:"uppercase" }}>120,000 G$ PRIZE POOL</span>
-              <div style={{ width:1, height:16, background:"rgba(251,204,92,0.3)" }} />
-              <span style={{ fontSize:10, fontWeight:600, letterSpacing:1.5, color:"rgba(185,231,244,0.6)", textTransform:"uppercase" }}>REGISTER NOW →</span>
+              <span style={{ fontSize:22 }}>🏆</span>
+              <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                <span style={{ fontSize:10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>TOURNAMENT LIVE</span>
+                <span style={{ fontSize:20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>120,000 G$ <span style={{ color:"#4ade80", fontSize:13, fontWeight:700, letterSpacing:1 }}>PRIZE POOL</span></span>
+              </div>
+              <div style={{ width:1, height:32, background:"rgba(251,204,92,0.25)" }} />
+              <span style={{ fontSize:11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
             </a>
 
             {/* ── G$ Claim Banner ──────────────────────────────────── */}
@@ -395,13 +401,14 @@ export default function ActionOrderLandingPage() {
             <div style={{ position:"absolute", left:1129, top:419, width:238, height:1, background:"rgba(86,164,203,0.25)", zIndex:16 }} />
 
             {/* News card 2 */}
-            <div className="ko-news-card" style={{ position:"absolute", left:1130, top:430, width:237, zIndex:15 }}>
-              <img className="ko-card-img" src="/new-assets/fighters-rooftop.jpeg" alt="Tournament" />
-              <div className="ko-card-title">
-                <p style={{ color:"#fbbf24", fontSize:10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>TOURNAMENT</p>
-                <p>120K G$ PRIZE POOL · LIVE</p>
-                <p style={{ color:"#4ade80", fontSize:11 }}>TOP 4 WIN G$ STREAMS →</p>
-              </div>
+            <div style={{ position:"absolute", left:1130, top:435, width:237, zIndex:15,
+              background:"linear-gradient(135deg, rgba(40,28,5,0.7), rgba(5,20,10,0.7))",
+              border:"1px solid rgba(251,204,92,0.3)", borderRadius:6, padding:"16px 14px" }}>
+              <p style={{ color:"#fbbf24", fontSize:9, fontWeight:800, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>🏆 TOURNAMENT LIVE</p>
+              <p style={{ color:"#fff", fontSize:16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>120,000 G$<br/><span style={{ fontSize:11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>PRIZE POOL</span></p>
+              <div style={{ height:1, background:"rgba(251,204,92,0.2)", margin:"8px 0" }} />
+              <p style={{ color:"#9ca3af", fontSize:11, lineHeight:1.5, marginBottom:6 }}>Top 4 finishers win a G$ stream direct to their wallet — no claim needed.</p>
+              <p style={{ color:"#4ade80", fontSize:11, fontWeight:700, letterSpacing:0.5 }}>Register on the tournament page →</p>
             </div>
 
             <div className="ko-scrollbar-track" />
