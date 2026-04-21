@@ -19,14 +19,7 @@ export default function ActionOrderLandingPage() {
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
-  const handleQuickPlay = useCallback(() => {
-    const unlocked = CHARACTERS.filter((c) => !c.isLocked);
-    const char = unlocked[Math.floor(Math.random() * unlocked.length)];
-    selectCharacter(char);
-    startMatch();
-    autoLockOrder();
-    router.push("/gameplay");
-  }, [selectCharacter, startMatch, autoLockOrder, router]);
+
 
   useEffect(() => {
     const fetch_ = () => fetch("/api/online").then(r => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
@@ -136,14 +129,12 @@ export default function ActionOrderLandingPage() {
         .ko-btn-join .ko-btn-label,
         .ko-btn-tournament .ko-btn-label,
         .ko-btn-community .ko-btn-label,
-        .ko-btn-market .ko-btn-label,
         .ko-btn-leaderboard .ko-btn-label,
         .ko-btn-profile .ko-btn-label,
         .ko-btn-challenges .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
         .ko-btn-join .ko-btn-icon,
         .ko-btn-tournament .ko-btn-icon,
         .ko-btn-community .ko-btn-icon,
-        .ko-btn-market .ko-btn-icon,
         .ko-btn-leaderboard .ko-btn-icon,
         .ko-btn-profile .ko-btn-icon,
         .ko-btn-challenges .ko-btn-icon { color: #56a4cb; }
@@ -317,12 +308,7 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
-            <Link className="ko-nav-btn ko-btn-market" href="/black-market" style={{ left: 40, top: 652 }}>
-              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-              <span className="ko-btn-label">BLACK MARKET</span>
-            </Link>
-
-            <div className="ko-points-badge" style={{ top: 708 }}>
+            <div className="ko-points-badge" style={{ top: 652 }}>
               <span style={{ fontSize:16, flexShrink:0 }}>⚡</span>
               <div style={{ display:"flex", flexDirection:"column" }}>
                 <span className="ko-points-label">Total Points</span>
@@ -357,18 +343,17 @@ export default function ActionOrderLandingPage() {
                 <span style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>16-PLAYER BRACKET · WIN TO EARN G$</span>
               </div>
               <div style={{ display:"flex", gap:12 }}>
-                <button onClick={handleQuickPlay} style={{
+                <Link href="/black-market" style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
-                  background:"linear-gradient(135deg,rgba(74,222,128,0.2),rgba(74,222,128,0.08))",
-                  border:"1.5px solid #4ade80", borderRadius:6, cursor:"pointer",
-                  fontFamily:"inherit", color:"#4ade80", fontSize:13, fontWeight:800,
-                  letterSpacing:2, textTransform:"uppercase",
-                  boxShadow:"0 0 16px rgba(74,222,128,0.25)",
+                  background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
+                  border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",
+                  color:"#fff", fontSize:13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                  boxShadow:"0 0 20px rgba(239,68,68,0.35)", animation:"ko-pulse 2.5s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
-                  QUICK PLAY
-                </button>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                  BLACK MARKET
+                </Link>
                 <Link href="/create" style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(86,164,203,0.3))",

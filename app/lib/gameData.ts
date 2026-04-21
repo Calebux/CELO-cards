@@ -412,27 +412,27 @@ export const CARDS: Card[] = [
     // Black Market Cards
     {
         id: "rko", name: "RKO", type: "strike", priority: 9, knock: 14, energyCost: 4,
-        effect: "Out of nowhere! Devastating strike with massive priority.", color: "#ef4444", bgColor: "#450a0a", image: "/cards/market/RKO.png", isPremium: true, price: 750
+        effect: "Out of nowhere! Devastating strike with massive priority.", color: "#ef4444", bgColor: "#450a0a", image: "/cards/market/RKO.png", isPremium: true, price: 7500
     },
     {
         id: "go_to_hell", name: "Go To Hell", type: "strike", priority: 3, knock: 20, energyCost: 6,
-        effect: "Ultimate destructive move. Requires high energy but annihilates opposition.", color: "#f97316", bgColor: "#431407", image: "/cards/market/GO TO HELL.png", isPremium: true, price: 1000
+        effect: "Ultimate destructive move. Requires high energy but annihilates opposition.", color: "#f97316", bgColor: "#431407", image: "/cards/market/GO TO HELL.png", isPremium: true, price: 10000
     },
     {
         id: "headbutt", name: "Headbutt", type: "strike", priority: 8, knock: 7, energyCost: 2,
-        effect: "A quick, brutal intercept to stagger the opponent.", color: "#d946ef", bgColor: "#701a75", image: "/cards/market/Headbutt.png", isPremium: true, price: 400
+        effect: "A quick, brutal intercept to stagger the opponent.", color: "#d946ef", bgColor: "#701a75", image: "/cards/market/Headbutt.png", isPremium: true, price: 4000
     },
     {
-        id: "darkness_repellent", name: "Darkness Repellent", type: "defense", priority: 7, knock: 0, energyCost: 3,
-        effect: "A perfect guard against all but the most unyielding strikes.", color: "#8b5cf6", bgColor: "#2e1065", image: "/cards/market/Darkness repellent.png", isPremium: true, price: 600
+        id: "darkness_repellent", name: "Darkness Repellant 2", type: "defense", priority: 7, knock: 0, energyCost: 3,
+        effect: "A perfect guard against all but the most unyielding strikes.", color: "#8b5cf6", bgColor: "#2e1065", image: "/cards/market/darkness_repellant_2.jpg", isPremium: true, price: 6000
     },
     {
-        id: "no_drain", name: "No Drain", type: "control", priority: 5, knock: 4, energyCost: 1,
-        effect: "Disrupts the opponent without burning out your stamina.", color: "#4ade80", bgColor: "#052e16", image: "/cards/market/No drain.png", isPremium: true, price: 300
+        id: "no_drain", name: "No Drain 2", type: "control", priority: 5, knock: 4, energyCost: 1,
+        effect: "Disrupts the opponent without burning out your stamina.", color: "#4ade80", bgColor: "#052e16", image: "/cards/market/no_drain_2.jpg", isPremium: true, price: 3000
     },
     {
         id: "bite", name: "Bite", type: "strike", priority: 6, knock: 3, energyCost: 1,
-        effect: "A vicious, desperate attack that sneaks past guards.", color: "#f59e0b", bgColor: "#451a03", image: "/cards/market/bite.png", isPremium: true, price: 200
+        effect: "A vicious, desperate attack that sneaks past guards.", color: "#f59e0b", bgColor: "#451a03", image: "/cards/market/bite.png", isPremium: true, price: 2000
     },
 
 ];
