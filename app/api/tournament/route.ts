@@ -219,8 +219,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Valid wallet address required" }, { status: 400 });
     }
 
-    const data = await getTournament();
-    if (!data) return NextResponse.json({ error: "No open tournament" }, { status: 404 });
+    // Auto-create tournament if none exists
+    let data = await getTournament();
+    if (!data) {
+      data = {
+        weekId: currentWeekId(),
+        status: "registration",
+        registered: [],
+        maxPlayers: 16,
+        seeded: [],
+        results: emptyResults(),
+        champion: null,
+        prizePool: "120000000000000000000000",
+        payouts: {},
+        createdAt: Date.now(),
+      };
+    }
     if (data.status !== "registration") {
       return NextResponse.json({ error: "Registration is closed" }, { status: 409 });
     }

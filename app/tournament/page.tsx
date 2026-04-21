@@ -301,7 +301,7 @@ export default function TournamentPage() {
         </div>
 
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, height: 210, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <div style={{ position: "absolute", top: 84, left: 0, right: 0, height: 210, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase" }}>SEASON 1 · ORDER ASCENSION</div>
           <div style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-3.5px", color: "white", textTransform: "uppercase", textAlign: "center", lineHeight: 1, textShadow: "0 0 40px rgba(86,164,203,0.35)" }}>
             THE TOURNAMENT
@@ -354,7 +354,7 @@ export default function TournamentPage() {
         </div>
 
         {/* ── How It Works ─────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 290, left: 64, right: 64 }}>
+        <div style={{ position: "absolute", top: 306, left: 64, right: 64 }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 14 }}>HOW IT WORKS</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
             {HOW_IT_WORKS.map((item) => (
@@ -370,7 +370,7 @@ export default function TournamentPage() {
         </div>
 
         {/* ── Rules + Status row ───────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 546, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ position: "absolute", top: 562, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
 
           {/* Rules */}
           <div style={{ flex: 1, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "18px 20px" }}>
@@ -456,7 +456,7 @@ export default function TournamentPage() {
         </div>
 
       {/* ── Bracket Section ── */}
-      <div style={{ position: "absolute", left: 0, right: 0, top: 820, padding: "0 80px 80px" }}>
+      <div style={{ position: "absolute", left: 0, right: 0, top: 836, padding: "0 80px 80px" }}>
         {/* Section header */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
           <div style={{ flex: 1, height: 1, background: "rgba(86,164,203,0.15)" }} />
