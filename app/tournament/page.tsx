@@ -15,18 +15,18 @@ type TournamentState = {
   registered: string[];
   maxPlayers: number;
   seeded: BracketPlayer[];
-  results: { r16: MatchResult[]; qf: MatchResult[]; sf: MatchResult[]; final: MatchResult[] };
+  results: { playin: MatchResult[]; r16: MatchResult[]; qf: MatchResult[]; sf: MatchResult[]; final: MatchResult[] };
   champion: string | null;
   prizePool: string;
   payouts: Record<string, string>;
-  slots: { r16: BracketSlot[]; qf: BracketSlot[]; sf: BracketSlot[]; final: BracketSlot[]; champion: BracketPlayer | null } | null;
+  slots: { playin: BracketSlot[]; r16: BracketSlot[]; qf: BracketSlot[]; sf: BracketSlot[]; final: BracketSlot[]; champion: BracketPlayer | null } | null;
 };
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 const DESIGN_CONTENT_H = 1540; // full page height including bracket
 
-const SPOTS = 16;
+const SPOTS = 24;
 
 function useCountdown() {
   const [time, setTime] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -498,40 +498,40 @@ export default function TournamentPage() {
         </div>
 
         {/* Round labels */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr 24px 1fr 24px 1fr", gap: 0, marginBottom: 10 }}>
-          {["ROUND OF 16", "", "QUARTERFINALS", "", "SEMIFINALS", "", "FINAL"].map((label, i) => (
-            <div key={i} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, letterSpacing: 2, color: label ? "#475569" : "transparent", textTransform: "uppercase" }}>{label || "·"}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 20px 1fr 20px 1fr 20px 1fr 20px 1fr", gap: 0, marginBottom: 10 }}>
+          {["PLAY-IN", "", "ROUND OF 16", "", "QUARTERFINALS", "", "SEMIFINALS", "", "FINAL"].map((label, i) => (
+            <div key={i} style={{ textAlign: "center", fontSize: 8, fontWeight: 700, letterSpacing: 1.5, color: label ? "#475569" : "transparent", textTransform: "uppercase" }}>{label || "·"}</div>
           ))}
         </div>
 
         {/* Bracket grid */}
         <div style={{ display: "flex", gap: 0, alignItems: "stretch", paddingBottom: 8 }}>
-          {/* Helper to render a match slot */}
           {(() => {
             const isMe = (p: BracketPlayer | null) => address && p && p.address.toLowerCase() === address.toLowerCase();
+            const is24 = (tournament?.maxPlayers ?? SPOTS) >= 24;
 
-            function matchSlot(slot: BracketSlot | undefined, result: MatchResult | undefined, gold = false) {
+            function matchSlot(slot: BracketSlot | undefined, result: MatchResult | undefined, gold = false, dim = false) {
               const topWon = result?.winner === "top";
               const botWon = result?.winner === "bottom";
               return (
-                <div style={{ background: gold ? "rgba(251,204,92,0.06)" : "rgba(15,23,42,0.6)", border: `1px solid ${gold ? "rgba(251,204,92,0.25)" : "rgba(86,164,203,0.15)"}`, borderRadius: 6, overflow: "hidden" }}>
+                <div style={{ background: gold ? "rgba(251,204,92,0.06)" : "rgba(15,23,42,0.6)", border: `1px solid ${gold ? "rgba(251,204,92,0.25)" : "rgba(86,164,203,0.15)"}`, borderRadius: 5, overflow: "hidden", opacity: dim ? 0.45 : 1 }}>
                   {(["top", "bottom"] as const).map((side, j) => {
                     const p = side === "top" ? slot?.top : slot?.bottom;
                     const won = side === "top" ? topWon : botWon;
                     const lost = result?.winner !== null && !won;
                     return (
                       <div key={side} style={{
-                        display: "flex", alignItems: "center", gap: 6, padding: "7px 10px",
+                        display: "flex", alignItems: "center", gap: 5, padding: "6px 8px",
                         background: won ? "rgba(74,222,128,0.08)" : isMe(p ?? null) ? "rgba(86,164,203,0.1)" : "transparent",
                         borderBottom: j === 0 ? "1px solid rgba(255,255,255,0.04)" : "none",
                         opacity: lost ? 0.4 : 1,
                       }}>
-                        {p?.seed && <span style={{ fontSize: 9, fontWeight: 700, color: "#56a4cb", width: 18, textAlign: "right", flexShrink: 0 }}>#{p.seed}</span>}
-                        <span style={{ fontSize: 10, fontWeight: 600, color: won ? "#4ade80" : p ? "#94a3b8" : "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                        {p?.seed && <span style={{ fontSize: 8, fontWeight: 700, color: "#56a4cb", width: 16, textAlign: "right", flexShrink: 0 }}>#{p.seed}</span>}
+                        <span style={{ fontSize: 9, fontWeight: 600, color: won ? "#4ade80" : p ? "#94a3b8" : "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
                           {p ? `${p.address.slice(0, 6)}…${p.address.slice(-4)}` : "TBD"}
                         </span>
-                        {won && <span style={{ fontSize: 9, color: "#4ade80" }}>✓</span>}
-                        {isMe(p ?? null) && <span style={{ fontSize: 7, fontWeight: 800, color: "#4ade80", letterSpacing: 0.5 }}>YOU</span>}
+                        {won && <span style={{ fontSize: 8, color: "#4ade80" }}>✓</span>}
+                        {isMe(p ?? null) && <span style={{ fontSize: 7, fontWeight: 800, color: "#4ade80" }}>YOU</span>}
                       </div>
                     );
                   })}
@@ -542,39 +542,44 @@ export default function TournamentPage() {
             const slots = tournament?.slots;
             const results = tournament?.results;
 
-            // Derive r16 fallback from bracketPlayers when no tournament is seeded
-            const r16Fallback: BracketSlot[] = Array.from({ length: 8 }, (_, i) => ({
+            const playin = slots?.playin ?? Array.from({ length: 8 }, () => ({ top: null, bottom: null }));
+            const r16    = slots?.r16    ?? Array.from({ length: 8 }, (_, i) => ({
               top: bracketPlayers[i] ? { seed: i + 1, ...bracketPlayers[i] } : null,
-              bottom: bracketPlayers[15 - i] ? { seed: 16 - i, ...bracketPlayers[15 - i] } : null,
+              bottom: is24 ? null : (bracketPlayers[23 - i] ? { seed: 24 - i, ...bracketPlayers[23 - i] } : null),
             }));
-
-            const r16 = slots?.r16 ?? r16Fallback;
-            const qf  = slots?.qf  ?? Array.from({ length: 4 }, () => ({ top: null, bottom: null }));
-            const sf  = slots?.sf  ?? Array.from({ length: 2 }, () => ({ top: null, bottom: null }));
+            const qf  = slots?.qf    ?? Array.from({ length: 4 }, () => ({ top: null, bottom: null }));
+            const sf  = slots?.sf    ?? Array.from({ length: 2 }, () => ({ top: null, bottom: null }));
             const fin = slots?.final ?? [{ top: null, bottom: null }];
 
             return (
               <>
+                {/* Play-in */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
+                  {playin.map((slot, i) => matchSlot(slot, results?.playin[i], false, !is24))}
+                </div>
+
+                <div style={{ width: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 14 }}>›</div>
+
                 {/* R16 */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
                   {r16.map((slot, i) => matchSlot(slot, results?.r16[i]))}
                 </div>
 
-                <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 16 }}>›</div>
+                <div style={{ width: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 14 }}>›</div>
 
                 {/* QF */}
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
                   {qf.map((slot, i) => matchSlot(slot, results?.qf[i]))}
                 </div>
 
-                <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 16 }}>›</div>
+                <div style={{ width: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 14 }}>›</div>
 
                 {/* SF */}
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", flex: 1 }}>
                   {sf.map((slot, i) => matchSlot(slot, results?.sf[i]))}
                 </div>
 
-                <div style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 16 }}>›</div>
+                <div style={{ width: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 14 }}>›</div>
 
                 {/* Final */}
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>

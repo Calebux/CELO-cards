@@ -20,18 +20,19 @@ export type MatchResult = { match: number; winner: "top" | "bottom" | null };
 export type TournamentData = {
   weekId: string;
   status: "registration" | "active" | "complete";
-  registered: string[];             // wallet addresses signed up
-  maxPlayers: number;               // default 16
+  registered: string[];
+  maxPlayers: number;               // 16 or 24
   seeded: BracketPlayer[];
   results: {
-    r16: MatchResult[];
+    playin: MatchResult[];          // 8 matches (seeds 9-24); empty for 16-player
+    r16: MatchResult[];             // 8 matches
     qf:  MatchResult[];
     sf:  MatchResult[];
     final: MatchResult[];
   };
   champion: string | null;
-  prizePool: string;                // G$ in wei as string
-  payouts: Record<string, string>;  // address → txHash
+  prizePool: string;
+  payouts: Record<string, string>;
   createdAt: number;
 };
 
@@ -47,10 +48,11 @@ function currentWeekId(): string {
 
 function emptyResults() {
   return {
-    r16:   Array.from({ length: 8 }, (_, i) => ({ match: i, winner: null })) as MatchResult[],
-    qf:    Array.from({ length: 4 }, (_, i) => ({ match: i, winner: null })) as MatchResult[],
-    sf:    Array.from({ length: 2 }, (_, i) => ({ match: i, winner: null })) as MatchResult[],
-    final: [{ match: 0, winner: null }] as MatchResult[],
+    playin: Array.from({ length: 8 }, (_, i) => ({ match: i, winner: null })) as MatchResult[],
+    r16:    Array.from({ length: 8 }, (_, i) => ({ match: i, winner: null })) as MatchResult[],
+    qf:     Array.from({ length: 4 }, (_, i) => ({ match: i, winner: null })) as MatchResult[],
+    sf:     Array.from({ length: 2 }, (_, i) => ({ match: i, winner: null })) as MatchResult[],
+    final:  [{ match: 0, winner: null }] as MatchResult[],
   };
 }
 
@@ -64,12 +66,8 @@ async function saveTournament(data: TournamentData): Promise<void> {
 }
 
 function computeSlots(data: TournamentData) {
-  const { seeded, results } = data;
-
-  const r16Slots = Array.from({ length: 8 }, (_, i) => ({
-    top: seeded[i] ?? null,
-    bottom: seeded[15 - i] ?? null,
-  }));
+  const { seeded, results, maxPlayers } = data;
+  const is24 = maxPlayers >= 24;
 
   function advance(
     slots: Array<{ top: BracketPlayer | null; bottom: BracketPlayer | null }>,
@@ -82,20 +80,36 @@ function computeSlots(data: TournamentData) {
     });
   }
 
+  // ── Play-in (24-player only): seeds 9-24 compete for 8 R16 spots ────────
+  // Match i: seed (9+i) vs seed (24-i)
+  const playinSlots = is24
+    ? Array.from({ length: 8 }, (_, i) => ({
+        top:    seeded[8 + i] ?? null,      // seed 9..16
+        bottom: seeded[23 - i] ?? null,     // seed 24..17
+      }))
+    : Array.from({ length: 8 }, () => ({ top: null, bottom: null }));
+
+  const playinWinners = is24 ? advance(playinSlots, results.playin) : Array(8).fill(null);
+
+  // ── R16: top 8 seeds (bye) vs play-in winners (or lower seeds in 16p) ───
+  const r16Slots = Array.from({ length: 8 }, (_, i) => ({
+    top:    seeded[i] ?? null,                          // seeds 1-8 always here
+    bottom: is24 ? (playinWinners[i] ?? null) : (seeded[15 - i] ?? null),
+  }));
+
   const r16Winners = advance(r16Slots, results.r16);
   const qfSlots = Array.from({ length: 4 }, (_, i) => ({
-    top: r16Winners[i * 2] ?? null,
+    top:    r16Winners[i * 2] ?? null,
     bottom: r16Winners[i * 2 + 1] ?? null,
   }));
   const qfWinners = advance(qfSlots, results.qf);
 
   const sfSlots = Array.from({ length: 2 }, (_, i) => ({
-    top: qfWinners[i * 2] ?? null,
+    top:    qfWinners[i * 2] ?? null,
     bottom: qfWinners[i * 2 + 1] ?? null,
   }));
   const sfWinners = advance(sfSlots, results.sf);
 
-  // 3rd place: the two SF losers
   const sfLosers = sfSlots.map((slot, i) => {
     const res = results.sf[i];
     if (!res || res.winner === null) return null;
@@ -105,14 +119,7 @@ function computeSlots(data: TournamentData) {
   const finalSlots = [{ top: sfWinners[0] ?? null, bottom: sfWinners[1] ?? null }];
   const finalWinners = advance(finalSlots, results.final);
 
-  return {
-    r16: r16Slots,
-    qf: qfSlots,
-    sf: sfSlots,
-    final: finalSlots,
-    champion: finalWinners[0] ?? null,
-    thirdPlace: sfLosers,
-  };
+  return { playin: playinSlots, r16: r16Slots, qf: qfSlots, sf: sfSlots, final: finalSlots, champion: finalWinners[0] ?? null, thirdPlace: sfLosers };
 }
 
 // ── Prize payout ──────────────────────────────────────────────────────────────
@@ -200,7 +207,7 @@ export async function POST(req: NextRequest) {
       weekId: currentWeekId(),
       status: "registration",
       registered: [],
-      maxPlayers: body.maxPlayers ?? 16,
+      maxPlayers: body.maxPlayers ?? 24,
       seeded: [],
       results: emptyResults(),
       champion: null,
@@ -226,7 +233,7 @@ export async function POST(req: NextRequest) {
         weekId: currentWeekId(),
         status: "registration",
         registered: [],
-        maxPlayers: 16,
+        maxPlayers: 24,
         seeded: [],
         results: emptyResults(),
         champion: null,
