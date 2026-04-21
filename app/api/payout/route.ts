@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, createWalletClient, http, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
-import { getMatch } from "../../lib/redis";
+import { redis, getMatch } from "../../lib/redis";
 import { ServerMatch } from "../match/[matchId]/route";
 import {
   ERC20_ABI, CUSD_CONTRACT,
@@ -71,6 +71,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid winner address" }, { status: 400 });
   }
 
+  // Idempotency — prevent double payout for the same match
+  const existingPayout = await redis.get<string>(`payout:${matchId}`);
+  if (existingPayout) {
+    console.log(`Payout ${matchId}: already paid — returning cached tx ${existingPayout}`);
+    return NextResponse.json({ txHash: existingPayout, cached: true });
+  }
+
   // Check if both players wagered and get the actual payout amount from their stakes
   const { bothWagered, winnerPayout: dualPayout } = await getMatchWagerInfo(matchId);
 
@@ -112,12 +119,9 @@ export async function POST(req: NextRequest) {
       txHash = await walletClient.writeContract(request);
       const payoutTag = bothWagered ? "dual-wager" : "solo";
       console.log(`Payout ${matchId} [${payoutTag}]: G$ stream started to ${winner} @ ${baseFlowRate * mult} wei/sec (×${mult}) — tx ${txHash}`);
-
-      // Schedule stream deletion after 24h (fire and forget — best effort)
-      void scheduleStreamDeletion(walletClient, account, account.address, winner).catch((e) =>
-        console.error("Stream deletion scheduling failed:", e)
-      );
-
+      // Note: stream auto-expires on Superfluid after the token balance is drained;
+      // serverless setTimeout cannot be used here (function lifetime too short).
+      await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
       return NextResponse.json({ txHash, streaming: true });
     }
 
@@ -151,6 +155,9 @@ export async function POST(req: NextRequest) {
       console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct transfer ${formatUnits(cusdAmt, 18)} cUSD (×${mult}) to ${winner} — tx ${txHash}`);
     }
 
+    // Record payout so it can't be triggered twice
+    await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
+
     return NextResponse.json({ txHash, bothWagered });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Payout failed";
@@ -159,21 +166,3 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Best-effort: delete the G$ stream after 24 hours so treasury doesn't keep draining
-async function scheduleStreamDeletion(
-  walletClient: ReturnType<typeof createWalletClient>,
-  account: ReturnType<typeof privateKeyToAccount>,
-  sender: `0x${string}`,
-  receiver: `0x${string}`
-) {
-  await new Promise((resolve) => setTimeout(resolve, 86_400_000)); // 24h
-  await walletClient.writeContract({
-    address: CFA_FORWARDER,
-    abi: CFA_FORWARDER_ABI,
-    functionName: "deleteFlow",
-    args: [GDOLLAR_CONTRACT, sender, receiver, "0x"],
-    account,
-    chain: celo,
-  });
-  console.log(`G$ stream from ${sender} to ${receiver} deleted after 24h`);
-}

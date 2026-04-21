@@ -96,11 +96,7 @@ export default function SelectCharacter() {
         body: JSON.stringify({ role: playerRole, characterId: activeChar.id }),
       });
     }
-    if (vsBot) {
-      router.push("/loadout");
-    } else {
-      router.push("/lobby");
-    }
+    router.push("/loadout");
   };
 
   return (

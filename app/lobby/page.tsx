@@ -31,6 +31,7 @@ export default function Lobby() {
   const [p2Ready, setP2Ready] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [opponentWaitMs, setOpponentWaitMs] = useState(0);
+  const [netErrorCount, setNetErrorCount] = useState(0);
   const waitStartRef = useRef<number | null>(null);
 
   const player = selectedCharacter;
@@ -81,6 +82,7 @@ export default function Lobby() {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
         const data = await res.json() as { opponentCharId: string | null; phase?: string; opponentWagered?: boolean };
+        setNetErrorCount(0); // successful response — clear error state
         if (data.phase === "timed-out") {
           clearInterval(poll);
           clearInterval(waitTick);
@@ -95,7 +97,7 @@ export default function Lobby() {
           clearInterval(waitTick);
         }
       } catch {
-        // ignore transient errors
+        setNetErrorCount((n) => n + 1);
       }
     }, 2000);
 
@@ -227,7 +229,6 @@ export default function Lobby() {
                       transition: "all 0.5s ease"
                     }} />
                 )}
-                {/* Bottom gradient for polish */}
                 <div className="absolute inset-x-0 bottom-0" style={{ height: 80, background: "linear-gradient(to top, #07050f 0%, transparent 100%)", pointerEvents: "none" }} />
               </div>
               {player && (
@@ -280,25 +281,40 @@ export default function Lobby() {
             </span>
           </div>
 
-          {/* Opponent timeout warning (multiplayer only) */}
-        {playerRole && !p2Ready && opponentWaitMs >= OPPONENT_WARN_MS && (
-          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
-            style={{ bottom: 24, zIndex: 20 }}>
-            <span style={{ fontSize: 13, letterSpacing: "1px", color: "#f97316", fontWeight: 600, textTransform: "uppercase" }}>
-              Opponent not responding…
-            </span>
-            {opponentWaitMs >= OPPONENT_ABORT_MS && (
-              <button
-                onClick={() => router.replace("/")}
-                className="ko-btn ko-btn-secondary"
-                style={{ padding: "8px 24px", fontSize: 13, letterSpacing: "1.2px", fontWeight: 700, textTransform: "uppercase" }}>
-                Leave Match
-              </button>
-            )}
-          </div>
-        )}
+          {/* Network error banner */}
+          {netErrorCount >= 3 && !p2Ready && (
+            <div style={{
+              position: "absolute", bottom: 90, left: "50%", transform: "translateX(-50%)",
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 20px",
+              background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.35)",
+              borderRadius: 6, zIndex: 20,
+            }}>
+              <span className="material-icons" style={{ color: "#fbbf24", fontSize: 16 }}>wifi_off</span>
+              <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600, letterSpacing: 0.5 }}>
+                Connection issues — retrying…
+              </span>
+            </div>
+          )}
 
-        {/* Player 2 — Right */}
+          {/* Opponent timeout warning (multiplayer only) */}
+          {playerRole && !p2Ready && opponentWaitMs >= OPPONENT_WARN_MS && (
+            <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
+              style={{ bottom: 24, zIndex: 20 }}>
+              <span style={{ fontSize: 13, letterSpacing: "1px", color: "#f97316", fontWeight: 600, textTransform: "uppercase" }}>
+                Opponent not responding…
+              </span>
+              {opponentWaitMs >= OPPONENT_ABORT_MS && (
+                <button
+                  onClick={() => router.replace("/")}
+                  className="ko-btn ko-btn-secondary"
+                  style={{ padding: "8px 24px", fontSize: 13, letterSpacing: "1.2px", fontWeight: 700, textTransform: "uppercase" }}>
+                  Leave Match
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Player 2 — Right */}
           <div className="flex-1 relative h-full">
             <div className="absolute flex items-center justify-end" style={{ inset: "-60px 36px 80px 36px", paddingRight: 30 }}>
               <div className="relative flex-1 overflow-hidden" style={{
@@ -316,7 +332,6 @@ export default function Lobby() {
                       transition: "all 0.5s ease"
                     }} />
                 )}
-                {/* Bottom gradient for polish */}
                 <div className="absolute inset-x-0 bottom-0" style={{ height: 80, background: "linear-gradient(to top, #07050f 0%, transparent 100%)", pointerEvents: "none" }} />
               </div>
               {opponent && (
