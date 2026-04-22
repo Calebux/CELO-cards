@@ -5,16 +5,49 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { CARDS } from "../lib/gameData";
+import {
+  useWriteContract,
+  useSendTransaction,
+  useAccount,
+} from "wagmi";
+import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { parseUnits } from "viem";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
+// Treasury wallet that receives Black Market payments
+const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+
+// Prices in on-chain units — cards have a `price` field (originally in pts).
+// We map pts → micro-CELO (same scale: 1 pt ≈ 0.000001 CELO).
+// e.g. 2000 pts → 0.002 CELO / G$
+function ptsToOnchain(pts: number) {
+  const celoStr = (pts / 1_000_000).toFixed(6); // e.g. 2000 → "0.002000"
+  return parseUnits(celoStr as `${number}`, 18);
+}
+
+function ptsDisplay(pts: number, currency: "celo" | "gdollar") {
+  const val = (pts / 1_000_000).toFixed(4);
+  return currency === "gdollar" ? `${val} G$` : `${val} CELO`;
+}
+
+type BuyCurrency = "celo" | "gdollar";
+
 export default function BlackMarket() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { address } = useAccount();
 
-  const { playerPoints, unlockedPremiumCards, purchaseCard } = useGameStore();
+  const { unlockedPremiumCards } = useGameStore();
+  const unlockCard = useGameStore((s) => s.purchaseCard);
+
+  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>("celo");
   const [buyingId, setBuyingId] = useState<string | null>(null);
+  const [buyError, setBuyError] = useState<string>("");
+
+  const { writeContractAsync } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
 
   const marketCards = CARDS.filter((c) => c.isPremium);
 
@@ -43,14 +76,33 @@ export default function BlackMarket() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  const handleBuy = (id: string, price: number) => {
-    if (playerPoints < price) return;
+  const handleBuy = async (id: string, price: number) => {
+    if (!address) { setBuyError("Connect your wallet first."); return; }
     setBuyingId(id);
-    setTimeout(() => {
-      purchaseCard(id, price);
+    setBuyError("");
+    const amt = ptsToOnchain(price);
+    try {
+      if (buyCurrency === "gdollar") {
+        await writeContractAsync({
+          address: GDOLLAR_CONTRACT,
+          abi: GDOLLAR_ABI,
+          functionName: "transfer",
+          args: [TREASURY, amt],
+        });
+      } else {
+        // CELO — native transfer
+        await sendTransactionAsync({ to: TREASURY, value: amt });
+      }
+      // Unlock locally (store + localStorage). Pass 0 so points are untouched.
+      unlockCard(id, 0);
+    } catch (e) {
+      setBuyError(e instanceof Error ? e.message.slice(0, 100) : "Transaction failed.");
+    } finally {
       setBuyingId(null);
-    }, 600);
+    }
   };
+
+  const ACCENT = "#ef4444";
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#020202", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -77,41 +129,68 @@ export default function BlackMarket() {
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#fca5a5", textTransform: "uppercase" }}>BLACK MARKET</span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "rgba(10,10,10,0.6)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)" }}>
-              <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 700, letterSpacing: 1 }}>PTS</span>
-              <span style={{ fontSize: 16, color: "#4ade80", fontWeight: 900 }}>{playerPoints.toLocaleString()}</span>
-            </div>
-            <WalletSection />
-          </div>
+          <WalletSection />
         </div>
 
         {/* Content */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 40, gap: 40 }}>
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 32, gap: 28 }}>
 
           <div style={{ textAlign: "center" }}>
-            <h1 style={{ fontSize: 56, fontWeight: 900, color: "#ef4444", textTransform: "uppercase", letterSpacing: -2, margin: 0, lineHeight: 1, textShadow: "0 0 40px rgba(239,68,68,0.4)" }}>
+            <h1 style={{ fontSize: 52, fontWeight: 900, color: ACCENT, textTransform: "uppercase", letterSpacing: -2, margin: 0, lineHeight: 1, textShadow: "0 0 40px rgba(239,68,68,0.4)" }}>
               BLACK MARKET
             </h1>
-            <p style={{ fontSize: 14, color: "#9ca3af", marginTop: 12, maxWidth: 600, marginInline: "auto" }}>
-              Spend your hard-earned points to unlock rare, devastating cards. Once unlocked, these cards can appear randomly when drawing your deck.
+            <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 10, maxWidth: 560, marginInline: "auto" }}>
+              Acquire rare, devastating cards with CELO or G$. Once unlocked they appear randomly in your deck.
             </p>
           </div>
+
+          {/* Currency selector */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}>Pay with:</span>
+            {([
+              { key: "celo" as BuyCurrency,    label: "CELO",  color: "#f9c846" },
+              { key: "gdollar" as BuyCurrency, label: "G$",    color: GDOLLAR_COLOR },
+            ]).map(({ key, label, color }) => (
+              <button
+                key={key}
+                onClick={() => setBuyCurrency(key)}
+                style={{
+                  padding: "6px 18px",
+                  background: buyCurrency === key ? `${color}20` : "rgba(255,255,255,0.04)",
+                  border: `1.5px solid ${buyCurrency === key ? color : "#334155"}`,
+                  borderRadius: 6, cursor: "pointer",
+                  fontSize: 12, fontWeight: 800, color: buyCurrency === key ? color : "#6b7280",
+                  letterSpacing: 1.5, textTransform: "uppercase",
+                  fontFamily: "inherit", transition: "all 0.15s",
+                  boxShadow: buyCurrency === key ? `0 0 12px ${color}30` : "none",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Error banner */}
+          {buyError && (
+            <div style={{ padding: "8px 20px", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 6 }}>
+              <span style={{ fontSize: 12, color: "#f87171" }}>{buyError}</span>
+            </div>
+          )}
 
           {/* Cards Grid */}
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 24, maxWidth: 1200, padding: "0 20px", overflowY: "auto", paddingBottom: 60 }}>
             {marketCards.map((c) => {
               const isOwned = unlockedPremiumCards.includes(c.id);
-              const price = c.price ?? 999;
-              const canAfford = playerPoints >= price;
+              const price = c.price ?? 3000;
               const isBuying = buyingId === c.id;
+              const currColor = buyCurrency === "gdollar" ? GDOLLAR_COLOR : "#f9c846";
 
               return (
                 <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
                   <div style={{
                     width: 170, height: 236, borderRadius: 10, position: "relative", overflow: "hidden",
                     border: `2px solid ${c.color}`, boxShadow: isOwned ? `0 0 20px ${c.color}40` : "none",
-                    opacity: isOwned ? 1 : 0.8,
+                    opacity: isOwned ? 1 : 0.85,
                     transition: "transform 0.2s ease",
                     transform: isBuying ? "scale(1.05)" : "scale(1)",
                   }}>
@@ -129,6 +208,12 @@ export default function BlackMarket() {
                     <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #94a3b8" }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af" }}>{c.priority}</span>
                     </div>
+
+                    {isOwned && (
+                      <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(74,222,128,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span className="material-icons" style={{ fontSize: 36, color: "#4ade80", opacity: 0.8 }}>check_circle</span>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ width: 170, textAlign: "center", fontSize: 10, color: "#9ca3af", lineHeight: 1.4, height: 44, overflow: "hidden" }}>
@@ -141,21 +226,26 @@ export default function BlackMarket() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleBuy(c.id, price)}
-                      disabled={!canAfford || isBuying}
+                      onClick={() => void handleBuy(c.id, price)}
+                      disabled={isBuying || !address}
                       style={{
                         width: "100%", padding: "10px",
-                        background: canAfford ? `linear-gradient(135deg, ${c.color}30, ${c.color}10)` : "rgba(255,255,255,0.05)",
-                        border: `1px solid ${canAfford ? c.color : "rgba(255,255,255,0.1)"}`,
+                        background: isBuying ? `${currColor}20` : `linear-gradient(135deg, ${currColor}28, ${currColor}10)`,
+                        border: `1.5px solid ${isBuying ? currColor : c.color}`,
                         borderRadius: 6,
-                        color: canAfford ? "white" : "#6b7280",
+                        color: "white",
                         fontSize: 11, fontWeight: 800,
-                        cursor: canAfford && !isBuying ? "pointer" : "default",
+                        cursor: isBuying || !address ? "not-allowed" : "pointer",
                         letterSpacing: 1,
                         transition: "all 0.2s ease",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        opacity: !address ? 0.5 : 1,
                       }}
                     >
-                      {isBuying ? "BUYING..." : `${price} PTS`}
+                      <span className="material-icons" style={{ fontSize: 13, color: isBuying ? currColor : c.color }}>
+                        {isBuying ? "hourglass_empty" : buyCurrency === "gdollar" ? "stream" : "toll"}
+                      </span>
+                      {isBuying ? "BUYING…" : ptsDisplay(price, buyCurrency)}
                     </button>
                   )}
                 </div>

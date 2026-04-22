@@ -77,9 +77,23 @@ export default function CreateMatch() {
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
   const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
+  const setOpponentName = useGameStore((s) => s.setOpponentName);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
+
+  // Fetch opponent username and store it
+  const fetchOpponentName = async (matchId: string, role: "host" | "joiner") => {
+    try {
+      const res = await fetch(`/api/match/${matchId}`);
+      const data = await res.json() as { opponentAddress?: string };
+      if (data.opponentAddress) {
+        const unRes = await fetch(`/api/username?address=${data.opponentAddress.toLowerCase()}`);
+        const unData = await unRes.json() as { username?: string | null };
+        setOpponentName(unData.username ?? data.opponentAddress.slice(0, 8) + "…");
+      }
+    } catch { /* non-critical */ }
+  };
 
   useEffect(() => {
     const fetchOnline = () => {
@@ -158,6 +172,7 @@ export default function CreateMatch() {
       setMatchId(data.matchId);
       setPlayerRole(data.role);
       setQueueState({ status: "found", matchId: data.matchId, role: data.role });
+      void fetchOpponentName(data.matchId, data.role);
       setTimeout(() => router.push("/select-character"), 800);
       return;
     }
@@ -182,6 +197,7 @@ export default function CreateMatch() {
           setMatchId(pollData.matchId);
           setPlayerRole(pollData.role);
           setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role });
+          void fetchOpponentName(pollData.matchId, pollData.role);
           setTimeout(() => router.push("/select-character"), 800);
         }
       } catch {
@@ -501,6 +517,7 @@ export default function CreateMatch() {
           onConfirmed={matchType === "ranked" && queueState.status === "idle" ? () => { setShowWager(false); void startQueueAfterPayment(); } : proceedAfterPayment}
           onSkip={() => { setWager(false, null); setShowWager(false); router.push("/ready"); }}
           lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
+          mode={matchType === "ranked" ? "ranked" : "wager"}
         />
       )}
     </div>

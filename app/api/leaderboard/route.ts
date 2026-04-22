@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
 // Bot players — seeded AI opponents to keep the board populated
 const BOT_PLAYERS: PlayerEntry[] = [
-  { address: "0xB071d7A6F3EA0000000000000000000000000001", wins: 312, losses: 89,  points: 8240, lastSeen: Date.now() - 900_000 },
+  { address: "0xB071d7A6F3EA0000000000000000000000000001", wins: 312, losses: 89, points: 8240, lastSeen: Date.now() - 900_000 },
   { address: "0xB071d7A6F3EA0000000000000000000000000002", wins: 267, losses: 104, points: 6910, lastSeen: Date.now() - 1_800_000 },
   { address: "0xB071d7A6F3EA0000000000000000000000000003", wins: 231, losses: 121, points: 5780, lastSeen: Date.now() - 3_600_000 },
   { address: "0xB071d7A6F3EA0000000000000000000000000004", wins: 198, losses: 137, points: 4950, lastSeen: Date.now() - 7_200_000 },
@@ -78,8 +78,8 @@ const BOT_PLAYERS: PlayerEntry[] = [
   { address: "0xB071d7A6F3EA0000000000000000000000000006", wins: 153, losses: 162, points: 3680, lastSeen: Date.now() - 14_400_000 },
   { address: "0xB071d7A6F3EA0000000000000000000000000007", wins: 134, losses: 179, points: 3100, lastSeen: Date.now() - 21_600_000 },
   { address: "0xB071d7A6F3EA0000000000000000000000000008", wins: 118, losses: 193, points: 2640, lastSeen: Date.now() - 28_800_000 },
-  { address: "0xB071d7A6F3EA0000000000000000000000000009", wins: 97,  losses: 208, points: 2100, lastSeen: Date.now() - 43_200_000 },
-  { address: "0xB071d7A6F3EA000000000000000000000000000A", wins: 81,  losses: 224, points: 1620, lastSeen: Date.now() - 86_400_000 },
+  { address: "0xB071d7A6F3EA0000000000000000000000000009", wins: 97, losses: 208, points: 2100, lastSeen: Date.now() - 43_200_000 },
+  { address: "0xB071d7A6F3EA000000000000000000000000000A", wins: 81, losses: 224, points: 1620, lastSeen: Date.now() - 86_400_000 },
 ];
 
 // GET /api/leaderboard?tab=casual|ranked&limit=50

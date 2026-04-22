@@ -8,6 +8,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { WalletSync } from "./lib/wallet";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
+import { UsernameModal } from "./components/UsernameModal";
 
 
 const { connectors } = getDefaultWallets({
@@ -34,9 +35,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <WalletSync />
           <PortraitOverlay />
           <DailyReward />
+          <UsernameModal />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
 }
+

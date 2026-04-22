@@ -56,7 +56,33 @@ export default function ProfilePage() {
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState("");
   const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
+
+  const saveUsername = async (name: string) => {
+    if (!address) { setPlayerName(name); setEditingName(false); return; }
+    setNameSaving(true);
+    setNameError("");
+    try {
+      const res = await fetch("/api/username", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, username: name }),
+      });
+      const data = await res.json() as { ok?: boolean; username?: string; error?: string };
+      if (!res.ok) {
+        setNameError(data.error ?? "Failed to save");
+      } else {
+        setPlayerName(data.username ?? name);
+        setEditingName(false);
+      }
+    } catch {
+      setNameError("Network error");
+    } finally {
+      setNameSaving(false);
+    }
+  };
 
   // Sync achievements to server and fetch persisted unlocks
   const syncAchievements = useCallback(async (addr: string) => {
@@ -176,20 +202,23 @@ export default function ProfilePage() {
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: rank.color, textTransform: "uppercase", marginBottom: 5 }}>{rank.label}</div>
 
               {editingName ? (
-                <div style={{ display: "flex", gap: 5, justifyContent: "center", marginBottom: 3 }}>
-                  <input
-                    value={nameInput}
-                    onChange={(e) => setNameInput(e.target.value)}
-                    maxLength={20}
-                    autoFocus
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid #56a4cb", borderRadius: 6, padding: "3px 6px", color: "#f1f5f9", fontSize: 12, fontWeight: 700, width: 100, textAlign: "center", outline: "none" }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { setPlayerName(nameInput); setEditingName(false); }
-                      if (e.key === "Escape") { setEditingName(false); }
-                    }}
-                  />
-                  <button onClick={() => { setPlayerName(nameInput); setEditingName(false); }} style={{ background: "#56a4cb", border: "none", borderRadius: 6, padding: "3px 7px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>✓</button>
-                  <button onClick={() => setEditingName(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 6, padding: "3px 7px", color: "#94a3b8", fontSize: 11, cursor: "pointer" }}>✕</button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 3, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 5, justifyContent: "center" }}>
+                    <input
+                      value={nameInput}
+                      onChange={(e) => { setNameInput(e.target.value); setNameError(""); }}
+                      maxLength={20}
+                      autoFocus
+                      style={{ background: "rgba(255,255,255,0.07)", border: "1px solid #56a4cb", borderRadius: 6, padding: "3px 6px", color: "#f1f5f9", fontSize: 12, fontWeight: 700, width: 100, textAlign: "center", outline: "none" }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void saveUsername(nameInput);
+                        if (e.key === "Escape") { setEditingName(false); setNameError(""); }
+                      }}
+                    />
+                    <button onClick={() => void saveUsername(nameInput)} disabled={nameSaving} style={{ background: "#56a4cb", border: "none", borderRadius: 6, padding: "3px 7px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>{nameSaving ? "…" : "✓"}</button>
+                    <button onClick={() => { setEditingName(false); setNameError(""); }} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 6, padding: "3px 7px", color: "#94a3b8", fontSize: 11, cursor: "pointer" }}>✕</button>
+                  </div>
+                  {nameError && <span style={{ fontSize: 9, color: "#f87171" }}>{nameError}</span>}
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 3 }}>

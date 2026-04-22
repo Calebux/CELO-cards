@@ -215,13 +215,13 @@ export const useGameStore = create<GameState>()(
     unlockedPremiumCards: [],
 
     purchaseCard: (cardId, price) => set((state) => {
-        if (state.playerPoints >= price && !state.unlockedPremiumCards.includes(cardId)) {
-            return {
-                playerPoints: state.playerPoints - price,
-                unlockedPremiumCards: [...state.unlockedPremiumCards, cardId],
-            };
-        }
-        return state;
+        if (state.unlockedPremiumCards.includes(cardId)) return state;
+        // price === 0 means the on-chain payment was already made (Black Market)
+        if (price > 0 && state.playerPoints < price) return state;
+        return {
+            playerPoints: price > 0 ? state.playerPoints - price : state.playerPoints,
+            unlockedPremiumCards: [...state.unlockedPremiumCards, cardId],
+        };
     }),
 
     activateUltimate: () => {

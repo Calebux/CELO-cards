@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { redis } from "../../lib/redis";
 
-const CHALLENGES_FILE = path.join(process.cwd(), "data", "challenges.json");
-const LEADERBOARD_FILE = path.join(process.cwd(), "data", "leaderboard.json");
+const CHALLENGES_KEY = "challenges:data";
+const LEADERBOARD_KEY = "leaderboard:data";
 
 type DailyStats = { wins: number; played: number };
 
@@ -13,44 +12,48 @@ type ChallengesData = {
   dailyStats: Record<string, DailyStats>; // address → today's match stats
 };
 
+type PlayerEntry = {
+  address: string;
+  name?: string;
+  wins: number;
+  losses: number;
+  points: number;
+  lastSeen: number;
+};
+
 type LeaderboardData = {
-  casual: Record<string, { wins: number; losses: number; points: number }>;
-  ranked: Record<string, { wins: number; losses: number; points: number }>;
+  casual: Record<string, PlayerEntry>;
+  ranked: Record<string, PlayerEntry>;
 };
 
 function getTodayUTC() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function readData(): ChallengesData {
+async function readData(): Promise<ChallengesData> {
   const today = getTodayUTC();
-  try {
-    const raw = fs.readFileSync(CHALLENGES_FILE, "utf-8");
-    const parsed = JSON.parse(raw) as ChallengesData;
-    // Reset if new day
-    if (parsed.date !== today) return { date: today, claims: {}, dailyStats: {} };
-    if (!parsed.dailyStats) parsed.dailyStats = {}; // backfill if file predates dailyStats
-    return parsed;
-  } catch {
+  const data = await redis.get<ChallengesData>(CHALLENGES_KEY);
+  
+  if (!data || data.date !== today) {
     return { date: today, claims: {}, dailyStats: {} };
   }
+  return data;
 }
 
-function writeData(data: ChallengesData) {
-  fs.mkdirSync(path.dirname(CHALLENGES_FILE), { recursive: true });
-  fs.writeFileSync(CHALLENGES_FILE, JSON.stringify(data, null, 2), "utf-8");
+async function writeData(data: ChallengesData) {
+  await redis.set(CHALLENGES_KEY, data);
 }
 
-function readLeaderboard(): LeaderboardData {
-  try {
-    const raw = fs.readFileSync(LEADERBOARD_FILE, "utf-8");
-    return JSON.parse(raw) as LeaderboardData;
-  } catch {
-    return { casual: {}, ranked: {} };
-  }
+async function readLeaderboard(): Promise<LeaderboardData> {
+  const data = await redis.get<LeaderboardData>(LEADERBOARD_KEY);
+  return data ?? { casual: {}, ranked: {} };
 }
 
-// Daily challenges (same every day, just with rotating flavor text)
+async function writeLeaderboard(data: LeaderboardData) {
+  await redis.set(LEADERBOARD_KEY, data);
+}
+
+// Daily challenges
 export const DAILY_CHALLENGES = [
   {
     id: "win1",
@@ -87,7 +90,7 @@ export const DAILY_CHALLENGES = [
 // GET /api/challenges?address=0x...
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address")?.toLowerCase();
-  const data = readData();
+  const data = await readData();
 
   const claimed = address ? (data.claims[address] ?? []) : [];
   const todayStats = address ? (data.dailyStats[address] ?? { wins: 0, played: 0 }) : { wins: 0, played: 0 };
@@ -117,7 +120,7 @@ export async function POST(req: NextRequest) {
   const challenge = DAILY_CHALLENGES.find((c) => c.id === challengeId);
   if (!challenge) return NextResponse.json({ error: "Unknown challenge" }, { status: 400 });
 
-  const data = readData();
+  const data = await readData();
   const addr = address.toLowerCase();
   const claimed = data.claims[addr] ?? [];
   if (claimed.includes(challengeId!)) {
@@ -125,16 +128,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Award points to leaderboard
-  const leaderboard = readLeaderboard();
+  const leaderboard = await readLeaderboard();
   const existing = leaderboard.casual[addr] ?? { address: addr, wins: 0, losses: 0, points: 0, lastSeen: Date.now() };
   existing.points += challenge.rewardPoints;
   leaderboard.casual[addr] = existing;
-  fs.mkdirSync(path.dirname(LEADERBOARD_FILE), { recursive: true });
-  fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(leaderboard, null, 2), "utf-8");
+  await writeLeaderboard(leaderboard);
 
   // Mark claimed
   data.claims[addr] = [...claimed, challengeId!];
-  writeData(data);
+  await writeData(data);
 
   return NextResponse.json({ ok: true, pointsAwarded: challenge.rewardPoints, gdollarReward: challenge.rewardGDollar });
 }
@@ -149,11 +151,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
 
-  const data = readData();
+  const data = await readData();
   const addr = address.toLowerCase();
   const prev = data.dailyStats[addr] ?? { wins: 0, played: 0 };
   data.dailyStats[addr] = { wins: prev.wins + (won ? 1 : 0), played: prev.played + 1 };
-  writeData(data);
+  await writeData(data);
 
   return NextResponse.json({ ok: true, daily: data.dailyStats[addr] });
 }
+
