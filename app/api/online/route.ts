@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { redis } from "../../lib/redis";
 
-const DATA_FILE = path.join(process.cwd(), "data", "leaderboard.json");
+const LEADERBOARD_KEY = "leaderboard:data";
+
+type PlayerEntry = {
+  address: string;
+  name?: string;
+  wins: number;
+  losses: number;
+  points: number;
+  lastSeen: number;
+};
+
+type LeaderboardData = {
+  casual: Record<string, PlayerEntry>;
+  ranked: Record<string, PlayerEntry>;
+};
 
 // Returns a live-ish player count:
 //  - real unique players from leaderboard
@@ -11,9 +24,11 @@ const DATA_FILE = path.join(process.cwd(), "data", "leaderboard.json");
 export async function GET() {
   let realCount = 0;
   try {
-    const raw = fs.readFileSync(DATA_FILE, "utf-8");
-    const data = JSON.parse(raw) as { casual: Record<string, unknown>; ranked: Record<string, unknown> };
-    const allAddrs = new Set([...Object.keys(data.casual ?? {}), ...Object.keys(data.ranked ?? {})]);
+    const data = await redis.get<LeaderboardData>(LEADERBOARD_KEY);
+    const allAddrs = new Set([
+      ...Object.keys(data?.casual ?? {}),
+      ...Object.keys(data?.ranked ?? {}),
+    ]);
     realCount = allAddrs.size;
   } catch {
     realCount = 0;
@@ -25,3 +40,4 @@ export async function GET() {
 
   return NextResponse.json({ online });
 }
+

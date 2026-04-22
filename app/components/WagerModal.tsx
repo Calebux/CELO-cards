@@ -18,6 +18,7 @@ type Props = {
   onConfirmed: () => void;
   onSkip: () => void;
   lockedAmount?: string; // pre-filled, read-only (joiner matching host's stake, e.g. "0.01")
+  mode?: "wager" | "ranked"; // ranked = match-fee-only view
 };
 
 type Step = "idle" | "approving" | "approved" | "entering" | "done" | "error";
@@ -34,7 +35,7 @@ const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
+export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const { address } = useAccount();
   const setWager            = useGameStore((s) => s.setWager);
@@ -304,6 +305,125 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
     ? "Winnings stream to your wallet via Superfluid"
     : `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
 
+  // ── Ranked match-fee-only view ────────────────────────────────────────────
+  if (mode === "ranked") {
+    const RANKED_COLOR = "#f59e0b";
+    const MATCH_FEE = lockedAmount ?? "0.000007";
+    return (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 200,
+        backgroundColor: "rgba(5, 5, 16, 0.88)",
+        backdropFilter: "blur(10px)",
+        overflow: "hidden",
+      }}>
+        <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{
+            position: "relative", width: 440,
+            background: "rgba(12, 18, 36, 0.97)",
+            border: `2px solid ${RANKED_COLOR}`,
+            borderRadius: 10,
+            padding: "44px 44px 36px",
+            boxShadow: `0 0 60px ${RANKED_COLOR}40, 0 0 120px ${RANKED_COLOR}18`,
+            fontFamily: "var(--font-space-grotesk), sans-serif",
+          }}>
+            {/* Scanline top */}
+            <div style={{ position: "absolute", top: -1, left: -1, right: -1, height: 2, background: `linear-gradient(90deg, transparent, ${RANKED_COLOR}, transparent)` }} />
+            {/* Corner accents */}
+            <div style={{ position: "absolute", top: -10, left: -10, width: 24, height: 24, borderLeft: `1.5px solid ${RANKED_COLOR}`, borderTop: `1.5px solid ${RANKED_COLOR}` }} />
+            <div style={{ position: "absolute", top: -10, right: -10, width: 24, height: 24, borderRight: `1.5px solid ${RANKED_COLOR}`, borderTop: `1.5px solid ${RANKED_COLOR}` }} />
+            <div style={{ position: "absolute", bottom: -10, left: -10, width: 24, height: 24, borderLeft: `1.5px solid ${RANKED_COLOR}`, borderBottom: `1.5px solid ${RANKED_COLOR}` }} />
+            <div style={{ position: "absolute", bottom: -10, right: -10, width: 24, height: 24, borderRight: `1.5px solid ${RANKED_COLOR}`, borderBottom: `1.5px solid ${RANKED_COLOR}` }} />
+
+            {/* Header */}
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 4, color: RANKED_COLOR, textTransform: "uppercase", marginBottom: 8 }}>
+              Ranked Match
+            </p>
+            <h2 style={{ fontSize: 30, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: "0 0 6px" }}>
+              Enter the Realm
+            </h2>
+            <p style={{ fontSize: 12, color: "#9ca3af", margin: "0 0 28px", lineHeight: 1.6 }}>
+              Ranked matches require a small match fee. Climb the leaderboard and qualify for the weekly tournament.
+            </p>
+
+            {/* Fee breakdown */}
+            <div style={{
+              background: `${RANKED_COLOR}0d`,
+              border: `1px solid ${RANKED_COLOR}40`,
+              borderRadius: 8, padding: "18px 22px", marginBottom: 24,
+              display: "flex", flexDirection: "column", gap: 10,
+            }}>
+              {[
+                { label: "Match fee",         value: `${MATCH_FEE} CELO`, color: RANKED_COLOR },
+                { label: "Ranked points",      value: "Earned on win",       color: "#4ade80" },
+                { label: "Leaderboard",        value: "Updated live",        color: "#b9e7f4" },
+                { label: "Tournament qualify", value: "Top 16 weekly",       color: "#a855f7" },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "#6b7280" }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color }}>{value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Status / error */}
+            {statusLabel() && (
+              <p style={{ fontSize: 12, color: "#b9e7f4", textAlign: "center", marginBottom: 16 }}>
+                {statusLabel()}
+              </p>
+            )}
+            {step === "error" && (
+              <p style={{ fontSize: 11, color: "#f87171", textAlign: "center", marginBottom: 16, wordBreak: "break-word" }}>
+                {errMsg || "Transaction failed."}
+              </p>
+            )}
+
+            {/* Pay button */}
+            <button
+              onClick={() => void handlePay()}
+              disabled={busy}
+              style={{
+                width: "100%", padding: "15px 0", marginBottom: 12,
+                background: busy ? `${RANKED_COLOR}30` : `linear-gradient(135deg, ${RANKED_COLOR}28, ${RANKED_COLOR}10)`,
+                border: `1.5px solid ${RANKED_COLOR}`,
+                borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                transition: "all 0.2s",
+                boxShadow: busy ? "none" : `0 0 20px ${RANKED_COLOR}30`,
+                clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
+              }}
+            >
+              <span className="material-icons" style={{ fontSize: 20, color: RANKED_COLOR }}>
+                {busy ? "hourglass_empty" : "military_tech"}
+              </span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 3 }}>
+                {busy ? "Processing…" : `Pay ${MATCH_FEE} CELO & Enter`}
+              </span>
+            </button>
+
+            {/* Cancel */}
+            <button
+              onClick={onSkip}
+              disabled={busy}
+              style={{
+                width: "100%", padding: "10px 0",
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 5, cursor: busy ? "not-allowed" : "pointer",
+                fontSize: 11, fontWeight: 700, color: "#475569",
+                letterSpacing: 2, textTransform: "uppercase",
+                fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+      </div>
+    );
+  }
+
+  // ── Default wager view ────────────────────────────────────────────────────
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 200,
@@ -462,6 +582,25 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 3 }}>
             {busy ? "Processing…" : `Stake ${amountInput || "0"} ${cfg.symbol}`}
           </span>
+        </button>
+
+        {/* Back / Cancel */}
+        <button
+          onClick={onSkip}
+          disabled={busy}
+          style={{
+            width: "100%", padding: "10px 0", marginTop: 4,
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 5,
+            cursor: busy ? "not-allowed" : "pointer",
+            fontSize: 11, fontWeight: 700, color: "#475569",
+            letterSpacing: 2, textTransform: "uppercase",
+            fontFamily: "inherit",
+            transition: "color 0.15s",
+          }}
+        >
+          ← Back
         </button>
       </div>
     </div>

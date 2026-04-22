@@ -7,7 +7,7 @@ import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
-import { SoundSettings, SoundSettingsButton } from "../components/SoundSettings";
+import { SoundSettings } from "../components/SoundSettings";
 import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
@@ -43,6 +43,8 @@ export default function Gameplay() {
     pointsThisRound,
     precomputedRound,
     matchId,
+    vsBot,
+    playerRole,
     wagerActive,
     wagerCurrency,
     winStreak,
@@ -64,6 +66,8 @@ export default function Gameplay() {
   } = useGameStore();
   const { address } = useAccount();
 
+  const isMatchEnd = matchPhase === "match-end";
+
   // Payout state
   const [payoutState, setPayoutState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [payoutTxHash, setPayoutTxHash] = useState<string | null>(null);
@@ -84,6 +88,7 @@ export default function Gameplay() {
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [critBanner, setCritBanner] = useState<"player" | "opponent" | null>(null);
   const [comboBanner, setComboBanner] = useState<"player" | "opponent" | null>(null);
+  const [opponentLeft, setOpponentLeft] = useState(false);
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
   const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
@@ -148,6 +153,27 @@ export default function Gameplay() {
     return () => { clearTimeout(show); clearTimeout(hide); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opponentCharacter?.id]);
+
+  // Background polling to detect if opponent quits (multiplayer only)
+  useEffect(() => {
+    if (vsBot || !matchId || isMatchEnd || opponentLeft) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        const data = await res.json() as { abortedBy?: string | null };
+        const opponentRole = playerRole === "host" ? "joiner" : "host";
+        if (data.abortedBy === opponentRole) {
+          setOpponentLeft(true);
+          clearInterval(interval);
+        }
+      } catch (e) {
+        // ignore polling errors
+      }
+    }, 4000);
+    
+    return () => clearInterval(interval);
+  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft]);
 
   // Start background music on mount
   useEffect(() => {
@@ -393,6 +419,16 @@ export default function Gameplay() {
 
   const handleBackToMenu = () => {
     playSound(isMatchEnd ? "gameOver" : "click");
+    
+    if (!vsBot && matchId && playerRole && !isMatchEnd) {
+      // Explicitly tell the server we're leaving
+      fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "quit", role: playerRole }),
+      }).catch(() => {});
+    }
+
     resetMatch();
     stopBgMusic();
     router.push("/");
@@ -444,7 +480,6 @@ export default function Gameplay() {
   const displayPlayerHP = showResult && roundWinner === "opponent" ? 0 : playerHP;
   const displayOpponentHP = showResult && roundWinner === "player" ? 0 : opponentHP;
 
-  const isMatchEnd = matchPhase === "match-end";
   const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : wagerCurrency === "gdollar" ? "G$" : "cUSD";
   const effectivePayoutAmt =
     opponentWagered
@@ -659,7 +694,6 @@ export default function Gameplay() {
 
         {/* Bottom Left Controls */}
         <div style={{ position: "absolute", bottom: 16, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
-          <SoundSettingsButton />
           {!isMatchEnd && (
             <button
               onClick={() => {
@@ -1517,7 +1551,6 @@ export default function Gameplay() {
             arenaBackground={BG_MAIN}
           />
         )}
-
         {/* ── Floating Sound Settings Toggle ── */}
         <div
           onClick={() => setShowSoundSettings(true)}
@@ -1605,6 +1638,38 @@ export default function Gameplay() {
             <div style={{ marginLeft: "auto", width: 24, height: 24, borderRadius: "50%", background: "rgba(74,222,128,0.15)", border: "1.5px solid rgba(74,222,128,0.5)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <span style={{ fontSize: 12, color: "#4ade80" }}>✓</span>
             </div>
+          </div>
+        )}
+
+        {/* Opponent Left Modal */}
+        {opponentLeft && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, zIndex: 1000 }}>
+            <div style={{ position: "relative" }}>
+              <div style={{ fontSize: 64, animation: "bounce 2s infinite" }}>👋</div>
+              <div style={{ position: "absolute", bottom: 0, right: 0, fontSize: 24 }}>🚫</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <h2 style={{ fontSize: 28, fontWeight: 900, color: "#fff", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Opponent has left</h2>
+              <p style={{ fontSize: 14, color: "#64748b", maxWidth: 300, lineHeight: 1.6 }}>The match has been abandoned. You've been returned to safe orbit.</p>
+            </div>
+            <button
+              onClick={handleBackToMenu}
+              style={{
+                background: "linear-gradient(135deg, #1e293b, #0f172a)",
+                border: "1.5px solid #56a4cb",
+                borderRadius: 8,
+                padding: "16px 40px",
+                color: "#b9e7f4",
+                fontSize: 14,
+                fontWeight: 800,
+                letterSpacing: 3,
+                cursor: "pointer",
+                boxShadow: "0 0 20px rgba(86,164,203,0.3)",
+                textTransform: "uppercase",
+              }}
+            >
+              RETURN TO MENU
+            </button>
           </div>
         )}
 

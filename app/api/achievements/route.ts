@@ -21,14 +21,14 @@ type PlayerRecord = {
 type AchievementsData = Record<string, PlayerRecord>;
 
 const ACHIEVEMENT_CONDITIONS: Record<string, (s: PlayerStats) => boolean> = {
-  first_blood:  (s) => s.matchesWon >= 1,
-  warrior:      (s) => s.matchesWon >= 5,
-  veteran:      (s) => s.matchesPlayed >= 10,
-  on_fire:      (s) => s.maxWinStreak >= 3,
-  unstoppable:  (s) => s.maxWinStreak >= 5,
-  centurion:    (s) => s.playerPoints >= 1000,
-  legend:       (s) => s.playerPoints >= 5000,
-  iron_will:    (s) => s.matchesWon >= 1 && s.matchesLost >= 3,
+  first_blood: (s) => s.matchesWon >= 1,
+  warrior: (s) => s.matchesWon >= 5,
+  veteran: (s) => s.matchesPlayed >= 10,
+  on_fire: (s) => s.maxWinStreak >= 3,
+  unstoppable: (s) => s.maxWinStreak >= 5,
+  centurion: (s) => s.playerPoints >= 1000,
+  legend: (s) => s.playerPoints >= 5000,
+  iron_will: (s) => s.matchesWon >= 1 && s.matchesLost >= 3,
 };
 
 function readData(): AchievementsData {
@@ -81,11 +81,11 @@ export async function POST(req: NextRequest) {
 
   // Merge stats — always take the higher value so progress is never lost
   const merged: PlayerStats = {
-    matchesWon:    Math.max(incoming.matchesWon    ?? 0, existing?.stats?.matchesWon    ?? 0),
+    matchesWon: Math.max(incoming.matchesWon ?? 0, existing?.stats?.matchesWon ?? 0),
     matchesPlayed: Math.max(incoming.matchesPlayed ?? 0, existing?.stats?.matchesPlayed ?? 0),
-    playerPoints:  Math.max(incoming.playerPoints  ?? 0, existing?.stats?.playerPoints  ?? 0),
-    maxWinStreak:  Math.max(incoming.maxWinStreak  ?? 0, existing?.stats?.maxWinStreak  ?? 0),
-    matchesLost:   Math.max(incoming.matchesLost   ?? 0, existing?.stats?.matchesLost   ?? 0),
+    playerPoints: Math.max(incoming.playerPoints ?? 0, existing?.stats?.playerPoints ?? 0),
+    maxWinStreak: Math.max(incoming.maxWinStreak ?? 0, existing?.stats?.maxWinStreak ?? 0),
+    matchesLost: Math.max(incoming.matchesLost ?? 0, existing?.stats?.matchesLost ?? 0),
   };
 
   const previousIds = new Set(existing?.unlockedIds ?? []);

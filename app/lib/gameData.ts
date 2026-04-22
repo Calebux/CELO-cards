@@ -394,20 +394,6 @@ export const CARDS: Card[] = [
         image: "/cards/aerial_spear_fist.webp",
     },
 
-    // Wild card
-    {
-        id: "wild_card",
-        name: "Wild Card",
-        type: "strike",  // default; randomised at resolve time when isWild=true
-        priority: 3,
-        knock: 5,
-        energyCost: 2,
-        effect: "Type unknown until the moment of clash. Could be anything.",
-        color: "#f59e0b",
-        bgColor: "#3d2100",
-        image: "/cards/counter.webp",
-        isWild: true,
-    },
 
     // Black Market Cards
     {

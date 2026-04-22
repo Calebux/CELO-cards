@@ -40,6 +40,7 @@ function emptyMatch(matchId: string): ServerMatch {
     joinerWagerTx:    null,
     hostWagerAmount:  null,
     joinerWagerAmount: null,
+    abortedBy: null,
   };
 }
 

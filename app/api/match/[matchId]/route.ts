@@ -29,6 +29,7 @@ export interface ServerMatch {
   joinerWagerTx:    string | null;
   hostWagerAmount:  string | null;
   joinerWagerAmount: string | null;
+  abortedBy:       "host" | "joiner" | null;
 }
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
@@ -63,6 +64,7 @@ function newMatch(matchId: string): ServerMatch {
     joinerWagerTx: null,
     hostWagerAmount: null,
     joinerWagerAmount: null,
+    abortedBy: null,
   };
 }
 
@@ -137,6 +139,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     selfWagered:     role === "host" ? !!match.hostWagerTx   : !!match.joinerWagerTx,
     opponentWagered: role === "host" ? !!match.joinerWagerTx : !!match.hostWagerTx,
     hostWagerAmount: match.hostWagerAmount,
+    abortedBy:       match.abortedBy ?? null,
   });
 }
 
@@ -203,6 +206,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match.joinerWagerTx = wagerTx ?? null;
       match.joinerWagerAmount = wagerAmount ?? null;
     }
+    await setMatch(matchId, match);
+    return NextResponse.json({ ok: true });
+  }
+
+  // ── Quit match ──────────────────────────────────────────────────────────
+  if (action === "quit") {
+    const match = await getMatch<ServerMatch>(matchId);
+    if (!match) return NextResponse.json({ ok: true });
+    match.abortedBy = role;
     match.lastActivity = Date.now();
     await setMatch(matchId, match);
     return NextResponse.json({ ok: true });
