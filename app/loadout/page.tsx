@@ -102,6 +102,7 @@ export default function Loadout() {
     unlockedPremiumCards,
     setOpponentCharacterFromServer,
     setOpponentName,
+    resetMatch,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
