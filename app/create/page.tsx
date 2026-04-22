@@ -625,7 +625,11 @@ export default function CreateMatch() {
       {showWager && (
         <WagerModal
           onConfirmed={matchType === "ranked" && queueState.status === "idle" ? () => { setShowWager(false); void startQueueAfterPayment(); } : proceedAfterPayment}
-          onSkip={() => { setWager(false, null); setShowWager(false); router.push("/ready"); }}
+          onSkip={() => { 
+            setWager(false, null); 
+            setShowWager(false); 
+            if (matchType !== "ranked") router.push("/ready"); 
+          }}
           lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
           mode={matchType === "ranked" ? "ranked" : "wager"}
         />
