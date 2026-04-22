@@ -100,23 +100,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### Environment Variables
 
-```bash
-# WalletConnect (cloud.walletconnect.com)
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
-
-# Arena contract (deployed on Celo mainnet)
-NEXT_PUBLIC_ARENA_ADDRESS=
-
-# Treasury wallet — receives entry fees and Black Market payments
-NEXT_PUBLIC_TREASURY_ADDRESS=
-TREASURY_PRIVATE_KEY=         # server-side only — never expose
-
-# Redis (Upstash) — usernames, leaderboard, challenges, achievements
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
-```
 
 ---
 
