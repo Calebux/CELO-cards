@@ -99,6 +99,9 @@ export default function Loadout() {
     activateUltimate,
     playerTaunt,
     setPlayerTaunt,
+    unlockedPremiumCards,
+    setOpponentCharacterFromServer,
+    setOpponentName,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -115,7 +118,8 @@ export default function Loadout() {
 
   // Separate regular cards from special cards per tab
   const getCardsForTab = () => {
-    let cards = currentFilter === "all" ? CARDS : CARDS.filter((c) => c.type === currentFilter);
+    const baseCards = CARDS.filter(c => !c.isPremium || unlockedPremiumCards.includes(c.id));
+    let cards = currentFilter === "all" ? baseCards : baseCards.filter((c) => c.type === currentFilter);
 
     if (currentFilter === "strike") {
       return { regular: cards.filter((c) => c.id !== SPECIAL_STRIKE_ID), special: cards.find((c) => c.id === SPECIAL_STRIKE_ID) || null };
@@ -191,8 +195,25 @@ export default function Loadout() {
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { phase: string; slots: unknown };
+        const data = await res.json() as { phase: string; slots: unknown; opponentCharId?: string; opponentName?: string | null };
         setPollErrorCount(0); // successful response
+
+        // Sync opponent character if joined
+        if (data.opponentCharId) {
+          setOpponentCharacterFromServer(data.opponentCharId);
+        }
+        if (data.opponentName !== undefined) {
+          setOpponentName(data.opponentName);
+        }
+
+        // Abort if timed out
+        if (data.phase === "timed-out") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          alert("Your opponent has left the match or timed out.");
+          router.push("/");
+          return;
+        }
+
         if (data.phase === "resolved" && data.slots) {
           if (pollRef.current) clearInterval(pollRef.current);
           setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);

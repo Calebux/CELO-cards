@@ -7,6 +7,7 @@ import { isMiniPay, formatAddress } from "../lib/minipay";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { formatUnits } from "viem";
 import { isMuted, setMuted } from "../lib/soundManager";
+import { useGameStore } from "../lib/gameStore";
 
 function BalanceChip({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -72,6 +73,7 @@ function MuteButton() {
 
 export function WalletSection() {
   const { address, isConnected } = useAccount();
+  const { playerName } = useGameStore();
 
   const base: React.CSSProperties = {
     display: "flex",
@@ -95,7 +97,7 @@ export function WalletSection() {
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
             <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>CELO WALLET</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>{formatAddress(address)}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>{playerName || formatAddress(address)}</div>
           </div>
         </div>
       </div>
@@ -131,7 +133,7 @@ export function WalletSection() {
                   {connected ? "CELO WALLET" : "CONNECT"}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
-                  {connected ? (account.displayName ?? formatAddress(account.address)) : "SIGN IN"}
+                  {connected ? (playerName || account.displayName || formatAddress(account.address)) : "SIGN IN"}
                 </div>
               </div>
             </button>

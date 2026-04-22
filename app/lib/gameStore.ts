@@ -118,6 +118,7 @@ interface GameState {
 
     // Player profile
     playerName: string;
+    opponentName: string | null;
 
     // Deck presets
     deckPresets: DeckPreset[];
@@ -138,6 +139,7 @@ interface GameState {
     // Actions
     setPlayerAddress: (address: string | null) => void;
     setPlayerName: (name: string) => void;
+    setOpponentName: (name: string | null) => void;
     savePreset: (name: string) => void;
     loadPreset: (index: number) => void;
     deletePreset: (index: number) => void;
@@ -204,6 +206,7 @@ export const useGameStore = create<GameState>()(
     matchHistory: [],
     currentMatchRounds: [],
     playerName: "",
+    opponentName: null,
     deckPresets: [],
     ultimateActivated: false,
     ultimateUsed: false,
@@ -231,6 +234,7 @@ export const useGameStore = create<GameState>()(
 
     setPlayerAddress: (address) => set({ playerAddress: address }),
     setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
+    setOpponentName: (name) => set({ opponentName: name ? name.slice(0, 20) : null }),
 
     savePreset: (name) => {
         const { currentOrder, deckPresets } = get();

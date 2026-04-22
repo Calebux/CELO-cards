@@ -58,6 +58,7 @@ export default function Gameplay() {
     maxWinStreak,
     matchesLost,
     playerName,
+    opponentName,
     startMatch,
     autoLockOrder,
   } = useGameStore();
@@ -466,9 +467,8 @@ export default function Gameplay() {
           to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);    }
         }
         @keyframes popIn {
-          0%   { opacity: 0; transform: scale(0.8) translateY(20px) rotateX(-20deg); }
-          60%  { opacity: 1; transform: scale(1.05) translateY(-5px) rotateX(10deg); }
-          100% { opacity: 1; transform: scale(1) translateY(0) rotateX(0); }
+          0%   { opacity: 0; transform: scale(0.95) translateY(10px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
         }
       ` }} />
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", willChange: "transform" }}>
@@ -476,8 +476,8 @@ export default function Gameplay() {
         {/* VS loading screen — inside the canvas so it gets the portrait rotation */}
         {matchLoading && (
           <MatchLoadingScreen
-            playerName={selectedCharacter.name}
-            opponentName={opponentCharacter.name}
+            playerName={playerName || selectedCharacter.name}
+            opponentName={opponentName || opponentCharacter.name}
             playerColor={selectedCharacter.color}
             opponentColor={opponentCharacter.color}
             playerPortrait={selectedCharacter.standingArt}
@@ -688,7 +688,7 @@ export default function Gameplay() {
           {/* P1 block */}
           <div style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: "1px solid rgba(6,168,249,0.15)", borderRadius: 4, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.5px", color: "white", textTransform: "uppercase", textShadow: "0 0 12px rgba(6,168,249,0.6)" }}>{player?.name || "PLAYER"}</span>
+              <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.5px", color: "white", textTransform: "uppercase", textShadow: "0 0 12px rgba(6,168,249,0.6)" }}>{playerName || player?.name || "PLAYER"}</span>
               <span style={{ fontSize: 10, letterSpacing: "1px", fontWeight: 500, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{player?.className}</span>
             </div>
             <div style={{ position: "relative", height: 16, backgroundColor: "rgba(0,0,0,0.7)", border: "1px solid rgba(6,168,249,0.2)", borderRadius: 2, overflow: "hidden" }}>
@@ -719,7 +719,7 @@ export default function Gameplay() {
           <div style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: `1px solid ${opponent?.color || "#f906a8"}15`, borderRadius: 4, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 10, letterSpacing: "1px", fontWeight: 500, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{opponent?.className}</span>
-              <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.5px", color: "white", textTransform: "uppercase", textShadow: `0 0 12px ${opponent?.color || "#f906a8"}99` }}>{opponent?.name || "OPPONENT"}</span>
+              <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.5px", color: "white", textTransform: "uppercase", textShadow: `0 0 12px ${opponent?.color || "#f906a8"}99` }}>{opponentName || opponent?.name || "OPPONENT"}</span>
             </div>
             <div style={{ position: "relative", height: 16, backgroundColor: "rgba(0,0,0,0.7)", border: `1px solid ${opponent?.color || "#f906a8"}33`, borderRadius: 2, overflow: "hidden" }}>
               <div style={{ position: "absolute", inset: 0, background: `linear-gradient(270deg, ${opponent?.color || "#f906a8"}88 0%, ${opponent?.color || "#f906a8"} 60%, ${opponent?.color || "#f906d4"} 100%)`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)", transform: `scaleX(${displayOpponentHP / maxHP})`, transformOrigin: "left center", transition: "transform 0.8s ease", willChange: "transform" }} />
@@ -813,7 +813,7 @@ export default function Gameplay() {
               display: "flex", alignItems: "center", gap: 40,
               backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)",
               border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "20px 40px",
-              animation: "popIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards",
+              animation: "popIn 0.3s ease-out forwards",
               transformOrigin: "center center"
             }}>
               {/* Last revealed slot result */}
