@@ -66,6 +66,8 @@ export default function Gameplay() {
   } = useGameStore();
   const { address } = useAccount();
 
+  const isMatchEnd = matchPhase === "match-end";
+
   // Payout state
   const [payoutState, setPayoutState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [payoutTxHash, setPayoutTxHash] = useState<string | null>(null);
@@ -478,7 +480,6 @@ export default function Gameplay() {
   const displayPlayerHP = showResult && roundWinner === "opponent" ? 0 : playerHP;
   const displayOpponentHP = showResult && roundWinner === "player" ? 0 : opponentHP;
 
-  const isMatchEnd = matchPhase === "match-end";
   const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : wagerCurrency === "gdollar" ? "G$" : "cUSD";
   const effectivePayoutAmt =
     opponentWagered
