@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { redis } from "../../lib/redis";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
@@ -11,23 +10,19 @@ import {
   STREAM_FLOW_RATE,
 } from "../../lib/gooddollar";
 
-const CLAIMS_PATH = path.join(process.cwd(), "data", "daily-claims.json");
+const CLAIMS_KEY = "daily-claims";
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function readClaims(): Record<string, string> {
-  try {
-    return JSON.parse(fs.readFileSync(CLAIMS_PATH, "utf8")) as Record<string, string>;
-  } catch {
-    return {};
-  }
+async function readClaims(): Promise<Record<string, string>> {
+  const data = await redis.get<Record<string, string>>(CLAIMS_KEY);
+  return data ?? {};
 }
 
-function writeClaims(claims: Record<string, string>): void {
-  fs.mkdirSync(path.dirname(CLAIMS_PATH), { recursive: true });
-  fs.writeFileSync(CLAIMS_PATH, JSON.stringify(claims, null, 2));
+async function writeClaims(claims: Record<string, string>): Promise<void> {
+  await redis.set(CLAIMS_KEY, claims);
 }
 
 // POST /api/daily-reward
@@ -49,7 +44,7 @@ export async function POST(req: NextRequest) {
   }
 
   const today = todayStr();
-  const claims = readClaims();
+  const claims = await readClaims();
   const key = address.toLowerCase();
 
   if (claims[key] === today) {
@@ -78,7 +73,7 @@ export async function POST(req: NextRequest) {
     const txHash = await walletClient.writeContract(request);
 
     claims[key] = today;
-    writeClaims(claims);
+    await writeClaims(claims);
 
     console.log(`Daily reward: G$ stream started to ${address} — tx ${txHash}`);
     return NextResponse.json({ txHash, streaming: true });
