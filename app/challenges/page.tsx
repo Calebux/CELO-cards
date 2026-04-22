@@ -115,6 +115,29 @@ export default function ChallengesPage() {
         {/* Content */}
         <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 32 }}>
 
+          {/* ── COMING SOON OVERLAY ── */}
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 50,
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            background: "rgba(5,5,16,0.88)", backdropFilter: "blur(8px)",
+          }}>
+            <div style={{ textAlign: "center", padding: "48px 56px", background: "rgba(10,15,28,0.95)", border: "1.5px solid rgba(0,197,142,0.35)", borderRadius: 12, boxShadow: "0 0 60px rgba(0,197,142,0.12)", maxWidth: 480, position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, transparent, #00C58E, transparent)" }} />
+              <div style={{ fontSize: 52, marginBottom: 16 }}>🎯</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 4, color: "#00C58E", textTransform: "uppercase", marginBottom: 12 }}>Daily Challenges</div>
+              <h2 style={{ fontSize: 36, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -1, margin: "0 0 12px", lineHeight: 1 }}>Coming Soon</h2>
+              <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7, margin: "0 0 28px" }}>
+                Daily challenges with G$ rewards are being prepared. Complete objectives, earn points, and stream winnings straight to your wallet.
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginBottom: 28 }}>
+                {["Win Streak Bonus", "G$ Streaming Rewards", "Tournament Qualifier", "Weekly Resets"].map((tag) => (
+                  <span key={tag} style={{ fontSize: 10, fontWeight: 700, color: "#00C58E", letterSpacing: 1, textTransform: "uppercase", padding: "4px 10px", background: "rgba(0,197,142,0.08)", border: "1px solid rgba(0,197,142,0.25)", borderRadius: 4 }}>{tag}</span>
+                ))}
+              </div>
+              <button onClick={() => router.push("/")} style={{ width: "100%", padding: "14px 0", background: "linear-gradient(135deg, rgba(0,197,142,0.2), rgba(0,197,142,0.08))", border: "1.5px solid #00C58E", borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 2.5, color: "#00C58E", textTransform: "uppercase" }}>← Back to Menu</button>
+            </div>
+          </div>
+
           {/* Header */}
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: GDOLLAR_COLOR, textTransform: "uppercase", marginBottom: 10 }}>

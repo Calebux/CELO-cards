@@ -6,6 +6,7 @@ import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { useAccount } from "wagmi";
+import { playSound } from "../lib/soundManager";
 
 type QueueState =
   | { status: "idle" }
@@ -63,13 +64,18 @@ const MATCH_TYPES: {
   },
 ];
 
+const QUEUE_TTL_MS = 90_000; // mirrors server QUEUE_TTL of 90 seconds
+
 export default function CreateMatch() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("wager");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
+  const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
+  const [paidRankedFee, setPaidRankedFee] = useState(false);
   const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queueStartRef = useRef<number>(0);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
@@ -144,21 +150,62 @@ export default function CreateMatch() {
 
   const cancelQueue = useCallback(async () => {
     if (queueState.status !== "searching") return;
+    // Warn ranked players their fee won't be refunded
+    if (paidRankedFee) {
+      const ok = window.confirm(
+        "Your ranked fee is saved as a credit for 24h\n\n" +
+        "You already paid the 0.000007 CELO entry fee. If you cancel now, " +
+        "your credit is preserved — next time you search you won't need to pay again.\n\n" +
+        "Cancel search?"
+      );
+      if (!ok) return;
+    }
     if (queuePollRef.current) clearInterval(queuePollRef.current);
     await fetch(`/api/queue?id=${queueState.queueId}`, { method: "DELETE" }).catch(() => {});
     setQueueState({ status: "idle" });
-  }, [queueState]);
+    setPaidRankedFee(false);
+  }, [queueState, paidRankedFee]);
 
   const handleFindMatch = async () => {
     if (!address) return;
+    // Check if player already has a ranked fee credit from a previous queue attempt
+    try {
+      const res = await fetch(`/api/queue/credit?address=${address}`);
+      const data = await res.json() as { hasCredit: boolean; expiresInSeconds?: number };
+      if (data.hasCredit) {
+        // Skip payment — go straight to queue using their existing credit
+        resetMatch();
+        setVsBot(false);
+        setPlayerRole("host");
+        setQueueExpiredMsg(null);
+        void startQueueAfterPayment(true /* usingCredit */);
+        return;
+      }
+    } catch { /* non-critical — fall through to payment */ }
+
+    // Generate a fresh matchId BEFORE opening the WagerModal so
+    // the modal has a valid ID for any contract calls.
+    resetMatch();
+    setVsBot(false);
+    setPlayerRole("host");
     setWagerAmountInput("0.000007");
     setShowWager(true);
   };
 
-  const startQueueAfterPayment = async () => {
-    resetMatch();
-    setVsBot(false);
-    setPlayerRole("host");
+  const startQueueAfterPayment = async (usingCredit = false) => {
+    // NOTE: resetMatch() already called in handleFindMatch — do NOT call again
+    // or it will generate a new matchId and wipe the one we already paid with.
+    if (!usingCredit) {
+      // Store fee credit on server (survives queue expiry, consumed on match found)
+      await fetch("/api/queue/credit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      }).catch(() => {});
+    }
+    setPaidRankedFee(true);
+    setQueueExpiredMsg(null);
+    queueStartRef.current = Date.now();
 
     const res = await fetch("/api/queue", {
       method: "POST",
@@ -169,10 +216,13 @@ export default function CreateMatch() {
 
     if (data.matched && data.matchId && data.role) {
       // Immediate match found
+      playSound("matchFound");
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
       setMatchId(data.matchId);
       setPlayerRole(data.role);
       setQueueState({ status: "found", matchId: data.matchId, role: data.role });
       void fetchOpponentName(data.matchId, data.role);
+      setPaidRankedFee(false);
       setTimeout(() => router.push("/select-character"), 800);
       return;
     }
@@ -189,15 +239,25 @@ export default function CreateMatch() {
         if (pollData.expired) {
           clearInterval(queuePollRef.current!);
           setQueueState({ status: "idle" });
+          setPaidRankedFee(false);
+          // Credit is preserved server-side for 24h — player can rejoin without paying again
+          setQueueExpiredMsg(
+            "No match found — your 0.000007 CELO entry fee is saved as a credit for 24 hours. " +
+            "Next time you hit \"Find Player\" you\u2019ll go straight into the queue without paying again."
+          );
           return;
         }
 
         if (pollData.matched && pollData.matchId && pollData.role) {
           clearInterval(queuePollRef.current!);
+          // Play match-found sound + vibrate
+          playSound("matchFound");
+          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
           setMatchId(pollData.matchId);
           setPlayerRole(pollData.role);
           setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role });
           void fetchOpponentName(pollData.matchId, pollData.role);
+          setPaidRankedFee(false);
           setTimeout(() => router.push("/select-character"), 800);
         }
       } catch {
@@ -215,6 +275,10 @@ export default function CreateMatch() {
       router.push("/select-character");
       return;
     }
+    // Generate a fresh matchId BEFORE opening the WagerModal.
+    resetMatch();
+    setVsBot(false);
+    setPlayerRole("host");
     if (matchType === "ranked") {
       setWagerAmountInput("0.000007");
     }
@@ -223,9 +287,8 @@ export default function CreateMatch() {
 
   const proceedAfterPayment = () => {
     setShowWager(false);
-    resetMatch();
-    setVsBot(false);
-    setPlayerRole("host");
+    // Do NOT call resetMatch() here — it would clear the matchId
+    // that was set before the WagerModal and used for the payment.
     router.push("/ready");
   };
 
@@ -356,24 +419,71 @@ export default function CreateMatch() {
                   </div>
                 )}
 
-                {/* Searching state */}
-                {queueState.status === "searching" && (
-                  <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(86,164,203,0.06)", border: "1.5px solid rgba(86,164,203,0.35)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#56a4cb", boxShadow: "0 0 6px #56a4cb", animation: "pulse 1s ease-in-out infinite" }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#b9e7f4", letterSpacing: 2, textTransform: "uppercase" }}>Finding Opponent…</span>
-                      <span style={{ marginLeft: "auto", fontSize: 11, color: "#6b7280", fontVariantNumeric: "tabular-nums" }}>
-                        {Math.floor(queueState.elapsedMs / 60000)}:{String(Math.floor((queueState.elapsedMs % 60000) / 1000)).padStart(2, "0")}
-                      </span>
+                {/* Queue expired — credit saved banner */}
+                {queueExpiredMsg && (
+                  <div style={{ marginBottom: 12, padding: "14px 18px", background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <span className="material-icons" style={{ fontSize: 18, color: "#56a4cb", flexShrink: 0 }}>savings</span>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Fee Credit Saved — 24h</div>
+                      <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>{queueExpiredMsg}</div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <button
+                          onClick={() => { setQueueExpiredMsg(null); void handleFindMatch(); }}
+                          style={{ flex: 1, background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, fontFamily: "inherit", textTransform: "uppercase" }}
+                        >⚡ Search Again — No Payment Needed</button>
+                        <button onClick={() => setQueueExpiredMsg(null)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: 1, fontFamily: "inherit" }}>✕</button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => void cancelQueue()}
-                      style={{ width: "100%", height: 36, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
-                    >
-                      CANCEL
-                    </button>
                   </div>
                 )}
+
+                {/* Searching state */}
+                {queueState.status === "searching" && (() => {
+                  const elapsedSec = Math.floor(queueState.elapsedMs / 1000);
+                  const remaining = Math.max(0, 90 - elapsedSec);
+                  const pct = Math.min(100, (elapsedSec / 90) * 100);
+                  const isLate = remaining <= 20;
+                  return (
+                    <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(86,164,203,0.06)", border: `1.5px solid ${isLate ? "rgba(239,68,68,0.5)" : "rgba(86,164,203,0.35)"}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: isLate ? "#f87171" : "#56a4cb", boxShadow: `0 0 6px ${isLate ? "#f87171" : "#56a4cb"}`, animation: "pulse 1s ease-in-out infinite" }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: isLate ? "#fca5a5" : "#b9e7f4", letterSpacing: 2, textTransform: "uppercase" }}>Finding Opponent…</span>
+                        <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, color: isLate ? "#f87171" : "#6b7280", fontVariantNumeric: "tabular-nums" }}>
+                          {remaining}s
+                        </span>
+                      </div>
+                      {/* Countdown progress bar */}
+                      <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${100 - pct}%`, background: isLate ? "#f87171" : "#56a4cb", borderRadius: 2, transition: "width 1s linear" }} />
+                      </div>
+                      {paidRankedFee && (
+                        <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 0.5 }}>⚠️ Ranked fee paid — cancelling will forfeit 0.000007 CELO</div>
+                      )}
+                      {/* Share link while waiting */}
+                      <button
+                        onClick={() => {
+                          const matchIdStore = useGameStore.getState().matchId;
+                          if (!matchIdStore) return;
+                          const link = `${window.location.origin}/join?id=${matchIdStore}`;
+                          if (navigator.share) {
+                            void navigator.share({ title: "Action Order", text: "Join my ranked match!", url: link });
+                          } else {
+                            void navigator.clipboard.writeText(link);
+                          }
+                        }}
+                        style={{ width: "100%", height: 32, background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}
+                      >
+                        📤 SHARE MATCH LINK
+                      </button>
+                      <button
+                        onClick={() => void cancelQueue()}
+                        style={{ width: "100%", height: 36, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
+                      >
+                        CANCEL{paidRankedFee ? " (fee non-refundable)" : ""}
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 {/* Found state */}
                 {queueState.status === "found" && (
@@ -515,7 +625,11 @@ export default function CreateMatch() {
       {showWager && (
         <WagerModal
           onConfirmed={matchType === "ranked" && queueState.status === "idle" ? () => { setShowWager(false); void startQueueAfterPayment(); } : proceedAfterPayment}
-          onSkip={() => { setWager(false, null); setShowWager(false); router.push("/ready"); }}
+          onSkip={() => { 
+            setWager(false, null); 
+            setShowWager(false); 
+            if (matchType !== "ranked") router.push("/ready"); 
+          }}
           lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
           mode={matchType === "ranked" ? "ranked" : "wager"}
         />

@@ -90,6 +90,12 @@ export async function POST(req: NextRequest) {
     const hostStatus: QueueStatus = { status: "matched", matchId, role: "host" };
     await redis.set(`queue:${opponent.queueId}`, hostStatus, { ex: 300 });
 
+    // Consume ranked fee credits for both players now that a match is found
+    await Promise.all([
+      redis.del(`ranked:credit:${address.toLowerCase()}`),         // joiner
+      redis.del(`ranked:credit:${opponent.address.toLowerCase()}`), // host
+    ]);
+
     // Joiner gets the answer immediately in the POST response
     return NextResponse.json({ matched: true, matchId, role: "joiner" });
   }
