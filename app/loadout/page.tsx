@@ -195,7 +195,7 @@ export default function Loadout() {
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { phase: string; slots: unknown; opponentCharId?: string; opponentName?: string | null };
+        const data = await res.json() as { phase: string; slots: unknown; opponentCharId?: string; opponentName?: string | null; abortedBy?: "host" | "joiner" | null };
         setPollErrorCount(0); // successful response
 
         // Sync opponent character if joined
@@ -206,10 +206,12 @@ export default function Loadout() {
           setOpponentName(data.opponentName);
         }
 
-        // Abort if timed out
-        if (data.phase === "timed-out") {
+        // Abort if timed out or opponent quit
+        const opponentRole = playerRole === "host" ? "joiner" : "host";
+        if (data.phase === "timed-out" || data.abortedBy === opponentRole) {
           if (pollRef.current) clearInterval(pollRef.current);
-          alert("Your opponent has left the match or timed out.");
+          alert("Your opponent has left the match.");
+          resetMatch();
           router.push("/");
           return;
         }
