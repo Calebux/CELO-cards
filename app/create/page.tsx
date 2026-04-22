@@ -136,10 +136,14 @@ export default function CreateMatch() {
 
   const handleFindMatch = async () => {
     if (!address) return;
+    setWagerAmountInput("0.000007");
+    setShowWager(true);
+  };
+
+  const startQueueAfterPayment = async () => {
     resetMatch();
     setVsBot(false);
     setPlayerRole("host");
-    setWager(false, null);
 
     const res = await fetch("/api/queue", {
       method: "POST",
@@ -187,6 +191,14 @@ export default function CreateMatch() {
 
   const handleCreateMatch = () => {
     if (!address) return;
+    if (matchType === "ranked" || matchType === "vshouse") {
+      setWagerAmountInput("0.000007");
+    }
+    setShowWager(true);
+  };
+
+  const proceedAfterPayment = () => {
+    setShowWager(false);
     resetMatch();
     if (matchType === "vshouse") {
       setVsBot(true);
@@ -196,12 +208,7 @@ export default function CreateMatch() {
     }
     setVsBot(false);
     setPlayerRole("host");
-    if (matchType === "wager") {
-      setShowWager(true); // wager match — prompt for token stake
-    } else {
-      setWager(false, null);
-      router.push("/ready");
-    }
+    router.push("/ready");
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
@@ -489,8 +496,9 @@ export default function CreateMatch() {
 
       {showWager && (
         <WagerModal
-          onConfirmed={() => { setShowWager(false); router.push("/ready"); }}
+          onConfirmed={matchType === "ranked" && queueState.status === "idle" ? () => { setShowWager(false); void startQueueAfterPayment(); } : proceedAfterPayment}
           onSkip={() => { setWager(false, null); setShowWager(false); router.push("/ready"); }}
+          lockedAmount={(matchType === "ranked" || matchType === "vshouse") ? "0.000007" : undefined}
         />
       )}
     </div>
