@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { redis } from "../../lib/redis";
 
-const DATA_FILE = path.join(process.cwd(), "data", "achievements.json");
+const ACHIEVEMENTS_KEY = "achievements";
 
 type PlayerStats = {
   matchesWon: number;
@@ -31,17 +30,13 @@ const ACHIEVEMENT_CONDITIONS: Record<string, (s: PlayerStats) => boolean> = {
   iron_will: (s) => s.matchesWon >= 1 && s.matchesLost >= 3,
 };
 
-function readData(): AchievementsData {
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as AchievementsData;
-  } catch {
-    return {};
-  }
+async function readData(): Promise<AchievementsData> {
+  const data = await redis.get<AchievementsData>(ACHIEVEMENTS_KEY);
+  return data ?? {};
 }
 
-function writeData(data: AchievementsData) {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+async function writeData(data: AchievementsData) {
+  await redis.set(ACHIEVEMENTS_KEY, data);
 }
 
 function computeUnlocked(stats: PlayerStats): string[] {
@@ -56,7 +51,7 @@ export async function GET(req: NextRequest) {
   if (!address || !/^0x[0-9a-f]{40}$/.test(address)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
-  const data = readData();
+  const data = await readData();
   const record = data[address];
   return NextResponse.json({ unlockedIds: record?.unlockedIds ?? [] });
 }
@@ -76,7 +71,7 @@ export async function POST(req: NextRequest) {
   }
 
   const incoming = body.stats ?? {};
-  const data = readData();
+  const data = await readData();
   const existing = data[address];
 
   // Merge stats — always take the higher value so progress is never lost
@@ -93,7 +88,7 @@ export async function POST(req: NextRequest) {
   const newlyUnlocked = nowUnlocked.filter((id) => !previousIds.has(id));
 
   data[address] = { unlockedIds: nowUnlocked, stats: merged, lastUpdated: Date.now() };
-  writeData(data);
+  await writeData(data);
 
   return NextResponse.json({ unlockedIds: nowUnlocked, newlyUnlocked });
 }

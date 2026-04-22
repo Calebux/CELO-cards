@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { redis } from "../../lib/redis";
 
-const DATA_FILE = path.join(process.cwd(), "data", "leaderboard.json");
+const CASUAL_KEY = "leaderboard:casual";
+const RANKED_KEY = "leaderboard:ranked";
 
 type PlayerEntry = {
   address: string;
@@ -18,18 +18,19 @@ type LeaderboardData = {
   ranked: Record<string, PlayerEntry>;
 };
 
-function readData(): LeaderboardData {
-  try {
-    const raw = fs.readFileSync(DATA_FILE, "utf-8");
-    return JSON.parse(raw) as LeaderboardData;
-  } catch {
-    return { casual: {}, ranked: {} };
-  }
+async function readData(): Promise<LeaderboardData> {
+  const [casual, ranked] = await Promise.all([
+    redis.get<Record<string, PlayerEntry>>(CASUAL_KEY),
+    redis.get<Record<string, PlayerEntry>>(RANKED_KEY),
+  ]);
+  return { casual: casual ?? {}, ranked: ranked ?? {} };
 }
 
-function writeData(data: LeaderboardData) {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+async function writeData(data: LeaderboardData) {
+  await Promise.all([
+    redis.set(CASUAL_KEY, data.casual),
+    redis.set(RANKED_KEY, data.ranked),
+  ]);
 }
 
 // POST /api/leaderboard — record a match result
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
   }
 
   const addr = playerAddress;
-  const data = readData();
+  const data = await readData();
   const now = Date.now();
 
   function upsert(map: Record<string, PlayerEntry>) {
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
   upsert(data.casual);
   if (wagered) upsert(data.ranked);
 
-  writeData(data);
+  await writeData(data);
   return NextResponse.json({ ok: true });
 }
 
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
   const tab = (req.nextUrl.searchParams.get("tab") ?? "casual") as "casual" | "ranked";
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "50", 10), 200);
 
-  const data = readData();
+  const data = await readData();
   const map = tab === "ranked" ? data.ranked : data.casual;
 
   // Merge real players with bots; real players override bots at the same address
