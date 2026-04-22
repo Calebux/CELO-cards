@@ -126,7 +126,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
   useEffect(() => {
     if (txSuccess && step === "entering") {
       setStep("done");
-      setWager(true, txHash ?? null, currency);
+      setWager(true, txHash ?? null, currency, mode);
       setWagerAmountInput(amountInput);
       if (txHash) registerWagerOnServer(txHash);
       onConfirmed();

@@ -63,6 +63,7 @@ export default function Gameplay() {
     opponentName,
     startMatch,
     autoLockOrder,
+    wagerMode,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -826,7 +827,7 @@ export default function Gameplay() {
         )}
 
         {/* ── Combat Resolution Area ────────────────────────── */}
-        <div style={{ position: "absolute", top: 120, left: 0, right: 0, bottom: 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, zIndex: 5 }}>
+        <div style={{ position: "absolute", top: 120, left: 0, right: 0, bottom: 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 24, gap: 16, zIndex: 5 }}>
 
           {/* Knock Totals */}
           <div style={{ display: "flex", gap: 60, alignItems: "center", marginBottom: 8 }}>
@@ -903,7 +904,6 @@ export default function Gameplay() {
                 backgroundColor: `${msgColor}12`,
                 border: `1.5px solid ${msgColor}50`,
                 boxShadow: `0 0 20px ${msgColor}20`,
-                animation: "descriptionFade 0.5s ease forwards",
               }}>
                 <div style={{
                   fontSize: 18, fontWeight: 800,
@@ -1327,8 +1327,8 @@ export default function Gameplay() {
                     <p style={{ fontSize: 22, fontWeight: 800, color: accentColor, margin: 0, textShadow: `0 0 12px ${accentGlow}` }}>{playerPoints} PTS</p>
                   </div>
 
-                  {/* Wager payout — only shown when player wagered and won */}
-                  {wagerActive && won && (
+                  {/* Wager payout — only shown when player wagered, won, AND it's a wager match (not ranked) */}
+                  {wagerActive && won && wagerMode === "wager" && (
                     <div style={{ marginBottom: 20 }}>
                       {payoutState === "idle" && (
                         <button
@@ -1549,10 +1549,14 @@ export default function Gameplay() {
             arenaBackground={BG_MAIN}
           />
         )}
-        {/* ── Floating Sound Settings Toggle ── */}
+        {/* ── Floating Mute Toggle ── */}
         <div
-          onClick={() => setShowSoundSettings(true)}
-          title="Sound settings"
+          onClick={() => {
+            const next = !muted;
+            setMuted(next);
+            setMutedState(next);
+          }}
+          title={muted ? "Unmute" : "Mute"}
           style={{
             position: "absolute", bottom: 240, right: 24,
             width: 48, height: 48, borderRadius: "50%",
