@@ -7,7 +7,7 @@ import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
-import { SoundSettings, SoundSettingsButton } from "../components/SoundSettings";
+import { SoundSettings } from "../components/SoundSettings";
 import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
@@ -694,7 +694,6 @@ export default function Gameplay() {
 
         {/* Bottom Left Controls */}
         <div style={{ position: "absolute", bottom: 16, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
-          <SoundSettingsButton />
           {!isMatchEnd && (
             <button
               onClick={() => {
@@ -1552,7 +1551,6 @@ export default function Gameplay() {
             arenaBackground={BG_MAIN}
           />
         )}
-
         {/* ── Floating Sound Settings Toggle ── */}
         <div
           onClick={() => setShowSoundSettings(true)}

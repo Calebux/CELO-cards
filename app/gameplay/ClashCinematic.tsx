@@ -81,7 +81,7 @@ export const CLASH_STYLES = `
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   @keyframes cinematicIn  { from { opacity: 0; } to { opacity: 1; } }
   @keyframes cinematicOut { from { opacity: 1; } to { opacity: 0; } }
-  @keyframes descriptionFade { 0% { opacity:0; transform:translateY(12px); } 100% { opacity:1; transform:translateY(0); } }
+  @keyframes descriptionFade { 0% { opacity:0; } 100% { opacity:1; } }
   @keyframes effectBannerIn {
     0%   { transform: translateX(-50%) scaleX(0.4) scaleY(1.6); opacity: 0; filter: blur(12px); }
     50%  { transform: translateX(-50%) scaleX(1.08) scaleY(0.95); opacity: 1; filter: blur(0px); }
