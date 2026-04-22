@@ -145,7 +145,11 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
     // Ranked mode: the match fee is a simple treasury payment — no Arena
     // contract interaction needed, so no matchId is required.
     if (mode === "ranked") {
-      await handleDirectCeloTransfer();
+      if (currency === "gdollar") {
+        await handleGDollarTransfer();
+      } else {
+        await handleDirectCeloTransfer();
+      }
       return;
     }
 
@@ -364,6 +368,33 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
               Ranked matches require a small match fee. Climb the leaderboard and qualify for the weekly tournament.
             </p>
 
+            {/* Currency selector for Ranked */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {(["celo", "gdollar"] as Currency[]).map((c) => {
+                const cc = CURRENCY_CONFIG[c];
+                return (
+                  <button
+                    key={c}
+                    onClick={() => { if (!busy) { setCurrency(c); setErrMsg(""); setStep("idle"); } }}
+                    disabled={busy}
+                    style={{
+                      flex: 1, padding: "8px 0",
+                      background: currency === c ? `${cc.color}26` : "rgba(255,255,255,0.03)",
+                      border: `1.5px solid ${currency === c ? cc.color : "#334155"}`,
+                      borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
+                      fontSize: 12, fontWeight: 700,
+                      color: currency === c ? cc.color : "#6b7280",
+                      letterSpacing: 1.5, textTransform: "uppercase",
+                      fontFamily: "inherit",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {cc.label}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Fee breakdown */}
             <div style={{
               background: `${RANKED_COLOR}0d`,
@@ -372,7 +403,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
               display: "flex", flexDirection: "column", gap: 10,
             }}>
               {[
-                { label: "Match fee",         value: `${MATCH_FEE} CELO`, color: RANKED_COLOR },
+                { label: "Match fee",         value: `${MATCH_FEE} ${CURRENCY_CONFIG[currency].symbol}`, color: RANKED_COLOR },
                 { label: "Ranked points",      value: "Earned on win",       color: "#4ade80" },
                 { label: "Leaderboard",        value: "Updated live",        color: "#b9e7f4" },
                 { label: "Tournament qualify", value: "Top 16 weekly",       color: "#a855f7" },
@@ -415,7 +446,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
                 {busy ? "hourglass_empty" : "military_tech"}
               </span>
               <span style={{ fontSize: 15, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 3 }}>
-                {busy ? "Processing…" : `Pay ${MATCH_FEE} CELO & Enter`}
+                {busy ? "Processing…" : `Pay ${MATCH_FEE} ${CURRENCY_CONFIG[currency].symbol} & Enter`}
               </span>
             </button>
 
