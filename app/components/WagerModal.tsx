@@ -37,7 +37,7 @@ const DESIGN_H = 823;
 
 export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const setWager            = useGameStore((s) => s.setWager);
   const matchId             = useGameStore((s) => s.matchId);
   const playerRole          = useGameStore((s) => s.playerRole);
@@ -189,6 +189,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
         abi: GDOLLAR_ABI,
         functionName: "transfer",
         args: [TREASURY, amt],
+        account: address,
+        chainId: chainId,
       });
       setTxHash(hash);
     } catch (e) {
@@ -208,6 +210,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
         abi: APPROVE_ABI,
         functionName: "approve",
         args: [ARENA_ADDRESS, amt],
+        account: address,
+        chainId: chainId,
       });
       setTxHash(hash);
     } catch (e) {
@@ -226,6 +230,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
         abi: ARENA_ABI,
         functionName: "enterMatch",
         args: [matchIdToBytes32(matchId)],
+        account: address,
+        chainId: chainId,
       });
       setTxHash(hash);
     } catch (e) {
@@ -247,6 +253,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
         functionName: "enterMatchWithCelo",
         args: [matchIdToBytes32(matchId)],
         value: amt,
+        account: address,
+        chainId: chainId,
       });
       setTxHash(hash);
     } catch (e) {
@@ -267,6 +275,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
         abi: ERC20_ABI,
         functionName: "transfer",
         args: [TREASURY, amt],
+        account: address,
+        chainId: chainId,
       });
       setTxHash(hash);
     } catch (e) {
@@ -284,6 +294,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
       const hash = await sendTransactionAsync({
         to: TREASURY,
         value: amt,
+        account: address,
+        chainId: chainId,
       });
       setTxHash(hash);
     } catch (e) {
