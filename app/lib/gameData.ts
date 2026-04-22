@@ -147,8 +147,7 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
         kaira: "/arena-backgrounds/arena_riven_kaira.webp",
         kenji: "/arena-backgrounds/arena_riven_kenji.webp",
         zane:  "/arena-backgrounds/arena_riven_zane.webp",
-        // ⚠️ arena_riven_elara.webp not supplied yet — please provide this image
-        elara: "/new addition/gameplay777.webp",
+        elara: "/arena-backgrounds/arena_riven_elara.jpg",
     },
     zane: {
         kenji: "/arena-backgrounds/arena_zane_kenji.webp",
@@ -158,8 +157,7 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     },
     elara: {
         riven: "/arena-backgrounds/arena_elara_riven.webp",
-        // ⚠️ arena_elara_zane.webp not supplied yet — please provide this image
-        zane:  "/new addition/gameplay777.webp",
+        zane:  "/arena-backgrounds/arena_elara_zane.jpg",
         kaira: "/arena-backgrounds/arena_elara_kaira.jpg",
         kenji: "/arena-backgrounds/arena_elara_kenji.webp",
     },
