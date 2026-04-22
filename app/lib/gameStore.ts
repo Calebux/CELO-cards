@@ -89,6 +89,7 @@ interface GameState {
 
     // Wager
     wagerActive: boolean;
+    wagerMode: "ranked" | "wager";
     wagerTxHash: string | null;
     wagerCurrency: "cusd" | "celo" | "gdollar";
     wagerAmountInput: string;        // human-readable stake, e.g. "0.01"
@@ -149,7 +150,7 @@ interface GameState {
     unlockedPremiumCards: string[];
     purchaseCard: (cardId: string, price: number) => void;
     setPrecomputedFromServer: (slots: SlotResult[]) => void;
-    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar") => void;
+    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar", mode?: "ranked" | "wager") => void;
     selectCharacter: (character: Character) => void;
     startMatch: () => void;
     addCardToSlot: (card: Card) => void;
@@ -189,6 +190,7 @@ export const useGameStore = create<GameState>()(
     setAiDifficulty: (d) => set({ aiDifficulty: d }),
     playerAddress: null,
     wagerActive: false,
+    wagerMode: "wager",
     wagerTxHash: null,
     wagerCurrency: "cusd" as "cusd" | "celo" | "gdollar",
     wagerAmountInput: "0.01",
@@ -264,7 +266,7 @@ export const useGameStore = create<GameState>()(
         const { deckPresets } = get();
         set({ deckPresets: deckPresets.filter((_, i) => i !== index) });
     },
-    setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency as "cusd" | "celo" | "gdollar" }),
+    setWager: (active, txHash, currency = "cusd", mode = "wager") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency as "cusd" | "celo" | "gdollar", wagerMode: mode }),
 
     setOpponentCharacterFromServer: (charId) => {
         const char = CHARACTERS.find((c) => c.id === charId);
@@ -532,6 +534,7 @@ export const useGameStore = create<GameState>()(
             playerPoints: state.playerPoints, // keep — persisted to localStorage
             pointsThisRound: 0,
             wagerActive: false,
+            wagerMode: "wager",
             wagerTxHash: null,
             wagerCurrency: "cusd",
             wagerAmountInput: "0.01",
@@ -586,6 +589,7 @@ export const useGameStore = create<GameState>()(
         vsBot: state.vsBot,
         aiDifficulty: state.aiDifficulty,
         wagerActive: state.wagerActive,
+        wagerMode: state.wagerMode,
         wagerTxHash: state.wagerTxHash,
         wagerCurrency: state.wagerCurrency,
         wagerAmountInput: state.wagerAmountInput,

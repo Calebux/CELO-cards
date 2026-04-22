@@ -63,6 +63,7 @@ export default function Gameplay() {
     opponentName,
     startMatch,
     autoLockOrder,
+    wagerMode,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -1327,8 +1328,8 @@ export default function Gameplay() {
                     <p style={{ fontSize: 22, fontWeight: 800, color: accentColor, margin: 0, textShadow: `0 0 12px ${accentGlow}` }}>{playerPoints} PTS</p>
                   </div>
 
-                  {/* Wager payout — only shown when player wagered and won */}
-                  {wagerActive && won && (
+                  {/* Wager payout — only shown when player wagered, won, AND it's a wager match (not ranked) */}
+                  {wagerActive && won && wagerMode === "wager" && (
                     <div style={{ marginBottom: 20 }}>
                       {payoutState === "idle" && (
                         <button
