@@ -359,46 +359,102 @@ export default function CreateMatch() {
 
                 {/* Create/Find Match button */}
                 {queueState.status === "idle" && (
-                  <button
-                    onClick={matchType === "ranked" ? () => void handleFindMatch() : handleCreateMatch}
-                    disabled={!address}
-                    style={{
-                      width: "100%", height: 56,
-                      background: address
-                        ? "linear-gradient(135deg, #1a3a52, #0f2233)"
-                        : "rgba(255,255,255,0.03)",
-                      border: address
-                        ? `1.5px solid ${selected.color}`
-                        : "1.5px solid rgba(255,255,255,0.1)",
-                      borderRadius: 6,
-                      cursor: address ? "pointer" : "not-allowed",
-                      fontFamily: "inherit",
-                      fontWeight: 900, fontSize: 16, letterSpacing: 3,
-                      color: address ? "#b9e7f4" : "#475569",
-                      textTransform: "uppercase",
-                      clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
-                      boxShadow: address ? `0 0 24px ${selected.color}30` : "none",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-                      transition: "all 0.2s ease",
-                      opacity: address ? 1 : 0.6,
-                    }}
-                  >
-                    <span className="material-icons" style={{ fontSize: 20, color: address ? selected.color : "#475569" }}>
-                      {!address ? "lock" : matchType === "ranked" ? "manage_search" : "radar"}
-                    </span>
-                    {!address
-                      ? "CONNECT WALLET TO PLAY"
-                      : matchType === "ranked"
-                        ? "FIND MATCH"
-                        : "CREATE MATCH"}
-                    {address && <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>}
-                  </button>
+                  !address ? (
+                    <button
+                      disabled
+                      style={{
+                        width: "100%", height: 56,
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1.5px solid rgba(255,255,255,0.1)",
+                        borderRadius: 6,
+                        cursor: "not-allowed",
+                        fontFamily: "inherit",
+                        fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                        color: "#475569",
+                        textTransform: "uppercase",
+                        clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                        opacity: 0.6,
+                      }}
+                    >
+                      <span className="material-icons" style={{ fontSize: 20, color: "#475569" }}>lock</span>
+                      CONNECT WALLET TO PLAY
+                    </button>
+                  ) : matchType === "ranked" ? (
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <button
+                        onClick={() => void handleFindMatch()}
+                        style={{
+                          flex: 1, height: 56,
+                          background: "linear-gradient(135deg, #1a3a52, #0f2233)",
+                          border: `1.5px solid ${selected.color}`,
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: 900, fontSize: 16, letterSpacing: 1.5,
+                          color: "#b9e7f4",
+                          textTransform: "uppercase",
+                          clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
+                          boxShadow: `0 0 24px ${selected.color}30`,
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>manage_search</span>
+                        FIND PLAYER
+                      </button>
+                      
+                      <button
+                        onClick={handleCreateMatch}
+                        style={{
+                          flex: 1, height: 56,
+                          background: "rgba(255,255,255,0.03)",
+                          border: `1.5px solid rgba(86,164,203,0.4)`,
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: 900, fontSize: 16, letterSpacing: 1.5,
+                          color: "#56a4cb",
+                          textTransform: "uppercase",
+                          clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        <span className="material-icons" style={{ fontSize: 20, color: "#56a4cb" }}>group</span>
+                        WITH FRIEND
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleCreateMatch}
+                      style={{
+                        width: "100%", height: 56,
+                        background: "linear-gradient(135deg, #1a3a52, #0f2233)",
+                        border: `1.5px solid ${selected.color}`,
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                        color: "#b9e7f4",
+                        textTransform: "uppercase",
+                        clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
+                        boxShadow: `0 0 24px ${selected.color}30`,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>radar</span>
+                      CREATE MATCH
+                      <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>
+                    </button>
+                  )
                 )}
 
-                <p style={{ fontSize: 10, color: address ? "#475569" : "#56a4cb", textAlign: "center", marginTop: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+                <p style={{ fontSize: 10, color: address ? "#475569" : "#56a4cb", textAlign: "center", marginTop: 15, letterSpacing: 1, textTransform: "uppercase" }}>
                   {address
                     ? matchType === "ranked"
-                      ? "Auto-matched with a random opponent"
+                      ? "Find a random player or invite a friend via Match ID"
                       : "Secure connection via Celo network"
                     : "Use the Connect button in the top right ↗"}
                 </p>
