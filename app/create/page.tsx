@@ -76,6 +76,7 @@ export default function CreateMatch() {
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
@@ -136,10 +137,14 @@ export default function CreateMatch() {
 
   const handleFindMatch = async () => {
     if (!address) return;
+    setWagerAmountInput("0.000007");
+    setShowWager(true);
+  };
+
+  const startQueueAfterPayment = async () => {
     resetMatch();
     setVsBot(false);
     setPlayerRole("host");
-    setWager(false, null);
 
     const res = await fetch("/api/queue", {
       method: "POST",
@@ -187,21 +192,25 @@ export default function CreateMatch() {
 
   const handleCreateMatch = () => {
     if (!address) return;
-    resetMatch();
     if (matchType === "vshouse") {
+      resetMatch();
       setVsBot(true);
       setPlayerRole(null);
       router.push("/select-character");
       return;
     }
+    if (matchType === "ranked") {
+      setWagerAmountInput("0.000007");
+    }
+    setShowWager(true);
+  };
+
+  const proceedAfterPayment = () => {
+    setShowWager(false);
+    resetMatch();
     setVsBot(false);
     setPlayerRole("host");
-    if (matchType === "wager") {
-      setShowWager(true); // wager match — prompt for token stake
-    } else {
-      setWager(false, null);
-      router.push("/ready");
-    }
+    router.push("/ready");
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
@@ -489,8 +498,9 @@ export default function CreateMatch() {
 
       {showWager && (
         <WagerModal
-          onConfirmed={() => { setShowWager(false); router.push("/ready"); }}
+          onConfirmed={matchType === "ranked" && queueState.status === "idle" ? () => { setShowWager(false); void startQueueAfterPayment(); } : proceedAfterPayment}
           onSkip={() => { setWager(false, null); setShowWager(false); router.push("/ready"); }}
+          lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
         />
       )}
     </div>

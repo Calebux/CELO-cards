@@ -935,9 +935,8 @@ export default function Gameplay() {
               return (
                 <div key={i} style={{
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
-                  opacity: revealed ? 1 : isActive ? 0.85 : 0.3,
-                  transform: isActive ? "scale(1.1)" : "scale(1)",
-                  transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                  opacity: revealed ? 1 : isActive ? 1 : 0.3,
+                  transition: "opacity 0.3s ease, border-color 0.3s ease",
                 }}>
                   {/* Slot label */}
                   <span style={{

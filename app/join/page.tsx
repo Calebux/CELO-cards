@@ -79,20 +79,24 @@ function JoinMatchContent() {
     setMatchId(matchCode);
     setPlayerRole("joiner");
 
-    // Only show wager prompt if the host already wagered on this match
+    // Enforce entry fee for joiners
     try {
       const res = await fetch(`/api/match/${matchCode}?role=joiner`);
       const data = await res.json() as { opponentWagered?: boolean; hostWagerAmount?: string | null };
+      
       if (data.opponentWagered && data.hostWagerAmount) {
-        // Convert wei string to human-readable (18 decimals)
+        // Match host's stake
         const { formatUnits } = await import("viem");
         setHostStakeAmount(formatUnits(BigInt(data.hostWagerAmount), 18));
-        setShowWager(true);
       } else {
-        router.push("/select-character");
+        // Standard entry fee
+        setHostStakeAmount("0.000007");
       }
+      setShowWager(true);
     } catch {
-      router.push("/select-character");
+      // Fallback to standard fee if API fails or match not found yet
+      setHostStakeAmount("0.000007");
+      setShowWager(true);
     }
   };
 

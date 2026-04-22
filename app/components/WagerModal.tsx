@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -31,7 +31,11 @@ const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: 
   gdollar: { label: "G$",      color: GDOLLAR_COLOR, symbol: "G$" },
 };
 
+const DESIGN_W = 1440;
+const DESIGN_H = 823;
+
 export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const { address } = useAccount();
   const setWager            = useGameStore((s) => s.setWager);
   const matchId             = useGameStore((s) => s.matchId);
@@ -42,6 +46,31 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   const [errMsg, setErrMsg]     = useState("");
   const [currency, setCurrency] = useState<Currency>("celo");
   const [amountInput, setAmountInput] = useState(lockedAmount ?? "0.01");
+
+  useEffect(() => {
+    const scale = () => {
+      if (!wrapRef.current) return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
+    };
+    scale();
+    window.addEventListener("resize", scale);
+    return () => window.removeEventListener("resize", scale);
+  }, []);
 
   const { writeContractAsync }  = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
@@ -278,20 +307,21 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 200,
-      display: "flex", alignItems: "center", justifyContent: "center",
       backgroundColor: "rgba(5, 5, 16, 0.85)",
       backdropFilter: "blur(8px)",
+      overflow: "hidden",
     }}>
-      <div style={{
-        position: "relative", width: 420,
-        background: "rgba(15, 23, 42, 0.95)",
-        border: `2px solid ${cfg.color}`,
-        borderRadius: 8,
-        padding: "40px 40px 32px",
-        boxShadow: `0 0 40px ${cfg.color}50`,
-        fontFamily: "var(--font-space-grotesk), sans-serif",
-        transition: "border-color 0.2s, box-shadow 0.2s",
-      }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{
+          position: "relative", width: 420,
+          background: "rgba(15, 23, 42, 0.95)",
+          border: `2px solid ${cfg.color}`,
+          borderRadius: 8,
+          padding: "40px 40px 32px",
+          boxShadow: `0 0 40px ${cfg.color}50`,
+          fontFamily: "var(--font-space-grotesk), sans-serif",
+          transition: "border-color 0.2s, box-shadow 0.2s",
+        }}>
         {/* Scanline */}
         <div style={{ position: "absolute", top: -1, left: -1, right: -1, height: 2, backgroundColor: cfg.color, transition: "background-color 0.2s" }} />
 
@@ -433,20 +463,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
             {busy ? "Processing…" : `Stake ${amountInput || "0"} ${cfg.symbol}`}
           </span>
         </button>
-
-        <button
-          onClick={onSkip}
-          disabled={busy}
-          style={{
-            width: "100%", background: "none", border: "none",
-            cursor: busy ? "not-allowed" : "pointer",
-            fontSize: 12, color: "#6b7280", letterSpacing: 1,
-            textTransform: "uppercase", fontFamily: "inherit", padding: "8px 0",
-          }}
-        >
-          Skip — Play for free
-        </button>
       </div>
     </div>
-  );
+  </div>
+);
 }
