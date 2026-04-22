@@ -86,6 +86,7 @@ export default function Gameplay() {
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [critBanner, setCritBanner] = useState<"player" | "opponent" | null>(null);
   const [comboBanner, setComboBanner] = useState<"player" | "opponent" | null>(null);
+  const [opponentLeft, setOpponentLeft] = useState(false);
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
   const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
