@@ -101,6 +101,7 @@ export default function Loadout() {
     setPlayerTaunt,
     unlockedPremiumCards,
     setOpponentCharacterFromServer,
+    setOpponentName,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -194,12 +195,15 @@ export default function Loadout() {
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { phase: string; slots: unknown; opponentCharId?: string };
+        const data = await res.json() as { phase: string; slots: unknown; opponentCharId?: string; opponentName?: string | null };
         setPollErrorCount(0); // successful response
 
         // Sync opponent character if joined
         if (data.opponentCharId) {
           setOpponentCharacterFromServer(data.opponentCharId);
+        }
+        if (data.opponentName !== undefined) {
+          setOpponentName(data.opponentName);
         }
 
         // Abort if timed out

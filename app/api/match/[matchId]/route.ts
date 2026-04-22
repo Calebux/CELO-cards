@@ -10,6 +10,7 @@ import { getMatch, setMatch, deleteMatch } from "../../../lib/redis";
 
 interface PlayerSlot {
   charId: string | null;
+  playerName: string | null;
   cardIds: string[] | null;
   orderRound: number;
 }
@@ -39,7 +40,7 @@ function isTimedOut(match: ServerMatch): boolean {
 }
 
 function emptySlot(): PlayerSlot {
-  return { charId: null, cardIds: null, orderRound: 0 };
+  return { charId: null, playerName: null, cardIds: null, orderRound: 0 };
 }
 
 function validRole(role: unknown): role is "host" | "joiner" {
@@ -127,6 +128,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   return NextResponse.json({
     round: match.round,
     opponentCharId,
+    opponentName: other.playerName,
     selfCharId: self.charId,
     phase,
     slots,
@@ -146,7 +148,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, characterId } = body as { role: unknown; characterId: unknown };
+  const { role, characterId, playerName } = body as { role: unknown; characterId: unknown; playerName?: unknown };
 
   if (!validRole(role)) {
     return NextResponse.json({ error: "role must be 'host' or 'joiner'" }, { status: 400 });
@@ -157,8 +159,13 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   let match = await getMatch<ServerMatch>(matchId) ?? newMatch(matchId);
   match.lastActivity = Date.now();
-  if (role === "host") match.host.charId = characterId;
-  else match.joiner.charId = characterId;
+  if (role === "host") {
+    match.host.charId = characterId;
+    if (typeof playerName === "string") match.host.playerName = playerName;
+  } else {
+    match.joiner.charId = characterId;
+    if (typeof playerName === "string") match.joiner.playerName = playerName;
+  }
 
   await setMatch(matchId, match);
   return NextResponse.json({ ok: true });
