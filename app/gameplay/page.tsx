@@ -827,7 +827,7 @@ export default function Gameplay() {
         )}
 
         {/* ── Combat Resolution Area ────────────────────────── */}
-        <div style={{ position: "absolute", top: 120, left: 0, right: 0, bottom: 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, zIndex: 5 }}>
+        <div style={{ position: "absolute", top: 120, left: 0, right: 0, bottom: 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 24, gap: 16, zIndex: 5 }}>
 
           {/* Knock Totals */}
           <div style={{ display: "flex", gap: 60, alignItems: "center", marginBottom: 8 }}>
@@ -904,7 +904,6 @@ export default function Gameplay() {
                 backgroundColor: `${msgColor}12`,
                 border: `1.5px solid ${msgColor}50`,
                 boxShadow: `0 0 20px ${msgColor}20`,
-                animation: "descriptionFade 0.5s ease forwards",
               }}>
                 <div style={{
                   fontSize: 18, fontWeight: 800,
