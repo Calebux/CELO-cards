@@ -465,8 +465,11 @@ export default function CreateMatch() {
                           const matchIdStore = useGameStore.getState().matchId;
                           if (!matchIdStore) return;
                           const link = `${window.location.origin}/join?id=${matchIdStore}`;
-                          void navigator.share?.({ title: "Action Order", text: `Join my ranked match!`, url: link })
-                            ?? navigator.clipboard.writeText(link);
+                          if (navigator.share) {
+                            void navigator.share({ title: "Action Order", text: "Join my ranked match!", url: link });
+                          } else {
+                            void navigator.clipboard.writeText(link);
+                          }
                         }}
                         style={{ width: "100%", height: 32, background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}
                       >
