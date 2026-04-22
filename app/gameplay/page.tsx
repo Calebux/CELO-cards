@@ -1550,10 +1550,14 @@ export default function Gameplay() {
             arenaBackground={BG_MAIN}
           />
         )}
-        {/* ── Floating Sound Settings Toggle ── */}
+        {/* ── Floating Mute Toggle ── */}
         <div
-          onClick={() => setShowSoundSettings(true)}
-          title="Sound settings"
+          onClick={() => {
+            const next = !muted;
+            setMuted(next);
+            setMutedState(next);
+          }}
+          title={muted ? "Unmute" : "Mute"}
           style={{
             position: "absolute", bottom: 240, right: 24,
             width: 48, height: 48, borderRadius: "50%",

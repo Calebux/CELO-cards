@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
-import { SoundSettingsButton } from "../components/SoundSettings";
 import { ClaimGDollar } from "../components/ClaimGDollar";
 import { CHARACTERS } from "../lib/gameData";
 
@@ -183,7 +182,6 @@ export default function ProfilePage() {
           </button>
           <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>PLAYER PROFILE</div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <SoundSettingsButton />
             <WalletSection />
           </div>
         </div>
