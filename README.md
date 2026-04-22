@@ -116,10 +116,6 @@ TREASURY_PRIVATE_KEY=         # server-side only — never expose
 # Redis (Upstash) — usernames, leaderboard, challenges, achievements
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
-
-# Bot wallets (auto-generated on first run if omitted)
-BOT_WALLET_1_KEY=
-# ... up to BOT_WALLET_14_KEY
 ```
 
 ---
@@ -147,6 +143,9 @@ npx hardhat verify --network celo <address>
 | `POST /api/queue` | Join matchmaking queue |
 | `GET /api/queue?id=` | Poll queue for a match |
 | `DELETE /api/queue?id=` | Leave the queue |
+| `GET /api/queue/credit?address=` | Check if a ranked fee credit exists |
+| `POST /api/queue/credit` | Store a ranked fee credit after payment |
+| `DELETE /api/queue/credit?address=` | Consume a ranked fee credit on match found |
 | `POST /api/match/[matchId]` | Register character selection |
 | `PATCH /api/match/[matchId]` | Submit card order / register wager TX |
 | `GET /api/match/[matchId]` | Poll match phase + resolved slots |

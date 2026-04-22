@@ -67,8 +67,8 @@ export const CLASH_STYLES = `
     100% { transform: scale(1.6); opacity: 0; }
   }
   @keyframes resultSlam {
-    0%   { transform: scale(2.5) translateY(-20px); opacity: 0; filter: blur(8px); }
-    50%  { transform: scale(0.92) translateY(0px); opacity: 1; filter: blur(0px); }
+    0%   { transform: scale(2.5); opacity: 0; filter: blur(8px); }
+    50%  { transform: scale(0.92); opacity: 1; filter: blur(0px); }
     65%  { transform: scale(1.06); }
     100% { transform: scale(1); opacity: 1; }
   }

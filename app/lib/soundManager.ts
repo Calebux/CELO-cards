@@ -10,14 +10,16 @@ export type SoundName =
     | "clash"
     | "click"
     | "gameOver"
-    | "roundEnd";
+    | "roundEnd"
+    | "matchFound";
 
 const SOUND_PATHS: Record<SoundName, string> = {
-    intro: "/Sounds/intro sound.mp3",
-    clash: "/Sounds/slot clash sound.mp3",
-    click: "/Sounds/menu clicks.mp3",
-    gameOver: "/Sounds/Game over sound.mp3",
-    roundEnd: "/Sounds/game end sound.mp3",
+    intro:      "/Sounds/intro sound.mp3",
+    clash:      "/Sounds/slot clash sound.mp3",
+    click:      "/Sounds/menu clicks.mp3",
+    gameOver:   "/Sounds/Game over sound.mp3",
+    roundEnd:   "/Sounds/game end sound.mp3",
+    matchFound: "/Sounds/game end sound.mp3", // distinct ping — reuse round-end for now
 };
 
 // Pool of Audio elements so we can overlap the same sound
