@@ -191,7 +191,14 @@ export default function CreateMatch() {
 
   const handleCreateMatch = () => {
     if (!address) return;
-    if (matchType === "ranked" || matchType === "vshouse") {
+    if (matchType === "vshouse") {
+      resetMatch();
+      setVsBot(true);
+      setPlayerRole(null);
+      router.push("/select-character");
+      return;
+    }
+    if (matchType === "ranked") {
       setWagerAmountInput("0.000007");
     }
     setShowWager(true);
@@ -200,12 +207,6 @@ export default function CreateMatch() {
   const proceedAfterPayment = () => {
     setShowWager(false);
     resetMatch();
-    if (matchType === "vshouse") {
-      setVsBot(true);
-      setPlayerRole(null);
-      router.push("/select-character");
-      return;
-    }
     setVsBot(false);
     setPlayerRole("host");
     router.push("/ready");
@@ -498,7 +499,7 @@ export default function CreateMatch() {
         <WagerModal
           onConfirmed={matchType === "ranked" && queueState.status === "idle" ? () => { setShowWager(false); void startQueueAfterPayment(); } : proceedAfterPayment}
           onSkip={() => { setWager(false, null); setShowWager(false); router.push("/ready"); }}
-          lockedAmount={(matchType === "ranked" || matchType === "vshouse") ? "0.000007" : undefined}
+          lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
         />
       )}
     </div>
