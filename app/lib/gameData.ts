@@ -132,32 +132,37 @@ export const CHARACTERS: Character[] = [
 // Reverse images exist for when the same pair fights with swapped roles.
 export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     kaira: {
+        kaira: "/arena-backgrounds/arena_kaira_kaira.webp",
         kenji: "/arena-backgrounds/arena_kaira_kenji_new.webp",
         riven: "/arena-backgrounds/arena_kaira_riven.webp",
         zane:  "/arena-backgrounds/arena_kaira_zane.webp",
         elara: "/arena-backgrounds/arena_kaira_elara.jpg",
     },
     kenji: {
+        kenji: "/arena-backgrounds/arena_kenji_kenji.webp",
         kaira: "/arena-backgrounds/arena_kenji_kaira_new.webp",
         riven: "/arena-backgrounds/arena_kenji_riven.webp",
         zane:  "/arena-backgrounds/arena_kenji_zane.webp",
         elara: "/arena-backgrounds/arena_kenji_elara.webp",
     },
     riven: {
+        riven: "/arena-backgrounds/arena_riven_riven.webp",
         kaira: "/arena-backgrounds/arena_riven_kaira.webp",
         kenji: "/arena-backgrounds/arena_riven_kenji.webp",
         zane:  "/arena-backgrounds/arena_riven_zane.webp",
-        elara: "/arena-backgrounds/arena_riven_elara.jpg",
+        elara: "/arena-backgrounds/arena_riven_elara.webp",
     },
     zane: {
+        zane:  "/arena-backgrounds/arena_zane_zane.webp",
         kenji: "/arena-backgrounds/arena_zane_kenji.webp",
         riven: "/arena-backgrounds/arena_zane_riven.webp",
         kaira: "/arena-backgrounds/arena_zane_kaira.webp",
         elara: "/arena-backgrounds/arena_zane_elara.webp",
     },
     elara: {
+        elara: "/arena-backgrounds/arena_elara_elara.webp",
         riven: "/arena-backgrounds/arena_elara_riven.webp",
-        zane:  "/arena-backgrounds/arena_elara_zane.jpg",
+        zane:  "/arena-backgrounds/arena_elara_zane.webp",
         kaira: "/arena-backgrounds/arena_elara_kaira.jpg",
         kenji: "/arena-backgrounds/arena_elara_kenji.webp",
     },

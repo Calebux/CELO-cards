@@ -35,7 +35,8 @@ export function charToCombat(c: Character): CombatChar {
 }
 
 export function calcEnergyPool(c: Character): number {
-    return Math.round(7 + (c.drainStat / 100) * 6);
+    // Minimum 10 so every character can build a valid 5-card deck
+    return Math.max(10, Math.round(7 + (c.drainStat / 100) * 6));
 }
 
 const DEFAULT_CHAR: CombatChar = { knockMult: 1, priorityBonus: 0 };

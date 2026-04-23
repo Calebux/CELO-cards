@@ -62,6 +62,8 @@ export default function Gameplay() {
     startMatch,
     autoLockOrder,
     wagerMode,
+    setVsBot,
+    setWager,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -1418,9 +1420,19 @@ export default function Gameplay() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
-                    {/* Rematch — same opponent */}
+                    {/* Rematch — ranked goes to character select, others go to loadout */}
                     <button
-                      onClick={() => { rematch(); router.push("/loadout"); }}
+                      onClick={() => {
+                        if (wagerMode === "ranked") {
+                          resetMatch();
+                          setVsBot(true);
+                          setWager(false, null, "cusd", "ranked");
+                          router.push("/select-character");
+                        } else {
+                          rematch();
+                          router.push("/loadout");
+                        }
+                      }}
                       style={{ flex: 2, height: 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
                     >
                       🔄 REMATCH

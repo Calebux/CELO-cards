@@ -576,7 +576,7 @@ export const useGameStore = create<GameState>()(
     },
 
     nextRound: () => {
-        const deck = buildDeck();
+        const deck = buildDeck(get().unlockedPremiumCards);
         set((s) => ({
             roundNumber: s.roundNumber + 1,
             playerDeck: deck,
@@ -649,9 +649,9 @@ export const useGameStore = create<GameState>()(
     },
 
     rematch: () => {
-        const { selectedCharacter, opponentCharacter } = get();
+        const { selectedCharacter, opponentCharacter, unlockedPremiumCards } = get();
         const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-        const deck = buildDeck();
+        const deck = buildDeck(unlockedPremiumCards);
         const maxEnergy = selectedCharacter ? calcEnergyPool(selectedCharacter) : 10;
         set({
             playerDeck: deck,
