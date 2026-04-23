@@ -123,7 +123,7 @@ export function SoundSettingsButton() {
   );
 }
 
-/** Global floating mute button — mounted once in providers, visible on every page */
+/** Global floating sound button — mounted once in providers, visible on every page */
 export function GlobalMuteButton() {
   const [muted, setMutedState] = useState(false);
   const [open, setOpen] = useState(false);
@@ -132,18 +132,11 @@ export function GlobalMuteButton() {
     setMutedState(isMuted());
   }, []);
 
-  const handleClick = () => {
-    const next = !muted;
-    setMuted(next);
-    setMutedState(next);
-  };
-
   return (
     <>
       <button
-        onClick={handleClick}
-        onContextMenu={(e) => { e.preventDefault(); setOpen(true); }}
-        title={muted ? "Unmute" : "Mute"}
+        onClick={() => setOpen(true)}
+        title="Sound settings"
         style={{
           position: "fixed",
           bottom: 20,
@@ -166,7 +159,14 @@ export function GlobalMuteButton() {
       >
         {muted ? "🔇" : "🔊"}
       </button>
-      {open && <SoundSettings onClose={() => { setOpen(false); setMutedState(isMuted()); }} />}
+      {open && (
+        <SoundSettings
+          onClose={() => {
+            setOpen(false);
+            setMutedState(isMuted());
+          }}
+        />
+      )}
     </>
   );
 }

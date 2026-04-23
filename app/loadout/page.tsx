@@ -96,8 +96,6 @@ export default function Loadout() {
     ultimateActivated,
     ultimateUsed,
     activateUltimate,
-    playerTaunt,
-    setPlayerTaunt,
     unlockedPremiumCards,
     setOpponentCharacterFromServer,
     setOpponentName,
@@ -761,27 +759,6 @@ export default function Loadout() {
             </button>
           </div>
         )}
-
-        {/* Taunt picker */}
-        <div style={{ position: "absolute", right: 32, bottom: 80, zIndex: 20, display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: 1.5 }}>TAUNT</span>
-          {["😤", "🔥", "💀", "👊", "⚡"].map((emoji) => (
-            <button
-              key={emoji}
-              onClick={() => setPlayerTaunt(playerTaunt === emoji ? null : emoji)}
-              style={{
-                width: 36, height: 36, borderRadius: 6,
-                background: playerTaunt === emoji ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
-                border: playerTaunt === emoji ? "1.5px solid rgba(255,255,255,0.35)" : "1.5px solid rgba(255,255,255,0.1)",
-                cursor: "pointer", fontSize: 18,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.15s",
-              }}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
 
         {/* Lock Sequence button — appears when order is complete */}
         {isOrderComplete && !waiting && (

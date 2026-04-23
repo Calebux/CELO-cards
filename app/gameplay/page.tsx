@@ -6,8 +6,7 @@ import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
-import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
-import { SoundSettings } from "../components/SoundSettings";
+import { playSound, startBgMusic, stopBgMusic } from "../lib/soundManager";
 import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
@@ -48,7 +47,6 @@ export default function Gameplay() {
     wagerActive,
     wagerCurrency,
     winStreak,
-    playerTaunt,
     wagerMultiplier,
     setWagerMultiplier,
     opponentWagered,
@@ -82,9 +80,7 @@ export default function Gameplay() {
   const [totalOpponentKnock, setTotalOpponentKnock] = useState(0);
   const [flashEffect, setFlashEffect] = useState<"player" | "opponent" | "draw" | null>(null);
   const [clashAnim, setClashAnim] = useState<{ result: SlotResult; fadeOut: boolean } | null>(null);
-  const [muted, setMutedState] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
-  const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [gameStuck, setGameStuck] = useState(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [critBanner, setCritBanner] = useState<"player" | "opponent" | null>(null);
@@ -93,8 +89,6 @@ export default function Gameplay() {
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
   const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
-  const [showTaunt, setShowTaunt] = useState(true); // show taunt banner at match start
-  const [opponentTauntText, setOpponentTauntText] = useState<string | null>(null);
   const [showDoubleDown, setShowDoubleDown] = useState(false);
   const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
@@ -113,14 +107,6 @@ export default function Gameplay() {
     stuckTimerRef.current = setTimeout(() => setGameStuck(true), 90_000);
     return () => { if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current); };
   }, [revealedSlots, isAnimating, showResult, matchPhase]);
-
-  // Hide taunt banner after 2.5 seconds
-  useEffect(() => {
-    if (!playerTaunt) { setShowTaunt(false); return; }
-    setShowTaunt(true);
-    const t = setTimeout(() => setShowTaunt(false), 2500);
-    return () => clearTimeout(t);
-  }, [playerTaunt]);
 
   // Double-down prompt: show after round 1 completes if wagerActive and multiplier=1
   useEffect(() => {
@@ -145,16 +131,6 @@ export default function Gameplay() {
     const t = setTimeout(() => setMatchLoading(false), 2200);
     return () => clearTimeout(t);
   }, []);
-
-  // Show opponent taunt ~3s after match loads (after player taunt clears)
-  useEffect(() => {
-    if (!opponentCharacter?.taunts?.length) return;
-    const taunt = opponentCharacter.taunts[Math.floor(Math.random() * opponentCharacter.taunts.length)];
-    const show = setTimeout(() => setOpponentTauntText(taunt), 3200);
-    const hide = setTimeout(() => setOpponentTauntText(null), 5800);
-    return () => { clearTimeout(show); clearTimeout(hide); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opponentCharacter?.id]);
 
   // Background polling to detect if opponent quits (multiplayer only)
   useEffect(() => {
@@ -464,12 +440,6 @@ export default function Gameplay() {
     setTimeout(() => setMatchLoading(false), 2200);
   }, [startMatch, autoLockOrder]);
 
-  const toggleMute = () => {
-    const next = !muted;
-    setMuted(next);
-    setMutedState(next);
-  };
-
   const player = selectedCharacter;
   const opponent = opponentCharacter;
 
@@ -571,49 +541,6 @@ export default function Gameplay() {
             <span style={{ fontSize: 18, fontWeight: 900, color: "#000", letterSpacing: 2 }}>
               {comboBanner === "player" ? "🔥 COMBO STREAK! +3" : "🔥 OPPONENT COMBO! +3"}
             </span>
-          </div>
-        )}
-
-        {/* Taunt banner — shown at start of combat */}
-        {showTaunt && playerTaunt && (
-          <div style={{
-            position: "absolute", top: "22%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 85, pointerEvents: "none",
-            padding: "14px 32px",
-            background: "rgba(15,20,35,0.92)",
-            border: `2px solid ${selectedCharacter?.color ?? "#56a4cb"}`,
-            borderRadius: 8,
-            boxShadow: `0 0 30px ${selectedCharacter?.color ?? "#56a4cb"}60`,
-            animation: "critPop 0.3s ease-out",
-            textAlign: "center",
-          }}>
-            <div style={{ fontSize: 36, marginBottom: 4 }}>{playerTaunt}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: selectedCharacter?.color ?? "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>
-              {selectedCharacter?.name} enters the arena
-            </div>
-          </div>
-        )}
-
-        {/* Opponent taunt banner */}
-        {opponentTauntText && (
-          <div style={{
-            position: "absolute", top: "22%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 85, pointerEvents: "none",
-            padding: "14px 32px",
-            background: "rgba(15,20,35,0.92)",
-            border: `2px solid ${opponentCharacter?.color ?? "#f906a8"}`,
-            borderRadius: 8,
-            boxShadow: `0 0 30px ${opponentCharacter?.color ?? "#f906a8"}60`,
-            animation: "critPop 0.3s ease-out",
-            textAlign: "center",
-          }}>
-            <div style={{ fontSize: 36, marginBottom: 4 }}>⚠️</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: opponentCharacter?.color ?? "#f906a8", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>
-              {opponentCharacter?.name} taunts you
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.85)", fontStyle: "italic" }}>
-              &ldquo;{opponentTauntText}&rdquo;
-            </div>
           </div>
         )}
 
@@ -1560,37 +1487,6 @@ export default function Gameplay() {
             arenaBackground={BG_MAIN}
           />
         )}
-        {/* ── Floating Mute Toggle ── */}
-        <div
-          onClick={() => {
-            const next = !muted;
-            setMuted(next);
-            setMutedState(next);
-          }}
-          title={muted ? "Unmute" : "Mute"}
-          style={{
-            position: "absolute", bottom: 240, right: 24,
-            width: 48, height: 48, borderRadius: "50%",
-            backgroundColor: muted ? "rgba(239,68,68,0.15)" : "rgba(15,25,40,0.9)",
-            border: muted ? "2px solid rgba(239,68,68,0.6)" : "2px solid #5abfe6",
-            boxShadow: muted
-              ? "0 0 16px rgba(239,68,68,0.4)"
-              : "0 0 16px rgba(90,191,230,0.4)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", zIndex: 50,
-            backdropFilter: "blur(8px)",
-            transition: "all 0.2s ease",
-            fontSize: 20,
-          }}
-        >
-          {muted ? "🔇" : "🔊"}
-        </div>
-
-        {/* Sound settings modal */}
-        {showSoundSettings && (
-          <SoundSettings onClose={() => { setShowSoundSettings(false); setMutedState(isMuted()); }} />
-        )}
-
         {/* Game stuck recovery overlay */}
         {gameStuck && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, zIndex: 200 }}>
