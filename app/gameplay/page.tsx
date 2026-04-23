@@ -6,8 +6,7 @@ import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
-import { playSound, startBgMusic, stopBgMusic, setMuted, isMuted } from "../lib/soundManager";
-import { SoundSettings } from "../components/SoundSettings";
+import { playSound, startBgMusic, stopBgMusic } from "../lib/soundManager";
 import { formatUnits } from "viem";
 import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
@@ -48,7 +47,6 @@ export default function Gameplay() {
     wagerActive,
     wagerCurrency,
     winStreak,
-    playerTaunt,
     wagerMultiplier,
     setWagerMultiplier,
     opponentWagered,
@@ -64,6 +62,8 @@ export default function Gameplay() {
     startMatch,
     autoLockOrder,
     wagerMode,
+    setVsBot,
+    setWager,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -82,9 +82,7 @@ export default function Gameplay() {
   const [totalOpponentKnock, setTotalOpponentKnock] = useState(0);
   const [flashEffect, setFlashEffect] = useState<"player" | "opponent" | "draw" | null>(null);
   const [clashAnim, setClashAnim] = useState<{ result: SlotResult; fadeOut: boolean } | null>(null);
-  const [muted, setMutedState] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
-  const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [gameStuck, setGameStuck] = useState(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [critBanner, setCritBanner] = useState<"player" | "opponent" | null>(null);
@@ -93,11 +91,10 @@ export default function Gameplay() {
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
   const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
-  const [showTaunt, setShowTaunt] = useState(true); // show taunt banner at match start
-  const [opponentTauntText, setOpponentTauntText] = useState<string | null>(null);
   const [showDoubleDown, setShowDoubleDown] = useState(false);
   const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
+  const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
@@ -112,14 +109,6 @@ export default function Gameplay() {
     stuckTimerRef.current = setTimeout(() => setGameStuck(true), 90_000);
     return () => { if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current); };
   }, [revealedSlots, isAnimating, showResult, matchPhase]);
-
-  // Hide taunt banner after 2.5 seconds
-  useEffect(() => {
-    if (!playerTaunt) { setShowTaunt(false); return; }
-    setShowTaunt(true);
-    const t = setTimeout(() => setShowTaunt(false), 2500);
-    return () => clearTimeout(t);
-  }, [playerTaunt]);
 
   // Double-down prompt: show after round 1 completes if wagerActive and multiplier=1
   useEffect(() => {
@@ -144,16 +133,6 @@ export default function Gameplay() {
     const t = setTimeout(() => setMatchLoading(false), 2200);
     return () => clearTimeout(t);
   }, []);
-
-  // Show opponent taunt ~3s after match loads (after player taunt clears)
-  useEffect(() => {
-    if (!opponentCharacter?.taunts?.length) return;
-    const taunt = opponentCharacter.taunts[Math.floor(Math.random() * opponentCharacter.taunts.length)];
-    const show = setTimeout(() => setOpponentTauntText(taunt), 3200);
-    const hide = setTimeout(() => setOpponentTauntText(null), 5800);
-    return () => { clearTimeout(show); clearTimeout(hide); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opponentCharacter?.id]);
 
   // Background polling to detect if opponent quits (multiplayer only)
   useEffect(() => {
@@ -353,6 +332,9 @@ export default function Gameplay() {
   // Record match result on leaderboard + sync achievements (fire-and-forget)
   useEffect(() => {
     if (matchPhase !== "match-end" || !address) return;
+    const isVsHouse = matchId?.startsWith("AO-H-");
+    if (isVsHouse) return; // Server handles leaderboard for solo matches
+    
     const won = playerRoundsWon > opponentRoundsWon;
     void fetch("/api/leaderboard", {
       method: "POST",
@@ -460,12 +442,6 @@ export default function Gameplay() {
     setTimeout(() => setMatchLoading(false), 2200);
   }, [startMatch, autoLockOrder]);
 
-  const toggleMute = () => {
-    const next = !muted;
-    setMuted(next);
-    setMutedState(next);
-  };
-
   const player = selectedCharacter;
   const opponent = opponentCharacter;
 
@@ -567,49 +543,6 @@ export default function Gameplay() {
             <span style={{ fontSize: 18, fontWeight: 900, color: "#000", letterSpacing: 2 }}>
               {comboBanner === "player" ? "🔥 COMBO STREAK! +3" : "🔥 OPPONENT COMBO! +3"}
             </span>
-          </div>
-        )}
-
-        {/* Taunt banner — shown at start of combat */}
-        {showTaunt && playerTaunt && (
-          <div style={{
-            position: "absolute", top: "22%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 85, pointerEvents: "none",
-            padding: "14px 32px",
-            background: "rgba(15,20,35,0.92)",
-            border: `2px solid ${selectedCharacter?.color ?? "#56a4cb"}`,
-            borderRadius: 8,
-            boxShadow: `0 0 30px ${selectedCharacter?.color ?? "#56a4cb"}60`,
-            animation: "critPop 0.3s ease-out",
-            textAlign: "center",
-          }}>
-            <div style={{ fontSize: 36, marginBottom: 4 }}>{playerTaunt}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: selectedCharacter?.color ?? "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>
-              {selectedCharacter?.name} enters the arena
-            </div>
-          </div>
-        )}
-
-        {/* Opponent taunt banner */}
-        {opponentTauntText && (
-          <div style={{
-            position: "absolute", top: "22%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 85, pointerEvents: "none",
-            padding: "14px 32px",
-            background: "rgba(15,20,35,0.92)",
-            border: `2px solid ${opponentCharacter?.color ?? "#f906a8"}`,
-            borderRadius: 8,
-            boxShadow: `0 0 30px ${opponentCharacter?.color ?? "#f906a8"}60`,
-            animation: "critPop 0.3s ease-out",
-            textAlign: "center",
-          }}>
-            <div style={{ fontSize: 36, marginBottom: 4 }}>⚠️</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: opponentCharacter?.color ?? "#f906a8", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>
-              {opponentCharacter?.name} taunts you
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.85)", fontStyle: "italic" }}>
-              &ldquo;{opponentTauntText}&rdquo;
-            </div>
           </div>
         )}
 
@@ -739,7 +672,14 @@ export default function Gameplay() {
 
           {/* Centre: Round + Timer */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120, paddingTop: 2 }}>
-            <div style={{ backgroundColor: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 3, padding: "2px 14px 4px", marginBottom: 4, backdropFilter: "blur(4px)" }}>
+            <div style={{ backgroundColor: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 3, padding: "2px 14px 4px", marginBottom: 4, backdropFilter: "blur(4px)", position: "relative" }}>
+              <button 
+                onClick={() => setShowCheatSheet(true)}
+                style={{ position: "absolute", top: -8, right: -24, width: 22, height: 22, borderRadius: "50%", background: "rgba(86,164,203,0.2)", border: "1px solid #56a4cb", color: "#b9e7f4", fontSize: 12, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 10px rgba(86,164,203,0.3)" }}
+                title="How to Play / Elements Cheat Sheet"
+              >
+                ?
+              </button>
               <span style={{ fontSize: 9, letterSpacing: "3px", fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", display: "block", textAlign: "center" }}>ROUND</span>
               <span style={{ fontSize: 36, lineHeight: "34px", fontWeight: 700, letterSpacing: "-2px", color: "white", display: "block", textAlign: "center" }}>{roundNumber}</span>
             </div>
@@ -1480,9 +1420,19 @@ export default function Gameplay() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
-                    {/* Rematch — same opponent */}
+                    {/* Rematch — ranked goes to character select, others go to loadout */}
                     <button
-                      onClick={() => { rematch(); router.push("/loadout"); }}
+                      onClick={() => {
+                        if (wagerMode === "ranked") {
+                          resetMatch();
+                          setVsBot(true);
+                          setWager(false, null, "cusd", "ranked");
+                          router.push("/select-character");
+                        } else {
+                          rematch();
+                          router.push("/loadout");
+                        }
+                      }}
                       style={{ flex: 2, height: 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
                     >
                       🔄 REMATCH
@@ -1549,37 +1499,6 @@ export default function Gameplay() {
             arenaBackground={BG_MAIN}
           />
         )}
-        {/* ── Floating Mute Toggle ── */}
-        <div
-          onClick={() => {
-            const next = !muted;
-            setMuted(next);
-            setMutedState(next);
-          }}
-          title={muted ? "Unmute" : "Mute"}
-          style={{
-            position: "absolute", bottom: 240, right: 24,
-            width: 48, height: 48, borderRadius: "50%",
-            backgroundColor: muted ? "rgba(239,68,68,0.15)" : "rgba(15,25,40,0.9)",
-            border: muted ? "2px solid rgba(239,68,68,0.6)" : "2px solid #5abfe6",
-            boxShadow: muted
-              ? "0 0 16px rgba(239,68,68,0.4)"
-              : "0 0 16px rgba(90,191,230,0.4)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", zIndex: 50,
-            backdropFilter: "blur(8px)",
-            transition: "all 0.2s ease",
-            fontSize: 20,
-          }}
-        >
-          {muted ? "🔇" : "🔊"}
-        </div>
-
-        {/* Sound settings modal */}
-        {showSoundSettings && (
-          <SoundSettings onClose={() => { setShowSoundSettings(false); setMutedState(isMuted()); }} />
-        )}
-
         {/* Game stuck recovery overlay */}
         {gameStuck && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, zIndex: 200 }}>
@@ -1675,6 +1594,61 @@ export default function Gameplay() {
           </div>
         )}
 
+
+        {/* Cheat Sheet Modal */}
+        {showCheatSheet && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 600, background: "rgba(5,5,16,0.92)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: "rgba(12,18,36,0.97)", border: "2px solid #56a4cb", borderRadius: 12, padding: "30px", maxWidth: 400, width: "100%", boxShadow: "0 0 40px rgba(86,164,203,0.3)", textAlign: "center", position: "relative" }}>
+              <button 
+                onClick={() => setShowCheatSheet(false)}
+                style={{ position: "absolute", top: 12, right: 16, background: "none", border: "none", color: "#94a3b8", fontSize: 24, cursor: "pointer" }}
+              >
+                &times;
+              </button>
+              
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 20px" }}>
+                Elements & Synergy
+              </h2>
+
+              <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 24, alignItems: "center" }}>
+                <div style={{ textAlign: "center", background: "rgba(248,113,113,0.1)", border: "1px solid #f87171", borderRadius: 8, padding: "10px", flex: 1 }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>🔥</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#f87171" }}>FIRE</div>
+                  <div style={{ fontSize: 9, color: "#9ca3af" }}>Beats Earth</div>
+                </div>
+                <div style={{ color: "#475569" }}>→</div>
+                <div style={{ textAlign: "center", background: "rgba(74,222,128,0.1)", border: "1px solid #4ade80", borderRadius: 8, padding: "10px", flex: 1 }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>🌿</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#4ade80" }}>EARTH</div>
+                  <div style={{ fontSize: 9, color: "#9ca3af" }}>Beats Water</div>
+                </div>
+                <div style={{ color: "#475569" }}>→</div>
+                <div style={{ textAlign: "center", background: "rgba(96,165,250,0.1)", border: "1px solid #60a5fa", borderRadius: 8, padding: "10px", flex: 1 }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>💧</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#60a5fa" }}>WATER</div>
+                  <div style={{ fontSize: 9, color: "#9ca3af" }}>Beats Fire</div>
+                </div>
+              </div>
+
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "16px", textAlign: "left" }}>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 20 }}>⚔️</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#e2e8f0", marginBottom: 2 }}>SYNERGY BONUS</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.4 }}>If a card's element matches your character's element, it gains +10 Knock.</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ fontSize: 20 }}>🛡️</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#e2e8f0", marginBottom: 2 }}>COUNTER BONUS</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.4 }}>If your card counters the opponent's card element, it gains +15 Knock.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

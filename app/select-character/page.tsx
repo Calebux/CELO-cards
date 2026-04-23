@@ -36,7 +36,7 @@ export default function SelectCharacter() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
   const router = useRouter();
-  const { selectCharacter, startMatch, playerAddress, playerRole, matchId, vsBot, playerName } = useGameStore();
+  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, vsBot, playerName, wagerTxHash, wagerAmountInput } = useGameStore();
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -88,13 +88,33 @@ export default function SelectCharacter() {
 
   const handleLock = async () => {
     selectCharacter(activeChar);
-    startMatch();
     if (playerRole !== null && matchId) {
+      // Multiplayer: init loadout state WITHOUT overwriting matchId (startMatch would corrupt it)
+      initMultiplayerLoadout();
+      // Build wager amount as BigInt string if host paid
+      let wagerAmountBig: string | undefined;
+      if (playerRole === "host" && wagerTxHash && wagerAmountInput) {
+        try {
+          const { parseUnits } = await import("viem");
+          const n = Number(wagerAmountInput);
+          if (!isNaN(n) && n > 0) {
+            wagerAmountBig = parseUnits(wagerAmountInput as `${number}`, 18).toString();
+          }
+        } catch { /* ignore */ }
+      }
       await fetch(`/api/match/${matchId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: playerRole, characterId: activeChar.id, playerName }),
+        body: JSON.stringify({
+          role: playerRole,
+          characterId: activeChar.id,
+          playerName,
+          address: playerAddress,
+          ...(playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig } : {}),
+        }),
       });
+    } else {
+      startMatch();
     }
     router.push("/loadout");
   };

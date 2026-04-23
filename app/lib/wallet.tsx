@@ -33,7 +33,7 @@ export function WalletSync() {
   // When address changes, fetch username from Redis and sync to store
   useEffect(() => {
     if (!address) return;
-    void fetch(`/api/username?address=${address.toLowerCase()}`)
+    void fetch(`/api/username?address=${address.toLowerCase()}&t=${Date.now()}`)
       .then((r) => r.json())
       .then((d: { username?: string | null }) => {
         if (d.username && d.username !== playerName) {

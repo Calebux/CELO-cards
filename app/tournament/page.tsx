@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { isMiniPay, formatAddress } from "../lib/minipay";
+import { useGameStore } from "../lib/gameStore";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -12,6 +13,7 @@ const DESIGN_CONTENT_H = 1200;
 
 type LeaderboardPlayer = {
   address: string;
+  name?: string;
   points: number;
   wins: number;
   losses: number;
@@ -127,6 +129,7 @@ export default function WeeklyChallengePage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address } = useAccount();
+  const { resetMatch, setVsBot, setWager } = useGameStore();
 
   const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -238,9 +241,10 @@ export default function WeeklyChallengePage() {
     }
   }, [address, nameInput, fetchLeaderboard]);
 
-  function displayName(addr: string) {
-    const name = usernames[addr.toLowerCase()];
-    return name ?? `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+  function displayName(p: LeaderboardPlayer) {
+    if (p.name) return p.name;
+    const name = usernames[p.address.toLowerCase()];
+    return name ?? `${p.address.slice(0, 6)}…${p.address.slice(-4)}`;
   }
 
   const prizeDisplay = "120,000 G$";
@@ -288,7 +292,7 @@ export default function WeeklyChallengePage() {
         </div>
 
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 84, left: 0, right: 0, height: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <div style={{ position: "absolute", top: 84, left: 0, right: 0, height: 260, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase" }}>SEASON 1 · ORDER ASCENSION</div>
           <div style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-3.5px", color: "white", textTransform: "uppercase", textAlign: "center", lineHeight: 1, textShadow: "0 0 40px rgba(251,204,92,0.25)" }}>
             WEEKLY CHALLENGE
@@ -299,9 +303,39 @@ export default function WeeklyChallengePage() {
 
           {/* Stats row */}
           <div style={{ display: "flex", gap: 40, marginTop: 6, alignItems: "flex-start" }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>PRIZE POOL</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#4ade80", letterSpacing: 0.5, marginTop: 2 }}>{prizeDisplay}</div>
+            <div style={{ textAlign: "center", position: "relative" }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>TOTAL BOUNTY</div>
+              <div style={{ 
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center"
+              }}>
+                <div style={{ 
+                  fontSize: 32, 
+                  fontWeight: 900, 
+                  color: "#4ade80", 
+                  letterSpacing: -1, 
+                  marginTop: 2,
+                  textShadow: "0 0 20px rgba(74,222,128,0.4)",
+                  animation: "prizePulse 2s ease-in-out infinite"
+                }}>
+                  {prizeDisplay}
+                </div>
+                <div style={{ 
+                  background: "linear-gradient(90deg, #4ade80, #22c55e)",
+                  color: "#050505",
+                  fontSize: 8,
+                  fontWeight: 900,
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  marginTop: -4,
+                  letterSpacing: 1.5,
+                  boxShadow: "0 4px 12px rgba(74,222,128,0.3)"
+                }}>
+                  ACTIVE PRIZE
+                </div>
+              </div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 2 }}>WEEK ENDS IN</div>
@@ -333,7 +367,7 @@ export default function WeeklyChallengePage() {
         </div>
 
         {/* ── Main content: leaderboard + sidebar ──────────────────────── */}
-        <div style={{ position: "absolute", top: 306, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ position: "absolute", top: 356, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
 
           {/* Left column: Live Leaderboard + How It Works below */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -380,7 +414,7 @@ export default function WeeklyChallengePage() {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: isMe ? "#b9e7f4" : "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {displayName(p.address)}
+                            {displayName(p)}
                             {isMe && <span style={{ marginLeft: 6, fontSize: 10, color: "#4ade80", fontWeight: 800 }}>YOU</span>}
                           </div>
                           <div style={{ fontSize: 10, color: "#475569", marginTop: 1, fontFamily: "monospace" }}>
@@ -498,7 +532,12 @@ export default function WeeklyChallengePage() {
 
             {/* CTA buttons */}
             <button
-              onClick={() => router.push("/select-character")}
+              onClick={() => {
+                resetMatch();
+                setVsBot(true);
+                setWager(false, null, "cusd", "ranked");
+                router.push("/select-character");
+              }}
               style={{ width: "100%", height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 15, letterSpacing: 2.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)", boxShadow: "0 0 20px rgba(86,164,203,0.2)" }}>
               PLAY RANKED NOW ▸
             </button>
@@ -516,6 +555,10 @@ export default function WeeklyChallengePage() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @keyframes prizePulse {
+          0%, 100% { transform: scale(1); filter: brightness(1); }
+          50% { transform: scale(1.05); filter: brightness(1.2) drop-shadow(0 0 10px rgba(74,222,128,0.6)); }
         }
       `}</style>
     </div>

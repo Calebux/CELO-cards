@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType } from "../lib/gameData";
 import { WalletSection } from "../components/WalletSection";
-import { SoundSettingsButton } from "../components/SoundSettings";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";
@@ -37,33 +36,32 @@ function CardTooltip({ card }: { card: Card }) {
   const col = typeColors[card.type] ?? "#56a4cb";
   return (
     <div style={{
-      position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
-      width: 200, zIndex: 100, pointerEvents: "none",
-      backgroundColor: "rgba(8, 12, 24, 0.97)",
-      border: `1.5px solid ${col}60`,
+      position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
+      width: 210, zIndex: 200, pointerEvents: "none",
+      backgroundColor: "rgba(8, 12, 24, 0.98)",
+      border: `1.5px solid ${col}70`,
       borderRadius: 8,
       padding: "12px 14px",
-      boxShadow: `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.8)`,
+      boxShadow: `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.9)`,
     }}>
-      {/* Scanline */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1.5, backgroundColor: col, borderRadius: "8px 8px 0 0" }} />
-      <div style={{ fontSize: 12, fontWeight: 800, color: "#fff", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: col, backgroundColor: `${col}20`, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase" }}>{card.type}</span>
-        <span style={{ fontSize: 9, color: "#94a3b8", padding: "2px 6px", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 3 }}>⚡{card.energyCost}</span>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, backgroundColor: col, borderRadius: "10px 10px 0 0" }} />
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 9 }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: col, backgroundColor: `${col}20`, padding: "2px 7px", borderRadius: 3, textTransform: "uppercase" }}>{card.type}</span>
+        <span style={{ fontSize: 9, color: "#94a3b8", padding: "2px 7px", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 3 }}>⚡{card.energyCost}</span>
       </div>
-      <p style={{ fontSize: 11, color: "#94a3b8", lineHeight: "15px", margin: 0, marginBottom: 10 }}>{card.effect}</p>
-      <div style={{ display: "flex", gap: 12, borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 8 }}>
+      <p style={{ fontSize: 11, color: "#94a3b8", lineHeight: "15px", margin: 0, marginBottom: 11 }}>{card.effect}</p>
+      <div style={{ display: "flex", gap: 14, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 9 }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9" }}>{card.knock}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{card.knock}</div>
           <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Knock</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9" }}>{card.priority}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{card.priority}</div>
           <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Priority</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9" }}>{card.energyCost}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{card.energyCost}</div>
           <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Energy</div>
         </div>
       </div>
@@ -97,8 +95,6 @@ export default function Loadout() {
     ultimateActivated,
     ultimateUsed,
     activateUltimate,
-    playerTaunt,
-    setPlayerTaunt,
     unlockedPremiumCards,
     setOpponentCharacterFromServer,
     setOpponentName,
@@ -170,8 +166,8 @@ export default function Loadout() {
 
     // Solo path — unchanged
     if (!playerRole || !matchId) {
-      lockOrder();
-      router.push("/game-action");
+      await lockOrder();
+      router.push("/gameplay");
       return;
     }
 
@@ -220,7 +216,7 @@ export default function Loadout() {
         if (data.phase === "resolved" && data.slots) {
           if (pollRef.current) clearInterval(pollRef.current);
           setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
-          router.push("/game-action");
+          router.push("/gameplay");
         }
       } catch {
         setPollErrorCount((n) => n + 1);
@@ -254,9 +250,8 @@ export default function Loadout() {
             <span style={{ fontSize: 16, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>{opponentRoundsWon}</span>
           </div>
 
-          {/* Wallet & Sound */}
+          {/* Wallet */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <SoundSettingsButton />
             <WalletSection />
           </div>
         </div>
@@ -391,37 +386,43 @@ export default function Loadout() {
                 {regularCards.map((card) => {
                   const inOrder = isCardInOrder(card);
                   const tooExpensive = !inOrder && card.energyCost > remainingEnergy;
-                  const disabled = inOrder || tooExpensive;
                   const isHovered = hoveredCardId === card.id;
                   return (
                     <div
                       key={card.id}
-                      onClick={() => !disabled && addCardToSlot(card)}
+                      onClick={() => {
+                        if (inOrder) {
+                          const slotIdx = currentOrder.findIndex(s => s?.id === card.id);
+                          if (slotIdx !== -1) removeCardFromSlot(slotIdx);
+                        } else if (!tooExpensive) {
+                          addCardToSlot(card);
+                        }
+                      }}
                       onMouseEnter={() => setHoveredCardId(card.id)}
                       onMouseLeave={() => setHoveredCardId(null)}
                       style={{
                         width: 152, height: 210,
                         position: "relative", flexShrink: 0,
                         overflow: "visible", borderRadius: 8,
-                        cursor: disabled ? "default" : "pointer",
-                        opacity: inOrder ? 0.35 : tooExpensive ? 0.45 : 1,
+                        cursor: tooExpensive ? "default" : "pointer",
+                        opacity: tooExpensive ? 0.45 : 1,
                         border: inOrder
-                          ? "2px solid rgba(74,222,128,0.5)"
+                          ? "2px solid rgba(74,222,128,0.7)"
                           : tooExpensive
                           ? "2px solid rgba(239,68,68,0.3)"
                           : `2px solid ${isHovered ? card.color : card.color + "30"}`,
-                        boxShadow: isHovered
+                        boxShadow: inOrder
+                          ? "0 0 16px rgba(74,222,128,0.4)"
+                          : isHovered
                           ? `0 0 20px ${card.color}50, 0 8px 32px rgba(0,0,0,0.7)`
-                          : inOrder
-                          ? "0 0 12px rgba(74,222,128,0.2)"
                           : `0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px ${card.color}15`,
                         transition: "all 0.18s ease",
                         filter: tooExpensive ? "grayscale(0.6)" : "none",
-                        transform: isHovered && !disabled ? "translateY(-4px)" : "none",
+                        transform: isHovered && !tooExpensive ? "translateY(-4px)" : "none",
                         zIndex: isHovered ? 50 : "auto",
                       }}
                     >
-                      {isHovered && !disabled && <CardTooltip card={card} />}
+                      {isHovered && <CardTooltip card={card} />}
                       <img src={card.image} alt={card.name} style={{
                         position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                       }} />
@@ -435,9 +436,10 @@ export default function Loadout() {
                         <div style={{
                           position: "absolute", inset: 0,
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          backgroundColor: "rgba(0,0,0,0.55)",
+                          backgroundColor: "rgba(0,0,0,0.45)",
                         }}>
-                          <span className="material-icons" style={{ fontSize: 34, color: "#4ade80" }}>check_circle</span>
+                          <span className="material-icons" style={{ fontSize: 28, color: "#4ade80" }}>check_circle</span>
+                          <span style={{ position: "absolute", bottom: 6, fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>tap to remove</span>
                         </div>
                       )}
                       {/* Energy cost */}
@@ -476,40 +478,47 @@ export default function Loadout() {
                   {(() => {
                     const spInOrder = isCardInOrder(specialCard);
                     const spTooExp = !spInOrder && specialCard.energyCost > remainingEnergy;
-                    const spDisabled = spInOrder || spTooExp;
                     const spHovered = hoveredCardId === specialCard.id;
                     return (
                   <div
-                    onClick={() => !spDisabled && addCardToSlot(specialCard)}
+                    onClick={() => {
+                      if (spInOrder) {
+                        const slotIdx = currentOrder.findIndex(s => s?.id === specialCard.id);
+                        if (slotIdx !== -1) removeCardFromSlot(slotIdx);
+                      } else if (!spTooExp) {
+                        addCardToSlot(specialCard);
+                      }
+                    }}
                     onMouseEnter={() => setHoveredCardId(specialCard.id)}
                     onMouseLeave={() => setHoveredCardId(null)}
                     style={{
                       width: 170, height: 235,
                       position: "relative", overflow: "visible",
                       borderRadius: 10,
-                      cursor: spDisabled ? "default" : "pointer",
-                      opacity: spInOrder ? 0.35 : spTooExp ? 0.45 : 1,
+                      cursor: spTooExp ? "default" : "pointer",
+                      opacity: spTooExp ? 0.45 : 1,
                       border: `3px solid ${specialCard.color}`,
                       boxShadow: spHovered
                         ? `0 0 40px ${specialCard.color}80, 0 12px 40px rgba(0,0,0,0.8)`
                         : `0 0 24px ${specialCard.color}50, 0 8px 32px rgba(0,0,0,0.6)`,
                       transition: "all 0.18s ease",
                       filter: spTooExp ? "grayscale(0.6)" : "none",
-                      transform: spHovered && !spDisabled ? "translateY(-4px)" : "none",
+                      transform: spHovered && !spTooExp ? "translateY(-4px)" : "none",
                       zIndex: spHovered ? 50 : "auto",
                     }}
                   >
-                    {spHovered && !spDisabled && <CardTooltip card={specialCard} />}
+                    {spHovered && <CardTooltip card={specialCard} />}
                     <img src={specialCard.image} alt={specialCard.name} style={{
                       position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                     }} />
-                    {isCardInOrder(specialCard) && (
+                    {spInOrder && (
                       <div style={{
                         position: "absolute", inset: 0,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        backgroundColor: "rgba(0,0,0,0.55)",
+                        backgroundColor: "rgba(0,0,0,0.45)",
                       }}>
                         <span className="material-icons" style={{ fontSize: 38, color: "#4ade80" }}>check_circle</span>
+                        <span style={{ position: "absolute", bottom: 48, fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>tap to remove</span>
                       </div>
                     )}
                     {/* Cost */}
@@ -763,27 +772,6 @@ export default function Loadout() {
             </button>
           </div>
         )}
-
-        {/* Taunt picker */}
-        <div style={{ position: "absolute", right: 32, bottom: 80, zIndex: 20, display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: 1.5 }}>TAUNT</span>
-          {["😤", "🔥", "💀", "👊", "⚡"].map((emoji) => (
-            <button
-              key={emoji}
-              onClick={() => setPlayerTaunt(playerTaunt === emoji ? null : emoji)}
-              style={{
-                width: 36, height: 36, borderRadius: 6,
-                background: playerTaunt === emoji ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
-                border: playerTaunt === emoji ? "1.5px solid rgba(255,255,255,0.35)" : "1.5px solid rgba(255,255,255,0.1)",
-                cursor: "pointer", fontSize: 18,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.15s",
-              }}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
 
         {/* Lock Sequence button — appears when order is complete */}
         {isOrderComplete && !waiting && (

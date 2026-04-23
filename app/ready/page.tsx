@@ -15,7 +15,9 @@ export default function ReadyYourDeck() {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [linkShared, setLinkShared] = useState(false);
-  const storeMatchId = useGameStore((s) => s.matchId);
+  const storeMatchId   = useGameStore((s) => s.matchId);
+  const wagerTxHash    = useGameStore((s) => s.wagerTxHash);
+  const wagerActive    = useGameStore((s) => s.wagerActive);
 
   useEffect(() => {
     const scale = () => {
@@ -41,6 +43,21 @@ export default function ReadyYourDeck() {
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
   }, []);
+
+  // Keepalive — ping the match every 60s so it doesn't time out while host waits
+  useEffect(() => {
+    if (!storeMatchId || !wagerActive) return; // only needed for paid matches
+    const ping = () => {
+      void fetch(`/api/match/${storeMatchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role: "host" }),
+      }).catch(() => {});
+    };
+    ping(); // immediate ping
+    const id = setInterval(ping, 60_000);
+    return () => clearInterval(id);
+  }, [storeMatchId, wagerActive]);
 
   const matchId = storeMatchId ?? "AO-????-X";
 

@@ -19,17 +19,14 @@ const DESIGN_H = 823;
 // Treasury wallet that receives Black Market payments
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
 
-// Prices in on-chain units — cards have a `price` field (originally in pts).
-// We map pts → micro-CELO (same scale: 1 pt ≈ 0.000001 CELO).
-// e.g. 2000 pts → 0.002 CELO / G$
+// Price: pts / 1000 = CELO (e.g. 2000pts→2 CELO, 10000pts→10 CELO)
 function ptsToOnchain(pts: number) {
-  const celoStr = (pts / 1_000_000).toFixed(6); // e.g. 2000 → "0.002000"
-  return parseUnits(celoStr as `${number}`, 18);
+  return parseUnits((pts / 1000).toFixed(6), 18);
 }
-
 function ptsDisplay(pts: number, currency: "celo" | "gdollar") {
-  const val = (pts / 1_000_000).toFixed(4);
-  return currency === "gdollar" ? `${val} G$` : `${val} CELO`;
+  const val = pts / 1000;
+  const formatted = val % 1 === 0 ? val.toString() : val.toFixed(1);
+  return currency === "gdollar" ? `${formatted} G$` : `${formatted} CELO`;
 }
 
 type BuyCurrency = "celo" | "gdollar";
