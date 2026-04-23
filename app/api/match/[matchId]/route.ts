@@ -162,19 +162,28 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid characterId" }, { status: 400 });
   }
 
-  let match = await getMatch<ServerMatch>(matchId) ?? newMatch(matchId);
-  match.lastActivity = Date.now();
-  if (role === "host") {
-    match.host.charId = characterId;
-    if (typeof playerName === "string") match.host.playerName = playerName;
-    if (address) match.host.address = address; // Store address
-  } else {
-    match.joiner.charId = characterId;
-    if (typeof playerName === "string") match.joiner.playerName = playerName;
-    if (address) match.joiner.address = address; // Store address
+  let match: ServerMatch | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    match = await getMatch<ServerMatch>(matchId) ?? newMatch(matchId);
+    match.lastActivity = Date.now();
+    if (role === "host") {
+      match.host.charId = characterId;
+      if (typeof playerName === "string") match.host.playerName = playerName;
+      if (address) match.host.address = address; 
+    } else {
+      match.joiner.charId = characterId;
+      if (typeof playerName === "string") match.joiner.playerName = playerName;
+      if (address) match.joiner.address = address;
+    }
+
+    try {
+      await setMatch(matchId, match);
+      break;
+    } catch {
+      await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+    }
   }
 
-  await setMatch(matchId, match);
   return NextResponse.json({ ok: true });
 }
 
@@ -201,30 +210,44 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Register wager TX ───────────────────────────────────────────────────
   if (action === "wager") {
-    const match = await getMatch<ServerMatch>(matchId);
-    if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
-    if (role === "host") {
-      match.hostWagerTx = wagerTx ?? null;
-      match.hostWagerAmount = wagerAmount ?? null;
-    } else {
-      match.joinerWagerTx = wagerTx ?? null;
-      match.joinerWagerAmount = wagerAmount ?? null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const match = await getMatch<ServerMatch>(matchId);
+      if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      if (role === "host") {
+        match.hostWagerTx = wagerTx ?? null;
+        match.hostWagerAmount = wagerAmount ?? null;
+      } else {
+        match.joinerWagerTx = wagerTx ?? null;
+        match.joinerWagerAmount = wagerAmount ?? null;
+      }
+      try {
+        await setMatch(matchId, match);
+        break;
+      } catch {
+        await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+      }
     }
-    await setMatch(matchId, match);
     return NextResponse.json({ ok: true });
   }
 
   // ── Quit match ──────────────────────────────────────────────────────────
   if (action === "quit") {
-    const match = await getMatch<ServerMatch>(matchId);
-    if (!match) return NextResponse.json({ ok: true });
-    match.abortedBy = role;
-    match.lastActivity = Date.now();
-    await setMatch(matchId, match);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const match = await getMatch<ServerMatch>(matchId);
+      if (!match) return NextResponse.json({ ok: true });
+      match.abortedBy = role;
+      match.lastActivity = Date.now();
+      try {
+        await setMatch(matchId, match);
+        break;
+      } catch {
+        await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+      }
+    }
     return NextResponse.json({ ok: true });
   }
 
-  // ── Submit card order ───────────────────────────────────────────────────
+  // ── Submit card order (with retry to handle concurrency) ────────────────
   if (!Array.isArray(cardIds) || cardIds.length !== 5 || cardIds.some((id) => typeof id !== "string")) {
     return NextResponse.json({ error: "cardIds must be an array of 5 card ID strings" }, { status: 400 });
   }
@@ -236,79 +259,90 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: `Unknown card: ${invalidCard}` }, { status: 400 });
   }
 
-  const match = await getMatch<ServerMatch>(matchId);
-  if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  let match: ServerMatch | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    match = await getMatch<ServerMatch>(matchId);
+    if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
-  match.lastActivity = Date.now();
+    match.lastActivity = Date.now();
 
-  if (round > match.round) {
-    match.round = round;
-    match.host.cardIds = null;
-    match.host.orderRound = 0;
-    match.joiner.cardIds = null;
-    match.joiner.orderRound = 0;
-    match.resolvedSlots = null;
-  }
-
-  const slot = role === "host" ? match.host : match.joiner;
-  slot.cardIds = cardIds;
-  slot.orderRound = round;
-
-  if (
-    match.host.cardIds &&
-    match.joiner.cardIds &&
-    match.host.orderRound === match.round &&
-    match.joiner.orderRound === match.round
-  ) {
-    const hostChar   = CHARACTERS.find((c) => c.id === match.host.charId);
-    const joinerChar = CHARACTERS.find((c) => c.id === match.joiner.charId);
-
-    if (!hostChar || !joinerChar) {
-      return NextResponse.json({ error: "Character data missing — re-select characters" }, { status: 422 });
+    // Reset slots if moving to a new round
+    if (round > match.round) {
+      match.round = round;
+      match.host.cardIds = null;
+      match.host.orderRound = 0;
+      match.joiner.cardIds = null;
+      match.joiner.orderRound = 0;
+      match.resolvedSlots = null;
     }
 
-    const hostCards = match.host.cardIds
-      .map((id) => CARDS.find((c) => c.id === id))
-      .filter(Boolean) as typeof CARDS;
-    const joinerCards = match.joiner.cardIds
-      .map((id) => CARDS.find((c) => c.id === id))
-      .filter(Boolean) as typeof CARDS;
+    const slot = role === "host" ? match.host : match.joiner;
+    slot.cardIds = cardIds;
+    slot.orderRound = round;
 
-    const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar);
-    match.resolvedSlots = result.slots;
+    const m = match;
+    // Check if both players have submitted for the current round
+    if (
+      m.host.cardIds &&
+      m.joiner.cardIds &&
+      m.host.orderRound === m.round &&
+      m.joiner.orderRound === m.round
+    ) {
+      const hostChar   = CHARACTERS.find((c) => c.id === m.host.charId);
+      const joinerChar = CHARACTERS.find((c) => c.id === m.joiner.charId);
 
-    if (result.roundWinner === "player") match.hostWins++;
-    else if (result.roundWinner === "opponent") match.joinerWins++;
-
-    // ── Check for match completion ───────────────────────────────────────
-    const isMatchOver = match.hostWins >= 3 || match.joinerWins >= 3;
-    if (isMatchOver) {
-      const hostWon = match.hostWins >= 3;
-      
-      // Update leaderboard for both players
-      if (match.host.address) {
-        await recordMatchResult({
-          playerAddress: match.host.address,
-          playerName: match.host.playerName || undefined,
-          won: hostWon,
-          pointsEarned: hostWon ? 150 : 25, // PvP rewards
-          wagered: !!match.hostWagerTx,
-        });
+      if (!hostChar || !joinerChar) {
+        return NextResponse.json({ error: "Character data missing — re-select characters" }, { status: 422 });
       }
-      if (match.joiner.address) {
-        await recordMatchResult({
-          playerAddress: match.joiner.address,
-          playerName: match.joiner.playerName || undefined,
-          won: !hostWon,
-          pointsEarned: !hostWon ? 150 : 25,
-          wagered: !!match.joinerWagerTx,
-        });
+
+      const hostCards = m.host.cardIds
+        .map((id) => CARDS.find((c) => c.id === id))
+        .filter(Boolean) as typeof CARDS;
+      const joinerCards = m.joiner.cardIds
+        .map((id) => CARDS.find((c) => c.id === id))
+        .filter(Boolean) as typeof CARDS;
+
+      const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar);
+      m.resolvedSlots = result.slots;
+
+      if (result.roundWinner === "player") m.hostWins++;
+      else if (result.roundWinner === "opponent") m.joinerWins++;
+
+      // Check for match completion
+      const isMatchOver = m.hostWins >= 3 || m.joinerWins >= 3;
+      if (isMatchOver) {
+        const hostWon = m.hostWins >= 3;
+        if (m.host.address) {
+          await recordMatchResult({
+            playerAddress: m.host.address,
+            playerName: m.host.playerName || undefined,
+            won: hostWon,
+            pointsEarned: hostWon ? 150 : 25,
+            wagered: !!m.hostWagerTx,
+          });
+        }
+        if (m.joiner.address) {
+          await recordMatchResult({
+            playerAddress: m.joiner.address,
+            playerName: m.joiner.playerName || undefined,
+            won: !hostWon,
+            pointsEarned: !hostWon ? 150 : 25,
+            wagered: !!m.joinerWagerTx,
+          });
+        }
       }
+    }
+
+    try {
+      await setMatch(matchId, match);
+      break; // Success!
+    } catch {
+      // Small random delay before retry
+      await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
     }
   }
 
-  await setMatch(matchId, match);
-  return NextResponse.json({ ok: true, round: match.round });
+  return NextResponse.json({ ok: true, round: match?.round });
 }
 
 // DELETE — clean up a finished or abandoned match
