@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType } from "../lib/gameData";
 import { WalletSection } from "../components/WalletSection";
-import { SoundSettingsButton } from "../components/SoundSettings";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";
@@ -254,9 +253,8 @@ export default function Loadout() {
             <span style={{ fontSize: 16, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: 1, fontVariantNumeric: "tabular-nums" }}>{opponentRoundsWon}</span>
           </div>
 
-          {/* Wallet & Sound */}
+          {/* Wallet */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <SoundSettingsButton />
             <WalletSection />
           </div>
         </div>

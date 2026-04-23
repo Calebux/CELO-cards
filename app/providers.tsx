@@ -10,6 +10,7 @@ import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
 import { UsernameModal } from "./components/UsernameModal";
 import { TutorialModal } from "./components/TutorialModal";
+import { GlobalMuteButton } from "./components/SoundSettings";
 
 
 const { connectors } = getDefaultWallets({
@@ -38,6 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <DailyReward />
           <UsernameModal />
           <TutorialModal />
+          <GlobalMuteButton />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

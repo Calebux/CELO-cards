@@ -122,3 +122,51 @@ export function SoundSettingsButton() {
     </>
   );
 }
+
+/** Global floating mute button — mounted once in providers, visible on every page */
+export function GlobalMuteButton() {
+  const [muted, setMutedState] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setMutedState(isMuted());
+  }, []);
+
+  const handleClick = () => {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+  };
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        onContextMenu={(e) => { e.preventDefault(); setOpen(true); }}
+        title={muted ? "Unmute" : "Mute"}
+        style={{
+          position: "fixed",
+          bottom: 20,
+          right: 20,
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          backgroundColor: muted ? "rgba(239,68,68,0.15)" : "rgba(10,18,32,0.85)",
+          border: muted ? "2px solid rgba(239,68,68,0.55)" : "2px solid rgba(86,164,203,0.45)",
+          boxShadow: muted ? "0 0 14px rgba(239,68,68,0.3)" : "0 0 14px rgba(86,164,203,0.3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          zIndex: 9000,
+          backdropFilter: "blur(8px)",
+          transition: "all 0.2s ease",
+          fontSize: 18,
+        }}
+      >
+        {muted ? "🔇" : "🔊"}
+      </button>
+      {open && <SoundSettings onClose={() => { setOpen(false); setMutedState(isMuted()); }} />}
+    </>
+  );
+}
