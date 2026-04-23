@@ -164,6 +164,7 @@ interface GameState {
     nextRound: () => void;
     resetMatch: () => void;
     rematch: () => void;
+    initMultiplayerLoadout: () => void;
 }
 
 export const useGameStore = create<GameState>()(
@@ -623,6 +624,28 @@ export const useGameStore = create<GameState>()(
             wagerMultiplier: 1,
             currentMatchRounds: [],
         }));
+    },
+
+    // Multiplayer-safe init: sets up deck/energy/round state WITHOUT touching matchId or playerRole
+    initMultiplayerLoadout: () => {
+        const { selectedCharacter, unlockedPremiumCards } = get();
+        const deck = buildDeck(unlockedPremiumCards);
+        const maxEnergy = selectedCharacter ? calcEnergyPool(selectedCharacter) : 10;
+        set({
+            playerDeck: deck,
+            currentOrder: [null, null, null, null, null],
+            opponentOrder: [],
+            currentRoundResult: null,
+            precomputedRound: null,
+            revealedSlots: 0,
+            matchPhase: "lobby",
+            roundNumber: 1,
+            playerRoundsWon: 0,
+            opponentRoundsWon: 0,
+            maxEnergy,
+            ultimateActivated: false,
+            ultimateUsed: false,
+        });
     },
 
     rematch: () => {

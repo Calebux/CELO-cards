@@ -36,7 +36,7 @@ export default function SelectCharacter() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
   const router = useRouter();
-  const { selectCharacter, startMatch, playerAddress, playerRole, matchId, vsBot, playerName } = useGameStore();
+  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, vsBot, playerName } = useGameStore();
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -88,13 +88,16 @@ export default function SelectCharacter() {
 
   const handleLock = async () => {
     selectCharacter(activeChar);
-    startMatch();
     if (playerRole !== null && matchId) {
+      // Multiplayer: init loadout state WITHOUT overwriting matchId (startMatch would corrupt it)
+      initMultiplayerLoadout();
       await fetch(`/api/match/${matchId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: playerRole, characterId: activeChar.id, playerName, address: playerAddress }),
       });
+    } else {
+      startMatch();
     }
     router.push("/loadout");
   };
