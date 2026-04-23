@@ -30,8 +30,8 @@ function emptyMatch(matchId: string): ServerMatch {
     id: matchId,
     createdAt: now,
     lastActivity: now,
-    host:   { charId: null, playerName: null, cardIds: null, orderRound: 0 },
-    joiner: { charId: null, playerName: null, cardIds: null, orderRound: 0 },
+    host:   { charId: null, playerName: null, address: null, cardIds: null, orderRound: 0 },
+    joiner: { charId: null, playerName: null, address: null, cardIds: null, orderRound: 0 },
     round: 1,
     hostWins: 0,
     joinerWins: 0,
@@ -84,7 +84,10 @@ export async function POST(req: NextRequest) {
 
   if (opponent) {
     const matchId = makeMatchId();
-    await setMatch(matchId, emptyMatch(matchId));
+    const match = emptyMatch(matchId);
+    match.host.address = opponent.address;
+    match.joiner.address = address;
+    await setMatch(matchId, match);
 
     // Notify the waiting host via their status key
     const hostStatus: QueueStatus = { status: "matched", matchId, role: "host" };

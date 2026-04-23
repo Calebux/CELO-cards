@@ -98,6 +98,7 @@ export default function Gameplay() {
   const [showDoubleDown, setShowDoubleDown] = useState(false);
   const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
+  const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
@@ -353,6 +354,9 @@ export default function Gameplay() {
   // Record match result on leaderboard + sync achievements (fire-and-forget)
   useEffect(() => {
     if (matchPhase !== "match-end" || !address) return;
+    const isVsHouse = matchId?.startsWith("AO-H-");
+    if (isVsHouse) return; // Server handles leaderboard for solo matches
+    
     const won = playerRoundsWon > opponentRoundsWon;
     void fetch("/api/leaderboard", {
       method: "POST",
@@ -739,7 +743,14 @@ export default function Gameplay() {
 
           {/* Centre: Round + Timer */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120, paddingTop: 2 }}>
-            <div style={{ backgroundColor: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 3, padding: "2px 14px 4px", marginBottom: 4, backdropFilter: "blur(4px)" }}>
+            <div style={{ backgroundColor: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 3, padding: "2px 14px 4px", marginBottom: 4, backdropFilter: "blur(4px)", position: "relative" }}>
+              <button 
+                onClick={() => setShowCheatSheet(true)}
+                style={{ position: "absolute", top: -8, right: -24, width: 22, height: 22, borderRadius: "50%", background: "rgba(86,164,203,0.2)", border: "1px solid #56a4cb", color: "#b9e7f4", fontSize: 12, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 10px rgba(86,164,203,0.3)" }}
+                title="How to Play / Elements Cheat Sheet"
+              >
+                ?
+              </button>
               <span style={{ fontSize: 9, letterSpacing: "3px", fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", display: "block", textAlign: "center" }}>ROUND</span>
               <span style={{ fontSize: 36, lineHeight: "34px", fontWeight: 700, letterSpacing: "-2px", color: "white", display: "block", textAlign: "center" }}>{roundNumber}</span>
             </div>
@@ -1675,6 +1686,61 @@ export default function Gameplay() {
           </div>
         )}
 
+
+        {/* Cheat Sheet Modal */}
+        {showCheatSheet && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 600, background: "rgba(5,5,16,0.92)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: "rgba(12,18,36,0.97)", border: "2px solid #56a4cb", borderRadius: 12, padding: "30px", maxWidth: 400, width: "100%", boxShadow: "0 0 40px rgba(86,164,203,0.3)", textAlign: "center", position: "relative" }}>
+              <button 
+                onClick={() => setShowCheatSheet(false)}
+                style={{ position: "absolute", top: 12, right: 16, background: "none", border: "none", color: "#94a3b8", fontSize: 24, cursor: "pointer" }}
+              >
+                &times;
+              </button>
+              
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 20px" }}>
+                Elements & Synergy
+              </h2>
+
+              <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 24, alignItems: "center" }}>
+                <div style={{ textAlign: "center", background: "rgba(248,113,113,0.1)", border: "1px solid #f87171", borderRadius: 8, padding: "10px", flex: 1 }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>🔥</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#f87171" }}>FIRE</div>
+                  <div style={{ fontSize: 9, color: "#9ca3af" }}>Beats Earth</div>
+                </div>
+                <div style={{ color: "#475569" }}>→</div>
+                <div style={{ textAlign: "center", background: "rgba(74,222,128,0.1)", border: "1px solid #4ade80", borderRadius: 8, padding: "10px", flex: 1 }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>🌿</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#4ade80" }}>EARTH</div>
+                  <div style={{ fontSize: 9, color: "#9ca3af" }}>Beats Water</div>
+                </div>
+                <div style={{ color: "#475569" }}>→</div>
+                <div style={{ textAlign: "center", background: "rgba(96,165,250,0.1)", border: "1px solid #60a5fa", borderRadius: 8, padding: "10px", flex: 1 }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>💧</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#60a5fa" }}>WATER</div>
+                  <div style={{ fontSize: 9, color: "#9ca3af" }}>Beats Fire</div>
+                </div>
+              </div>
+
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "16px", textAlign: "left" }}>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 20 }}>⚔️</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#e2e8f0", marginBottom: 2 }}>SYNERGY BONUS</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.4 }}>If a card's element matches your character's element, it gains +10 Knock.</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ fontSize: 20 }}>🛡️</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#e2e8f0", marginBottom: 2 }}>COUNTER BONUS</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.4 }}>If your card counters the opponent's card element, it gains +15 Knock.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

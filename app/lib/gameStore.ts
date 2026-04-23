@@ -120,6 +120,7 @@ interface GameState {
     // Player profile
     playerName: string;
     opponentName: string | null;
+    hasSeenTutorial: boolean;
 
     // Deck presets
     deckPresets: DeckPreset[];
@@ -141,6 +142,7 @@ interface GameState {
     setPlayerAddress: (address: string | null) => void;
     setPlayerName: (name: string) => void;
     setOpponentName: (name: string | null) => void;
+    setHasSeenTutorial: (v: boolean) => void;
     savePreset: (name: string) => void;
     loadPreset: (index: number) => void;
     deletePreset: (index: number) => void;
@@ -155,8 +157,8 @@ interface GameState {
     startMatch: () => void;
     addCardToSlot: (card: Card) => void;
     removeCardFromSlot: (slotIndex: number) => void;
-    lockOrder: () => void;
-    autoLockOrder: () => void;
+    lockOrder: () => Promise<void>;
+    autoLockOrder: () => Promise<void>;
     revealNextSlot: () => void;
     finishRound: () => void;
     nextRound: () => void;
@@ -209,6 +211,7 @@ export const useGameStore = create<GameState>()(
     currentMatchRounds: [],
     playerName: "",
     opponentName: null,
+    hasSeenTutorial: false,
     deckPresets: [],
     ultimateActivated: false,
     ultimateUsed: false,
@@ -237,6 +240,7 @@ export const useGameStore = create<GameState>()(
     setPlayerAddress: (address) => set({ playerAddress: address }),
     setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
     setOpponentName: (name) => set({ opponentName: name ? name.slice(0, 20) : null }),
+    setHasSeenTutorial: (v) => set({ hasSeenTutorial: v }),
 
     savePreset: (name) => {
         const { currentOrder, deckPresets } = get();
@@ -289,6 +293,7 @@ export const useGameStore = create<GameState>()(
 
     startMatch: () => {
         const { selectedCharacter, matchId: existingMatchId } = get();
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
 
         const available = CHARACTERS.filter(
             (c) => c.id !== selectedCharacter?.id && !c.isLocked
@@ -311,7 +316,7 @@ export const useGameStore = create<GameState>()(
             currentRoundResult: null,
             precomputedRound: null,
             revealedSlots: 0,
-            matchId: existingMatchId, // keep the ID from the Ready screen
+            matchId: `AO-H-${suffix}`, // H for House
             maxEnergy,
         });
     },
@@ -338,11 +343,49 @@ export const useGameStore = create<GameState>()(
         set({ currentOrder: newOrder });
     },
 
-    lockOrder: () => {
-        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty } = get();
+    lockOrder: async () => {
+        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive } = get();
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
-        // Use manual difficulty; on normal/hard still allow streak to push to max
         const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
+
+        if (!playerRole) {
+            // VS House path — use server-side resolution
+            try {
+                const res = await fetch("/api/match/vshouse/resolve", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        matchId,
+                        playerAddress,
+                        playerName,
+                        playerCharacterId: selectedCharacter?.id,
+                        opponentCharacterId: opponentCharacter?.id,
+                        playerOrderCardIds: playerCards.map(c => c.id),
+                        difficulty,
+                        wagered: wagerActive,
+                        playerUltimateActivated: ultimateActivated,
+                    }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    set({
+                        opponentOrder: data.aiOrder,
+                        precomputedRound: data.slots,
+                        matchPhase: "combat",
+                        revealedSlots: 0,
+                        currentRoundResult: null,
+                        ultimateUsed: ultimateActivated ? true : get().ultimateUsed,
+                        ultimateActivated: false,
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.error("Server-side resolution failed", e);
+            }
+        }
+
+        // Fallback or Multiplayer path (Multiplayer path is usually handled by page.tsx, 
+        // but this keeps the local resolution logic as a fallback for solo if server is down)
         const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: playerCards };
         const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
@@ -367,10 +410,45 @@ export const useGameStore = create<GameState>()(
         });
     },
 
-    autoLockOrder: () => {
-        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty } = get();
+    autoLockOrder: async () => {
+        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive } = get();
         const autoOrder = playerDeck.slice(0, 5);
         const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
+
+        if (!playerRole) {
+            // VS House path — use server-side resolution
+            try {
+                const res = await fetch("/api/match/vshouse/resolve", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        matchId,
+                        playerAddress,
+                        playerName,
+                        playerCharacterId: selectedCharacter?.id,
+                        opponentCharacterId: opponentCharacter?.id,
+                        playerOrderCardIds: autoOrder.map(c => c.id),
+                        difficulty,
+                        wagered: wagerActive,
+                    }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    set({
+                        currentOrder: autoOrder,
+                        opponentOrder: data.aiOrder,
+                        precomputedRound: data.slots,
+                        matchPhase: "combat",
+                        revealedSlots: 0,
+                        currentRoundResult: null,
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.error("Server-side resolution failed", e);
+            }
+        }
+
         const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: autoOrder };
         const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
@@ -563,7 +641,7 @@ export const useGameStore = create<GameState>()(
             currentRoundResult: null,
             precomputedRound: null,
             revealedSlots: 0,
-            matchId: `AO-${suffix}`,
+            matchId: `AO-H-${suffix}`,
             maxEnergy,
             pointsThisRound: 0,
             wagerActive: false,
@@ -608,6 +686,7 @@ export const useGameStore = create<GameState>()(
         maxWinStreak: state.maxWinStreak,
         matchHistory: state.matchHistory,
         playerName: state.playerName,
+        hasSeenTutorial: state.hasSeenTutorial,
         deckPresets: state.deckPresets,
       }),
     }

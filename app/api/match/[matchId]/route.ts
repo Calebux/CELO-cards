@@ -5,12 +5,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import { getMatch, setMatch, deleteMatch } from "../../../lib/redis";
+import { recordMatchResult } from "../../../lib/leaderboard";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface PlayerSlot {
   charId: string | null;
   playerName: string | null;
+  address: string | null;
   cardIds: string[] | null;
   orderRound: number;
 }
@@ -41,7 +43,7 @@ function isTimedOut(match: ServerMatch): boolean {
 }
 
 function emptySlot(): PlayerSlot {
-  return { charId: null, playerName: null, cardIds: null, orderRound: 0 };
+  return { charId: null, playerName: null, address: null, cardIds: null, orderRound: 0 };
 }
 
 function validRole(role: unknown): role is "host" | "joiner" {
@@ -151,7 +153,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, characterId, playerName } = body as { role: unknown; characterId: unknown; playerName?: unknown };
+  const { role, characterId, playerName, address } = body as { role: unknown; characterId: unknown; playerName?: string; address?: string };
 
   if (!validRole(role)) {
     return NextResponse.json({ error: "role must be 'host' or 'joiner'" }, { status: 400 });
@@ -165,9 +167,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (role === "host") {
     match.host.charId = characterId;
     if (typeof playerName === "string") match.host.playerName = playerName;
+    if (address) match.host.address = address; // Store address
   } else {
     match.joiner.charId = characterId;
     if (typeof playerName === "string") match.joiner.playerName = playerName;
+    if (address) match.joiner.address = address; // Store address
   }
 
   await setMatch(matchId, match);
@@ -275,6 +279,32 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
     if (result.roundWinner === "player") match.hostWins++;
     else if (result.roundWinner === "opponent") match.joinerWins++;
+
+    // ── Check for match completion ───────────────────────────────────────
+    const isMatchOver = match.hostWins >= 3 || match.joinerWins >= 3;
+    if (isMatchOver) {
+      const hostWon = match.hostWins >= 3;
+      
+      // Update leaderboard for both players
+      if (match.host.address) {
+        await recordMatchResult({
+          playerAddress: match.host.address,
+          playerName: match.host.playerName || undefined,
+          won: hostWon,
+          pointsEarned: hostWon ? 150 : 25, // PvP rewards
+          wagered: !!match.hostWagerTx,
+        });
+      }
+      if (match.joiner.address) {
+        await recordMatchResult({
+          playerAddress: match.joiner.address,
+          playerName: match.joiner.playerName || undefined,
+          won: !hostWon,
+          pointsEarned: !hostWon ? 150 : 25,
+          wagered: !!match.joinerWagerTx,
+        });
+      }
+    }
   }
 
   await setMatch(matchId, match);

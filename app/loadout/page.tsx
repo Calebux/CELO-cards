@@ -170,7 +170,7 @@ export default function Loadout() {
 
     // Solo path — unchanged
     if (!playerRole || !matchId) {
-      lockOrder();
+      await lockOrder();
       router.push("/game-action");
       return;
     }

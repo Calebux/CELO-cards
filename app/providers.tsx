@@ -9,6 +9,7 @@ import { WalletSync } from "./lib/wallet";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
 import { UsernameModal } from "./components/UsernameModal";
+import { TutorialModal } from "./components/TutorialModal";
 
 
 const { connectors } = getDefaultWallets({
@@ -36,6 +37,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <PortraitOverlay />
           <DailyReward />
           <UsernameModal />
+          <TutorialModal />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

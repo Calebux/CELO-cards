@@ -93,7 +93,7 @@ export default function SelectCharacter() {
       await fetch(`/api/match/${matchId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: playerRole, characterId: activeChar.id, playerName }),
+        body: JSON.stringify({ role: playerRole, characterId: activeChar.id, playerName, address: playerAddress }),
       });
     }
     router.push("/loadout");
