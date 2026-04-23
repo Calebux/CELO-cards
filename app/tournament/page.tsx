@@ -290,7 +290,7 @@ export default function WeeklyChallengePage() {
         </div>
 
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 84, left: 0, right: 0, height: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <div style={{ position: "absolute", top: 84, left: 0, right: 0, height: 260, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase" }}>SEASON 1 · ORDER ASCENSION</div>
           <div style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-3.5px", color: "white", textTransform: "uppercase", textAlign: "center", lineHeight: 1, textShadow: "0 0 40px rgba(251,204,92,0.25)" }}>
             WEEKLY CHALLENGE
@@ -365,7 +365,7 @@ export default function WeeklyChallengePage() {
         </div>
 
         {/* ── Main content: leaderboard + sidebar ──────────────────────── */}
-        <div style={{ position: "absolute", top: 306, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ position: "absolute", top: 356, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
 
           {/* Left column: Live Leaderboard + How It Works below */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
