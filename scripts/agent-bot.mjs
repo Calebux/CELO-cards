@@ -40,7 +40,7 @@ if (existsSync(ENV_PATH)) {
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const RPC           = "https://forno.celo.org";
+const RPC           = "https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA";
 const ARENA_ADDRESS = process.env.NEXT_PUBLIC_ARENA_ADDRESS;
 const TREASURY_KEY  = process.env.TREASURY_PRIVATE_KEY;
 const ENTRY_FEE     = 7_000_000_000_000n;        // 0.000007 CELO

@@ -19,7 +19,7 @@ const { connectors } = getDefaultWallets({
 const config = createConfig({
   chains: [celo, celoAlfajores],
   transports: {
-    [celo.id]: http(),
+    [celo.id]: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
     [celoAlfajores.id]: http(),
   },
   connectors,
