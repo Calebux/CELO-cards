@@ -6,7 +6,7 @@ import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { ClaimGDollar } from "../components/ClaimGDollar";
-import { CHARACTERS } from "../lib/gameData";
+import { CHARACTERS, CARDS } from "../lib/gameData";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -51,7 +51,10 @@ export default function ProfilePage() {
     playerName,
     setPlayerName,
     matchHistory,
+    unlockedPremiumCards,
   } = useGameStore();
+
+  const ownedCards = CARDS.filter((c) => c.isPremium && unlockedPremiumCards.includes(c.id));
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -316,7 +319,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* ── Col 3: Main + Top Rival ── */}
+          {/* ── Col 3: Main + Top Rival + My Cards ── */}
           <div style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
             {(favouriteChar || topRival) ? (
               <>
@@ -353,6 +356,43 @@ export default function ProfilePage() {
                 <div style={{ fontSize: 9, fontWeight: 700, color: "#334155", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: "14px" }}>Play matches to reveal your main & rival</div>
               </div>
             )}
+
+            {/* My Cards */}
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: "14px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#f87171", textTransform: "uppercase" }}>
+                  Black Market
+                </div>
+                <div style={{ fontSize: 9, color: "#475569" }}>{ownedCards.length} owned</div>
+              </div>
+
+              {ownedCards.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "14px 0" }}>
+                  <div style={{ fontSize: 20, marginBottom: 6 }}>🃏</div>
+                  <div style={{ fontSize: 9, color: "#334155", lineHeight: "13px" }}>No premium cards yet</div>
+                  <button
+                    onClick={() => router.push("/black-market")}
+                    style={{ marginTop: 8, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 5, padding: "5px 12px", color: "#f87171", fontSize: 9, fontWeight: 800, cursor: "pointer", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
+                  >
+                    VISIT MARKET
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {ownedCards.map((card) => (
+                    <div key={card.id} title={card.name} style={{ width: 78, borderRadius: 6, overflow: "hidden", border: `1.5px solid ${card.color}`, position: "relative" }}>
+                      <img src={card.image} alt={card.name} style={{ width: "100%", height: 100, objectFit: "cover", display: "block" }} />
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))", padding: "8px 4px 4px", textAlign: "center" }}>
+                        <div style={{ fontSize: 7, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1.2 }}>{card.name}</div>
+                      </div>
+                      <div style={{ position: "absolute", top: 3, right: 3, background: "rgba(0,0,0,0.7)", borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: 8, fontWeight: 800, color: card.color }}>{card.knock}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
         </div>

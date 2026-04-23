@@ -711,6 +711,8 @@ export const useGameStore = create<GameState>()(
         playerName: state.playerName,
         hasSeenTutorial: state.hasSeenTutorial,
         deckPresets: state.deckPresets,
+        unlockedPremiumCards: state.unlockedPremiumCards,
+        unlockedPremiumCards: state.unlockedPremiumCards,
       }),
     }
   )
