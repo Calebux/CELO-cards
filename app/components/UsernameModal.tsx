@@ -53,7 +53,7 @@ export function UsernameModal() {
     if (checkedRef.current === address) return;
     checkedRef.current = address;
 
-    void fetch(`/api/username?address=${address.toLowerCase()}`)
+    void fetch(`/api/username?address=${address.toLowerCase()}&t=${Date.now()}`)
       .then((r) => r.json())
       .then((d: { username?: string | null }) => {
         if (d.username) {
