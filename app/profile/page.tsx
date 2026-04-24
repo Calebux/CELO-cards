@@ -61,6 +61,25 @@ export default function ProfilePage() {
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState("");
   const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
+  const [serverStats, setServerStats] = useState<{ points: number; wins: number; losses: number } | null>(null);
+
+  useEffect(() => {
+    if (!address) return;
+    const addr = address.toLowerCase();
+    type Entry = { address: string; points: number; wins: number; losses: number };
+    Promise.all([
+      fetch("/api/leaderboard?tab=ranked&limit=200").then(r => r.ok ? r.json() as Promise<{ players: Entry[] }> : { players: [] as Entry[] }),
+      fetch("/api/leaderboard?tab=casual&limit=200").then(r => r.ok ? r.json() as Promise<{ players: Entry[] }> : { players: [] as Entry[] }),
+    ]).then(([ranked, casual]) => {
+      const rEntry = ranked.players.find(p => p.address.toLowerCase() === addr);
+      const cEntry = casual.players.find(p => p.address.toLowerCase() === addr);
+      setServerStats({
+        points: (rEntry?.points ?? 0) + (cEntry?.points ?? 0),
+        wins:   (rEntry?.wins   ?? 0) + (cEntry?.wins   ?? 0),
+        losses: (rEntry?.losses ?? 0) + (cEntry?.losses ?? 0),
+      });
+    }).catch(() => {});
+  }, [address]);
 
   const saveUsername = async (name: string) => {
     if (!address) { setPlayerName(name); setEditingName(false); return; }
@@ -135,17 +154,23 @@ export default function ProfilePage() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  const rank = getRank(playerPoints);
+  // Use the higher of local vs server (server may have data from other devices)
+  const displayPoints  = Math.max(playerPoints,  serverStats?.points  ?? 0);
+  const displayWins    = Math.max(matchesWon,    serverStats?.wins    ?? 0);
+  const displayLosses  = Math.max(matchesLost,   serverStats?.losses  ?? 0);
+  const displayPlayed  = Math.max(matchesPlayed, displayWins + displayLosses);
+
+  const rank = getRank(displayPoints);
 
   const achievements: Achievement[] = [
-    { id: "first_blood",  icon: "🩸", name: "First Blood",   description: "Win your first match",                   unlocked: matchesWon >= 1 || serverUnlocked.has("first_blood"),                    color: "#f87171" },
-    { id: "warrior",      icon: "⚔️",  name: "Warrior",       description: "Win 5 matches",                          unlocked: matchesWon >= 5 || serverUnlocked.has("warrior"),                        color: "#fb923c" },
-    { id: "veteran",      icon: "🎖️", name: "Veteran",       description: "Play 10 matches",                        unlocked: matchesPlayed >= 10 || serverUnlocked.has("veteran"),                    color: "#60a5fa" },
+    { id: "first_blood",  icon: "🩸", name: "First Blood",   description: "Win your first match",                   unlocked: displayWins >= 1 || serverUnlocked.has("first_blood"),                    color: "#f87171" },
+    { id: "warrior",      icon: "⚔️",  name: "Warrior",       description: "Win 5 matches",                          unlocked: displayWins >= 5 || serverUnlocked.has("warrior"),                        color: "#fb923c" },
+    { id: "veteran",      icon: "🎖️", name: "Veteran",       description: "Play 10 matches",                        unlocked: displayPlayed >= 10 || serverUnlocked.has("veteran"),                    color: "#60a5fa" },
     { id: "on_fire",      icon: "🔥", name: "On Fire",        description: "Reach a 3-win streak",                   unlocked: maxWinStreak >= 3 || serverUnlocked.has("on_fire"),                      color: "#f97316" },
     { id: "unstoppable",  icon: "⚡", name: "Unstoppable",    description: "Reach a 5-win streak",                   unlocked: maxWinStreak >= 5 || serverUnlocked.has("unstoppable"),                  color: "#fbbf24" },
-    { id: "centurion",    icon: "💎", name: "Centurion",      description: "Earn 1,000 points",                      unlocked: playerPoints >= 1000 || serverUnlocked.has("centurion"),                 color: "#b9e7f4" },
-    { id: "legend",       icon: "👑", name: "Legend",         description: "Reach LEGEND rank (5,000 pts)",          unlocked: playerPoints >= 5000 || serverUnlocked.has("legend"),                    color: "#FFD700" },
-    { id: "iron_will",    icon: "🛡️", name: "Iron Will",     description: "Win a match after 3 consecutive losses", unlocked: (matchesWon >= 1 && matchesLost >= 3) || serverUnlocked.has("iron_will"), color: "#8c25f4" },
+    { id: "centurion",    icon: "💎", name: "Centurion",      description: "Earn 1,000 points",                      unlocked: displayPoints >= 1000 || serverUnlocked.has("centurion"),                color: "#b9e7f4" },
+    { id: "legend",       icon: "👑", name: "Legend",         description: "Reach LEGEND rank (5,000 pts)",          unlocked: displayPoints >= 5000 || serverUnlocked.has("legend"),                   color: "#FFD700" },
+    { id: "iron_will",    icon: "🛡️", name: "Iron Will",     description: "Win a match after 3 consecutive losses", unlocked: (displayWins >= 1 && displayLosses >= 3) || serverUnlocked.has("iron_will"), color: "#8c25f4" },
   ];
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
@@ -235,7 +260,7 @@ export default function ProfilePage() {
               </div>
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ fontSize: 24, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>
-                  {playerPoints.toLocaleString()}
+                  {displayPoints.toLocaleString()}
                 </div>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginTop: 3 }}>TOTAL POINTS</div>
               </div>
@@ -248,13 +273,13 @@ export default function ProfilePage() {
             <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
               {[
-                { label: "Played",      value: matchesPlayed,  color: "#94a3b8" },
-                { label: "Wins",        value: matchesWon,     color: "#4ade80" },
-                { label: "Losses",      value: matchesLost,    color: "#f87171" },
-                { label: "Win Rate",    value: winRate(matchesWon, matchesPlayed), color: "#b9e7f4" },
+                { label: "Played",      value: displayPlayed,  color: "#94a3b8" },
+                { label: "Wins",        value: displayWins,    color: "#4ade80" },
+                { label: "Losses",      value: displayLosses,  color: "#f87171" },
+                { label: "Win Rate",    value: winRate(displayWins, displayPlayed), color: "#b9e7f4" },
                 { label: "Streak",      value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
                 { label: "Best Streak", value: maxWinStreak,   color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
-                { label: "Pts Earned",  value: totalPointsAllTime > 0 ? `+${totalPointsAllTime.toLocaleString()}` : "—", color: "#fbbf24" },
+                { label: "Pts Earned",  value: displayPoints > 0 ? `+${displayPoints.toLocaleString()}` : "—", color: "#fbbf24" },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                   <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>{label}</span>
@@ -298,7 +323,7 @@ export default function ProfilePage() {
                 ))}
               </div>
 
-              {matchesPlayed === 0 && (
+              {displayPlayed === 0 && (
                 <div style={{ marginTop: 16, padding: "14px", background: "rgba(86,164,203,0.06)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, textAlign: "center" }}>
                   <div style={{ fontSize: 11, color: "#64748b", lineHeight: "17px" }}>Play your first match to unlock achievements and start tracking your stats.</div>
                   <button onClick={() => router.push("/create")} style={{ marginTop: 8, background: "linear-gradient(135deg, #56a4cb, #b9e7f4)", border: "none", borderRadius: 6, padding: "7px 18px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer", letterSpacing: 1 }}>PLAY NOW</button>
