@@ -40,6 +40,9 @@ export default function Lobby() {
   const [selfPaid, setSelfPaid] = useState(false);
   const [opponentPaid, setOpponentPaid] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [opponentAbandoned, setOpponentAbandoned] = useState(false);
+  const [payWaitMs, setPayWaitMs] = useState(0);
+  const payWaitStartRef = useRef<number | null>(null);
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;
@@ -94,6 +97,7 @@ export default function Lobby() {
           opponentWagered?: boolean;
           selfWagered?: boolean;
           wagerRequired?: boolean;
+          abortedBy?: "host" | "joiner" | null;
         };
         setNetErrorCount(0);
         if (data.phase === "timed-out") {
@@ -109,6 +113,13 @@ export default function Lobby() {
             setShowPayModal(true);
           }
           if (data.selfWagered) setSelfPaid(true);
+        }
+        // Fix 3: detect opponent abandoned after self paid
+        if (data.abortedBy && data.abortedBy !== playerRole && selfPaid && wagerRequired) {
+          setOpponentAbandoned(true);
+          clearInterval(poll);
+          clearInterval(waitTick);
+          return;
         }
         if (data.opponentWagered) {
           setOpponentPaid(true);
@@ -147,6 +158,16 @@ export default function Lobby() {
   useEffect(() => {
     if (selfPaid) setP1Ready(true);
   }, [selfPaid]);
+
+  // Fix 4: track how long we've been waiting for opponent to pay
+  useEffect(() => {
+    if (!selfPaid || opponentPaid || !wagerRequired) return;
+    payWaitStartRef.current = Date.now();
+    const t = setInterval(() => {
+      if (payWaitStartRef.current) setPayWaitMs(Date.now() - payWaitStartRef.current);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [selfPaid, opponentPaid, wagerRequired]);
 
   // Ranked: once both paid and opponentCharId already found, set P2 ready
   useEffect(() => {
@@ -406,6 +427,37 @@ export default function Lobby() {
         </div>
       </div>
 
+      {/* Fix 3: Opponent abandoned after self paid */}
+      {opponentAbandoned && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "rgba(15,10,5,0.97)", border: "1px solid rgba(248,113,113,0.4)",
+            borderRadius: 12, padding: "40px 48px", maxWidth: 520, textAlign: "center",
+            boxShadow: "0 0 40px rgba(248,113,113,0.15)",
+          }}>
+            <span className="material-icons" style={{ fontSize: 48, color: "#f87171", display: "block", marginBottom: 16 }}>person_off</span>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#f1f5f9", marginBottom: 12 }}>Opponent Left</div>
+            <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.6, marginBottom: 8 }}>
+              Your opponent quit after the entry fee was collected.
+              Your <strong style={{ color: "#fbbf24" }}>0.000007 CELO</strong> entry fee is held in the Arena contract.
+            </div>
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 28 }}>
+              Contact <strong style={{ color: "#56a4cb" }}>@knockorder</strong> on Telegram for a refund.
+            </div>
+            <button
+              onClick={() => router.replace("/")}
+              className="ko-btn ko-btn-secondary"
+              style={{ padding: "10px 32px", fontSize: 14, fontWeight: 700, letterSpacing: 1 }}
+            >
+              Leave Match
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Ranked match payment modal */}
       {showPayModal && !selfPaid && (
         <WagerModal
@@ -429,18 +481,39 @@ export default function Lobby() {
         />
       )}
 
-      {/* Waiting for opponent to pay banner */}
-      {wagerRequired && selfPaid && !opponentPaid && (
+      {/* Waiting for opponent to pay banner (Fix 4: Leave Match after 90s) */}
+      {wagerRequired && selfPaid && !opponentPaid && !opponentAbandoned && (
         <div style={{
           position: "fixed", bottom: 32, left: "50%", transform: "translateX(-50%)",
-          display: "flex", alignItems: "center", gap: 12, padding: "12px 24px",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+          padding: "14px 28px",
           background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.35)",
           borderRadius: 8, zIndex: 50, backdropFilter: "blur(8px)",
         }}>
-          <span className="material-icons" style={{ color: "#f59e0b", fontSize: 18 }}>hourglass_empty</span>
-          <span style={{ fontSize: 13, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
-            Waiting for opponent to pay entry fee…
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="material-icons" style={{ color: "#f59e0b", fontSize: 18 }}>hourglass_empty</span>
+            <span style={{ fontSize: 13, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
+              Waiting for opponent to pay entry fee…
+            </span>
+          </div>
+          {payWaitMs >= 90_000 && (
+            <button
+              onClick={() => {
+                if (matchId && playerRole) {
+                  void fetch(`/api/match/${matchId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "quit", role: playerRole }),
+                  });
+                }
+                router.replace("/");
+              }}
+              className="ko-btn ko-btn-secondary"
+              style={{ padding: "7px 24px", fontSize: 12, fontWeight: 700, letterSpacing: 1 }}
+            >
+              Leave Match
+            </button>
+          )}
         </div>
       )}
     </div>

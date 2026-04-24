@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatches } from "../../../lib/redis";
-import { recordMatchResult } from "../../../lib/leaderboard";
+import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -301,6 +301,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   let match: ServerMatch | null = null;
   let saved = false;
+  // Captured after match state is saved — fired once outside the retry loop
+  let matchEndSnapshot: { hostWon: boolean; m: ServerMatch } | null = null;
+
   for (let attempt = 0; attempt < 5; attempt++) {
     match = await getMatch<ServerMatch>(matchId);
     if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
@@ -349,28 +352,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       if (result.roundWinner === "player") m.hostWins++;
       else if (result.roundWinner === "opponent") m.joinerWins++;
 
-      // Check for match completion
-      const isMatchOver = m.hostWins >= 3 || m.joinerWins >= 3;
-      if (isMatchOver) {
-        const hostWon = m.hostWins >= 3;
-        if (m.host.address) {
-          await recordMatchResult({
-            playerAddress: m.host.address,
-            playerName: m.host.playerName || undefined,
-            won: hostWon,
-            pointsEarned: hostWon ? 150 : 25,
-            wagered: !!m.hostWagerTx,
-          });
-        }
-        if (m.joiner.address) {
-          await recordMatchResult({
-            playerAddress: m.joiner.address,
-            playerName: m.joiner.playerName || undefined,
-            won: !hostWon,
-            pointsEarned: !hostWon ? 150 : 25,
-            wagered: !!m.joinerWagerTx,
-          });
-        }
+      if (m.hostWins >= 3 || m.joinerWins >= 3) {
+        matchEndSnapshot = { hostWon: m.hostWins >= 3, m: { ...m, host: { ...m.host }, joiner: { ...m.joiner } } };
       }
     }
 
@@ -379,8 +362,62 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       saved = true;
       break; // Success!
     } catch {
+      matchEndSnapshot = null; // reset — will be re-computed on next attempt
       // Small random delay before retry
       await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+    }
+  }
+
+  // Fire leaderboard writes once, after the match state is confirmed saved.
+  // Wrapped in try/catch so a Redis blip here never breaks the card submission response.
+  if (matchEndSnapshot) {
+    const { hostWon, m } = matchEndSnapshot;
+    const now = new Date().toISOString();
+    try {
+      if (m.host.address) {
+        await recordMatchResult({
+          playerAddress: m.host.address,
+          playerName: m.host.playerName || undefined,
+          won: hostWon,
+          pointsEarned: hostWon ? 150 : 25,
+          wagered: !!m.hostWagerTx,
+        });
+        if (m.host.charId && m.joiner.charId) {
+          await recordMatchHistory(m.host.address, {
+            id: matchId,
+            date: now,
+            playerCharId: m.host.charId,
+            opponentCharId: m.joiner.charId,
+            outcome: hostWon ? "win" : "loss",
+            pointsEarned: hostWon ? 150 : 25,
+            playerRoundsWon: m.hostWins,
+            opponentRoundsWon: m.joinerWins,
+          });
+        }
+      }
+      if (m.joiner.address) {
+        await recordMatchResult({
+          playerAddress: m.joiner.address,
+          playerName: m.joiner.playerName || undefined,
+          won: !hostWon,
+          pointsEarned: !hostWon ? 150 : 25,
+          wagered: !!m.joinerWagerTx,
+        });
+        if (m.joiner.charId && m.host.charId) {
+          await recordMatchHistory(m.joiner.address, {
+            id: matchId,
+            date: now,
+            playerCharId: m.joiner.charId,
+            opponentCharId: m.host.charId,
+            outcome: hostWon ? "loss" : "win",
+            pointsEarned: hostWon ? 25 : 150,
+            playerRoundsWon: m.joinerWins,
+            opponentRoundsWon: m.hostWins,
+          });
+        }
+      }
+    } catch {
+      // Best-effort — leaderboard failure must not break the card submission
     }
   }
 
