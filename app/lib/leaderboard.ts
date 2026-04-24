@@ -3,6 +3,32 @@ import { redis } from "./redis";
 const CASUAL_KEY = "leaderboard:casual";
 const RANKED_KEY = "leaderboard:ranked";
 
+// ── Per-player match history ──────────────────────────────────────────────────
+
+export type ServerMatchRecord = {
+  id: string;
+  date: string;               // ISO string
+  playerCharId: string;
+  opponentCharId: string;
+  outcome: "win" | "loss";
+  pointsEarned: number;
+  playerRoundsWon: number;
+  opponentRoundsWon: number;
+};
+
+export async function recordMatchHistory(address: string, record: ServerMatchRecord): Promise<void> {
+  const key = `history:${address.toLowerCase()}`;
+  const existing = (await redis.get<ServerMatchRecord[]>(key)) ?? [];
+  // Prepend newest, cap at 50 records, 90-day TTL
+  const updated = [record, ...existing.filter(r => r.id !== record.id)].slice(0, 50);
+  await redis.set(key, updated, { ex: 60 * 60 * 24 * 90 });
+}
+
+export async function getMatchHistory(address: string): Promise<ServerMatchRecord[]> {
+  const key = `history:${address.toLowerCase()}`;
+  return (await redis.get<ServerMatchRecord[]>(key)) ?? [];
+}
+
 export type PlayerEntry = {
   address: string;
   name?: string;

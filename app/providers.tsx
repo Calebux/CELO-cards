@@ -10,7 +10,6 @@ import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
 import { UsernameModal } from "./components/UsernameModal";
 import { TutorialModal } from "./components/TutorialModal";
-import { useEffect } from "react";
 
 
 const { connectors } = getDefaultWallets({

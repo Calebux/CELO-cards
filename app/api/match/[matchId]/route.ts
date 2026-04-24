@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatches } from "../../../lib/redis";
-import { recordMatchResult } from "../../../lib/leaderboard";
+import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -353,6 +353,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       const isMatchOver = m.hostWins >= 3 || m.joinerWins >= 3;
       if (isMatchOver) {
         const hostWon = m.hostWins >= 3;
+        const now = new Date().toISOString();
         if (m.host.address) {
           await recordMatchResult({
             playerAddress: m.host.address,
@@ -361,6 +362,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
             pointsEarned: hostWon ? 150 : 25,
             wagered: !!m.hostWagerTx,
           });
+          if (m.host.charId && m.joiner.charId) {
+            await recordMatchHistory(m.host.address, {
+              id: matchId,
+              date: now,
+              playerCharId: m.host.charId,
+              opponentCharId: m.joiner.charId,
+              outcome: hostWon ? "win" : "loss",
+              pointsEarned: hostWon ? 150 : 25,
+              playerRoundsWon: m.hostWins,
+              opponentRoundsWon: m.joinerWins,
+            });
+          }
         }
         if (m.joiner.address) {
           await recordMatchResult({
@@ -370,6 +383,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
             pointsEarned: !hostWon ? 150 : 25,
             wagered: !!m.joinerWagerTx,
           });
+          if (m.joiner.charId && m.host.charId) {
+            await recordMatchHistory(m.joiner.address, {
+              id: matchId,
+              date: now,
+              playerCharId: m.joiner.charId,
+              opponentCharId: m.host.charId,
+              outcome: hostWon ? "loss" : "win",
+              pointsEarned: hostWon ? 25 : 150,
+              playerRoundsWon: m.joinerWins,
+              opponentRoundsWon: m.hostWins,
+            });
+          }
         }
       }
     }

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { CHARACTERS, CARDS } from "../lib/gameData";
+import type { MatchRecord } from "../lib/gameStore";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
@@ -27,8 +29,10 @@ function formatDate(isoDate: string): string {
 export default function HistoryPage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { address } = useAccount();
   const { matchHistory } = useGameStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [serverHistory, setServerHistory] = useState<MatchRecord[]>([]);
 
   useEffect(() => {
     const scale = () => {
@@ -55,6 +59,22 @@ export default function HistoryPage() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
+  // Fetch server-side history for logged-in wallet
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/history?address=${address}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: MatchRecord[]) => setServerHistory(data))
+      .catch(() => {});
+  }, [address]);
+
+  // Merge local + server history (local has priority — has round replay data)
+  const localIds = new Set(matchHistory.map(m => m.id));
+  const merged = [
+    ...matchHistory,
+    ...serverHistory.filter(r => !localIds.has(r.id)),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
@@ -79,7 +99,7 @@ export default function HistoryPage() {
             <div>
               <div style={{ fontSize: 28, fontWeight: 800, color: "#f1f5f9", letterSpacing: "-0.5px" }}>Match History</div>
               <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
-                {matchHistory.length === 0 ? "No matches yet" : `${matchHistory.length} match${matchHistory.length === 1 ? "" : "es"} recorded`}
+                {merged.length === 0 ? "No matches yet" : `${merged.length} match${merged.length === 1 ? "" : "es"} recorded`}
               </div>
             </div>
             <button
@@ -91,7 +111,7 @@ export default function HistoryPage() {
           </div>
 
           {/* Empty state */}
-          {matchHistory.length === 0 && (
+          {merged.length === 0 && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, paddingTop: 120, color: "#475569" }}>
               <div style={{ fontSize: 64 }}>⚔️</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: "#64748b" }}>No matches yet</div>
@@ -102,7 +122,7 @@ export default function HistoryPage() {
             </div>
           )}
 
-          {matchHistory.length > 0 && (
+          {merged.length > 0 && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 110px 140px 110px 90px 28px", gap: 16, padding: "0 24px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 8 }}>
                 {["#", "OPPONENT", "RESULT", "ROUNDS", "POINTS", "DATE", ""].map((h) => (
@@ -111,11 +131,11 @@ export default function HistoryPage() {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {matchHistory.map((match, idx) => {
+                {merged.map((match, idx) => {
                   const char = CHARACTERS.find((c) => c.id === match.opponentCharId);
                   const playerChar = CHARACTERS.find((c) => c.id === match.playerCharId);
                   const isWin = match.outcome === "win";
-                  const isExpanded = expandedId === match.id + idx;
+                  const isExpanded = expandedId === (match.id ?? "") + idx;
                   const totalRounds = match.playerRoundsWon + match.opponentRoundsWon;
 
                   return (
@@ -123,10 +143,10 @@ export default function HistoryPage() {
 
                       {/* Main row */}
                       <button
-                        onClick={() => setExpandedId(isExpanded ? null : match.id + idx)}
+                        onClick={() => setExpandedId(isExpanded ? null : (match.id ?? "") + idx)}
                         style={{ width: "100%", display: "grid", gridTemplateColumns: "56px 1fr 110px 140px 110px 90px 28px", gap: 16, padding: "14px 24px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", alignItems: "center", textAlign: "left" }}
                       >
-                        <div style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>#{matchHistory.length - idx}</div>
+                        <div style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>#{merged.length - idx}</div>
 
                         {/* Opponent */}
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
