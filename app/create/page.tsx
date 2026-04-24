@@ -160,6 +160,38 @@ export default function CreateMatch() {
     setQueueState({ status: "idle" });
   }, [queueState]);
 
+  // Try to enter a ranked match via season pass (treasury pays).
+  // Returns true and navigates to /select-character if successful.
+  const trySeasonPassEntry = useCallback(async (mId: string, role: "host" | "joiner") => {
+    if (!address) return false;
+    try {
+      const passRes = await fetch(`/api/season-pass?address=${address}`);
+      const passData = await passRes.json() as { active: boolean };
+      if (!passData.active) return false;
+
+      const enterRes = await fetch("/api/season-pass/enter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, matchId: mId, role }),
+      });
+      if (!enterRes.ok) return false;
+      const enterData = await enterRes.json() as { txHash?: string };
+
+      // Mark match wager-required so joiner is prompted
+      void fetch(`/api/match/${mId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role, wagerRequired: true }),
+      });
+
+      setWager(true, enterData.txHash ?? null, "celo", "ranked");
+      router.push("/select-character");
+      return true;
+    } catch {
+      return false;
+    }
+  }, [address, setWager, router]);
+
   const handleFindMatch = async () => {
     if (!address) return;
     resetMatch();
@@ -184,8 +216,8 @@ export default function CreateMatch() {
         setPlayerRole(data.role);
         setQueueState({ status: "found", matchId: data.matchId, role: data.role, pendingPayment: true });
         void fetchOpponentName(data.matchId, data.role);
-        // Show ranked payment modal before character select
-        setShowRankedWager(true);
+        const usedPass = await trySeasonPassEntry(data.matchId, data.role);
+        if (!usedPass) setShowRankedWager(true);
         return;
       }
 
@@ -212,8 +244,8 @@ export default function CreateMatch() {
             setPlayerRole(pollData.role);
             setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role, pendingPayment: true });
             void fetchOpponentName(pollData.matchId, pollData.role);
-            // Show ranked payment modal before character select
-            setShowRankedWager(true);
+            const usedPass = await trySeasonPassEntry(pollData.matchId, pollData.role);
+            if (!usedPass) setShowRankedWager(true);
           }
         } catch { /* ignore */ }
       }, 2000);
