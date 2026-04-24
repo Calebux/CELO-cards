@@ -415,7 +415,7 @@ export default function ActionOrderLandingPage() {
             <div className="ko-scrollbar-track" />
             <div className="ko-scrollbar-thumb" />
 
-            {/* ── Social ───────────────────────────────────────────── */}
+            {/* ── Social + Fullscreen ──────────────────────────────── */}
             <div style={{ position:"absolute", left:40, top:710, zIndex:15 }}>
               <p style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"rgba(185,231,244,0.5)", textTransform:"uppercase", marginBottom:10 }}>FOLLOW US</p>
               <div style={{ display:"flex", gap:10 }}>
@@ -427,6 +427,18 @@ export default function ActionOrderLandingPage() {
                   <svg viewBox="0 0 24 24"><path d="M4 4l16 16M4 20 20 4"/></svg>
                   X / Twitter
                 </a>
+                <button
+                  className="ko-social-btn"
+                  onClick={() => {
+                    void (document.fullscreenElement
+                      ? document.exitFullscreen()
+                      : document.documentElement.requestFullscreen());
+                  }}
+                  style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <span className="material-icons" style={{ fontSize: 15, color: "#56a4cb", flexShrink: 0 }}>fullscreen</span>
+                  Fullscreen
+                </button>
               </div>
             </div>
 
