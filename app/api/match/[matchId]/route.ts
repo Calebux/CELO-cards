@@ -41,7 +41,8 @@ const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes (paid matches)
 function isTimedOut(match: ServerMatch): boolean {
   const bothJoined = match.host.charId && match.joiner.charId;
   if (bothJoined) return false;
-  const timeout = match.hostWagerTx ? WAGER_INACTIVITY_TIMEOUT : INACTIVITY_TIMEOUT;
+  const anyPaid = !!(match.hostWagerTx || match.joinerWagerTx || match.wagerRequired);
+  const timeout = anyPaid ? WAGER_INACTIVITY_TIMEOUT : INACTIVITY_TIMEOUT;
   return Date.now() - match.lastActivity > timeout;
 }
 

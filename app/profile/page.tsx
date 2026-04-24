@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { ClaimGDollar } from "../components/ClaimGDollar";
+import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CHARACTERS, CARDS } from "../lib/gameData";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
@@ -62,6 +63,16 @@ export default function ProfilePage() {
   const [nameError, setNameError] = useState("");
   const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
   const [serverStats, setServerStats] = useState<{ points: number; wins: number; losses: number } | null>(null);
+  const [passInfo, setPassInfo] = useState<{ active: boolean; expiry: number | null; plan: string | null } | null>(null);
+  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/season-pass?address=${address}`)
+      .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
+      .then(setPassInfo)
+      .catch(() => {});
+  }, [address]);
 
   useEffect(() => {
     if (!address) return;
@@ -269,6 +280,51 @@ export default function ProfilePage() {
             {/* G$ UBI Claim */}
             <ClaimGDollar />
 
+            {/* Season Pass status */}
+            {address && (
+              <div style={{
+                backgroundColor: passInfo?.active ? "rgba(40,28,5,0.6)" : "rgba(15,23,42,0.55)",
+                border: `1px solid ${passInfo?.active ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.06)"}`,
+                borderRadius: 8, padding: "14px 16px",
+                boxShadow: passInfo?.active ? "0 0 16px rgba(251,191,36,0.1)" : "none",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase" }}>⚡ Season Pass</div>
+                  {passInfo?.active && (
+                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "#4ade80", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 3, padding: "1px 6px", textTransform: "uppercase" }}>ACTIVE</div>
+                  )}
+                </div>
+                {passInfo?.active ? (
+                  <>
+                    <div style={{ fontSize: 10, color: "#b9e7f4", marginBottom: 3, textTransform: "capitalize" }}>
+                      {passInfo.plan} pass
+                    </div>
+                    {passInfo.expiry && (
+                      <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 10 }}>
+                        Expires {new Date(passInfo.expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 10, lineHeight: 1.5 }}>
+                    Skip entry fees on every ranked match.
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowSeasonPassModal(true)}
+                  style={{
+                    width: "100%", padding: "6px 0", borderRadius: 5, cursor: "pointer",
+                    background: passInfo?.active ? "rgba(251,191,36,0.1)" : "rgba(251,191,36,0.08)",
+                    border: "1px solid rgba(251,191,36,0.35)",
+                    fontSize: 9, fontWeight: 800, color: "#fbbf24",
+                    letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit",
+                  }}
+                >
+                  {passInfo?.active ? "Extend / Renew →" : "Get Pass →"}
+                </button>
+              </div>
+            )}
+
             {/* Stats */}
             <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
@@ -432,6 +488,21 @@ export default function ProfilePage() {
         </div>
 
       </div>
+      {showSeasonPassModal && (
+        <SeasonPassModal
+          onClose={() => setShowSeasonPassModal(false)}
+          onActivated={() => {
+            setShowSeasonPassModal(false);
+            // Refresh pass info after purchase/renewal
+            if (address) {
+              fetch(`/api/season-pass?address=${address}`)
+                .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
+                .then(setPassInfo)
+                .catch(() => {});
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

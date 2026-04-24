@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
+import { SeasonPassModal } from "../components/SeasonPassModal";
 import { useAccount } from "wagmi";
 import { playSound } from "../lib/soundManager";
 
@@ -73,6 +74,7 @@ export default function CreateMatch() {
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [showRankedWager, setShowRankedWager] = useState(false);
+  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
   const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queueStartRef = useRef<number>(0);
@@ -380,9 +382,38 @@ export default function CreateMatch() {
                 </div>
 
                 {/* Description of selected type */}
-                <div style={{ marginBottom: matchType === "vshouse" ? 16 : 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
+                <div style={{ marginBottom: matchType === "ranked" ? 10 : matchType === "vshouse" ? 16 : 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
                   <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
+
+                {/* Season Pass callout — ranked only */}
+                {matchType === "ranked" && (
+                  <div style={{
+                    marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 14px",
+                    background: "linear-gradient(135deg, rgba(40,28,5,0.6), rgba(60,45,0,0.4))",
+                    border: "1px solid rgba(251,204,92,0.35)", borderRadius: 6,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 14 }}>⚡</span>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: 1 }}>SEASON PASS</div>
+                        <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>Skip entry fees on every ranked match</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowSeasonPassModal(true)}
+                      style={{
+                        background: "rgba(251,204,92,0.12)", border: "1px solid rgba(251,204,92,0.45)",
+                        borderRadius: 4, padding: "5px 12px", cursor: "pointer",
+                        fontSize: 10, fontWeight: 800, color: "#fbbf24",
+                        letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit",
+                      }}
+                    >
+                      Get Pass →
+                    </button>
+                  </div>
+                )}
 
                 {/* Difficulty selector — VS House only */}
                 {matchType === "vshouse" && (
@@ -637,6 +668,7 @@ export default function CreateMatch() {
 
       {/* Ranked FIND PLAYER payment — shown after opponent matched, before character select */}
       {showRankedWager && (
+        <>
         <WagerModal
           mode="ranked"
           lockedAmount="0.000007"
@@ -667,6 +699,36 @@ export default function CreateMatch() {
             setShowRankedWager(false);
             setQueueState({ status: "idle" });
           }}
+        />
+        {/* Season pass upsell — floats below WagerModal */}
+        <div style={{
+          position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
+          zIndex: 9999,
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 20px", borderRadius: 30,
+          backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
+          boxShadow: "0 0 20px rgba(251,191,36,0.1)",
+        }}>
+          <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Tired of paying every match?</span>
+          <button
+            onClick={() => setShowSeasonPassModal(true)}
+            style={{
+              background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
+              border: "1px solid rgba(251,191,36,0.5)",
+              borderRadius: 20, padding: "5px 14px", cursor: "pointer",
+              fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
+              textTransform: "uppercase", fontFamily: "inherit",
+            }}
+          >
+            ⚡ Get Season Pass
+          </button>
+        </div>
+        </>
+      )}
+      {showSeasonPassModal && (
+        <SeasonPassModal
+          onClose={() => setShowSeasonPassModal(false)}
+          onActivated={() => setShowSeasonPassModal(false)}
         />
       )}
     </div>

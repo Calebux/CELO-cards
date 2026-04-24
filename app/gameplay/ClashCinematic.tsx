@@ -150,8 +150,8 @@ export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground
         <img src={arenaBackground} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       )}
       {actionVideo && (
-        <video src={actionVideo} autoPlay muted playsInline
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }}
+        <video src={actionVideo} autoPlay muted playsInline tabIndex={-1}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85, pointerEvents: "none" }}
         />
       )}
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.8) 100%)" }} />
