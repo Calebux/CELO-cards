@@ -11,7 +11,7 @@ import { playSound } from "../lib/soundManager";
 type QueueState =
   | { status: "idle" }
   | { status: "searching"; queueId: string; elapsedMs: number }
-  | { status: "found"; matchId: string; role: "host" | "joiner" };
+  | { status: "found"; matchId: string; role: "host" | "joiner"; pendingPayment?: boolean };
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -72,6 +72,7 @@ export default function CreateMatch() {
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
+  const [showRankedWager, setShowRankedWager] = useState(false);
   const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
   const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queueStartRef = useRef<number>(0);
@@ -179,9 +180,10 @@ export default function CreateMatch() {
         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
         setMatchId(data.matchId);
         setPlayerRole(data.role);
-        setQueueState({ status: "found", matchId: data.matchId, role: data.role });
+        setQueueState({ status: "found", matchId: data.matchId, role: data.role, pendingPayment: true });
         void fetchOpponentName(data.matchId, data.role);
-        setTimeout(() => router.push("/select-character"), 800);
+        // Show ranked payment modal before character select
+        setShowRankedWager(true);
         return;
       }
 
@@ -206,9 +208,10 @@ export default function CreateMatch() {
             if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
             setMatchId(pollData.matchId);
             setPlayerRole(pollData.role);
-            setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role });
+            setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role, pendingPayment: true });
             void fetchOpponentName(pollData.matchId, pollData.role);
-            setTimeout(() => router.push("/select-character"), 800);
+            // Show ranked payment modal before character select
+            setShowRankedWager(true);
           }
         } catch { /* ignore */ }
       }, 2000);
@@ -442,16 +445,22 @@ export default function CreateMatch() {
                       <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${100 - pct}%`, background: isLate ? "#f87171" : "#56a4cb", borderRadius: 2, transition: "width 1s linear" }} />
                       </div>
-                      {/* Share link while waiting */}
+                      {/* Share link while waiting — registers match in Redis so joiner can find it */}
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           const matchIdStore = useGameStore.getState().matchId;
                           if (!matchIdStore) return;
+                          // Register match in Redis so the share link is joinable
+                          void fetch(`/api/match/${matchIdStore}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
+                          });
                           const link = `${window.location.origin}/join?id=${matchIdStore}`;
                           if (navigator.share) {
                             void navigator.share({ title: "Action Order", text: "Join my ranked match!", url: link });
                           } else {
-                            void navigator.clipboard.writeText(link);
+                            void navigator.clipboard.writeText(link).catch(() => {});
                           }
                         }}
                         style={{ width: "100%", height: 32, background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}
@@ -608,13 +617,48 @@ export default function CreateMatch() {
       {showWager && (
         <WagerModal
           onConfirmed={proceedAfterPayment}
-          onSkip={() => { 
-            setWager(false, null); 
-            setShowWager(false); 
-            if (matchType !== "ranked") router.push("/ready"); 
+          onSkip={() => {
+            setWager(false, null);
+            setShowWager(false);
+            if (matchType !== "ranked") router.push("/ready");
           }}
           lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
           mode={matchType === "ranked" ? "ranked" : "wager"}
+        />
+      )}
+
+      {/* Ranked FIND PLAYER payment — shown after opponent matched, before character select */}
+      {showRankedWager && (
+        <WagerModal
+          mode="ranked"
+          lockedAmount="0.000007"
+          onConfirmed={async () => {
+            // Mark match as wager-required so joiner gets prompted too
+            const mid = useGameStore.getState().matchId;
+            if (mid) {
+              void fetch(`/api/match/${mid}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
+              });
+            }
+            setShowRankedWager(false);
+            router.push("/select-character");
+          }}
+          onSkip={() => {
+            // Cancel → leave match
+            const mid = useGameStore.getState().matchId;
+            const role = useGameStore.getState().playerRole;
+            if (mid && role) {
+              void fetch(`/api/match/${mid}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "quit", role }),
+              });
+            }
+            setShowRankedWager(false);
+            setQueueState({ status: "idle" });
+          }}
         />
       )}
     </div>
