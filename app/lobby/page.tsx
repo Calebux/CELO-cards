@@ -22,6 +22,9 @@ export default function Lobby() {
   const [opponentWaitMs, setOpponentWaitMs] = useState(0);
   const [netErrorCount, setNetErrorCount] = useState(0);
   const waitStartRef = useRef<number | null>(null);
+  // For multiplayer: don't start the auto-ready timer until the first poll
+  // comes back so wagerRequired is known — prevents a race on slow networks
+  const [firstPollDone, setFirstPollDone] = useState(!playerRole || !matchId);
 
   // Ranked / wager payment gate
   const [wagerRequired, setWagerRequired] = useState<boolean | null>(null);
@@ -61,6 +64,7 @@ export default function Lobby() {
           abortedBy?:       "host" | "joiner" | null;
         };
         setNetErrorCount(0);
+        setFirstPollDone(true);
 
         if (data.phase === "timed-out") {
           clearInterval(poll);
@@ -111,12 +115,15 @@ export default function Lobby() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerRole, matchId]);
 
-  // Solo / free match: auto-ready P1 after 3s. Ranked: wait for payment.
+  // Auto-ready P1 after 3s — but only AFTER the first poll confirms
+  // wagerRequired status (prevents racing the poll on slow networks).
+  // Solo matches skip polling so firstPollDone starts true for them.
   useEffect(() => {
+    if (!firstPollDone) return;
     if (wagerRequired === true) return;
     const t = setTimeout(() => setP1Ready(true), 3000);
     return () => clearTimeout(t);
-  }, [wagerRequired]);
+  }, [wagerRequired, firstPollDone]);
 
   // Ranked: once selfPaid, mark P1 ready
   useEffect(() => {
@@ -243,7 +250,10 @@ export default function Lobby() {
         )}
       </div>
 
-      {/* ── Fighter portraits ────────────────────────────────────────────── */}
+      {/* ── Main centered content (raised 6px) ───────────────────────────── */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", transform: "translateY(-6px)" }}>
+
+      {/* ── Fighter portraits ─────────────────────────────────────────── */}
       <div style={{
         display: "flex", alignItems: "center", gap: 0,
         animation: "ml-fadein 0.4s ease forwards",
@@ -405,6 +415,8 @@ export default function Lobby() {
           transition: "width 1s linear",
         }} />
       </div>
+
+      </div>{/* end raised content wrapper */}
 
       {/* ── Network error ────────────────────────────────────────────────── */}
       {netErrorCount >= 3 && !p2Ready && (

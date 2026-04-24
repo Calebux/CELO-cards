@@ -234,7 +234,15 @@ export default function CreateMatch() {
     setVsBot(false);
     setPlayerRole("host");
     if (matchType === "ranked") {
-      // Ranked "WITH FRIEND": pay after opponent found — go to /ready first
+      // Pre-register match in Redis immediately so it appears in open games right away
+      const newMatchId = useGameStore.getState().matchId;
+      if (newMatchId) {
+        void fetch(`/api/match/${newMatchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
+        });
+      }
       router.push("/ready?ranked=true");
       return;
     }
@@ -293,7 +301,7 @@ export default function CreateMatch() {
               <span style={{ fontSize: 11, color: "#56a4cb", fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>{storeMatchId}</span>
             </div>
             <button
-              onClick={() => router.push("/ready")}
+              onClick={() => router.push("/ready?ranked=true")}
               style={{ background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 5, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1, textTransform: "uppercase" }}
             >
               Resume →
