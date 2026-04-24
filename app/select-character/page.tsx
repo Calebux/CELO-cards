@@ -113,10 +113,12 @@ export default function SelectCharacter() {
           ...(playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig } : {}),
         }),
       });
+      // Multiplayer always goes through lobby (payment gate + opponent sync)
+      router.push("/lobby");
     } else {
       startMatch();
+      router.push("/loadout");
     }
-    router.push("/loadout");
   };
 
   return (
@@ -338,6 +340,25 @@ export default function SelectCharacter() {
             backdropFilter: "blur(12px)",
             borderColor: "rgba(140,37,244,0.2)",
           }}>
+
+          {/* Back button — far left of footer */}
+          <button
+            onClick={() => router.back()}
+            style={{
+              position: "absolute", left: 32, top: "50%", transform: "translateY(-50%)",
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 18px",
+              background: "rgba(86,164,203,0.08)",
+              border: "1px solid rgba(86,164,203,0.35)",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.15s",
+            }}
+          >
+            <span className="material-icons not-italic" style={{ fontSize: 16, color: "#56a4cb" }}>arrow_back</span>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase" }}>BACK</span>
+          </button>
 
           <div className="absolute" style={{ left: 192, right: 192, top: "50%", transform: "translateY(-50%)", height: 91.753 }}>
 
