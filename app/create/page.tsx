@@ -234,7 +234,15 @@ export default function CreateMatch() {
     setVsBot(false);
     setPlayerRole("host");
     if (matchType === "ranked") {
-      // Ranked "WITH FRIEND": pay after opponent found — go to /ready first
+      // Pre-register match in Redis immediately so it appears in open games right away
+      const newMatchId = useGameStore.getState().matchId;
+      if (newMatchId) {
+        void fetch(`/api/match/${newMatchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
+        });
+      }
       router.push("/ready?ranked=true");
       return;
     }
@@ -282,7 +290,7 @@ export default function CreateMatch() {
         {/* ── Resume Open Match Banner ─────────────────────────────────── */}
         {storeMatchId && storePlayerRole === "host" && !storeWagerActive && (
           <div style={{
-            position: "absolute", top: 80, left: "50%", transform: "translateX(-50%)",
+            position: "absolute", top: 74, left: "50%", transform: "translateX(-50%)",
             display: "flex", alignItems: "center", gap: 12, padding: "10px 20px",
             background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.4)",
             borderRadius: 8, zIndex: 20, width: 560,
@@ -293,7 +301,7 @@ export default function CreateMatch() {
               <span style={{ fontSize: 11, color: "#56a4cb", fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>{storeMatchId}</span>
             </div>
             <button
-              onClick={() => router.push("/ready")}
+              onClick={() => router.push("/ready?ranked=true")}
               style={{ background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 5, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1, textTransform: "uppercase" }}
             >
               Resume →
@@ -308,7 +316,7 @@ export default function CreateMatch() {
         )}
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 12 }}>
 
           {/* Panel */}
           <div style={{ position: "relative", width: 560 }}>
