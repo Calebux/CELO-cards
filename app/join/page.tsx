@@ -24,7 +24,8 @@ function JoinMatchContent() {
   const searchParams = useSearchParams();
   const [code, setCode] = useState(() => searchParams.get("id") ?? "");
   const [error, setError] = useState("");
-  const [joining] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
   const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
   const [loadingLive, setLoadingLive] = useState(true);
 
@@ -67,9 +68,9 @@ function JoinMatchContent() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  const handleJoin = async () => {
+  const handleJoin = async (overrideCode?: string) => {
     if (!address) return;
-    const trimmed = code.trim();
+    const trimmed = (overrideCode ?? code).trim();
     if (!trimmed) {
       setError("Paste a match link or code first.");
       return;
@@ -89,12 +90,36 @@ function JoinMatchContent() {
       return;
     }
 
+    setJoining(true);
+    setJoiningId(matchCode);
+    setError("");
+
+    // Verify the match exists before routing
+    try {
+      const res = await fetch(`/api/match/${matchCode}?role=joiner`);
+      if (!res.ok) {
+        setError("Match not found or already started.");
+        setJoining(false);
+        setJoiningId(null);
+        return;
+      }
+    } catch {
+      // network hiccup — proceed anyway, lobby will surface the error
+    }
+
     resetMatch();
     setMatchId(matchCode);
     setPlayerRole("joiner");
-    // Payment happens in the lobby after both players have found each other
     router.push("/select-character");
   };
+
+  function timeAgo(createdAt: number): string {
+    const secs = Math.floor((Date.now() - createdAt) / 1000);
+    if (secs < 60) return `${secs}s ago`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.floor(mins / 60)}h ago`;
+  }
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -125,52 +150,95 @@ function JoinMatchContent() {
           backdropFilter: "blur(14px)",
           boxShadow: "0 0 40px rgba(0,0,0,0.6)",
         }}>
-          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "#fbbf24", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", animation: "pulse 2s infinite" }} />
-            OPEN MATCHES
+          {/* Sidebar header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "#fbbf24", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", animation: "livePulse 2s infinite" }} />
+              OPEN MATCHES
+            </div>
+            {!loadingLive && liveMatches.length > 0 && (
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", background: "rgba(251,204,92,0.12)", border: "1px solid rgba(251,204,92,0.25)", borderRadius: 10, padding: "2px 8px" }}>
+                {liveMatches.length}
+              </div>
+            )}
           </div>
+
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
             {loadingLive ? (
               [...Array(3)].map((_, i) => (
-                <div key={i} style={{ height: 60, borderRadius: 8, background: "rgba(251,204,92,0.04)", border: "1px solid rgba(251,204,92,0.12)", animation: "pulse 1.5s infinite" }} />
+                <div key={i} style={{ height: 72, borderRadius: 8, background: "rgba(251,204,92,0.04)", border: "1px solid rgba(251,204,92,0.12)", animation: "livePulse 1.5s infinite" }} />
               ))
             ) : liveMatches.length === 0 ? (
-              <div style={{ padding: "24px 16px", textAlign: "center", color: "#6b5d2f", fontSize: 12, border: "1px dashed rgba(251,204,92,0.15)", borderRadius: 8 }}>
-                No open matches right now.<br />Be the first to create one!
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "32px 16px", textAlign: "center" }}>
+                <span style={{ fontSize: 32, opacity: 0.4 }}>⚔️</span>
+                <div style={{ fontSize: 12, color: "#6b5d2f", lineHeight: 1.6 }}>
+                  No open matches right now.<br />Be the first to create one!
+                </div>
+                <button
+                  onClick={() => router.push("/create")}
+                  style={{ marginTop: 4, background: "rgba(251,204,92,0.1)", border: "1px solid rgba(251,204,92,0.3)", borderRadius: 6, padding: "7px 16px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase" }}
+                >
+                  CREATE MATCH
+                </button>
               </div>
-            ) : liveMatches.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => { setCode(m.id); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "12px 14px",
-                  background: code === m.id ? "rgba(251,204,92,0.1)" : "rgba(251,204,92,0.04)",
-                  border: `1px solid ${code === m.id ? "rgba(251,204,92,0.7)" : "rgba(251,204,92,0.2)"}`,
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  textAlign: "left",
-                  transition: "all 0.15s",
-                  boxShadow: code === m.id ? "0 0 14px rgba(251,204,92,0.2)" : "none",
-                }}
-              >
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, rgba(251,204,92,0.25), rgba(251,204,92,0.08))", border: "1px solid rgba(251,204,92,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ fontSize: 16 }}>⚔️</span>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {m.hostName ?? "Anonymous"}
+            ) : liveMatches.map((m) => {
+              const isJoiningThis = joiningId === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => { if (!joining) void handleJoin(m.id); }}
+                  disabled={joining}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 14px",
+                    background: isJoiningThis ? "rgba(251,204,92,0.14)" : "rgba(251,204,92,0.04)",
+                    border: `1px solid ${isJoiningThis ? "rgba(251,204,92,0.8)" : "rgba(251,204,92,0.2)"}`,
+                    borderRadius: 8,
+                    cursor: joining ? "default" : "pointer",
+                    fontFamily: "inherit",
+                    textAlign: "left",
+                    transition: "all 0.15s",
+                    boxShadow: isJoiningThis ? "0 0 18px rgba(251,204,92,0.25)" : "none",
+                    opacity: joining && !isJoiningThis ? 0.5 : 1,
+                  }}
+                >
+                  {/* Avatar */}
+                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: m.hasWager ? "linear-gradient(135deg, rgba(251,204,92,0.3), rgba(251,204,92,0.1))" : "linear-gradient(135deg, rgba(86,164,203,0.3), rgba(86,164,203,0.1))", border: `1px solid ${m.hasWager ? "rgba(251,204,92,0.4)" : "rgba(86,164,203,0.4)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <span style={{ fontSize: 17 }}>{m.hasWager ? "⚡" : "⚔️"}</span>
                   </div>
-                  <div style={{ fontSize: 10, color: "#a08040", marginTop: 2, letterSpacing: 0.5 }}>
-                    {m.id} {m.hasWager && <span style={{ color: "#fbbf24", marginLeft: 4 }}>⚡ Ranked</span>}
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130 }}>
+                        {m.hostName ?? "Anonymous"}
+                      </span>
+                      {m.hasWager && (
+                        <span style={{ fontSize: 8, fontWeight: 900, color: "#fbbf24", background: "rgba(251,204,92,0.15)", border: "1px solid rgba(251,204,92,0.35)", borderRadius: 3, padding: "1px 5px", letterSpacing: 1, flexShrink: 0 }}>RANKED</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#a08040", letterSpacing: 0.5, display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ fontFamily: "monospace" }}>{m.id}</span>
+                      <span style={{ color: "#5a4a20" }}>·</span>
+                      <span>{timeAgo(m.createdAt)}</span>
+                    </div>
                   </div>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase", flexShrink: 0 }}>JOIN →</span>
-              </button>
-            ))}
+
+                  {/* Join CTA */}
+                  <div style={{ flexShrink: 0, fontSize: 10, fontWeight: 900, color: isJoiningThis ? "#fbbf24" : "#a08040", letterSpacing: 1, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 3 }}>
+                    {isJoiningThis ? (
+                      <span style={{ animation: "livePulse 0.8s infinite" }}>…</span>
+                    ) : (
+                      <>JOIN <span style={{ fontSize: 12 }}>›</span></>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+          <style>{`
+            @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+          `}</style>
         </div>
 
         {/* Central panel */}
@@ -247,13 +315,15 @@ function JoinMatchContent() {
               onClick={() => void handleJoin()}
               disabled={joining || !address}
               className="ko-btn ko-btn-primary"
-              style={{ width: "100%", padding: "15px 0", opacity: address ? 1 : 0.55, cursor: address ? "pointer" : "not-allowed" }}
+              style={{ width: "100%", padding: "15px 0", opacity: address ? 1 : 0.55, cursor: (address && !joining) ? "pointer" : "not-allowed" }}
             >
-              <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>{address ? "sports_kabaddi" : "lock"}</span>
-              <span className="ko-btn-text" style={{ fontSize: 15, fontWeight: 700, textTransform: "uppercase", letterSpacing: 6, color: "#fff" }}>
-                {address ? "Enter Arena" : "Connect Wallet"}
+              <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>
+                {!address ? "lock" : joining ? "hourglass_top" : "sports_kabaddi"}
               </span>
-              {address && <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>arrow_forward_ios</span>}
+              <span className="ko-btn-text" style={{ fontSize: 15, fontWeight: 700, textTransform: "uppercase", letterSpacing: 6, color: "#fff" }}>
+                {!address ? "Connect Wallet" : joining ? "Joining…" : "Enter Arena"}
+              </span>
+              {address && !joining && <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>arrow_forward_ios</span>}
             </button>
             {!address && (
               <p style={{ fontSize: 10, color: "#56a4cb", textAlign: "center", marginTop: 8, letterSpacing: 1, textTransform: "uppercase" }}>

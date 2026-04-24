@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 
@@ -10,12 +10,22 @@ const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-export default function ReadyYourDeck() {
+export default function ReadyYourDeckPage() {
+  return (
+    <Suspense>
+      <ReadyYourDeck />
+    </Suspense>
+  );
+}
+
+function ReadyYourDeck() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [linkShared, setLinkShared] = useState(false);
   const [opponentFound, setOpponentFound] = useState(false);
+  const searchParams   = useSearchParams();
+  const isRanked       = searchParams.get("ranked") === "true";
   const storeMatchId   = useGameStore((s) => s.matchId);
   const wagerActive    = useGameStore((s) => s.wagerActive);
   const playerRole     = useGameStore((s) => s.playerRole);
@@ -53,7 +63,7 @@ export default function ReadyYourDeck() {
       void fetch(`/api/match/${storeMatchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, wagerRequired: true }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, wagerRequired: isRanked }),
       }).catch(() => {});
     };
     ping(); // immediate ping — creates match in Redis and adds to open matches
@@ -201,25 +211,27 @@ export default function ReadyYourDeck() {
                 <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
               </div>
 
-              {/* Solo play */}
-              <button
-                onClick={() => router.push("/select-character")}
-                style={{
-                  width: "100%", height: 52,
-                  background: "linear-gradient(135deg, #1a3a52, #0f2233)",
-                  border: "1.5px solid #56a4cb", borderRadius: 6,
-                  cursor: "pointer", fontFamily: "inherit",
-                  fontWeight: 900, fontSize: 15, letterSpacing: 2.5,
-                  color: "#b9e7f4", textTransform: "uppercase",
-                  clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
-                  boxShadow: "0 0 20px rgba(86,164,203,0.2)",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-                }}
-              >
-                <span className="material-icons" style={{ fontSize: 20 }}>group</span>
-                PROCEED TO MATCH
-                <span className="material-icons" style={{ fontSize: 18 }}>arrow_forward_ios</span>
-              </button>
+              {/* Solo play — hidden for ranked (must pay in lobby) */}
+              {!isRanked && (
+                <button
+                  onClick={() => router.push("/select-character")}
+                  style={{
+                    width: "100%", height: 52,
+                    background: "linear-gradient(135deg, #1a3a52, #0f2233)",
+                    border: "1.5px solid #56a4cb", borderRadius: 6,
+                    cursor: "pointer", fontFamily: "inherit",
+                    fontWeight: 900, fontSize: 15, letterSpacing: 2.5,
+                    color: "#b9e7f4", textTransform: "uppercase",
+                    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
+                    boxShadow: "0 0 20px rgba(86,164,203,0.2)",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                  }}
+                >
+                  <span className="material-icons" style={{ fontSize: 20 }}>group</span>
+                  PROCEED TO MATCH
+                  <span className="material-icons" style={{ fontSize: 18 }}>arrow_forward_ios</span>
+                </button>
+              )}
 
               {/* Waiting indicator */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 24 }}>
