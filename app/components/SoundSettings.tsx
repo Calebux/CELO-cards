@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { isMuted, setMuted, getVolume, setVolume } from "../lib/soundManager";
 
 interface SoundSettingsProps {
@@ -28,9 +29,9 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     setVolume(v / 100);
   };
 
-  return (
+  return createPortal(
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
       onClick={onClose}
     >
       <div
@@ -101,7 +102,8 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
           DONE
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
