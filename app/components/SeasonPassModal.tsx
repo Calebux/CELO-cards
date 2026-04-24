@@ -107,9 +107,16 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                   setExpiry(data.expiry);
                   setStep("done");
                   onActivated?.();
+                } else if (res.status !== 404) {
+                  // 404 = tx not yet mined — keep polling
+                  // Any other error is definitive — stop and show it
+                  const errData = await res.json().catch(() => ({})) as { error?: string };
+                  clearInterval(poll);
+                  setErrMsg(errData.error || "Activation failed. Try again.");
+                  setStep("error");
                 }
               } catch {
-                // keep polling
+                // network error — keep polling
               }
             }, 3000);
           },
