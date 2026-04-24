@@ -45,7 +45,7 @@ export async function GET() {
         id,
         hostName: match.host.playerName ?? null,
         createdAt: match.createdAt,
-        hasWager: !!match.hostWagerTx,
+        hasWager: !!(match.hostWagerTx) || !!(match.wagerRequired),
       });
     }
 

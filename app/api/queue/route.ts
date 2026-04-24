@@ -41,6 +41,7 @@ function emptyMatch(matchId: string): ServerMatch {
     hostWagerAmount:  null,
     joinerWagerAmount: null,
     abortedBy: null,
+    wagerRequired: false,
   };
 }
 

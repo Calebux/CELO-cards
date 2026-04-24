@@ -6,8 +6,9 @@ import { useAccount, useBalance, useReadContract } from "wagmi";
 import { isMiniPay, formatAddress } from "../lib/minipay";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { formatUnits } from "viem";
-import { isMuted, setMuted } from "../lib/soundManager";
+import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
+import { SoundSettings } from "./SoundSettings";
 
 function BalanceChip({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -48,31 +49,36 @@ function Balances({ address }: { address: `0x${string}` }) {
 
 function MuteButton() {
   const [muted, setMutedState] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
   useEffect(() => {
     setMutedState(isMuted());
     const handler = (e: Event) => setMutedState((e as CustomEvent<{ muted: boolean }>).detail.muted);
     window.addEventListener("ao-mute-change", handler);
     return () => window.removeEventListener("ao-mute-change", handler);
   }, []);
-  const toggle = () => {
-    const next = !muted;
-    setMuted(next);
-    setMutedState(next);
-  };
+
   return (
-    <button
-      onClick={toggle}
-      title={muted ? "Unmute" : "Mute"}
-      style={{
-        background: "none", border: "none", cursor: "pointer",
-        padding: "4px 6px", borderRadius: 5, fontSize: 17,
-        color: muted ? "#ef4444" : "#6b7280",
-        display: "flex", alignItems: "center",
-        transition: "color 0.2s",
-      }}
-    >
-      {muted ? "🔇" : "🔊"}
-    </button>
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        title="Sound settings"
+        style={{
+          background: "rgba(86,164,203,0.08)",
+          border: "1px solid rgba(86,164,203,0.25)",
+          borderRadius: 6,
+          cursor: "pointer",
+          padding: "5px 8px",
+          display: "flex", alignItems: "center", gap: 4,
+          transition: "all 0.2s",
+        }}
+      >
+        <span className="material-icons" style={{ fontSize: 16, color: muted ? "#ef4444" : "#56a4cb", lineHeight: 1 }}>
+          {muted ? "volume_off" : "volume_up"}
+        </span>
+      </button>
+      {showModal && <SoundSettings onClose={() => setShowModal(false)} />}
+    </>
   );
 }
 

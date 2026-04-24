@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
+import { WagerModal } from "../components/WagerModal";
 
 const OPPONENT_WARN_MS  = 60_000;  // show warning after 60s
 const OPPONENT_ABORT_MS = 90_000;  // allow exit after 90s
@@ -33,6 +34,12 @@ export default function Lobby() {
   const [opponentWaitMs, setOpponentWaitMs] = useState(0);
   const [netErrorCount, setNetErrorCount] = useState(0);
   const waitStartRef = useRef<number | null>(null);
+
+  // Ranked match payment gate
+  const [wagerRequired, setWagerRequired] = useState<boolean | null>(null);
+  const [selfPaid, setSelfPaid] = useState(false);
+  const [opponentPaid, setOpponentPaid] = useState(false);
+  const [showPayModal, setShowPayModal] = useState(false);
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;
@@ -81,20 +88,40 @@ export default function Lobby() {
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { opponentCharId: string | null; phase?: string; opponentWagered?: boolean };
-        setNetErrorCount(0); // successful response — clear error state
+        const data = await res.json() as {
+          opponentCharId: string | null;
+          phase?: string;
+          opponentWagered?: boolean;
+          selfWagered?: boolean;
+          wagerRequired?: boolean;
+        };
+        setNetErrorCount(0);
         if (data.phase === "timed-out") {
           clearInterval(poll);
           clearInterval(waitTick);
           router.replace("/");
           return;
         }
-        if (data.opponentWagered) setOpponentWagered(true);
+        // Ranked payment gate
+        if (data.wagerRequired != null) {
+          setWagerRequired(data.wagerRequired);
+          if (data.wagerRequired && !data.selfWagered) {
+            setShowPayModal(true);
+          }
+          if (data.selfWagered) setSelfPaid(true);
+        }
+        if (data.opponentWagered) {
+          setOpponentPaid(true);
+          setOpponentWagered(true);
+        }
         if (data.opponentCharId) {
           setOpponentCharacterFromServer(data.opponentCharId);
-          setP2Ready(true);
-          clearInterval(poll);
-          clearInterval(waitTick);
+          // In ranked matches, p2 is only "ready" after they've paid too
+          if (!data.wagerRequired || data.opponentWagered) {
+            setP2Ready(true);
+            clearInterval(poll);
+            clearInterval(waitTick);
+          }
         }
       } catch {
         setNetErrorCount((n) => n + 1);
@@ -108,11 +135,23 @@ export default function Lobby() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerRole, matchId]);
 
-  // Solo: auto-ready P1 after 3s; On-chain: P1 auto-readies (they committed by creating)
+  // Solo / free match: auto-ready P1 after 3s.
+  // Ranked match: P1 readies only after paying.
   useEffect(() => {
+    if (wagerRequired === true) return; // ranked — wait for payment
     const t = setTimeout(() => setP1Ready(true), 3000);
     return () => clearTimeout(t);
-  }, []);
+  }, [wagerRequired]);
+
+  // Ranked: once selfPaid, mark P1 ready
+  useEffect(() => {
+    if (selfPaid) setP1Ready(true);
+  }, [selfPaid]);
+
+  // Ranked: once both paid and opponentCharId already found, set P2 ready
+  useEffect(() => {
+    if (opponentPaid && opponentCharacter) setP2Ready(true);
+  }, [opponentPaid, opponentCharacter]);
 
   // Countdown after both ready
   useEffect(() => {
@@ -366,6 +405,44 @@ export default function Lobby() {
           </div>
         </div>
       </div>
+
+      {/* Ranked match payment modal */}
+      {showPayModal && !selfPaid && (
+        <WagerModal
+          mode="ranked"
+          lockedAmount="0.000007"
+          onConfirmed={() => {
+            setSelfPaid(true);
+            setShowPayModal(false);
+          }}
+          onSkip={() => {
+            // Cancel → leave match
+            if (matchId && playerRole) {
+              void fetch(`/api/match/${matchId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "quit", role: playerRole }),
+              });
+            }
+            router.replace("/");
+          }}
+        />
+      )}
+
+      {/* Waiting for opponent to pay banner */}
+      {wagerRequired && selfPaid && !opponentPaid && (
+        <div style={{
+          position: "fixed", bottom: 32, left: "50%", transform: "translateX(-50%)",
+          display: "flex", alignItems: "center", gap: 12, padding: "12px 24px",
+          background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.35)",
+          borderRadius: 8, zIndex: 50, backdropFilter: "blur(8px)",
+        }}>
+          <span className="material-icons" style={{ color: "#f59e0b", fontSize: 18 }}>hourglass_empty</span>
+          <span style={{ fontSize: 13, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
+            Waiting for opponent to pay entry fee…
+          </span>
+        </div>
+      )}
     </div>
   );
 }

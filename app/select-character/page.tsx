@@ -113,10 +113,12 @@ export default function SelectCharacter() {
           ...(playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig } : {}),
         }),
       });
+      // Multiplayer always goes through lobby (payment gate + opponent sync)
+      router.push("/lobby");
     } else {
       startMatch();
+      router.push("/loadout");
     }
-    router.push("/loadout");
   };
 
   return (
@@ -338,6 +340,16 @@ export default function SelectCharacter() {
             backdropFilter: "blur(12px)",
             borderColor: "rgba(140,37,244,0.2)",
           }}>
+
+          {/* Back button — far left of footer */}
+          <button
+            onClick={() => router.back()}
+            className="ko-btn ko-btn-secondary"
+            style={{ position: "absolute", left: 32, top: "50%", transform: "translateY(-50%)", padding: "8px 16px" }}
+          >
+            <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+            <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
+          </button>
 
           <div className="absolute" style={{ left: 192, right: 192, top: "50%", transform: "translateY(-50%)", height: 91.753 }}>
 
