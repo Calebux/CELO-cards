@@ -81,7 +81,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     setErrMsg("");
     try {
       sendTransaction(
-        { to: TREASURY, value: plan.priceWei },
+        { to: TREASURY, value: plan.priceWei, gas: 21000n },
         {
           onSuccess: async (hash) => {
             setStep("confirming");
