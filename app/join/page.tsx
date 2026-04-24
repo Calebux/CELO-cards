@@ -118,18 +118,24 @@ function JoinMatchContent() {
           position: "absolute", right: 64, top: 84, bottom: 20,
           width: 320,
           display: "flex", flexDirection: "column",
+          background: "linear-gradient(135deg, rgba(15,12,5,0.94), rgba(40,28,5,0.9))",
+          border: "1px solid rgba(251,204,92,0.25)",
+          borderRadius: 10,
+          padding: "16px 14px",
+          backdropFilter: "blur(14px)",
+          boxShadow: "0 0 40px rgba(0,0,0,0.6)",
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "#fbbf24", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", animation: "pulse 2s infinite" }} />
             OPEN MATCHES
           </div>
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
             {loadingLive ? (
               [...Array(3)].map((_, i) => (
-                <div key={i} style={{ height: 60, borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", animation: "pulse 1.5s infinite" }} />
+                <div key={i} style={{ height: 60, borderRadius: 8, background: "rgba(251,204,92,0.04)", border: "1px solid rgba(251,204,92,0.12)", animation: "pulse 1.5s infinite" }} />
               ))
             ) : liveMatches.length === 0 ? (
-              <div style={{ padding: "24px 16px", textAlign: "center", color: "#334155", fontSize: 12, border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 8 }}>
+              <div style={{ padding: "24px 16px", textAlign: "center", color: "#6b5d2f", fontSize: 12, border: "1px dashed rgba(251,204,92,0.15)", borderRadius: 8 }}>
                 No open matches right now.<br />Be the first to create one!
               </div>
             ) : liveMatches.map((m) => (
@@ -139,28 +145,28 @@ function JoinMatchContent() {
                 style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "12px 14px",
-                  background: "rgba(255,255,255,0.03)",
-                  border: `1px solid ${code === m.id ? "rgba(86,164,203,0.6)" : "rgba(86,164,203,0.15)"}`,
+                  background: code === m.id ? "rgba(251,204,92,0.1)" : "rgba(251,204,92,0.04)",
+                  border: `1px solid ${code === m.id ? "rgba(251,204,92,0.7)" : "rgba(251,204,92,0.2)"}`,
                   borderRadius: 8,
                   cursor: "pointer",
                   fontFamily: "inherit",
                   textAlign: "left",
                   transition: "all 0.15s",
-                  boxShadow: code === m.id ? "0 0 12px rgba(86,164,203,0.2)" : "none",
+                  boxShadow: code === m.id ? "0 0 14px rgba(251,204,92,0.2)" : "none",
                 }}
               >
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, rgba(86,164,203,0.3), rgba(86,164,203,0.1))", border: "1px solid rgba(86,164,203,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, rgba(251,204,92,0.25), rgba(251,204,92,0.08))", border: "1px solid rgba(251,204,92,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <span style={{ fontSize: 16 }}>⚔️</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {m.hostName ?? "Anonymous"}
                   </div>
-                  <div style={{ fontSize: 10, color: "#475569", marginTop: 2, letterSpacing: 0.5 }}>
-                    {m.id} {m.hasWager && <span style={{ color: "#fbbf24", marginLeft: 4 }}>⚡ Wager</span>}
+                  <div style={{ fontSize: 10, color: "#a08040", marginTop: 2, letterSpacing: 0.5 }}>
+                    {m.id} {m.hasWager && <span style={{ color: "#fbbf24", marginLeft: 4 }}>⚡ Ranked</span>}
                   </div>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1, textTransform: "uppercase", flexShrink: 0 }}>JOIN →</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase", flexShrink: 0 }}>JOIN →</span>
               </button>
             ))}
           </div>
