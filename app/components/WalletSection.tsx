@@ -48,7 +48,12 @@ function Balances({ address }: { address: `0x${string}` }) {
 
 function MuteButton() {
   const [muted, setMutedState] = useState(false);
-  useEffect(() => { setMutedState(isMuted()); }, []);
+  useEffect(() => {
+    setMutedState(isMuted());
+    const handler = (e: Event) => setMutedState((e as CustomEvent<{ muted: boolean }>).detail.muted);
+    window.addEventListener("ao-mute-change", handler);
+    return () => window.removeEventListener("ao-mute-change", handler);
+  }, []);
   const toggle = () => {
     const next = !muted;
     setMuted(next);

@@ -86,6 +86,9 @@ export default function CreateMatch() {
   const setOpponentName = useGameStore((s) => s.setOpponentName);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
+  const storeMatchId = useGameStore((s) => s.matchId);
+  const storePlayerRole = useGameStore((s) => s.playerRole);
+  const storeWagerActive = useGameStore((s) => s.wagerActive);
   const { address } = useAccount();
 
   // Fetch opponent username and store it
@@ -280,7 +283,10 @@ export default function CreateMatch() {
     setVsBot(false);
     setPlayerRole("host");
     if (matchType === "ranked") {
+      // Ranked "WITH FRIEND": pay after opponent found — go to /ready first
       setWagerAmountInput("0.000007");
+      router.push("/ready");
+      return;
     }
     setShowWager(true);
   };
@@ -316,6 +322,34 @@ export default function CreateMatch() {
 
           <WalletSection />
         </div>
+
+        {/* ── Resume Open Match Banner ─────────────────────────────────── */}
+        {storeMatchId && storePlayerRole === "host" && !storeWagerActive && (
+          <div style={{
+            position: "absolute", top: 80, left: "50%", transform: "translateX(-50%)",
+            display: "flex", alignItems: "center", gap: 12, padding: "10px 20px",
+            background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.4)",
+            borderRadius: 8, zIndex: 20, width: 560,
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 0.5 }}>Open match: </span>
+              <span style={{ fontSize: 11, color: "#56a4cb", fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>{storeMatchId}</span>
+            </div>
+            <button
+              onClick={() => router.push("/ready")}
+              style={{ background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 5, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1, textTransform: "uppercase" }}
+            >
+              Resume →
+            </button>
+            <button
+              onClick={() => { setMatchId(null); setPlayerRole(null); }}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#475569", padding: "0 4px" }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>

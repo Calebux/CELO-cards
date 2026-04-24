@@ -20,6 +20,9 @@ artifacts/
 cache/
 .vercel
 
+# Bot scripts (keep local only)
+scripts/agent-bot.mjs
+
 # Auto-generated data files
 data/leaderboard.json
 data/daily-claims.json
