@@ -4,7 +4,6 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
-import { WagerModal } from "../components/WagerModal";
 import { useAccount } from "wagmi";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
@@ -21,14 +20,11 @@ function JoinMatchContent() {
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
 
-  const setWager = useGameStore((s) => s.setWager);
   const { address } = useAccount();
   const searchParams = useSearchParams();
   const [code, setCode] = useState(() => searchParams.get("id") ?? "");
   const [error, setError] = useState("");
   const [joining] = useState(false);
-  const [showWager, setShowWager] = useState(false);
-  const [hostStakeAmount, setHostStakeAmount] = useState<string | undefined>();
   const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
   const [loadingLive, setLoadingLive] = useState(true);
 
@@ -96,27 +92,8 @@ function JoinMatchContent() {
     resetMatch();
     setMatchId(matchCode);
     setPlayerRole("joiner");
-
-    // Enforce entry fee for joiners
-    try {
-      const res = await fetch(`/api/match/${matchCode}?role=joiner`);
-      const data = await res.json() as { opponentWagered?: boolean; hostWagerAmount?: string | null };
-      
-      if (data.opponentWagered && data.hostWagerAmount) {
-        // Match host's stake
-        const { formatUnits } = await import("viem");
-        setHostStakeAmount(formatUnits(BigInt(data.hostWagerAmount), 18));
-        setShowWager(true);
-      } else {
-        // Free match — skip wager modal entirely
-        setWager(false, null);
-        router.push("/select-character");
-      }
-    } catch {
-      // If API fails we can't confirm wager status — skip modal and proceed
-      setWager(false, null);
-      router.push("/select-character");
-    }
+    // Payment happens in the lobby after both players have found each other
+    router.push("/select-character");
   };
 
   return (
@@ -300,13 +277,6 @@ function JoinMatchContent() {
 
       </div>
 
-      {showWager && (
-        <WagerModal
-          lockedAmount={hostStakeAmount}
-          onConfirmed={() => { setShowWager(false); router.push("/select-character"); }}
-          onSkip={() => { setWager(false, null); setShowWager(false); router.push("/select-character"); }}
-        />
-      )}
     </div>
   );
 }

@@ -32,6 +32,7 @@ export interface ServerMatch {
   hostWagerAmount:  string | null;
   joinerWagerAmount: string | null;
   abortedBy:       "host" | "joiner" | null;
+  wagerRequired:   boolean; // ranked match — fee required from both players
 }
 
 const INACTIVITY_TIMEOUT      = 5  * 60 * 1000; // 5 minutes (free matches)
@@ -69,6 +70,7 @@ function newMatch(matchId: string): ServerMatch {
     hostWagerAmount: null,
     joinerWagerAmount: null,
     abortedBy: null,
+    wagerRequired: false,
   };
 }
 
@@ -144,6 +146,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     opponentWagered: role === "host" ? !!match.joinerWagerTx : !!match.hostWagerTx,
     hostWagerAmount: match.hostWagerAmount,
     abortedBy:       match.abortedBy ?? null,
+    wagerRequired:   match.wagerRequired ?? false,
   });
 }
 
@@ -207,7 +210,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, wagerRequired: bodyWagerRequired } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
@@ -215,6 +218,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     wagerTx?: string;
     wagerAmount?: string;
     playerName?: string;
+    wagerRequired?: boolean;
   };
 
   if (!validRole(role)) {
@@ -233,6 +237,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (validRole(role) && role === "host" && typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
       match.host.playerName = patchPlayerName;
     }
+    // Mark as ranked (fee required) if host signals it
+    if (bodyWagerRequired === true) match.wagerRequired = true;
     await setMatch(matchId, match).catch(() => {});
     // Keep the match visible in open matches while waiting for a joiner
     if (validRole(role) && role === "host" && !match.joiner.charId) {
