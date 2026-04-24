@@ -232,8 +232,7 @@ export default function CreateMatch() {
     setPlayerRole("host");
     if (matchType === "ranked") {
       // Ranked "WITH FRIEND": pay after opponent found — go to /ready first
-      setWagerAmountInput("0.000007");
-      router.push("/ready");
+      router.push("/ready?ranked=true");
       return;
     }
     setShowWager(true);

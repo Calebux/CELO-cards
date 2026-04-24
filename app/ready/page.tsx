@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 
@@ -16,6 +16,8 @@ export default function ReadyYourDeck() {
   const [copied, setCopied] = useState(false);
   const [linkShared, setLinkShared] = useState(false);
   const [opponentFound, setOpponentFound] = useState(false);
+  const searchParams   = useSearchParams();
+  const isRanked       = searchParams.get("ranked") === "true";
   const storeMatchId   = useGameStore((s) => s.matchId);
   const wagerActive    = useGameStore((s) => s.wagerActive);
   const playerRole     = useGameStore((s) => s.playerRole);
@@ -53,7 +55,7 @@ export default function ReadyYourDeck() {
       void fetch(`/api/match/${storeMatchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, wagerRequired: true }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, wagerRequired: isRanked }),
       }).catch(() => {});
     };
     ping(); // immediate ping — creates match in Redis and adds to open matches
