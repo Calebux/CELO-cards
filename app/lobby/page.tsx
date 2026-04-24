@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WagerModal } from "../components/WagerModal";
+import { SeasonPassModal } from "../components/SeasonPassModal";
 
 const OPPONENT_WARN_MS  = 60_000;
 const OPPONENT_ABORT_MS = 90_000;
@@ -13,7 +15,7 @@ export default function Lobby() {
   const {
     selectedCharacter, opponentCharacter, matchId, playerRole,
     wagerActive, wagerCurrency, opponentName,
-    setOpponentCharacterFromServer, setOpponentWagered,
+    setOpponentCharacterFromServer, setOpponentWagered, setWager,
   } = useGameStore();
 
   const [p1Ready, setP1Ready] = useState(false);
@@ -35,6 +37,60 @@ export default function Lobby() {
   const [opponentAbandoned, setOpponentAbandoned] = useState(false);
   const [payWaitMs, setPayWaitMs] = useState(0);
   const payWaitStartRef = useRef<number | null>(null);
+
+  const { address } = useAccount();
+  const [hasSeasonPass, setHasSeasonPass] = useState(false);
+  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const [passEntryState, setPassEntryState] = useState<"idle" | "entering" | "done" | "error">("idle");
+  const [passEntryError, setPassEntryError] = useState("");
+  // Refs so the polling interval always reads current values (avoids stale closures)
+  const selfPaidRef      = useRef(false);
+  const passEntryRef     = useRef<"idle" | "entering" | "done" | "error">("idle");
+
+  // Check season pass status when address is known
+  const checkSeasonPass = useCallback(async (addr: string) => {
+    try {
+      const res = await fetch(`/api/season-pass?address=${addr}`);
+      const data = await res.json() as { active: boolean };
+      setHasSeasonPass(data.active);
+      return data.active;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Called when pass is detected — server enters the match on-chain via treasury
+  const enterWithSeasonPass = useCallback(async (addr: string, mId: string, role: string) => {
+    passEntryRef.current = "entering";
+    setPassEntryState("entering");
+    setPassEntryError("");
+    try {
+      const res = await fetch("/api/season-pass/enter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: addr, matchId: mId, role }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        throw new Error(err.error ?? "Entry failed");
+      }
+      const data = await res.json() as { txHash?: string };
+      passEntryRef.current = "done";
+      setPassEntryState("done");
+      selfPaidRef.current = true;
+      setSelfPaid(true);
+      // Mark as wagered in the store so gameplay/payout use the correct currency (CELO/ranked)
+      setWager(true, data.txHash ?? null, "celo", "ranked");
+    } catch (e) {
+      passEntryRef.current = "error";
+      setPassEntryState("error");
+      setPassEntryError(e instanceof Error ? e.message : "Season pass entry failed");
+    }
+  }, [setWager]);
+
+  useEffect(() => {
+    if (address) void checkSeasonPass(address);
+  }, [address, checkSeasonPass]);
 
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
@@ -73,13 +129,21 @@ export default function Lobby() {
           return;
         }
 
-        // Payment gate
+        // Payment gate — use refs to avoid stale closure values
         if (data.wagerRequired != null) {
           setWagerRequired(data.wagerRequired);
-          if (data.wagerRequired && !data.selfWagered && !selfPaid) {
-            setShowPayModal(true);
+          if (data.wagerRequired && !data.selfWagered && !selfPaidRef.current) {
+            const passActive = address ? await checkSeasonPass(address) : false;
+            if (passActive && matchId && playerRole && passEntryRef.current === "idle") {
+              void enterWithSeasonPass(address!, matchId, playerRole);
+            } else if (!passActive) {
+              setShowPayModal(true);
+            }
           }
-          if (data.selfWagered) setSelfPaid(true);
+          if (data.selfWagered) {
+            selfPaidRef.current = true;
+            setSelfPaid(true);
+          }
         }
 
         // Opponent abandoned after self paid
@@ -125,9 +189,12 @@ export default function Lobby() {
     return () => clearTimeout(t);
   }, [wagerRequired, firstPollDone]);
 
-  // Ranked: once selfPaid, mark P1 ready
+  // Ranked: once selfPaid, mark P1 ready + sync ref
   useEffect(() => {
-    if (selfPaid) setP1Ready(true);
+    if (selfPaid) {
+      selfPaidRef.current = true;
+      setP1Ready(true);
+    }
   }, [selfPaid]);
 
   // Track how long we've been waiting for opponent to pay
@@ -222,7 +289,7 @@ export default function Lobby() {
       {/* Match ID + wager badge — top center */}
       <div style={{
         position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)",
-        display: "flex", alignItems: "center", gap: 10,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
         animation: "ml-fadein 0.5s ease forwards",
       }}>
         <div style={{
@@ -457,10 +524,54 @@ export default function Lobby() {
         </div>
       )}
 
+      {/* ── Season pass on-chain entry status ────────────────────────────── */}
+      {passEntryState === "entering" && (
+        <div style={{
+          position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)",
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "12px 24px", borderRadius: 8,
+          background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)",
+        }}>
+          <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite", color: "#fbbf24", fontSize: 14 }}>●</span>
+          <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
+            Entering match via season pass…
+          </span>
+        </div>
+      )}
+      {passEntryState === "error" && (
+        <div style={{
+          position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+          padding: "12px 24px", borderRadius: 8,
+          background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)",
+        }}>
+          <span style={{ fontSize: 12, color: "#f87171", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
+            Season pass entry failed
+          </span>
+          <span style={{ fontSize: 11, color: "rgba(248,113,113,0.7)" }}>{passEntryError}</span>
+          <button
+            onClick={() => {
+              if (address && matchId && playerRole) {
+                setPassEntryState("idle");
+                void enterWithSeasonPass(address, matchId, playerRole);
+              }
+            }}
+            style={{
+              padding: "5px 16px", borderRadius: 5, cursor: "pointer",
+              background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.4)",
+              fontSize: 11, fontWeight: 700, color: "#f87171", fontFamily: "inherit",
+              letterSpacing: 1, textTransform: "uppercase",
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* ── Waiting for opponent to pay ──────────────────────────────────── */}
       {wagerRequired && selfPaid && !opponentPaid && !opponentAbandoned && (
         <div style={{
-          position: "absolute", bottom: 40, left: "50%", transform: "translateX(-50%)",
+          position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)",
           display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
           padding: "12px 24px",
           background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)",
@@ -535,22 +646,67 @@ export default function Lobby() {
 
       {/* ── Ranked payment modal ─────────────────────────────────────────── */}
       {showPayModal && !selfPaid && (
-        <WagerModal
-          mode="ranked"
-          lockedAmount="0.000007"
-          onConfirmed={() => {
-            setSelfPaid(true);
+        <>
+          <WagerModal
+            mode="ranked"
+            lockedAmount="0.000007"
+            onConfirmed={() => {
+              setSelfPaid(true);
+              setShowPayModal(false);
+            }}
+            onSkip={() => {
+              if (matchId && playerRole) {
+                void fetch(`/api/match/${matchId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "quit", role: playerRole }),
+                });
+              }
+              router.replace("/");
+            }}
+          />
+          {/* Season pass upsell — floats below the WagerModal */}
+          <div style={{
+            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
+            zIndex: 9999,
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 20px", borderRadius: 30,
+            backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
+            boxShadow: "0 0 20px rgba(251,191,36,0.1)",
+          }}>
+            <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Tired of paying every match?</span>
+            <button
+              onClick={() => setShowSeasonPassModal(true)}
+              style={{
+                background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
+                border: "1px solid rgba(251,191,36,0.5)",
+                borderRadius: 20, padding: "5px 14px", cursor: "pointer",
+                fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
+                textTransform: "uppercase", fontFamily: "inherit",
+              }}
+            >
+              ⚡ Get Season Pass
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Season Pass Modal ─────────────────────────────────────────────── */}
+      {showSeasonPassModal && (
+        <SeasonPassModal
+          onClose={() => setShowSeasonPassModal(false)}
+          onActivated={() => {
+            setHasSeasonPass(true);
+            setShowSeasonPassModal(false);
             setShowPayModal(false);
-          }}
-          onSkip={() => {
-            if (matchId && playerRole) {
-              void fetch(`/api/match/${matchId}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "quit", role: playerRole }),
-              });
+            // If in an active ranked match, enter the Arena contract via season pass
+            if (matchId && playerRole && address && passEntryRef.current === "idle") {
+              void enterWithSeasonPass(address, matchId, playerRole);
+            } else {
+              // Solo or non-ranked — just mark paid
+              selfPaidRef.current = true;
+              setSelfPaid(true);
             }
-            router.replace("/");
           }}
         />
       )}

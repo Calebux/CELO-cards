@@ -7,6 +7,7 @@ import { useGameStore } from './lib/gameStore';
 import { CHARACTERS } from './lib/gameData';
 import { WalletSection } from './components/WalletSection';
 import { HowToPlayModal } from './components/HowToPlayModal';
+import { SeasonPassModal } from './components/SeasonPassModal';
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -18,6 +19,7 @@ export default function ActionOrderLandingPage() {
   const router = useRouter();
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
 
 
 
@@ -354,17 +356,17 @@ export default function ActionOrderLandingPage() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   BLACK MARKET
                 </Link>
-                <Link href="/create" style={{
+                <button onClick={() => setShowSeasonPassModal(true)} style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
-                  background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(86,164,203,0.3))",
-                  border:"1.5px solid #56a4cb", borderRadius:6, textDecoration:"none",
-                  color:"#fff", fontSize:13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
-                  boxShadow:"0 0 20px rgba(86,164,203,0.35)", animation:"ko-pulse 2.5s ease-in-out infinite",
+                  background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
+                  border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
+                  color:"#fbbf24", fontSize:13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                  animation:"ko-tournament-blink 1.4s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                  cursor:"pointer", fontFamily:"inherit",
                 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  FULL LOBBY
-                </Link>
+                  ⚡ SEASON PASS
+                </button>
                 <button onClick={() => setShowHowToPlay(true)} style={{
                   display:"flex", alignItems:"center", gap:8, padding:"10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
@@ -461,6 +463,7 @@ export default function ActionOrderLandingPage() {
         </div>
       </div>
       {showHowToPlay && <HowToPlayModal onClose={() => setShowHowToPlay(false)} />}
+      {showSeasonPassModal && <SeasonPassModal onClose={() => setShowSeasonPassModal(false)} onActivated={() => setShowSeasonPassModal(false)} />}
     </>
   );
 }

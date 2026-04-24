@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
+import { SeasonPassModal } from "../components/SeasonPassModal";
 import { useAccount } from "wagmi";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
@@ -28,6 +29,7 @@ function JoinMatchContent() {
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
   const [loadingLive, setLoadingLive] = useState(true);
+  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
 
   // Fetch live matches and refresh every 5s
   useEffect(() => {
@@ -122,6 +124,7 @@ function JoinMatchContent() {
   }
 
   return (
+    <>
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
@@ -331,6 +334,22 @@ function JoinMatchContent() {
               </p>
             )}
 
+            {/* Season pass teaser */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 18 }}>
+              <span style={{ fontSize: 10, color: "#475569" }}>Skip ranked entry fees?</span>
+              <button
+                onClick={() => setShowSeasonPassModal(true)}
+                style={{
+                  background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)",
+                  borderRadius: 12, padding: "3px 12px", cursor: "pointer",
+                  fontSize: 10, fontWeight: 800, color: "#fbbf24",
+                  letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit",
+                }}
+              >
+                ⚡ Season Pass
+              </button>
+            </div>
+
             {/* Divider + back */}
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 28 }}>
               <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
@@ -356,6 +375,14 @@ function JoinMatchContent() {
       </div>
 
     </div>
+
+    {showSeasonPassModal && (
+      <SeasonPassModal
+        onClose={() => setShowSeasonPassModal(false)}
+        onActivated={() => setShowSeasonPassModal(false)}
+      />
+    )}
+    </>
   );
 }
 

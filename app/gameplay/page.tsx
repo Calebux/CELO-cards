@@ -200,6 +200,7 @@ export default function Gameplay() {
     if (!matchLoading) applyScale();
   }, [matchLoading, applyScale]);
 
+
   const revealNextSlot = useCallback(() => {
     if (revealedSlots >= 5 || isAnimating) return;
     setIsAnimating(true);
