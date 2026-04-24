@@ -266,9 +266,11 @@ function JoinMatchContent() {
               <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
               <button
                 onClick={() => router.push("/")}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
+                className="ko-btn ko-btn-secondary"
+                style={{ padding: "8px 16px" }}
               >
-                ← Back to Menu
+                <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+                <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
               </button>
               <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
             </div>

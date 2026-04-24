@@ -344,20 +344,11 @@ export default function SelectCharacter() {
           {/* Back button — far left of footer */}
           <button
             onClick={() => router.back()}
-            style={{
-              position: "absolute", left: 32, top: "50%", transform: "translateY(-50%)",
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "10px 18px",
-              background: "rgba(86,164,203,0.08)",
-              border: "1px solid rgba(86,164,203,0.35)",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "all 0.15s",
-            }}
+            className="ko-btn ko-btn-secondary"
+            style={{ position: "absolute", left: 32, top: "50%", transform: "translateY(-50%)", padding: "8px 16px" }}
           >
-            <span className="material-icons not-italic" style={{ fontSize: 16, color: "#56a4cb" }}>arrow_back</span>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase" }}>BACK</span>
+            <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+            <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
           </button>
 
           <div className="absolute" style={{ left: 192, right: 192, top: "50%", transform: "translateY(-50%)", height: 91.753 }}>
