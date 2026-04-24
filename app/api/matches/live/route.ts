@@ -35,7 +35,7 @@ export async function GET() {
         continue;
       }
       // Skip if stale (wager matches get a much longer window)
-      const staleLimit = match.hostWagerTx ? WAGER_STALE_MS : STALE_MS;
+      const staleLimit = (match.hostWagerTx || match.wagerRequired) ? WAGER_STALE_MS : STALE_MS;
       if (now - match.lastActivity > staleLimit) {
         await removeFromOpenMatches(id).catch(() => {});
         continue;

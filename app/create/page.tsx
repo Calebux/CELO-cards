@@ -73,7 +73,6 @@ export default function CreateMatch() {
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
-  const [paidRankedFee, setPaidRankedFee] = useState(false);
   const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queueStartRef = useRef<number>(0);
   const router = useRouter();
@@ -153,120 +152,69 @@ export default function CreateMatch() {
 
   const cancelQueue = useCallback(async () => {
     if (queueState.status !== "searching") return;
-    // Warn ranked players their fee won't be refunded
-    if (paidRankedFee) {
-      const ok = window.confirm(
-        "Your ranked fee is saved as a credit for 24h\n\n" +
-        "You already paid the 0.000007 CELO entry fee. If you cancel now, " +
-        "your credit is preserved — next time you search you won't need to pay again.\n\n" +
-        "Cancel search?"
-      );
-      if (!ok) return;
-    }
     if (queuePollRef.current) clearInterval(queuePollRef.current);
     await fetch(`/api/queue?id=${queueState.queueId}`, { method: "DELETE" }).catch(() => {});
     setQueueState({ status: "idle" });
-    setPaidRankedFee(false);
-  }, [queueState, paidRankedFee]);
+  }, [queueState]);
 
   const handleFindMatch = async () => {
     if (!address) return;
-    // Check if player already has a ranked fee credit from a previous queue attempt
-    try {
-      const res = await fetch(`/api/queue/credit?address=${address}`);
-      const data = await res.json() as { hasCredit: boolean; expiresInSeconds?: number };
-      if (data.hasCredit) {
-        // Skip payment — go straight to queue using their existing credit
-        resetMatch();
-        setVsBot(false);
-        setPlayerRole("host");
-        setQueueExpiredMsg(null);
-        void startQueueAfterPayment(true /* usingCredit */);
-        return;
-      }
-    } catch { /* non-critical — fall through to payment */ }
-
-    // Generate a fresh matchId BEFORE opening the WagerModal so
-    // the modal has a valid ID for any contract calls.
     resetMatch();
     setVsBot(false);
     setPlayerRole("host");
-    setWagerAmountInput("0.000007");
-    setShowWager(true);
-  };
-
-  const startQueueAfterPayment = async (usingCredit = false) => {
-    // NOTE: resetMatch() already called in handleFindMatch — do NOT call again
-    // or it will generate a new matchId and wipe the one we already paid with.
-    if (!usingCredit) {
-      // Store fee credit on server (survives queue expiry, consumed on match found)
-      await fetch("/api/queue/credit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      }).catch(() => {});
-    }
-    setPaidRankedFee(true);
     setQueueExpiredMsg(null);
     queueStartRef.current = Date.now();
+    setQueueState({ status: "searching", queueId: "", elapsedMs: 0 });
 
-    const res = await fetch("/api/queue", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address }),
-    });
-    const data = await res.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; queueId?: string };
+    try {
+      const res = await fetch("/api/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, ranked: true }),
+      });
+      const data = await res.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; queueId?: string };
 
-    if (data.matched && data.matchId && data.role) {
-      // Immediate match found
-      playSound("matchFound");
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      setMatchId(data.matchId);
-      setPlayerRole(data.role);
-      setQueueState({ status: "found", matchId: data.matchId, role: data.role });
-      void fetchOpponentName(data.matchId, data.role);
-      setPaidRankedFee(false);
-      setTimeout(() => router.push("/select-character"), 800);
-      return;
-    }
-
-    if (!data.queueId) return;
-    setQueueState({ status: "searching", queueId: data.queueId, elapsedMs: 0 });
-
-    // Poll every 2s for a match
-    queuePollRef.current = setInterval(async () => {
-      try {
-        const pollRes = await fetch(`/api/queue?id=${data.queueId}`);
-        const pollData = await pollRes.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; expired?: boolean };
-
-        if (pollData.expired) {
-          clearInterval(queuePollRef.current!);
-          setQueueState({ status: "idle" });
-          setPaidRankedFee(false);
-          // Credit is preserved server-side for 24h — player can rejoin without paying again
-          setQueueExpiredMsg(
-            "No match found — your 0.000007 CELO entry fee is saved as a credit for 24 hours. " +
-            "Next time you hit \"Find Player\" you\u2019ll go straight into the queue without paying again."
-          );
-          return;
-        }
-
-        if (pollData.matched && pollData.matchId && pollData.role) {
-          clearInterval(queuePollRef.current!);
-          // Play match-found sound + vibrate
-          playSound("matchFound");
-          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
-          setMatchId(pollData.matchId);
-          setPlayerRole(pollData.role);
-          setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role });
-          void fetchOpponentName(pollData.matchId, pollData.role);
-          setPaidRankedFee(false);
-          setTimeout(() => router.push("/select-character"), 800);
-        }
-      } catch {
-        // ignore transient errors
+      if (data.matched && data.matchId && data.role) {
+        playSound("matchFound");
+        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        setMatchId(data.matchId);
+        setPlayerRole(data.role);
+        setQueueState({ status: "found", matchId: data.matchId, role: data.role });
+        void fetchOpponentName(data.matchId, data.role);
+        setTimeout(() => router.push("/select-character"), 800);
+        return;
       }
-    }, 2000);
+
+      if (!data.queueId) { setQueueState({ status: "idle" }); return; }
+      setQueueState({ status: "searching", queueId: data.queueId, elapsedMs: 0 });
+
+      queuePollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`/api/queue?id=${data.queueId}`);
+          const pollData = await pollRes.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; expired?: boolean };
+
+          if (pollData.expired) {
+            clearInterval(queuePollRef.current!);
+            setQueueState({ status: "idle" });
+            setQueueExpiredMsg("No opponent found — hit Find Player to try again.");
+            return;
+          }
+
+          if (pollData.matched && pollData.matchId && pollData.role) {
+            clearInterval(queuePollRef.current!);
+            playSound("matchFound");
+            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            setMatchId(pollData.matchId);
+            setPlayerRole(pollData.role);
+            setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role });
+            void fetchOpponentName(pollData.matchId, pollData.role);
+            setTimeout(() => router.push("/select-character"), 800);
+          }
+        } catch { /* ignore */ }
+      }, 2000);
+    } catch {
+      setQueueState({ status: "idle" });
+    }
   };
 
   const handleCreateMatch = () => {
@@ -459,18 +407,17 @@ export default function CreateMatch() {
                   </div>
                 )}
 
-                {/* Queue expired — credit saved banner */}
+                {/* Queue expired banner */}
                 {queueExpiredMsg && (
                   <div style={{ marginBottom: 12, padding: "14px 18px", background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <span className="material-icons" style={{ fontSize: 18, color: "#56a4cb", flexShrink: 0 }}>savings</span>
+                    <span className="material-icons" style={{ fontSize: 18, color: "#56a4cb", flexShrink: 0 }}>search_off</span>
                     <div>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Fee Credit Saved — 24h</div>
                       <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>{queueExpiredMsg}</div>
                       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                         <button
                           onClick={() => { setQueueExpiredMsg(null); void handleFindMatch(); }}
                           style={{ flex: 1, background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, fontFamily: "inherit", textTransform: "uppercase" }}
-                        >⚡ Search Again — No Payment Needed</button>
+                        >⚡ Search Again</button>
                         <button onClick={() => setQueueExpiredMsg(null)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: 1, fontFamily: "inherit" }}>✕</button>
                       </div>
                     </div>
@@ -496,9 +443,6 @@ export default function CreateMatch() {
                       <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${100 - pct}%`, background: isLate ? "#f87171" : "#56a4cb", borderRadius: 2, transition: "width 1s linear" }} />
                       </div>
-                      {paidRankedFee && (
-                        <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 0.5 }}>⚠️ Ranked fee paid — cancelling will forfeit 0.000007 CELO</div>
-                      )}
                       {/* Share link while waiting */}
                       <button
                         onClick={() => {
@@ -519,7 +463,7 @@ export default function CreateMatch() {
                         onClick={() => void cancelQueue()}
                         style={{ width: "100%", height: 36, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
                       >
-                        CANCEL{paidRankedFee ? " (fee non-refundable)" : ""}
+                        CANCEL SEARCH
                       </button>
                     </div>
                   );
@@ -664,7 +608,7 @@ export default function CreateMatch() {
 
       {showWager && (
         <WagerModal
-          onConfirmed={matchType === "ranked" && queueState.status === "idle" ? () => { setShowWager(false); void startQueueAfterPayment(); } : proceedAfterPayment}
+          onConfirmed={proceedAfterPayment}
           onSkip={() => { 
             setWager(false, null); 
             setShowWager(false); 

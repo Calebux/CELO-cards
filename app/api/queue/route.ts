@@ -12,6 +12,7 @@ interface QueueEntry {
   queueId: string;
   address:  string;
   joinedAt: number;
+  ranked?:  boolean;
 }
 
 interface QueueStatus {
@@ -48,9 +49,11 @@ function emptyMatch(matchId: string): ServerMatch {
 // POST — join queue; immediately returns match if an opponent is already waiting
 export async function POST(req: NextRequest) {
   let address: string;
+  let ranked = false;
   try {
-    const body = await req.json() as { address: string };
+    const body = await req.json() as { address: string; ranked?: boolean };
     address = (body.address ?? "").trim();
+    ranked = !!body.ranked;
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error();
   } catch {
     return NextResponse.json({ error: "Valid wallet address required" }, { status: 400 });
@@ -88,17 +91,13 @@ export async function POST(req: NextRequest) {
     const match = emptyMatch(matchId);
     match.host.address = opponent.address;
     match.joiner.address = address;
+    // Both players pay in the lobby after matching — set wagerRequired if either flagged ranked
+    if (ranked || opponent.ranked) match.wagerRequired = true;
     await setMatch(matchId, match);
 
     // Notify the waiting host via their status key
     const hostStatus: QueueStatus = { status: "matched", matchId, role: "host" };
     await redis.set(`queue:${opponent.queueId}`, hostStatus, { ex: 300 });
-
-    // Consume ranked fee credits for both players now that a match is found
-    await Promise.all([
-      redis.del(`ranked:credit:${address.toLowerCase()}`),         // joiner
-      redis.del(`ranked:credit:${opponent.address.toLowerCase()}`), // host
-    ]);
 
     // Joiner gets the answer immediately in the POST response
     return NextResponse.json({ matched: true, matchId, role: "joiner" });
@@ -106,7 +105,7 @@ export async function POST(req: NextRequest) {
 
   // No opponent found — join the queue as host
   const queueId = crypto.randomUUID();
-  const entry: QueueEntry = { queueId, address, joinedAt: Date.now() };
+  const entry: QueueEntry = { queueId, address, joinedAt: Date.now(), ranked };
   await redis.rpush(QUEUE_KEY, JSON.stringify(entry));
   const status: QueueStatus = { status: "waiting" };
   await redis.set(`queue:${queueId}`, status, { ex: QUEUE_TTL });
