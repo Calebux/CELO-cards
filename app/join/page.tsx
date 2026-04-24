@@ -132,14 +132,14 @@ function JoinMatchContent() {
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
           </button>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>JOIN MATCH</div>
+          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>JOIN MATCH</div>
           <WalletSection />
         </div>
 
         {/* Live matches sidebar */}
         <div style={{
-          position: "absolute", left: 64, top: 84, bottom: 20,
-          width: 340,
+          position: "absolute", right: 64, top: 84, bottom: 20,
+          width: 320,
           display: "flex", flexDirection: "column",
         }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
@@ -192,7 +192,7 @@ function JoinMatchContent() {
 
         {/* Central panel */}
         <div style={{
-          position: "absolute", left: "57%", top: "50%",
+          position: "absolute", left: "50%", top: "50%",
           transform: "translate(-50%, -44%)",
           width: 504,
         }}>

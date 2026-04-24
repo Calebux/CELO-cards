@@ -87,6 +87,9 @@ export function setMuted(muted: boolean) {
     _muted = muted;
     if (_bgAudio) _bgAudio.muted = muted;
     _saveSoundPrefs();
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ao-mute-change", { detail: { muted } }));
+    }
 }
 
 export function setVolume(v: number) {

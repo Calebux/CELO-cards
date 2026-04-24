@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
+import { WagerModal } from "../components/WagerModal";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -15,9 +16,12 @@ export default function ReadyYourDeck() {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [linkShared, setLinkShared] = useState(false);
+  const [showRankedFee, setShowRankedFee] = useState(false);
   const storeMatchId   = useGameStore((s) => s.matchId);
-  const wagerTxHash    = useGameStore((s) => s.wagerTxHash);
   const wagerActive    = useGameStore((s) => s.wagerActive);
+  const playerRole     = useGameStore((s) => s.playerRole);
+  const playerName     = useGameStore((s) => s.playerName);
+  const setWager       = useGameStore((s) => s.setWager);
 
   useEffect(() => {
     const scale = () => {
@@ -44,20 +48,38 @@ export default function ReadyYourDeck() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Keepalive — ping the match every 60s so it doesn't time out while host waits
+  // Keepalive — register match in Redis and keep it alive while host waits
   useEffect(() => {
-    if (!storeMatchId || !wagerActive) return; // only needed for paid matches
+    if (!storeMatchId) return;
     const ping = () => {
       void fetch(`/api/match/${storeMatchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host" }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName }),
       }).catch(() => {});
     };
-    ping(); // immediate ping
+    ping(); // immediate ping — creates match in Redis and adds to open matches
     const id = setInterval(ping, 60_000);
     return () => clearInterval(id);
-  }, [storeMatchId, wagerActive]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeMatchId]);
+
+  // Poll for joiner — when found, prompt host to pay the ranked entry fee
+  useEffect(() => {
+    if (!storeMatchId || playerRole !== "host" || wagerActive) return;
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${storeMatchId}?role=host`);
+        const data = await res.json() as { opponentCharId?: string | null };
+        if (data.opponentCharId) {
+          clearInterval(poll);
+          setShowRankedFee(true);
+        }
+      } catch { /* ignore transient errors */ }
+    }, 2000);
+    return () => clearInterval(poll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeMatchId, playerRole, wagerActive]);
 
   const matchId = storeMatchId ?? "AO-????-X";
 
@@ -230,6 +252,16 @@ export default function ReadyYourDeck() {
           50% { opacity: 1; transform: scale(1.1); }
         }
       `}</style>
+
+      {/* Ranked entry fee — shown after opponent joins */}
+      {showRankedFee && (
+        <WagerModal
+          mode="ranked"
+          lockedAmount="0.000007"
+          onConfirmed={() => { setShowRankedFee(false); router.push("/select-character"); }}
+          onSkip={() => { setWager(false, null); setShowRankedFee(false); router.push("/select-character"); }}
+        />
+      )}
     </div>
   );
 }

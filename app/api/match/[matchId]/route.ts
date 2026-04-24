@@ -207,13 +207,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
     action?: string;
     wagerTx?: string;
     wagerAmount?: string;
+    playerName?: string;
   };
 
   if (!validRole(role)) {
@@ -222,10 +223,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Keepalive (host waiting on ready page) ──────────────────────────────
   if (action === "keepalive") {
-    const match = await getMatch<ServerMatch>(matchId);
-    if (match) {
-      match.lastActivity = Date.now();
-      await setMatch(matchId, match).catch(() => {});
+    let match = await getMatch<ServerMatch>(matchId);
+    if (!match) {
+      // Match doesn't exist yet — create it now so it appears in open matches
+      match = newMatch(matchId);
+    }
+    match.lastActivity = Date.now();
+    // Store player name if host provides it before character selection
+    if (validRole(role) && role === "host" && typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
+      match.host.playerName = patchPlayerName;
+    }
+    await setMatch(matchId, match).catch(() => {});
+    // Keep the match visible in open matches while waiting for a joiner
+    if (validRole(role) && role === "host" && !match.joiner.charId) {
+      await addToOpenMatches(matchId).catch(() => {});
     }
     return NextResponse.json({ ok: true });
   }

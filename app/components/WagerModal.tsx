@@ -142,11 +142,13 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount, mode = "wager" }
     if (!address) { setErrMsg("Wallet not connected."); return; }
     setErrMsg("");
 
-    // Ranked mode: the match fee is a simple treasury payment — no Arena
-    // contract interaction needed, so no matchId is required.
+    // Ranked mode: route through Arena contract when available so the fee
+    // appears in the contract's transaction history on-chain.
     if (mode === "ranked") {
       if (currency === "gdollar") {
         await handleGDollarTransfer();
+      } else if (USE_CONTRACT && matchId) {
+        await handleEnterMatchWithCelo();
       } else {
         await handleDirectCeloTransfer();
       }
