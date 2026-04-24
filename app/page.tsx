@@ -428,16 +428,24 @@ export default function ActionOrderLandingPage() {
                   X / Twitter
                 </a>
                 <button
-                  className="ko-social-btn"
                   onClick={() => {
                     void (document.fullscreenElement
                       ? document.exitFullscreen()
                       : document.documentElement.requestFullscreen());
                   }}
-                  style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                  title="Fullscreen"
+                  style={{
+                    width: 44, height: 44, borderRadius: "50%",
+                    backgroundColor: "rgba(10,18,32,0.85)",
+                    border: "2px solid rgba(86,164,203,0.45)",
+                    boxShadow: "0 0 14px rgba(86,164,203,0.3)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", backdropFilter: "blur(8px)",
+                    fontSize: 18, color: "#56a4cb", transition: "all 0.2s ease",
+                    flexShrink: 0,
+                  }}
                 >
-                  <span className="material-icons" style={{ fontSize: 15, color: "#56a4cb", flexShrink: 0 }}>fullscreen</span>
-                  Fullscreen
+                  ⛶
                 </button>
               </div>
             </div>
