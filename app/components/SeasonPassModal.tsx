@@ -282,7 +282,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             {/* CTA */}
             <div style={{ padding: "0 24px 24px" }}>
               <button
-                disabled={!address || step === "checking" || step === "waiting-tx" || step === "confirming" || step === "registering"}
+                disabled={!address || step === "waiting-tx" || step === "confirming" || step === "registering"}
                 onClick={handlePurchase}
                 style={{
                   width: "100%", padding: "14px", borderRadius: 8, cursor: "pointer",
@@ -292,7 +292,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                   fontSize: 13, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase",
                   color: "#fff", fontFamily: "inherit",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                  opacity: !address || step === "checking" || step === "waiting-tx" || step === "confirming" ? 0.7 : 1,
+                  opacity: !address || step === "waiting-tx" || step === "confirming" ? 0.7 : 1,
                   transition: "all 0.2s",
                 }}
               >
