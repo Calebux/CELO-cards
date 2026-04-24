@@ -290,7 +290,7 @@ export default function CreateMatch() {
         {/* ── Resume Open Match Banner ─────────────────────────────────── */}
         {storeMatchId && storePlayerRole === "host" && !storeWagerActive && (
           <div style={{
-            position: "absolute", top: 80, left: "50%", transform: "translateX(-50%)",
+            position: "absolute", top: 74, left: "50%", transform: "translateX(-50%)",
             display: "flex", alignItems: "center", gap: 12, padding: "10px 20px",
             background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.4)",
             borderRadius: 8, zIndex: 20, width: 560,
@@ -316,7 +316,7 @@ export default function CreateMatch() {
         )}
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 12 }}>
 
           {/* Panel */}
           <div style={{ position: "relative", width: 560 }}>

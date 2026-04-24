@@ -250,10 +250,7 @@ export default function Lobby() {
         )}
       </div>
 
-      {/* ── Main centered content (raised 6px) ───────────────────────────── */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", transform: "translateY(-6px)" }}>
-
-      {/* ── Fighter portraits ─────────────────────────────────────────── */}
+      {/* ── Fighter portraits ────────────────────────────────────────────── */}
       <div style={{
         display: "flex", alignItems: "center", gap: 0,
         animation: "ml-fadein 0.4s ease forwards",
@@ -415,8 +412,6 @@ export default function Lobby() {
           transition: "width 1s linear",
         }} />
       </div>
-
-      </div>{/* end raised content wrapper */}
 
       {/* ── Network error ────────────────────────────────────────────────── */}
       {netErrorCount >= 3 && !p2Ready && (
