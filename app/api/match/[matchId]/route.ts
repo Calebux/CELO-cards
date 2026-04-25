@@ -211,7 +211,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, wagerRequired: bodyWagerRequired } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, address: patchAddress, wagerRequired: bodyWagerRequired } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
@@ -219,6 +219,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     wagerTx?: string;
     wagerAmount?: string;
     playerName?: string;
+    address?: string;
     wagerRequired?: boolean;
   };
 
@@ -234,9 +235,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match = newMatch(matchId);
     }
     match.lastActivity = Date.now();
-    // Store player name if host provides it before character selection
-    if (validRole(role) && role === "host" && typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
-      match.host.playerName = patchPlayerName;
+    // Store player name and address if host provides them before character selection
+    if (validRole(role) && role === "host") {
+      if (typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
+        match.host.playerName = patchPlayerName;
+      }
+      if (typeof patchAddress === "string" && patchAddress && !match.host.address) {
+        match.host.address = patchAddress;
+      }
     }
     // Mark as ranked (fee required) if host signals it
     if (bodyWagerRequired === true) match.wagerRequired = true;

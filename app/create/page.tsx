@@ -75,6 +75,7 @@ export default function CreateMatch() {
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [showRankedWager, setShowRankedWager] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const [hasSeasonPass, setHasSeasonPass] = useState(false);
   const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
   const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queueStartRef = useRef<number>(0);
@@ -114,6 +115,14 @@ export default function CreateMatch() {
     const id = setInterval(fetchOnline, 15_000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/season-pass?address=${address}`)
+      .then(r => r.json())
+      .then((d: { active: boolean }) => setHasSeasonPass(d.active))
+      .catch(() => {});
+  }, [address]);
 
   useEffect(() => {
     const scale = () => {
@@ -271,10 +280,11 @@ export default function CreateMatch() {
       // Pre-register match in Redis immediately so it appears in open games right away
       const newMatchId = useGameStore.getState().matchId;
       if (newMatchId) {
+        const playerName = useGameStore.getState().playerName;
         void fetch(`/api/match/${newMatchId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
+          body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, wagerRequired: true }),
         });
       }
       router.push("/ready?ranked=true");
@@ -418,8 +428,8 @@ export default function CreateMatch() {
                   <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
 
-                {/* Season Pass callout — ranked only */}
-                {matchType === "ranked" && (
+                {/* Season Pass callout — ranked only, hidden if user already has a pass */}
+                {matchType === "ranked" && !hasSeasonPass && (
                   <div style={{
                     marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "10px 14px",
@@ -444,6 +454,18 @@ export default function CreateMatch() {
                     >
                       Get Pass →
                     </button>
+                  </div>
+                )}
+                {matchType === "ranked" && hasSeasonPass && (
+                  <div style={{
+                    marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 14px",
+                    background: "rgba(74,222,128,0.06)",
+                    border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6,
+                  }}>
+                    <span style={{ fontSize: 13 }}>⚡</span>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>SEASON PASS ACTIVE</div>
+                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>— entry fee covered</div>
                   </div>
                 )}
 

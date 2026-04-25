@@ -43,6 +43,7 @@ export default function Lobby() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [passEntryState, setPassEntryState] = useState<"idle" | "entering" | "done" | "error">("idle");
   const [passEntryError, setPassEntryError] = useState("");
+  const [passEntryRetries, setPassEntryRetries] = useState(0);
   // Refs so the polling interval always reads current values (avoids stale closures)
   const selfPaidRef      = useRef(false);
   const passEntryRef     = useRef<"idle" | "entering" | "done" | "error">("idle");
@@ -59,8 +60,9 @@ export default function Lobby() {
     }
   }, []);
 
-  // Called when pass is detected — server enters the match on-chain via treasury
-  const enterWithSeasonPass = useCallback(async (addr: string, mId: string, role: string) => {
+  // Called when pass is detected — server enters the match on-chain via treasury.
+  // Auto-retries up to 3 times before surfacing an error.
+  const enterWithSeasonPass = useCallback(async (addr: string, mId: string, role: string, attempt = 0) => {
     passEntryRef.current = "entering";
     setPassEntryState("entering");
     setPassEntryError("");
@@ -77,11 +79,22 @@ export default function Lobby() {
       const data = await res.json() as { txHash?: string };
       passEntryRef.current = "done";
       setPassEntryState("done");
+      setPassEntryRetries(0);
       selfPaidRef.current = true;
       setSelfPaid(true);
       // Mark as wagered in the store so gameplay/payout use the correct currency (CELO/ranked)
       setWager(true, data.txHash ?? null, "celo", "ranked");
     } catch (e) {
+      if (attempt < 3) {
+        // Auto-retry with backoff
+        setPassEntryRetries(attempt + 1);
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        // Only retry if still in the entering state (user hasn't left)
+        if (passEntryRef.current === "entering") {
+          void enterWithSeasonPass(addr, mId, role, attempt + 1);
+          return;
+        }
+      }
       passEntryRef.current = "error";
       setPassEntryState("error");
       setPassEntryError(e instanceof Error ? e.message : "Season pass entry failed");
@@ -494,7 +507,7 @@ export default function Lobby() {
       )}
 
       {/* ── Opponent timeout / leave ─────────────────────────────────────── */}
-      {playerRole && !p2Ready && opponentWaitMs >= OPPONENT_WARN_MS && !opponentAbandoned && (
+      {playerRole && !p2Ready && opponentWaitMs >= OPPONENT_WARN_MS && !opponentAbandoned && !(wagerRequired && selfPaid && !opponentPaid) && (
         <div style={{
           position: "absolute", bottom: opponentWaitMs >= OPPONENT_ABORT_MS ? 40 : 50,
           left: "50%", transform: "translateX(-50%)",
@@ -534,7 +547,7 @@ export default function Lobby() {
         }}>
           <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite", color: "#fbbf24", fontSize: 14 }}>●</span>
           <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
-            Entering match via season pass…
+            Entering match via season pass{passEntryRetries > 0 ? ` (retry ${passEntryRetries}/3)` : "…"}
           </span>
         </div>
       )}
@@ -548,23 +561,46 @@ export default function Lobby() {
           <span style={{ fontSize: 12, color: "#f87171", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
             Season pass entry failed
           </span>
-          <span style={{ fontSize: 11, color: "rgba(248,113,113,0.7)" }}>{passEntryError}</span>
-          <button
-            onClick={() => {
-              if (address && matchId && playerRole) {
-                setPassEntryState("idle");
-                void enterWithSeasonPass(address, matchId, playerRole);
-              }
-            }}
-            style={{
-              padding: "5px 16px", borderRadius: 5, cursor: "pointer",
-              background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.4)",
-              fontSize: 11, fontWeight: 700, color: "#f87171", fontFamily: "inherit",
-              letterSpacing: 1, textTransform: "uppercase",
-            }}
-          >
-            Retry
-          </button>
+          <span style={{ fontSize: 11, color: "rgba(248,113,113,0.7)", textAlign: "center", maxWidth: 280 }}>{passEntryError}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => {
+                if (address && matchId && playerRole) {
+                  setPassEntryRetries(0);
+                  passEntryRef.current = "idle";
+                  void enterWithSeasonPass(address, matchId, playerRole);
+                }
+              }}
+              style={{
+                padding: "5px 16px", borderRadius: 5, cursor: "pointer",
+                background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.4)",
+                fontSize: 11, fontWeight: 700, color: "#fbbf24", fontFamily: "inherit",
+                letterSpacing: 1, textTransform: "uppercase",
+              }}
+            >
+              ⚡ Retry Pass
+            </button>
+            <button
+              onClick={() => {
+                if (matchId && playerRole) {
+                  void fetch(`/api/match/${matchId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "quit", role: playerRole }),
+                  });
+                }
+                router.replace("/");
+              }}
+              style={{
+                padding: "5px 16px", borderRadius: 5, cursor: "pointer",
+                background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)",
+                fontSize: 11, fontWeight: 700, color: "#f87171", fontFamily: "inherit",
+                letterSpacing: 1, textTransform: "uppercase",
+              }}
+            >
+              Leave Match
+            </button>
+          </div>
         </div>
       )}
 

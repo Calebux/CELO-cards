@@ -57,25 +57,39 @@ export async function POST(req: NextRequest) {
     const publicClient = createPublicClient({ chain: celo, transport: http() });
     const walletClient = createWalletClient({ account, chain: celo, transport: http() });
 
-    const { request } = await publicClient.simulateContract({
-      account,
+    // Check if a stream already exists from treasury to this address
+    const existingRate = await publicClient.readContract({
       address: CFA_FORWARDER,
       abi: CFA_FORWARDER_ABI,
-      functionName: "createFlow",
-      args: [
-        GDOLLAR_CONTRACT,
-        account.address,
-        address as `0x${string}`,
-        STREAM_FLOW_RATE,
-        "0x",
-      ],
+      functionName: "getFlowrate",
+      args: [GDOLLAR_CONTRACT, account.address, address as `0x${string}`],
     });
-    const txHash = await walletClient.writeContract(request);
+
+    let txHash: string;
+    if (existingRate > 0n) {
+      // Stream already running — no new tx needed
+      txHash = "existing-stream";
+    } else {
+      const { request } = await publicClient.simulateContract({
+        account,
+        address: CFA_FORWARDER,
+        abi: CFA_FORWARDER_ABI,
+        functionName: "createFlow",
+        args: [
+          GDOLLAR_CONTRACT,
+          account.address,
+          address as `0x${string}`,
+          STREAM_FLOW_RATE,
+          "0x",
+        ],
+      });
+      txHash = await walletClient.writeContract(request);
+    }
 
     claims[key] = today;
     await writeClaims(claims);
 
-    console.log(`Daily reward: G$ stream started to ${address} — tx ${txHash}`);
+    console.log(`Daily reward: G$ stream to ${address} — tx ${txHash}`);
     return NextResponse.json({ txHash, streaming: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed";

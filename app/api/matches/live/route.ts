@@ -21,7 +21,7 @@ export async function GET() {
     const STALE_MS        = 10 * 60 * 1000; // 10 min — free matches
     const WAGER_STALE_MS  = 60 * 60 * 1000; // 60 min — paid matches stay visible longer
 
-    const live: { id: string; hostName: string | null; createdAt: number; hasWager: boolean }[] = [];
+    const live: { id: string; hostName: string | null; hostAddress: string | null; createdAt: number; hasWager: boolean }[] = [];
 
     for (const { id, match } of results) {
       if (!match) {
@@ -44,6 +44,7 @@ export async function GET() {
       live.push({
         id,
         hostName: match.host.playerName ?? null,
+        hostAddress: match.host.address ?? null,
         createdAt: match.createdAt,
         hasWager: !!(match.hostWagerTx) || !!(match.wagerRequired),
       });

@@ -30,6 +30,7 @@ function ReadyYourDeck() {
   const wagerActive    = useGameStore((s) => s.wagerActive);
   const playerRole     = useGameStore((s) => s.playerRole);
   const playerName     = useGameStore((s) => s.playerName);
+  const playerAddress  = useGameStore((s) => s.playerAddress);
 
   useEffect(() => {
     const scale = () => {
@@ -63,7 +64,7 @@ function ReadyYourDeck() {
       void fetch(`/api/match/${storeMatchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, wagerRequired: isRanked }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, wagerRequired: isRanked }),
       }).catch(() => {});
     };
     ping(); // immediate ping — creates match in Redis and adds to open matches
