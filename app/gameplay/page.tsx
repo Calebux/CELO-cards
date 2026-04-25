@@ -1426,9 +1426,7 @@ export default function Gameplay() {
                       onClick={() => {
                         if (wagerMode === "ranked") {
                           resetMatch();
-                          setVsBot(true);
-                          setWager(false, null, "cusd", "ranked");
-                          router.push("/select-character");
+                          router.push("/create");
                         } else {
                           rematch();
                           router.push("/loadout");

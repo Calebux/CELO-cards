@@ -189,46 +189,95 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             <div style={{ fontSize: 13, color: "rgba(185,231,244,0.4)", letterSpacing: 1 }}>Checking pass status…</div>
           </div>
         ) : step === "done" ? (
-          /* Active pass state — existing or freshly purchased */
-          <div style={{ padding: "40px 32px", textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>{existingPlan ? "⚡" : "✅"}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#4ade80", marginBottom: 8 }}>
-              {existingPlan ? "Pass Active" : "Pass Activated!"}
+          /* Card flip celebration */
+          <div style={{ padding: "32px 32px 28px", textAlign: "center" }}>
+            <style>{`
+              @keyframes sp-card-in { from { opacity:0; transform:translateY(32px) scale(0.85); } to { opacity:1; transform:translateY(0) scale(1); } }
+              @keyframes sp-flip { 0%{transform:perspective(600px) rotateY(0deg)} 50%{transform:perspective(600px) rotateY(90deg)} 100%{transform:perspective(600px) rotateY(0deg)} }
+              @keyframes sp-glow { 0%,100%{box-shadow:0 0 18px rgba(74,222,128,0.4)} 50%{box-shadow:0 0 36px rgba(74,222,128,0.8), 0 0 60px rgba(74,222,128,0.3)} }
+              @keyframes sp-sparkle { 0%,100%{opacity:0;transform:scale(0)} 50%{opacity:1;transform:scale(1)} }
+              @keyframes sp-fade-up { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+            `}</style>
+
+            {/* Card */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 20, position: "relative" }}>
+              {/* Sparkle dots */}
+              {[
+                { top: -10, left: "20%", delay: "0s" }, { top: -14, left: "75%", delay: "0.2s" },
+                { top: "30%", left: -14, delay: "0.4s" }, { top: "30%", right: -14, left: "auto", delay: "0.15s" },
+                { bottom: -10, left: "35%", delay: "0.3s" }, { bottom: -10, left: "65%", delay: "0.5s" },
+              ].map((s, i) => (
+                <div key={i} style={{
+                  position: "absolute", width: 6, height: 6, borderRadius: "50%",
+                  background: i % 2 === 0 ? "#4ade80" : "#fbbf24",
+                  animation: `sp-sparkle 1.2s ease-in-out ${s.delay} infinite`,
+                  ...s,
+                }} />
+              ))}
+
+              <div style={{
+                width: 148, height: 200, borderRadius: 10, overflow: "hidden",
+                border: "2px solid rgba(74,222,128,0.7)",
+                animation: existingPlan ? "sp-card-in 0.5s ease forwards" : "sp-card-in 0.4s ease forwards, sp-flip 0.7s ease 0.1s, sp-glow 2s ease 0.8s infinite",
+                position: "relative", flexShrink: 0,
+              }}>
+                <img
+                  src="/cards/finisher.webp"
+                  alt=""
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                />
+                {/* Overlay with pass info */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(to top, rgba(5,20,10,0.96) 0%, rgba(5,20,10,0.5) 55%, transparent 100%)",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end",
+                  padding: "12px 8px",
+                  animation: existingPlan ? "none" : "sp-fade-up 0.5s ease 0.7s both",
+                }}>
+                  <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, color: "#4ade80", textTransform: "uppercase", marginBottom: 3 }}>⚡ Season Pass</div>
+                  <div style={{ fontSize: 11, fontWeight: 900, color: "#fff", letterSpacing: 1, textTransform: "uppercase" }}>
+                    {existingPlan ?? plan.days + "d Pass"}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: "rgba(185,231,244,0.6)", marginBottom: 4 }}>
-              {existingPlan
-                ? <><strong style={{ color: "#fbbf24" }}>{existingPlan}</strong> pass is active</>
-                : <>Your <strong style={{ color: "#fff" }}>{plan.label}</strong> is active</>
-              }
+
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80", marginBottom: 6, animation: "sp-fade-up 0.4s ease 0.6s both" }}>
+              {existingPlan ? "Pass Active ⚡" : "Pass Activated! 🎉"}
             </div>
             {expiryDate && (
-              <div style={{ fontSize: 12, color: "rgba(185,231,244,0.4)", marginBottom: 4 }}>
-                Expires {expiryDate}
+              <div style={{ fontSize: 12, color: "rgba(185,231,244,0.5)", marginBottom: 2, animation: "sp-fade-up 0.4s ease 0.75s both" }}>
+                Valid until <strong style={{ color: "#b9e7f4" }}>{expiryDate}</strong>
               </div>
             )}
-            {/* Allow renewing / stacking even if already active */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
+            <div style={{ fontSize: 11, color: "rgba(185,231,244,0.4)", marginBottom: 20, animation: "sp-fade-up 0.4s ease 0.85s both" }}>
+              No entry fees on ranked matches
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "sp-fade-up 0.4s ease 1s both" }}>
               <button
                 onClick={() => { setStep("idle"); setExistingPlan(null); }}
                 style={{
-                  padding: "10px 32px", borderRadius: 7,
-                  background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.4)",
-                  cursor: "pointer", fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
+                  padding: "9px 32px", borderRadius: 7,
+                  background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.35)",
+                  cursor: "pointer", fontSize: 11, fontWeight: 800, letterSpacing: 1.5,
                   textTransform: "uppercase", color: "#fbbf24", fontFamily: "inherit",
                 }}
               >
-                ⚡ Extend / Renew Pass
+                ⚡ Extend / Stack Pass
               </button>
               <button
                 onClick={onClose}
                 style={{
-                  padding: "10px 32px", borderRadius: 7,
-                  backgroundColor: "#4ade80", border: "none", cursor: "pointer",
-                  fontSize: 13, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase",
-                  color: "#050510", fontFamily: "inherit",
+                  padding: "12px 32px", borderRadius: 7,
+                  background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                  border: "none", cursor: "pointer",
+                  fontSize: 14, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase",
+                  color: "#fff", fontFamily: "inherit",
+                  boxShadow: "0 0 20px rgba(74,222,128,0.3)",
                 }}
               >
-                {existingPlan ? "Close" : "LET'S FIGHT"}
+                {existingPlan ? "Close" : "LET'S FIGHT →"}
               </button>
             </div>
           </div>
