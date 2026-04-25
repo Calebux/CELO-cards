@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
 import { WalletSection } from "../components/WalletSection";
+import { playSound } from "../lib/soundManager";
 
 const BG = "/new-assets/two-fighters-vs.png";
 
@@ -35,8 +36,13 @@ export default function SelectCharacter() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
+  const [opponentJoined, setOpponentJoined] = useState(false);
+  const [opponentJoinedName, setOpponentJoinedName] = useState<string | null>(null);
+  const [joinFlash, setJoinFlash] = useState(false);
+  const opponentJoinedRef = useRef(false);
   const router = useRouter();
-  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, vsBot, playerName, wagerTxHash, wagerAmountInput } = useGameStore();
+  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput } = useGameStore();
+  const multiplayerMode = matchMode === "vshouse" ? "wager" : matchMode;
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -71,6 +77,60 @@ export default function SelectCharacter() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
+  // Announce presence on mount + keepalive loop for FIND PLAYER host
+  useEffect(() => {
+    if (!matchId || !playerRole || vsBot) return;
+
+    // Send name immediately so the other player is notified right away
+    void fetch(`/api/match/${matchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "keepalive",
+        role: playerRole,
+        playerName,
+        address: playerAddress,
+        mode: multiplayerMode,
+      }),
+    });
+
+    // Host: keep the match alive in open games every 60s while waiting
+    if (playerRole !== "host") return;
+    const kl = setInterval(() => {
+      if (opponentJoinedRef.current) { clearInterval(kl); return; }
+      void fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: multiplayerMode }),
+      });
+    }, 60_000);
+    return () => clearInterval(kl);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, playerRole, vsBot]);
+
+  // Poll for opponent joining — multiplayer only
+  useEffect(() => {
+    if (!matchId || !playerRole || vsBot || opponentJoinedRef.current) return;
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        const data = await res.json() as { opponentName?: string | null };
+        if (data.opponentName && !opponentJoinedRef.current) {
+          opponentJoinedRef.current = true;
+          clearInterval(poll);
+          setOpponentJoined(true);
+          setOpponentJoinedName(data.opponentName);
+          setJoinFlash(true);
+          playSound("matchFound");
+          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          setTimeout(() => setJoinFlash(false), 3000);
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => clearInterval(poll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, playerRole, vsBot]);
+
   // Countdown timer — auto-lock when it runs out
   useEffect(() => {
     if (timer <= 0) return;
@@ -91,9 +151,9 @@ export default function SelectCharacter() {
     if (playerRole !== null && matchId) {
       // Multiplayer: init loadout state WITHOUT overwriting matchId (startMatch would corrupt it)
       initMultiplayerLoadout();
-      // Build wager amount as BigInt string if host paid
+      // Build wager amount as BigInt string if host paid a wager match
       let wagerAmountBig: string | undefined;
-      if (playerRole === "host" && wagerTxHash && wagerAmountInput) {
+      if (matchMode === "wager" && playerRole === "host" && wagerTxHash && wagerAmountInput) {
         try {
           const { parseUnits } = await import("viem");
           const n = Number(wagerAmountInput);
@@ -110,7 +170,7 @@ export default function SelectCharacter() {
           characterId: activeChar.id,
           playerName,
           address: playerAddress,
-          ...(playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig } : {}),
+          ...(matchMode === "wager" && playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig } : {}),
         }),
       });
       // Multiplayer always goes through lobby (payment gate + opponent sync)
@@ -298,29 +358,66 @@ export default function SelectCharacter() {
         </div>
 
         {/* ── Right: Opponent Status Panel ─────────────────────── */}
-        <div className="absolute overflow-hidden rounded-[8.438px] border-[0.703px] border-[rgba(255,255,255,0.1)]"
-          style={{ left: "75.49%", right: "9.67%", top: "calc(50% - 8.6px)", transform: "translateY(-50%)", height: 623.8 }}>
-          <div className="absolute" style={{ inset: "-77.8px -26.54px", background: "radial-gradient(ellipse at center, rgba(86,164,203,0.15) 0%, transparent 70%)" }} />
-          <div className="absolute inset-0" style={{ backdropFilter: "blur(4.219px)", backgroundColor: "rgba(185,231,244,0.05)" }} />
+        <div className="absolute overflow-hidden rounded-[8.438px] border-[0.703px]"
+          style={{ left: "75.49%", right: "9.67%", top: "calc(50% - 8.6px)", transform: "translateY(-50%)", height: 623.8, borderColor: joinFlash ? "rgba(74,222,128,0.6)" : "rgba(255,255,255,0.1)", transition: "border-color 0.4s" }}>
+          <style>{`
+            @keyframes scPulse { 0%,100%{opacity:0.3;transform:scale(0.85)} 50%{opacity:1;transform:scale(1)} }
+            @keyframes scFlashIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+          `}</style>
+          <div className="absolute" style={{ inset: "-77.8px -26.54px", background: `radial-gradient(ellipse at center, ${joinFlash ? "rgba(74,222,128,0.25)" : "rgba(86,164,203,0.15)"} 0%, transparent 70%)`, transition: "background 0.5s" }} />
+          <div className="absolute inset-0" style={{ backdropFilter: "blur(4.219px)", backgroundColor: joinFlash ? "rgba(74,222,128,0.04)" : "rgba(185,231,244,0.05)", transition: "background-color 0.5s" }} />
 
-          <div className="absolute flex items-center gap-[5.625px]" style={{ top: 11.25, right: 11.25 }}>
-            <span className="font-bold uppercase" style={{ fontSize: 7.031, letterSpacing: 0.703, color: "rgba(255,255,255,0.6)" }}>Latency</span>
-            <span className="font-bold text-[#b9e7f4]" style={{ fontSize: 7.031 }}>24ms</span>
-          </div>
+          {/* Join flash notification */}
+          {joinFlash && (
+            <div className="absolute left-0 right-0 flex items-center justify-center gap-[6px]"
+              style={{ top: 14, animation: "scFlashIn 0.35s ease forwards" }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80" }} />
+              <span style={{ fontSize: 9, fontWeight: 800, color: "#4ade80", letterSpacing: 2, textTransform: "uppercase" }}>
+                ⚡ {opponentJoinedName ?? "Opponent"} is here!
+              </span>
+            </div>
+          )}
 
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ marginTop: -5.63 }}>
-            <span className="font-bold uppercase tracking-[1.6875px] text-center" style={{ fontSize: 16.875, color: "rgba(255,255,255,0.9)" }}>
-              Selecting...
-            </span>
+          {!joinFlash && (
+            <div className="absolute flex items-center gap-[5.625px]" style={{ top: 11.25, right: 11.25 }}>
+              <span className="font-bold uppercase" style={{ fontSize: 7.031, letterSpacing: 0.703, color: "rgba(255,255,255,0.6)" }}>Latency</span>
+              <span className="font-bold text-[#b9e7f4]" style={{ fontSize: 7.031 }}>24ms</span>
+            </div>
+          )}
+
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-[12px]" style={{ marginTop: -5.63 }}>
+            {!opponentJoined ? (
+              <>
+                <div style={{ display: "flex", gap: 5 }}>
+                  {[0, 0.3, 0.6].map((delay, i) => (
+                    <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#56a4cb", animation: `scPulse 1.4s ease-in-out ${delay}s infinite` }} />
+                  ))}
+                </div>
+                <span className="font-bold uppercase tracking-[1.6875px] text-center" style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
+                  Waiting for<br />player…
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-bold uppercase tracking-[1.2px] text-center" style={{ fontSize: 15, color: "#4ade80", maxWidth: 140, lineHeight: 1.3 }}>
+                  {opponentJoinedName ?? "Opponent"}
+                </span>
+                <span className="font-bold uppercase tracking-[1.6875px] text-center" style={{ fontSize: 11.25, color: "rgba(74,222,128,0.75)" }}>
+                  Selecting...
+                </span>
+              </>
+            )}
           </div>
 
           <div className="absolute flex items-center justify-center" style={{ left: 78.05, top: 221.2, width: 56.25, height: 56.25 }}>
-            <span className="material-icons not-italic text-[#b9e7f4]" style={{ fontSize: 25.313 }}>visibility_off</span>
+            <span className="material-icons not-italic" style={{ fontSize: 25.313, color: opponentJoined ? "#4ade80" : "#b9e7f4" }}>
+              {opponentJoined ? "person" : "visibility_off"}
+            </span>
           </div>
 
           <div className="absolute" style={{ left: 39.52, top: 316.82 }}>
-            <span className="font-bold uppercase text-[#b9e7f4]" style={{ fontSize: 8.438, letterSpacing: 0.844 }}>
-              Opponent: Waiting...
+            <span className="font-bold uppercase" style={{ fontSize: 8.438, letterSpacing: 0.844, color: opponentJoined ? "#4ade80" : "#b9e7f4" }}>
+              {opponentJoined ? "Connected" : ""}
             </span>
           </div>
 

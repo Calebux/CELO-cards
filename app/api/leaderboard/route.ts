@@ -1,30 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readLeaderboard, recordMatchResult, PlayerEntry, BOT_PLAYERS } from "../../lib/leaderboard";
+import { readLeaderboard, PlayerEntry, BOT_PLAYERS } from "../../lib/leaderboard";
 
-// POST /api/leaderboard — record a match result
 export async function POST(req: NextRequest) {
-  let body: { playerAddress?: string; playerName?: string; won?: boolean; pointsEarned?: number; wagered?: boolean };
-  try {
-    body = await req.json() as typeof body;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const { playerAddress, playerName, won, pointsEarned = 0, wagered = false } = body;
-
-  if (!playerAddress || !/^0x[0-9a-fA-F]{40}$/.test(playerAddress)) {
-    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
-  }
-
-  await recordMatchResult({
-    playerAddress,
-    playerName,
-    won: !!won,
-    pointsEarned,
-    wagered,
-  });
-
-  return NextResponse.json({ ok: true });
+  void req;
+  return NextResponse.json({ error: "Leaderboard writes are server-managed" }, { status: 405 });
 }
 
 // GET /api/leaderboard?tab=casual|ranked&limit=50

@@ -16,6 +16,12 @@ const STEPS = [
     color: "#f97316",
   },
   {
+    icon: "🎫",
+    title: "Buy a Season Pass for Ranked",
+    body: "A Season Pass unlocks ranked access so you can play competitive matches without stopping to pay the match fee every time. Once active, you stay eligible for ranked rewards and tournaments during the pass period.",
+    color: "#fbbf24",
+  },
+  {
     icon: "⚡",
     title: "Cards Resolve by Priority",
     body: "Each slot's cards clash simultaneously. The card with higher Priority wins the slot and deals Knock damage. Ties go to the higher Knock value. Win more slots to win the round.",
@@ -30,7 +36,7 @@ const STEPS = [
   {
     icon: "📈",
     title: "Earn Points & Climb the Leaderboard",
-    body: "Ranked wins earn Points. Win streaks multiply your earnings (3+ wins = 1.5×, 5+ = 2×). Complete daily Challenges for bonus Points and G$ rewards. Top 16 qualify for the weekly Tournament.",
+    body: "Ranked wins earn Points. Win streaks multiply your earnings (3+ wins = 1.5×, 5+ = 2×). Complete daily Challenges for bonus Points and G$ rewards. Top players qualify for the weekly Tournament.",
     color: "#fbbf24",
   },
 ];

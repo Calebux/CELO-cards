@@ -3,32 +3,28 @@ import { createPublicClient, createWalletClient, http, formatUnits } from "viem"
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { redis, getMatch } from "../../lib/redis";
-import { ServerMatch } from "../match/[matchId]/route";
 import {
   ERC20_ABI, CUSD_CONTRACT,
   PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO,
-  DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO,
 } from "../../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
 import {
   GDOLLAR_CONTRACT,
   GDOLLAR_ABI,
-  PAYOUT_AMOUNT_GDOLLAR,
   CFA_FORWARDER,
   CFA_FORWARDER_ABI,
   STREAM_FLOW_RATE,
-  STREAM_FLOW_RATE_DUAL,
 } from "../../lib/gooddollar";
+import { ServerMatch } from "../../lib/serverMatch";
 
 interface MatchWagerInfo {
   bothWagered: boolean;
   winnerPayout: bigint;
 }
 
-async function getMatchWagerInfo(matchId: string): Promise<MatchWagerInfo> {
+function getMatchWagerInfo(match: ServerMatch): MatchWagerInfo {
   try {
-    const match = await getMatch<ServerMatch>(matchId);
-    if (!match?.hostWagerTx || !match?.joinerWagerTx) return { bothWagered: false, winnerPayout: 0n };
+    if (!match.hostWagerTx || !match.joinerWagerTx) return { bothWagered: false, winnerPayout: 0n };
     const hostAmt   = BigInt(match.hostWagerAmount   ?? "0");
     const joinerAmt = BigInt(match.joinerWagerAmount ?? "0");
     const pot = hostAmt + joinerAmt;
@@ -41,7 +37,7 @@ async function getMatchWagerInfo(matchId: string): Promise<MatchWagerInfo> {
 const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
 // POST /api/payout
-// Body: { winner: `0x${string}`, matchId: string, currency?: string }
+// Body: { matchId: string, currency?: string }
 // Returns: { txHash: string, streaming?: boolean }
 export async function POST(req: NextRequest) {
   const treasuryKey = process.env.TREASURY_PRIVATE_KEY;
@@ -49,26 +45,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Treasury not configured" }, { status: 500 });
   }
 
-  let winner: `0x${string}`;
   let matchId: string;
   let currency: "cusd" | "celo" | "gdollar" = "cusd";
-  let mult = 1n;
   try {
-    const body = await req.json() as { winner: string; matchId: string; currency?: string; multiplier?: number };
-    if (!body.winner || !body.matchId) throw new Error("missing fields");
-    winner = body.winner as `0x${string}`;
+    const body = await req.json() as { matchId: string; currency?: string };
+    if (!body.matchId) throw new Error("missing fields");
     matchId = body.matchId;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
-    // Clamp multiplier to 1 or 2 (double-down)
-    if (typeof body.multiplier === "number" && body.multiplier >= 2) mult = 2n;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
-
-  // Basic address validation
-  if (!/^0x[0-9a-fA-F]{40}$/.test(winner)) {
-    return NextResponse.json({ error: "Invalid winner address" }, { status: 400 });
   }
 
   // Idempotency — prevent double payout for the same match
@@ -78,8 +64,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ txHash: existingPayout, cached: true });
   }
 
+  const match = await getMatch<ServerMatch>(matchId);
+  if (!match) {
+    return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  }
+  if (match.mode !== "wager") {
+    return NextResponse.json({ error: "Payouts are only available for wager matches" }, { status: 409 });
+  }
+  if (!match.completedAt || !match.winnerAddress) {
+    return NextResponse.json({ error: "Match is not ready for payout" }, { status: 409 });
+  }
+  const winner = match.winnerAddress as `0x${string}`;
+
   // Check if both players wagered and get the actual payout amount from their stakes
-  const { bothWagered, winnerPayout: dualPayout } = await getMatchWagerInfo(matchId);
+  const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(match);
 
   try {
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);
@@ -112,13 +110,13 @@ export async function POST(req: NextRequest) {
           GDOLLAR_CONTRACT,
           account.address,
           winner,
-          baseFlowRate * mult,
+          baseFlowRate,
           "0x",
         ],
       });
       txHash = await walletClient.writeContract(request);
       const payoutTag = bothWagered ? "dual-wager" : "solo";
-      console.log(`Payout ${matchId} [${payoutTag}]: G$ stream started to ${winner} @ ${baseFlowRate * mult} wei/sec (×${mult}) — tx ${txHash}`);
+      console.log(`Payout ${matchId} [${payoutTag}]: G$ stream started to ${winner} @ ${baseFlowRate} wei/sec — tx ${txHash}`);
       // Note: stream auto-expires on Superfluid after the token balance is drained;
       // serverless setTimeout cannot be used here (function lifetime too short).
       await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
@@ -138,12 +136,12 @@ export async function POST(req: NextRequest) {
       console.log(`Payout ${matchId}: completeMatch(${winner}) — tx ${txHash}`);
     } else if (currency === "celo") {
       // Native CELO direct transfer
-      const celoAmt = (bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO) * mult;
+      const celoAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO;
       txHash = await walletClient.sendTransaction({ to: winner, value: celoAmt });
-      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct CELO ${formatUnits(celoAmt, 18)} (×${mult}) to ${winner} — tx ${txHash}`);
+      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct CELO ${formatUnits(celoAmt, 18)} to ${winner} — tx ${txHash}`);
     } else {
       // cUSD direct transfer
-      const cusdAmt = (bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT) * mult;
+      const cusdAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT;
       const { request } = await publicClient.simulateContract({
         account,
         address: CUSD_CONTRACT,
@@ -152,7 +150,7 @@ export async function POST(req: NextRequest) {
         args: [winner, cusdAmt],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct transfer ${formatUnits(cusdAmt, 18)} cUSD (×${mult}) to ${winner} — tx ${txHash}`);
+      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct transfer ${formatUnits(cusdAmt, 18)} cUSD to ${winner} — tx ${txHash}`);
     }
 
     // Record payout so it can't be triggered twice
@@ -165,4 +163,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WagerModal } from "../components/WagerModal";
-import { SeasonPassModal } from "../components/SeasonPassModal";
 
 const OPPONENT_WARN_MS  = 60_000;
 const OPPONENT_ABORT_MS = 90_000;
@@ -14,8 +12,8 @@ export default function Lobby() {
   const router = useRouter();
   const {
     selectedCharacter, opponentCharacter, matchId, playerRole,
-    wagerActive, wagerCurrency, opponentName,
-    setOpponentCharacterFromServer, setOpponentWagered, setWager,
+    wagerActive, wagerCurrency, opponentName, matchMode,
+    setOpponentCharacterFromServer, setOpponentWagered,
   } = useGameStore();
 
   const [p1Ready, setP1Ready] = useState(false);
@@ -25,72 +23,23 @@ export default function Lobby() {
   const [netErrorCount, setNetErrorCount] = useState(0);
   const waitStartRef = useRef<number | null>(null);
   // For multiplayer: don't start the auto-ready timer until the first poll
-  // comes back so wagerRequired is known — prevents a race on slow networks
+  // comes back so paymentRequired is known — prevents a race on slow networks
   const [firstPollDone, setFirstPollDone] = useState(!playerRole || !matchId);
 
-  // Ranked / wager payment gate
-  const [wagerRequired, setWagerRequired] = useState<boolean | null>(null);
+  // Entry gate
+  const [paymentRequired, setPaymentRequired] = useState<boolean | null>(null);
   // Host who already paid in create page starts as selfPaid
   const [selfPaid, setSelfPaid] = useState(() => !!(wagerActive && playerRole === "host"));
   const [opponentPaid, setOpponentPaid] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [opponentAbandoned, setOpponentAbandoned] = useState(false);
   const [payWaitMs, setPayWaitMs] = useState(0);
+  const [rankedEntryError, setRankedEntryError] = useState<string | null>(null);
   const payWaitStartRef = useRef<number | null>(null);
 
-  const { address } = useAccount();
-  const [hasSeasonPass, setHasSeasonPass] = useState(false);
-  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
-  const [passEntryState, setPassEntryState] = useState<"idle" | "entering" | "done" | "error">("idle");
-  const [passEntryError, setPassEntryError] = useState("");
   // Refs so the polling interval always reads current values (avoids stale closures)
   const selfPaidRef      = useRef(false);
-  const passEntryRef     = useRef<"idle" | "entering" | "done" | "error">("idle");
-
-  // Check season pass status when address is known
-  const checkSeasonPass = useCallback(async (addr: string) => {
-    try {
-      const res = await fetch(`/api/season-pass?address=${addr}`);
-      const data = await res.json() as { active: boolean };
-      setHasSeasonPass(data.active);
-      return data.active;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // Called when pass is detected — server enters the match on-chain via treasury
-  const enterWithSeasonPass = useCallback(async (addr: string, mId: string, role: string) => {
-    passEntryRef.current = "entering";
-    setPassEntryState("entering");
-    setPassEntryError("");
-    try {
-      const res = await fetch("/api/season-pass/enter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: addr, matchId: mId, role }),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error?: string };
-        throw new Error(err.error ?? "Entry failed");
-      }
-      const data = await res.json() as { txHash?: string };
-      passEntryRef.current = "done";
-      setPassEntryState("done");
-      selfPaidRef.current = true;
-      setSelfPaid(true);
-      // Mark as wagered in the store so gameplay/payout use the correct currency (CELO/ranked)
-      setWager(true, data.txHash ?? null, "celo", "ranked");
-    } catch (e) {
-      passEntryRef.current = "error";
-      setPassEntryState("error");
-      setPassEntryError(e instanceof Error ? e.message : "Season pass entry failed");
-    }
-  }, [setWager]);
-
-  useEffect(() => {
-    if (address) void checkSeasonPass(address);
-  }, [address, checkSeasonPass]);
+  const rankedEntryFiredRef = useRef(false);
 
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
@@ -116,7 +65,7 @@ export default function Lobby() {
           phase?:           string;
           opponentWagered?: boolean;
           selfWagered?:     boolean;
-          wagerRequired?:   boolean;
+          paymentRequired?: boolean;
           abortedBy?:       "host" | "joiner" | null;
         };
         setNetErrorCount(0);
@@ -130,15 +79,10 @@ export default function Lobby() {
         }
 
         // Payment gate — use refs to avoid stale closure values
-        if (data.wagerRequired != null) {
-          setWagerRequired(data.wagerRequired);
-          if (data.wagerRequired && !data.selfWagered && !selfPaidRef.current) {
-            const passActive = address ? await checkSeasonPass(address) : false;
-            if (passActive && matchId && playerRole && passEntryRef.current === "idle") {
-              void enterWithSeasonPass(address!, matchId, playerRole);
-            } else if (!passActive) {
-              setShowPayModal(true);
-            }
+        if (data.paymentRequired != null) {
+          setPaymentRequired(data.paymentRequired);
+          if (data.paymentRequired && !data.selfWagered && !selfPaidRef.current) {
+            setShowPayModal(true);
           }
           if (data.selfWagered) {
             selfPaidRef.current = true;
@@ -147,7 +91,7 @@ export default function Lobby() {
         }
 
         // Opponent abandoned after self paid
-        if (data.abortedBy && data.abortedBy !== playerRole && selfPaid && wagerRequired) {
+        if (data.abortedBy && data.abortedBy !== playerRole && selfPaid && paymentRequired) {
           setOpponentAbandoned(true);
           clearInterval(poll);
           clearInterval(waitTick);
@@ -161,7 +105,7 @@ export default function Lobby() {
 
         if (data.opponentCharId) {
           setOpponentCharacterFromServer(data.opponentCharId);
-          if (!data.wagerRequired || data.opponentWagered) {
+          if (!data.paymentRequired || data.opponentWagered) {
             setP2Ready(true);
             clearInterval(poll);
             clearInterval(waitTick);
@@ -180,14 +124,14 @@ export default function Lobby() {
   }, [playerRole, matchId]);
 
   // Auto-ready P1 after 3s — but only AFTER the first poll confirms
-  // wagerRequired status (prevents racing the poll on slow networks).
+  // paymentRequired status (prevents racing the poll on slow networks).
   // Solo matches skip polling so firstPollDone starts true for them.
   useEffect(() => {
     if (!firstPollDone) return;
-    if (wagerRequired === true) return;
+    if (paymentRequired === true) return;
     const t = setTimeout(() => setP1Ready(true), 3000);
     return () => clearTimeout(t);
-  }, [wagerRequired, firstPollDone]);
+  }, [paymentRequired, firstPollDone]);
 
   // Ranked: once selfPaid, mark P1 ready + sync ref
   useEffect(() => {
@@ -197,15 +141,45 @@ export default function Lobby() {
     }
   }, [selfPaid]);
 
+  useEffect(() => {
+    if (!showPayModal || selfPaid || matchMode !== "ranked" || !matchId || !playerRole) return;
+    if (rankedEntryFiredRef.current) return;
+
+    const address = useGameStore.getState().playerAddress;
+    if (!address) {
+      setRankedEntryError("Wallet not connected.");
+      return;
+    }
+
+    rankedEntryFiredRef.current = true;
+    setRankedEntryError(null);
+
+    void fetch("/api/season-pass/enter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, matchId, role: playerRole }),
+    })
+      .then(async (res) => {
+        const data = await res.json() as { txHash?: string; error?: string };
+        if (!res.ok || data.error) throw new Error(data.error ?? "Ranked entry failed");
+        setSelfPaid(true);
+        setShowPayModal(false);
+      })
+      .catch((e) => {
+        rankedEntryFiredRef.current = false;
+        setRankedEntryError(e instanceof Error ? e.message : "Ranked entry failed");
+      });
+  }, [showPayModal, selfPaid, matchMode, matchId, playerRole]);
+
   // Track how long we've been waiting for opponent to pay
   useEffect(() => {
-    if (!selfPaid || opponentPaid || !wagerRequired) return;
+    if (!selfPaid || opponentPaid || !paymentRequired) return;
     payWaitStartRef.current = Date.now();
     const t = setInterval(() => {
       if (payWaitStartRef.current) setPayWaitMs(Date.now() - payWaitStartRef.current);
     }, 1000);
     return () => clearInterval(t);
-  }, [selfPaid, opponentPaid, wagerRequired]);
+  }, [selfPaid, opponentPaid, paymentRequired]);
 
   // Once opponent paid and their character is already in store, set P2 ready
   useEffect(() => {
@@ -229,11 +203,15 @@ export default function Lobby() {
 
   // ── Status label text ───────────────────────────────────────────────────
   const statusLabel = !p1Ready
-    ? wagerRequired ? "WAITING FOR PAYMENT…" : "GETTING READY…"
+    ? paymentRequired
+      ? matchMode === "ranked" ? "STARTING RANKED ENTRY…" : "WAITING FOR PAYMENT…"
+      : "GETTING READY…"
     : !p2Ready
       ? opponentWaitMs > OPPONENT_WARN_MS
         ? "OPPONENT NOT RESPONDING…"
-        : "WAITING FOR OPPONENT…"
+        : paymentRequired && matchMode === "ranked"
+          ? "WAITING FOR OPPONENT ENTRY…"
+          : "WAITING FOR OPPONENT…"
       : countdown !== null && countdown > 0
         ? `MATCH STARTS IN ${countdown}`
         : "LAUNCHING…";
@@ -494,7 +472,7 @@ export default function Lobby() {
       )}
 
       {/* ── Opponent timeout / leave ─────────────────────────────────────── */}
-      {playerRole && !p2Ready && opponentWaitMs >= OPPONENT_WARN_MS && !opponentAbandoned && (
+      {playerRole && !p2Ready && opponentWaitMs >= OPPONENT_WARN_MS && !opponentAbandoned && !(paymentRequired && selfPaid && !opponentPaid) && (
         <div style={{
           position: "absolute", bottom: opponentWaitMs >= OPPONENT_ABORT_MS ? 40 : 50,
           left: "50%", transform: "translateX(-50%)",
@@ -524,52 +502,8 @@ export default function Lobby() {
         </div>
       )}
 
-      {/* ── Season pass on-chain entry status ────────────────────────────── */}
-      {passEntryState === "entering" && (
-        <div style={{
-          position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)",
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "12px 24px", borderRadius: 8,
-          background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)",
-        }}>
-          <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite", color: "#fbbf24", fontSize: 14 }}>●</span>
-          <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
-            Entering match via season pass…
-          </span>
-        </div>
-      )}
-      {passEntryState === "error" && (
-        <div style={{
-          position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)",
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-          padding: "12px 24px", borderRadius: 8,
-          background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)",
-        }}>
-          <span style={{ fontSize: 12, color: "#f87171", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
-            Season pass entry failed
-          </span>
-          <span style={{ fontSize: 11, color: "rgba(248,113,113,0.7)" }}>{passEntryError}</span>
-          <button
-            onClick={() => {
-              if (address && matchId && playerRole) {
-                setPassEntryState("idle");
-                void enterWithSeasonPass(address, matchId, playerRole);
-              }
-            }}
-            style={{
-              padding: "5px 16px", borderRadius: 5, cursor: "pointer",
-              background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.4)",
-              fontSize: 11, fontWeight: 700, color: "#f87171", fontFamily: "inherit",
-              letterSpacing: 1, textTransform: "uppercase",
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
       {/* ── Waiting for opponent to pay ──────────────────────────────────── */}
-      {wagerRequired && selfPaid && !opponentPaid && !opponentAbandoned && (
+      {paymentRequired && selfPaid && !opponentPaid && !opponentAbandoned && (
         <div style={{
           position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)",
           display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
@@ -580,7 +514,7 @@ export default function Lobby() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className="material-icons" style={{ color: "#f59e0b", fontSize: 16 }}>hourglass_empty</span>
             <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
-              Waiting for opponent to pay…
+              {matchMode === "ranked" ? "Waiting for opponent entry…" : "Waiting for opponent to pay…"}
             </span>
           </div>
           {payWaitMs >= 90_000 && (
@@ -606,6 +540,37 @@ export default function Lobby() {
               Leave Match
             </button>
           )}
+        </div>
+      )}
+
+      {rankedEntryError && (
+        <div style={{
+          position: "absolute", bottom: 50, left: "50%", transform: "translateX(-50%)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+          padding: "14px 18px",
+          background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)",
+          borderRadius: 8, maxWidth: 420,
+        }}>
+          <div style={{ fontSize: 12, color: "#f87171", fontWeight: 700, letterSpacing: 0.4, textAlign: "center" }}>
+            Ranked entry failed: {rankedEntryError}
+          </div>
+          <button
+            onClick={() => {
+              rankedEntryFiredRef.current = false;
+              setRankedEntryError(null);
+              setShowPayModal(false);
+              setTimeout(() => setShowPayModal(true), 0);
+            }}
+            style={{
+              padding: "7px 18px",
+              background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.35)",
+              borderRadius: 6, cursor: "pointer",
+              fontSize: 11, fontWeight: 700, color: "#b9e7f4",
+              fontFamily: "inherit", letterSpacing: 1.2, textTransform: "uppercase",
+            }}
+          >
+            Retry Ranked Entry
+          </button>
         </div>
       )}
 
@@ -644,69 +609,22 @@ export default function Lobby() {
         </div>
       )}
 
-      {/* ── Ranked payment modal ─────────────────────────────────────────── */}
-      {showPayModal && !selfPaid && (
-        <>
-          <WagerModal
-            mode="ranked"
-            lockedAmount="0.000007"
-            onConfirmed={() => {
-              setSelfPaid(true);
-              setShowPayModal(false);
-            }}
-            onSkip={() => {
-              if (matchId && playerRole) {
-                void fetch(`/api/match/${matchId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "quit", role: playerRole }),
-                });
-              }
-              router.replace("/");
-            }}
-          />
-          {/* Season pass upsell — floats below the WagerModal */}
-          <div style={{
-            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
-            zIndex: 9999,
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "10px 20px", borderRadius: 30,
-            backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
-            boxShadow: "0 0 20px rgba(251,191,36,0.1)",
-          }}>
-            <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Tired of paying every match?</span>
-            <button
-              onClick={() => setShowSeasonPassModal(true)}
-              style={{
-                background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
-                border: "1px solid rgba(251,191,36,0.5)",
-                borderRadius: 20, padding: "5px 14px", cursor: "pointer",
-                fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
-                textTransform: "uppercase", fontFamily: "inherit",
-              }}
-            >
-              ⚡ Get Season Pass
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* ── Season Pass Modal ─────────────────────────────────────────────── */}
-      {showSeasonPassModal && (
-        <SeasonPassModal
-          onClose={() => setShowSeasonPassModal(false)}
-          onActivated={() => {
-            setHasSeasonPass(true);
-            setShowSeasonPassModal(false);
+      {/* ── Wager payment modal ──────────────────────────────────────────── */}
+      {showPayModal && !selfPaid && matchMode === "wager" && (
+        <WagerModal
+          onConfirmed={() => {
+            setSelfPaid(true);
             setShowPayModal(false);
-            // If in an active ranked match, enter the Arena contract via season pass
-            if (matchId && playerRole && address && passEntryRef.current === "idle") {
-              void enterWithSeasonPass(address, matchId, playerRole);
-            } else {
-              // Solo or non-ranked — just mark paid
-              selfPaidRef.current = true;
-              setSelfPaid(true);
+          }}
+          onSkip={() => {
+            if (matchId && playerRole) {
+              void fetch(`/api/match/${matchId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "quit", role: playerRole }),
+              });
             }
+            router.replace("/");
           }}
         />
       )}

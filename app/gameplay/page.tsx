@@ -47,8 +47,6 @@ export default function Gameplay() {
     wagerActive,
     wagerCurrency,
     winStreak,
-    wagerMultiplier,
-    setWagerMultiplier,
     opponentWagered,
     ultimateActivated,
     ultimateUsed,
@@ -61,7 +59,7 @@ export default function Gameplay() {
     opponentName,
     startMatch,
     autoLockOrder,
-    wagerMode,
+    matchMode,
     setVsBot,
     setWager,
   } = useGameStore();
@@ -91,13 +89,12 @@ export default function Gameplay() {
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
   const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
-  const [showDoubleDown, setShowDoubleDown] = useState(false);
-  const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
   const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
+  const payoutFiredRef = useRef(false);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -109,24 +106,6 @@ export default function Gameplay() {
     stuckTimerRef.current = setTimeout(() => setGameStuck(true), 90_000);
     return () => { if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current); };
   }, [revealedSlots, isAnimating, showResult, matchPhase]);
-
-  // Double-down prompt: show after round 1 completes if wagerActive and multiplier=1
-  useEffect(() => {
-    if (matchPhase === "round-result" && roundNumber === 1 && wagerActive && wagerMultiplier === 1) {
-      setShowDoubleDown(true);
-      setDoubleDownTimer(10);
-    } else {
-      setShowDoubleDown(false);
-    }
-  }, [matchPhase, roundNumber, wagerActive, wagerMultiplier]);
-
-  // Double-down countdown timer
-  useEffect(() => {
-    if (!showDoubleDown) return;
-    if (doubleDownTimer <= 0) { setShowDoubleDown(false); return; }
-    const t = setInterval(() => setDoubleDownTimer((n) => n - 1), 1000);
-    return () => clearInterval(t);
-  }, [showDoubleDown, doubleDownTimer]);
 
   // Brief cinematic loading screen before match starts
   useEffect(() => {
@@ -312,13 +291,13 @@ export default function Gameplay() {
   };
 
   const handleClaimPayout = async () => {
-    if (!address || !matchId || payoutState !== "idle") return;
+    if (!address || !matchId || payoutState !== "idle" || matchMode !== "wager") return;
     setPayoutState("loading");
     try {
       const res = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ winner: address, matchId, currency: wagerCurrency, multiplier: wagerMultiplier }),
+        body: JSON.stringify({ matchId, currency: wagerCurrency }),
       });
       const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");
@@ -330,18 +309,10 @@ export default function Gameplay() {
     }
   };
 
-  // Record match result on leaderboard + sync achievements (fire-and-forget)
+  // Sync achievements/challenges after a multiplayer or house match completes.
   useEffect(() => {
     if (matchPhase !== "match-end" || !address) return;
-    const isVsHouse = matchId?.startsWith("AO-H-");
-    if (isVsHouse) return; // Server handles leaderboard for solo matches
-    
     const won = playerRoundsWon > opponentRoundsWon;
-    void fetch("/api/leaderboard", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerAddress: address, playerName: playerName || undefined, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
-    });
     const ACHIEVEMENT_META: Record<string, { name: string; icon: string }> = {
       first_blood:  { name: "First Blood",   icon: "🩸" },
       warrior:      { name: "Warrior",        icon: "⚔️" },
@@ -400,6 +371,16 @@ export default function Gameplay() {
     ).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchPhase]);
+
+  // Auto-trigger payout when a wager match ends and the local player wins.
+  useEffect(() => {
+    if (matchPhase !== "match-end" || !wagerActive || !address || !matchId || matchMode !== "wager") return;
+    const won = playerRoundsWon > opponentRoundsWon;
+    if (!won || payoutFiredRef.current) return;
+    payoutFiredRef.current = true;
+    void handleClaimPayout();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchMode, matchPhase]);
 
   const handleBackToMenu = () => {
     playSound(isMatchEnd ? "gameOver" : "click");
@@ -544,54 +525,6 @@ export default function Gameplay() {
             <span style={{ fontSize: 18, fontWeight: 900, color: "#000", letterSpacing: 2 }}>
               {comboBanner === "player" ? "🔥 COMBO STREAK! +3" : "🔥 OPPONENT COMBO! +3"}
             </span>
-          </div>
-        )}
-
-        {/* Double-down overlay */}
-        {showDoubleDown && (
-          <div style={{
-            position: "absolute", inset: 0, zIndex: 90,
-            background: "rgba(0,0,0,0.75)",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            gap: 20,
-          }}>
-            <div style={{
-              background: "rgba(10,15,30,0.97)",
-              border: "2px solid #f59e0b",
-              borderRadius: 12,
-              padding: "40px 56px",
-              textAlign: "center",
-              boxShadow: "0 0 60px rgba(245,158,11,0.4)",
-              maxWidth: 480,
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>WAGER OFFER</div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: "#f1f5f9", marginBottom: 8, letterSpacing: -1 }}>Double Down?</div>
-              <p style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.6, margin: "0 0 24px" }}>
-                Double your wager for twice the reward. You have {doubleDownTimer}s to decide.
-              </p>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  onClick={() => { setWagerMultiplier(2); setShowDoubleDown(false); }}
-                  style={{
-                    flex: 1, padding: "14px", borderRadius: 8, cursor: "pointer",
-                    background: "linear-gradient(135deg, #92400e, #78350f)",
-                    border: "2px solid #f59e0b",
-                    fontWeight: 900, fontSize: 15, color: "#fbbf24", letterSpacing: 2, textTransform: "uppercase",
-                    fontFamily: "inherit",
-                  }}
-                >⚡ DOUBLE IT</button>
-                <button
-                  onClick={() => setShowDoubleDown(false)}
-                  style={{
-                    flex: 1, padding: "14px", borderRadius: 8, cursor: "pointer",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "2px solid rgba(255,255,255,0.12)",
-                    fontWeight: 700, fontSize: 15, color: "#94a3b8", letterSpacing: 1, textTransform: "uppercase",
-                    fontFamily: "inherit",
-                  }}
-                >PASS</button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -1268,35 +1201,14 @@ export default function Gameplay() {
                     <p style={{ fontSize: 22, fontWeight: 800, color: accentColor, margin: 0, textShadow: `0 0 12px ${accentGlow}` }}>{playerPoints} PTS</p>
                   </div>
 
-                  {/* Wager payout — only shown when player wagered, won, AND it's a wager match (not ranked) */}
-                  {wagerActive && won && wagerMode === "wager" && (
+                  {/* Payout — wager matches only. */}
+                  {matchMode === "wager" && wagerActive && won && (
                     <div style={{ marginBottom: 20 }}>
-                      {payoutState === "idle" && (
-                        <button
-                          onClick={() => void handleClaimPayout()}
-                          style={{
-                            width: "100%", padding: "14px 0",
-                            background: isGDollar
-                              ? "linear-gradient(135deg, rgba(0,197,142,0.15), rgba(0,197,142,0.05))"
-                              : "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
-                            border: `1.5px solid ${isGDollar ? "#00C58E" : "#4ade80"}`,
-                            borderRadius: 6, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          <span className="material-icons" style={{ fontSize: 20, color: isGDollar ? "#00C58E" : "#4ade80" }}>
-                            {isGDollar ? "stream" : "payments"}
-                          </span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: isGDollar ? "#00C58E" : "#4ade80", textTransform: "uppercase", letterSpacing: 3 }}>
-                            {isGDollar ? "Stream G$ Winnings" : `Claim ${payoutAmountDisplay}`}
-                          </span>
-                        </button>
-                      )}
-                      {payoutState === "loading" && (
-                        <div style={{ textAlign: "center", padding: "14px 0" }}>
+                      {(payoutState === "idle" || payoutState === "loading") && (
+                        <div style={{ textAlign: "center", padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, animation: "ml-pulse 1.2s ease-in-out infinite", color: isGDollar ? "#00C58E" : "#b9e7f4" }}>●</span>
                           <span style={{ fontSize: 13, color: isGDollar ? "#00C58E" : "#b9e7f4", letterSpacing: 1 }}>
-                            {isGDollar ? "Starting G$ stream via Superfluid…" : "Sending payout…"}
+                            {isGDollar ? "Starting G$ stream via Superfluid…" : "Sending winnings…"}
                           </span>
                         </div>
                       )}
@@ -1305,9 +1217,13 @@ export default function Gameplay() {
                           <span style={{ fontSize: 13, color: "#4ade80", letterSpacing: 0.5 }}>
                             ✓ {payoutAmountDisplay} sent!{" "}
                             {payoutTxHash && (
-                              <span style={{ fontSize: 11, color: "#6b7280", wordBreak: "break-all" }}>
-                                tx: {payoutTxHash.slice(0, 14)}…
-                              </span>
+                              <a
+                                href={`https://celoscan.io/tx/${payoutTxHash}`}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: 11, color: "#56a4cb", textDecoration: "underline" }}
+                              >
+                                View on Celoscan ↗
+                              </a>
                             )}
                           </span>
                         </div>
@@ -1322,7 +1238,7 @@ export default function Gameplay() {
                             {payoutAmountDisplay} flowing over 24h via Superfluid.{" "}
                             {payoutTxHash && (
                               <a
-                                href={`https://explorer.celo.org/mainnet/tx/${payoutTxHash}`}
+                                href={`https://celoscan.io/tx/${payoutTxHash}`}
                                 target="_blank" rel="noopener noreferrer"
                                 style={{ color: "#00C58E", textDecoration: "underline" }}
                               >
@@ -1336,7 +1252,7 @@ export default function Gameplay() {
                         <div style={{ textAlign: "center", padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 12, color: "#f87171" }}>Payout failed — please try again.</span>
                           <button
-                            onClick={() => { setPayoutState("idle"); void handleClaimPayout(); }}
+                            onClick={() => { payoutFiredRef.current = false; setPayoutState("idle"); void handleClaimPayout(); }}
                             style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.4)", borderRadius: 6, padding: "6px 16px", color: "#f87171", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                           >
                             RETRY PAYOUT
@@ -1424,11 +1340,9 @@ export default function Gameplay() {
                     {/* Rematch — ranked goes to character select, others go to loadout */}
                     <button
                       onClick={() => {
-                        if (wagerMode === "ranked") {
+                        if (matchMode === "ranked" || matchMode === "tournament") {
                           resetMatch();
-                          setVsBot(true);
-                          setWager(false, null, "cusd", "ranked");
-                          router.push("/select-character");
+                          router.push("/create");
                         } else {
                           rematch();
                           router.push("/loadout");

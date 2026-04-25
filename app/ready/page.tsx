@@ -30,6 +30,8 @@ function ReadyYourDeck() {
   const wagerActive    = useGameStore((s) => s.wagerActive);
   const playerRole     = useGameStore((s) => s.playerRole);
   const playerName     = useGameStore((s) => s.playerName);
+  const playerAddress  = useGameStore((s) => s.playerAddress);
+  const matchMode      = useGameStore((s) => s.matchMode);
 
   useEffect(() => {
     const scale = () => {
@@ -63,14 +65,14 @@ function ReadyYourDeck() {
       void fetch(`/api/match/${storeMatchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, wagerRequired: isRanked }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: isRanked ? "ranked" : matchMode }),
       }).catch(() => {});
     };
     ping(); // immediate ping — creates match in Redis and adds to open matches
     const id = setInterval(ping, 60_000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeMatchId]);
+  }, [isRanked, matchMode, playerAddress, playerName, storeMatchId]);
 
   // Poll for joiner — when found, redirect host to character select (payment happens in lobby)
   useEffect(() => {

@@ -6,34 +6,8 @@ import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatches } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
-
-// ── Types ──────────────────────────────────────────────────────────────────
-
-interface PlayerSlot {
-  charId: string | null;
-  playerName: string | null;
-  address: string | null;
-  cardIds: string[] | null;
-  orderRound: number;
-}
-
-export interface ServerMatch {
-  id: string;
-  createdAt: number;
-  lastActivity: number;
-  host: PlayerSlot;
-  joiner: PlayerSlot;
-  round: number;
-  hostWins: number;
-  joinerWins: number;
-  resolvedSlots: SlotResult[] | null;
-  hostWagerTx:      string | null;
-  joinerWagerTx:    string | null;
-  hostWagerAmount:  string | null;
-  joinerWagerAmount: string | null;
-  abortedBy:       "host" | "joiner" | null;
-  wagerRequired:   boolean; // ranked match — fee required from both players
-}
+import { MultiplayerMode, isPaidMultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
+import { ServerMatch, newServerMatch, matchNeedsPayment } from "../../../lib/serverMatch";
 
 const INACTIVITY_TIMEOUT      = 5  * 60 * 1000; // 5 minutes (free matches)
 const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes (paid matches)
@@ -41,38 +15,20 @@ const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes (paid matches)
 function isTimedOut(match: ServerMatch): boolean {
   const bothJoined = match.host.charId && match.joiner.charId;
   if (bothJoined) return false;
-  const anyPaid = !!(match.hostWagerTx || match.joinerWagerTx || match.wagerRequired);
-  const timeout = anyPaid ? WAGER_INACTIVITY_TIMEOUT : INACTIVITY_TIMEOUT;
+  const timeout = matchNeedsPayment(match) ? WAGER_INACTIVITY_TIMEOUT : INACTIVITY_TIMEOUT;
   return Date.now() - match.lastActivity > timeout;
-}
-
-function emptySlot(): PlayerSlot {
-  return { charId: null, playerName: null, address: null, cardIds: null, orderRound: 0 };
 }
 
 function validRole(role: unknown): role is "host" | "joiner" {
   return role === "host" || role === "joiner";
 }
 
-function newMatch(matchId: string): ServerMatch {
-  const now = Date.now();
-  return {
-    id: matchId,
-    createdAt: now,
-    lastActivity: now,
-    host: emptySlot(),
-    joiner: emptySlot(),
-    round: 1,
-    hostWins: 0,
-    joinerWins: 0,
-    resolvedSlots: null,
-    hostWagerTx: null,
-    joinerWagerTx: null,
-    hostWagerAmount: null,
-    joinerWagerAmount: null,
-    abortedBy: null,
-    wagerRequired: false,
-  };
+function validMode(mode: unknown): mode is MultiplayerMode {
+  return mode === "wager" || mode === "ranked" || mode === "tournament";
+}
+
+function modeNeedsEntryTx(mode: MultiplayerMode): boolean {
+  return mode === "wager" || mode === "ranked";
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -108,8 +64,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   let match = await getMatch<ServerMatch>(matchId);
 
   if (!match) {
-    match = newMatch(matchId);
-    await setMatch(matchId, match);
+    return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
   if (isTimedOut(match)) {
@@ -147,7 +102,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     opponentWagered: role === "host" ? !!match.joinerWagerTx : !!match.hostWagerTx,
     hostWagerAmount: match.hostWagerAmount,
     abortedBy:       match.abortedBy ?? null,
-    wagerRequired:   match.wagerRequired ?? false,
+    mode:            match.mode,
+    paymentRequired: modeNeedsEntryTx(match.mode),
   });
 }
 
@@ -170,15 +126,16 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   let match: ServerMatch | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
-    match = await getMatch<ServerMatch>(matchId) ?? newMatch(matchId);
+    match = await getMatch<ServerMatch>(matchId) ?? newServerMatch(matchId);
     match.lastActivity = Date.now();
     if (role === "host") {
       match.host.charId = characterId;
       if (typeof playerName === "string") match.host.playerName = playerName;
       if (address) match.host.address = address;
-      // Save wager info if provided (host paid before character select)
-      if (typeof wagerTx === "string" && !match.hostWagerTx) match.hostWagerTx = wagerTx;
-      if (typeof wagerAmount === "string" && !match.hostWagerAmount) match.hostWagerAmount = wagerAmount;
+      if (match.mode === "wager") {
+        if (typeof wagerTx === "string" && !match.hostWagerTx) match.hostWagerTx = wagerTx;
+        if (typeof wagerAmount === "string" && !match.hostWagerAmount) match.hostWagerAmount = wagerAmount;
+      }
     } else {
       match.joiner.charId = characterId;
       if (typeof playerName === "string") match.joiner.playerName = playerName;
@@ -211,7 +168,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, wagerRequired: bodyWagerRequired } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, address: patchAddress, mode: requestedMode } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
@@ -219,7 +176,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     wagerTx?: string;
     wagerAmount?: string;
     playerName?: string;
-    wagerRequired?: boolean;
+    address?: string;
+    mode?: MultiplayerMode;
   };
 
   if (!validRole(role)) {
@@ -231,15 +189,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     let match = await getMatch<ServerMatch>(matchId);
     if (!match) {
       // Match doesn't exist yet — create it now so it appears in open matches
-      match = newMatch(matchId);
+      match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "wager");
     }
     match.lastActivity = Date.now();
-    // Store player name if host provides it before character selection
-    if (validRole(role) && role === "host" && typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
-      match.host.playerName = patchPlayerName;
+    // Store player name and address if host provides them before character selection
+    if (validRole(role) && role === "host") {
+      if (typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
+        match.host.playerName = patchPlayerName;
+      }
+      if (typeof patchAddress === "string" && patchAddress && !match.host.address) {
+        match.host.address = patchAddress;
+      }
     }
-    // Mark as ranked (fee required) if host signals it
-    if (bodyWagerRequired === true) match.wagerRequired = true;
+    if (validMode(requestedMode)) match.mode = requestedMode;
     await setMatch(matchId, match).catch(() => {});
     // Keep the match visible in open matches while waiting for a joiner
     if (validRole(role) && role === "host" && !match.joiner.charId) {
@@ -253,6 +215,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);
       if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      if (match.mode !== "wager") {
+        return NextResponse.json({ error: "Wager registration is only valid for wager matches" }, { status: 409 });
+      }
       if (role === "host") {
         match.hostWagerTx = wagerTx ?? null;
         match.hostWagerAmount = wagerAmount ?? null;
@@ -354,6 +319,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       else if (result.roundWinner === "opponent") m.joinerWins++;
 
       if (m.hostWins >= 3 || m.joinerWins >= 3) {
+        m.completedAt = Date.now();
+        m.winnerAddress = m.hostWins >= 3 ? m.host.address : m.joiner.address;
         matchEndSnapshot = { hostWon: m.hostWins >= 3, m: { ...m, host: { ...m.host }, joiner: { ...m.joiner } } };
       }
     }
@@ -375,47 +342,47 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const { hostWon, m } = matchEndSnapshot;
     const now = new Date().toISOString();
     try {
-      if (m.host.address) {
+      if (m.host.address && isRankedMultiplayerMode(m.mode)) {
         await recordMatchResult({
           playerAddress: m.host.address,
           playerName: m.host.playerName || undefined,
           won: hostWon,
           pointsEarned: hostWon ? 150 : 25,
-          wagered: !!m.hostWagerTx,
+          leaderboard: "ranked",
         });
-        if (m.host.charId && m.joiner.charId) {
-          await recordMatchHistory(m.host.address, {
-            id: matchId,
-            date: now,
-            playerCharId: m.host.charId,
-            opponentCharId: m.joiner.charId,
-            outcome: hostWon ? "win" : "loss",
-            pointsEarned: hostWon ? 150 : 25,
-            playerRoundsWon: m.hostWins,
-            opponentRoundsWon: m.joinerWins,
-          });
-        }
       }
-      if (m.joiner.address) {
+      if (m.host.address && m.host.charId && m.joiner.charId) {
+        await recordMatchHistory(m.host.address, {
+          id: matchId,
+          date: now,
+          playerCharId: m.host.charId,
+          opponentCharId: m.joiner.charId,
+          outcome: hostWon ? "win" : "loss",
+          pointsEarned: hostWon ? 150 : 25,
+          playerRoundsWon: m.hostWins,
+          opponentRoundsWon: m.joinerWins,
+        });
+      }
+      if (m.joiner.address && isRankedMultiplayerMode(m.mode)) {
         await recordMatchResult({
           playerAddress: m.joiner.address,
           playerName: m.joiner.playerName || undefined,
           won: !hostWon,
           pointsEarned: !hostWon ? 150 : 25,
-          wagered: !!m.joinerWagerTx,
+          leaderboard: "ranked",
         });
-        if (m.joiner.charId && m.host.charId) {
-          await recordMatchHistory(m.joiner.address, {
-            id: matchId,
-            date: now,
-            playerCharId: m.joiner.charId,
-            opponentCharId: m.host.charId,
-            outcome: hostWon ? "loss" : "win",
-            pointsEarned: hostWon ? 25 : 150,
-            playerRoundsWon: m.joinerWins,
-            opponentRoundsWon: m.hostWins,
-          });
-        }
+      }
+      if (m.joiner.address && m.joiner.charId && m.host.charId) {
+        await recordMatchHistory(m.joiner.address, {
+          id: matchId,
+          date: now,
+          playerCharId: m.joiner.charId,
+          opponentCharId: m.host.charId,
+          outcome: hostWon ? "loss" : "win",
+          pointsEarned: hostWon ? 25 : 150,
+          playerRoundsWon: m.joinerWins,
+          opponentRoundsWon: m.hostWins,
+        });
       }
     } catch {
       // Best-effort — leaderboard failure must not break the card submission

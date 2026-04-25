@@ -1,23 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useGameStore } from "../lib/gameStore";
+import { MatchMode, useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { useAccount } from "wagmi";
-import { playSound } from "../lib/soundManager";
-
-type QueueState =
-  | { status: "idle" }
-  | { status: "searching"; queueId: string; elapsedMs: number }
-  | { status: "found"; matchId: string; role: "host" | "joiner"; pendingPayment?: boolean };
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 type MatchType = "wager" | "ranked" | "tourney" | "vshouse";
+
+function toStoreMode(matchType: MatchType): MatchMode {
+  if (matchType === "tourney") return "tournament";
+  return matchType;
+}
 
 const MATCH_TYPES: {
   key: MatchType;
@@ -65,46 +64,23 @@ const MATCH_TYPES: {
   },
 ];
 
-const QUEUE_TTL_MS = 90_000; // mirrors server QUEUE_TTL of 90 seconds
-
 export default function CreateMatch() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("wager");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
-  const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
-  const [showRankedWager, setShowRankedWager] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
-  const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
-  const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const queueStartRef = useRef<number>(0);
+  const [hasSeasonPass, setHasSeasonPass] = useState(false);
+  const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
+  const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
-  const setMatchId = useGameStore((s) => s.setMatchId);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
-  const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
-  const setOpponentName = useGameStore((s) => s.setOpponentName);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
-  const storeMatchId = useGameStore((s) => s.matchId);
-  const storePlayerRole = useGameStore((s) => s.playerRole);
-  const storeWagerActive = useGameStore((s) => s.wagerActive);
   const { address } = useAccount();
-
-  // Fetch opponent username and store it
-  const fetchOpponentName = async (matchId: string, role: "host" | "joiner") => {
-    try {
-      const res = await fetch(`/api/match/${matchId}`);
-      const data = await res.json() as { opponentAddress?: string };
-      if (data.opponentAddress) {
-        const unRes = await fetch(`/api/username?address=${data.opponentAddress.toLowerCase()}`);
-        const unData = await unRes.json() as { username?: string | null };
-        setOpponentName(unData.username ?? data.opponentAddress.slice(0, 8) + "…");
-      }
-    } catch { /* non-critical */ }
-  };
 
   useEffect(() => {
     const fetchOnline = () => {
@@ -114,6 +90,14 @@ export default function CreateMatch() {
     const id = setInterval(fetchOnline, 15_000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/season-pass?address=${address}`)
+      .then(r => r.json())
+      .then((d: { active: boolean }) => setHasSeasonPass(d.active))
+      .catch(() => {});
+  }, [address]);
 
   useEffect(() => {
     const scale = () => {
@@ -140,118 +124,29 @@ export default function CreateMatch() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Tick elapsed time while searching
-  useEffect(() => {
-    if (queueState.status !== "searching") return;
-    const id = setInterval(() => {
-      setQueueState((prev) =>
-        prev.status === "searching"
-          ? { ...prev, elapsedMs: prev.elapsedMs + 1000 }
-          : prev
-      );
-    }, 1000);
-    return () => clearInterval(id);
-  }, [queueState.status]);
-
-  const cancelQueue = useCallback(async () => {
-    if (queueState.status !== "searching") return;
-    if (queuePollRef.current) clearInterval(queuePollRef.current);
-    await fetch(`/api/queue?id=${queueState.queueId}`, { method: "DELETE" }).catch(() => {});
-    setQueueState({ status: "idle" });
-  }, [queueState]);
-
-  // Try to enter a ranked match via season pass (treasury pays).
-  // Returns true and navigates to /select-character if successful.
-  const trySeasonPassEntry = useCallback(async (mId: string, role: "host" | "joiner") => {
-    if (!address) return false;
-    try {
-      const passRes = await fetch(`/api/season-pass?address=${address}`);
-      const passData = await passRes.json() as { active: boolean };
-      if (!passData.active) return false;
-
-      const enterRes = await fetch("/api/season-pass/enter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, matchId: mId, role }),
-      });
-      if (!enterRes.ok) return false;
-      const enterData = await enterRes.json() as { txHash?: string };
-
-      // Mark match wager-required so joiner is prompted
-      void fetch(`/api/match/${mId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role, wagerRequired: true }),
-      });
-
-      setWager(true, enterData.txHash ?? null, "celo", "ranked");
-      router.push("/select-character");
-      return true;
-    } catch {
-      return false;
-    }
-  }, [address, setWager, router]);
-
-  const handleFindMatch = async () => {
+  // FIND PLAYER: create match immediately, verify pass, proceed to character select.
+  // No queue wait — match appears in open games so opponents can join.
+  const handleFindMatch = () => {
     if (!address) return;
+    if (!hasSeasonPass) {
+      setShowSeasonPassModal(true);
+      return;
+    }
     resetMatch();
     setVsBot(false);
+    setMatchMode("ranked");
     setPlayerRole("host");
-    setQueueExpiredMsg(null);
-    queueStartRef.current = Date.now();
-    setQueueState({ status: "searching", queueId: "", elapsedMs: 0 });
 
-    try {
-      const res = await fetch("/api/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, ranked: true }),
-      });
-      const data = await res.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; queueId?: string };
+    const newMatchId = useGameStore.getState().matchId;
+    if (!newMatchId) return;
 
-      if (data.matched && data.matchId && data.role) {
-        playSound("matchFound");
-        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        setMatchId(data.matchId);
-        setPlayerRole(data.role);
-        setQueueState({ status: "found", matchId: data.matchId, role: data.role, pendingPayment: true });
-        void fetchOpponentName(data.matchId, data.role);
-        const usedPass = await trySeasonPassEntry(data.matchId, data.role);
-        if (!usedPass) setShowRankedWager(true);
-        return;
-      }
-
-      if (!data.queueId) { setQueueState({ status: "idle" }); return; }
-      setQueueState({ status: "searching", queueId: data.queueId, elapsedMs: 0 });
-
-      queuePollRef.current = setInterval(async () => {
-        try {
-          const pollRes = await fetch(`/api/queue?id=${data.queueId}`);
-          const pollData = await pollRes.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; expired?: boolean };
-
-          if (pollData.expired) {
-            clearInterval(queuePollRef.current!);
-            setQueueState({ status: "idle" });
-            setQueueExpiredMsg("No opponent found — hit Find Player to try again.");
-            return;
-          }
-
-          if (pollData.matched && pollData.matchId && pollData.role) {
-            clearInterval(queuePollRef.current!);
-            playSound("matchFound");
-            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
-            setMatchId(pollData.matchId);
-            setPlayerRole(pollData.role);
-            setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role, pendingPayment: true });
-            void fetchOpponentName(pollData.matchId, pollData.role);
-            const usedPass = await trySeasonPassEntry(pollData.matchId, pollData.role);
-            if (!usedPass) setShowRankedWager(true);
-          }
-        } catch { /* ignore */ }
-      }, 2000);
-    } catch {
-      setQueueState({ status: "idle" });
-    }
+    const playerName = useGameStore.getState().playerName;
+    void fetch(`/api/match/${newMatchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
+    });
+    router.push("/select-character");
   };
 
   const handleCreateMatch = () => {
@@ -259,35 +154,44 @@ export default function CreateMatch() {
     if (matchType === "vshouse") {
       resetMatch();
       setVsBot(true);
+      setMatchMode(toStoreMode(matchType));
       setPlayerRole(null);
       router.push("/select-character");
+      return;
+    }
+    if (matchType === "tourney") {
+      router.push("/tournament");
       return;
     }
     // Generate a fresh matchId BEFORE opening the WagerModal.
     resetMatch();
     setVsBot(false);
+    setMatchMode(toStoreMode(matchType));
     setPlayerRole("host");
     if (matchType === "ranked") {
-      // Pre-register match in Redis immediately so it appears in open games right away
+      if (!hasSeasonPass) {
+        setShowSeasonPassModal(true);
+        return;
+      }
       const newMatchId = useGameStore.getState().matchId;
       if (newMatchId) {
+        const playerName = useGameStore.getState().playerName;
         void fetch(`/api/match/${newMatchId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
+          body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
         });
       }
       router.push("/ready?ranked=true");
       return;
     }
+    setPostWagerDest("/ready");
     setShowWager(true);
   };
 
   const proceedAfterPayment = () => {
     setShowWager(false);
-    // Do NOT call resetMatch() here — it would clear the matchId
-    // that was set before the WagerModal and used for the payment.
-    router.push("/ready");
+    router.push(postWagerDest);
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
@@ -321,33 +225,7 @@ export default function CreateMatch() {
           <WalletSection />
         </div>
 
-        {/* ── Resume Open Match Banner ─────────────────────────────────── */}
-        {storeMatchId && storePlayerRole === "host" && !storeWagerActive && (
-          <div style={{
-            position: "absolute", top: 74, left: "50%", transform: "translateX(-50%)",
-            display: "flex", alignItems: "center", gap: 12, padding: "10px 20px",
-            background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.4)",
-            borderRadius: 8, zIndex: 20, width: 560,
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 0.5 }}>Open match: </span>
-              <span style={{ fontSize: 11, color: "#56a4cb", fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>{storeMatchId}</span>
-            </div>
-            <button
-              onClick={() => router.push("/ready?ranked=true")}
-              style={{ background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 5, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1, textTransform: "uppercase" }}
-            >
-              Resume →
-            </button>
-            <button
-              onClick={() => { setMatchId(null); setPlayerRole(null); }}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#475569", padding: "0 4px" }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
+        {/* No resume banner — waiting state is handled inline in the panel */}
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 12 }}>
@@ -418,8 +296,8 @@ export default function CreateMatch() {
                   <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
 
-                {/* Season Pass callout — ranked only */}
-                {matchType === "ranked" && (
+                {/* Season Pass callout — ranked only, hidden if user already has a pass */}
+                {matchType === "ranked" && !hasSeasonPass && (
                   <div style={{
                     marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "10px 14px",
@@ -430,7 +308,7 @@ export default function CreateMatch() {
                       <span style={{ fontSize: 14 }}>⚡</span>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: 1 }}>SEASON PASS</div>
-                        <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>Skip entry fees on every ranked match</div>
+                        <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>Unlock unlimited ranked matches during your active pass</div>
                       </div>
                     </div>
                     <button
@@ -444,6 +322,18 @@ export default function CreateMatch() {
                     >
                       Get Pass →
                     </button>
+                  </div>
+                )}
+                {matchType === "ranked" && hasSeasonPass && (
+                  <div style={{
+                    marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 14px",
+                    background: "rgba(74,222,128,0.06)",
+                    border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6,
+                  }}>
+                    <span style={{ fontSize: 13 }}>⚡</span>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>SEASON PASS ACTIVE</div>
+                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>— ranked unlocked</div>
                   </div>
                 )}
 
@@ -480,83 +370,8 @@ export default function CreateMatch() {
                   </div>
                 )}
 
-                {/* Queue expired banner */}
-                {queueExpiredMsg && (
-                  <div style={{ marginBottom: 12, padding: "14px 18px", background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <span className="material-icons" style={{ fontSize: 18, color: "#56a4cb", flexShrink: 0 }}>search_off</span>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>{queueExpiredMsg}</div>
-                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                        <button
-                          onClick={() => { setQueueExpiredMsg(null); void handleFindMatch(); }}
-                          style={{ flex: 1, background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, fontFamily: "inherit", textTransform: "uppercase" }}
-                        >⚡ Search Again</button>
-                        <button onClick={() => setQueueExpiredMsg(null)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: 1, fontFamily: "inherit" }}>✕</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Searching state */}
-                {queueState.status === "searching" && (() => {
-                  const elapsedSec = Math.floor(queueState.elapsedMs / 1000);
-                  const remaining = Math.max(0, 90 - elapsedSec);
-                  const pct = Math.min(100, (elapsedSec / 90) * 100);
-                  const isLate = remaining <= 20;
-                  return (
-                    <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(86,164,203,0.06)", border: `1.5px solid ${isLate ? "rgba(239,68,68,0.5)" : "rgba(86,164,203,0.35)"}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: isLate ? "#f87171" : "#56a4cb", boxShadow: `0 0 6px ${isLate ? "#f87171" : "#56a4cb"}`, animation: "pulse 1s ease-in-out infinite" }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: isLate ? "#fca5a5" : "#b9e7f4", letterSpacing: 2, textTransform: "uppercase" }}>Finding Opponent…</span>
-                        <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, color: isLate ? "#f87171" : "#6b7280", fontVariantNumeric: "tabular-nums" }}>
-                          {remaining}s
-                        </span>
-                      </div>
-                      {/* Countdown progress bar */}
-                      <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${100 - pct}%`, background: isLate ? "#f87171" : "#56a4cb", borderRadius: 2, transition: "width 1s linear" }} />
-                      </div>
-                      {/* Share link while waiting — registers match in Redis so joiner can find it */}
-                      <button
-                        onClick={async () => {
-                          const matchIdStore = useGameStore.getState().matchId;
-                          if (!matchIdStore) return;
-                          // Register match in Redis so the share link is joinable
-                          void fetch(`/api/match/${matchIdStore}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
-                          });
-                          const link = `${window.location.origin}/join?id=${matchIdStore}`;
-                          if (navigator.share) {
-                            void navigator.share({ title: "Action Order", text: "Join my ranked match!", url: link });
-                          } else {
-                            void navigator.clipboard.writeText(link).catch(() => {});
-                          }
-                        }}
-                        style={{ width: "100%", height: 32, background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}
-                      >
-                        📤 SHARE MATCH LINK
-                      </button>
-                      <button
-                        onClick={() => void cancelQueue()}
-                        style={{ width: "100%", height: 36, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
-                      >
-                        CANCEL SEARCH
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* Found state */}
-                {queueState.status === "found" && (
-                  <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(74,222,128,0.08)", border: "1.5px solid rgba(74,222,128,0.4)", borderRadius: 8, textAlign: "center" }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", letterSpacing: 2, textTransform: "uppercase" }}>✓ Opponent Found — Entering Match</span>
-                  </div>
-                )}
-
                 {/* Create/Find Match button */}
-                {queueState.status === "idle" && (
+                {(
                   !address ? (
                     <button
                       disabled
@@ -653,6 +468,8 @@ export default function CreateMatch() {
                   {address
                     ? matchType === "ranked"
                       ? "Find a random player or invite a friend via Match ID"
+                      : matchType === "tourney"
+                        ? "Tournament mode is managed from the weekly bracket page"
                       : "Secure connection via Celo network"
                     : "Use the Connect button in the top right ↗"}
                 </p>
@@ -686,75 +503,40 @@ export default function CreateMatch() {
       </div>
 
       {showWager && (
+        <>
         <WagerModal
           onConfirmed={proceedAfterPayment}
           onSkip={() => {
             setWager(false, null);
             setShowWager(false);
-            if (matchType !== "ranked") router.push("/ready");
-          }}
-          lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
-          mode={matchType === "ranked" ? "ranked" : "wager"}
-        />
-      )}
-
-      {/* Ranked FIND PLAYER payment — shown after opponent matched, before character select */}
-      {showRankedWager && (
-        <>
-        <WagerModal
-          mode="ranked"
-          lockedAmount="0.000007"
-          onConfirmed={async () => {
-            // Mark match as wager-required so joiner gets prompted too
-            const mid = useGameStore.getState().matchId;
-            if (mid) {
-              void fetch(`/api/match/${mid}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
-              });
-            }
-            setShowRankedWager(false);
-            router.push("/select-character");
-          }}
-          onSkip={() => {
-            // Cancel → leave match
-            const mid = useGameStore.getState().matchId;
-            const role = useGameStore.getState().playerRole;
-            if (mid && role) {
-              void fetch(`/api/match/${mid}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "quit", role }),
-              });
-            }
-            setShowRankedWager(false);
-            setQueueState({ status: "idle" });
+            router.push("/ready");
           }}
         />
         {/* Season pass upsell — floats below WagerModal */}
-        <div style={{
-          position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
-          zIndex: 9999,
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "10px 20px", borderRadius: 30,
-          backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
-          boxShadow: "0 0 20px rgba(251,191,36,0.1)",
-        }}>
-          <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Tired of paying every match?</span>
-          <button
-            onClick={() => setShowSeasonPassModal(true)}
-            style={{
-              background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
-              border: "1px solid rgba(251,191,36,0.5)",
-              borderRadius: 20, padding: "5px 14px", cursor: "pointer",
-              fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
-              textTransform: "uppercase", fontFamily: "inherit",
-            }}
-          >
-            ⚡ Get Season Pass
-          </button>
-        </div>
+        {!hasSeasonPass && (
+          <div style={{
+            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
+            zIndex: 9999,
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 20px", borderRadius: 30,
+            backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
+            boxShadow: "0 0 20px rgba(251,191,36,0.1)",
+          }}>
+            <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Want instant ranked access?</span>
+            <button
+              onClick={() => setShowSeasonPassModal(true)}
+              style={{
+                background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
+                border: "1px solid rgba(251,191,36,0.5)",
+                borderRadius: 20, padding: "5px 14px", cursor: "pointer",
+                fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
+                textTransform: "uppercase", fontFamily: "inherit",
+              }}
+            >
+              ⚡ Get Season Pass
+            </button>
+          </div>
+        )}
         </>
       )}
       {showSeasonPassModal && (
