@@ -297,7 +297,7 @@ export default function Gameplay() {
       const res = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ winner: address, matchId, currency: wagerCurrency }),
+        body: JSON.stringify({ matchId, currency: wagerCurrency }),
       });
       const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");

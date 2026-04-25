@@ -6,17 +6,14 @@ import { redis, getMatch } from "../../lib/redis";
 import {
   ERC20_ABI, CUSD_CONTRACT,
   PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO,
-  DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO,
 } from "../../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
 import {
   GDOLLAR_CONTRACT,
   GDOLLAR_ABI,
-  PAYOUT_AMOUNT_GDOLLAR,
   CFA_FORWARDER,
   CFA_FORWARDER_ABI,
   STREAM_FLOW_RATE,
-  STREAM_FLOW_RATE_DUAL,
 } from "../../lib/gooddollar";
 import { ServerMatch } from "../../lib/serverMatch";
 
@@ -41,7 +38,7 @@ async function getMatchWagerInfo(matchId: string): Promise<MatchWagerInfo> {
 const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
 // POST /api/payout
-// Body: { winner: `0x${string}`, matchId: string, currency?: string }
+// Body: { matchId: string, currency?: string }
 // Returns: { txHash: string, streaming?: boolean }
 export async function POST(req: NextRequest) {
   const treasuryKey = process.env.TREASURY_PRIVATE_KEY;
@@ -49,23 +46,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Treasury not configured" }, { status: 500 });
   }
 
-  let requestedWinner: `0x${string}` | null = null;
   let matchId: string;
   let currency: "cusd" | "celo" | "gdollar" = "cusd";
   try {
-    const body = await req.json() as { winner?: string; matchId: string; currency?: string };
+    const body = await req.json() as { matchId: string; currency?: string };
     if (!body.matchId) throw new Error("missing fields");
-    if (body.winner) requestedWinner = body.winner as `0x${string}`;
     matchId = body.matchId;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
-
-  // Basic address validation
-  if (requestedWinner && !/^0x[0-9a-fA-F]{40}$/.test(requestedWinner)) {
-    return NextResponse.json({ error: "Invalid winner address" }, { status: 400 });
   }
 
   // Idempotency — prevent double payout for the same match
@@ -84,9 +74,6 @@ export async function POST(req: NextRequest) {
   }
   if (!match.completedAt || !match.winnerAddress) {
     return NextResponse.json({ error: "Match is not ready for payout" }, { status: 409 });
-  }
-  if (requestedWinner && requestedWinner.toLowerCase() !== match.winnerAddress.toLowerCase()) {
-    return NextResponse.json({ error: "Winner does not match recorded result" }, { status: 409 });
   }
   const winner = match.winnerAddress as `0x${string}`;
 
