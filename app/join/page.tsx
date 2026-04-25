@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { SeasonPassModal } from "../components/SeasonPassModal";
+import { MultiplayerMode } from "../lib/matchmaking";
 import { useAccount } from "wagmi";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
@@ -17,7 +18,7 @@ type LiveMatch = {
   hostName: string | null;
   hostAddress: string | null;
   createdAt: number;
-  mode: "wager" | "ranked" | "tournament";
+  mode: MultiplayerMode;
   hostCharSelected: boolean;
 };
 
@@ -113,7 +114,7 @@ function JoinMatchContent() {
         setJoiningId(null);
         return;
       }
-      const data = await res.json() as { mode?: "wager" | "ranked" | "tournament" };
+      const data = await res.json() as { mode?: MultiplayerMode };
       if (data.mode === "ranked") {
         const passRes = await fetch(`/api/season-pass?address=${address}`);
         const passData = await passRes.json() as { active?: boolean };
