@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WagerModal } from "../components/WagerModal";
-import { SeasonPassModal } from "../components/SeasonPassModal";
 
 const OPPONENT_WARN_MS  = 60_000;
 const OPPONENT_ABORT_MS = 90_000;
@@ -27,7 +26,7 @@ export default function Lobby() {
   // comes back so paymentRequired is known — prevents a race on slow networks
   const [firstPollDone, setFirstPollDone] = useState(!playerRole || !matchId);
 
-  // Ranked / wager payment gate
+  // Wager payment gate
   const [paymentRequired, setPaymentRequired] = useState<boolean | null>(null);
   // Host who already paid in create page starts as selfPaid
   const [selfPaid, setSelfPaid] = useState(() => !!(wagerActive && playerRole === "host"));
@@ -37,8 +36,6 @@ export default function Lobby() {
   const [payWaitMs, setPayWaitMs] = useState(0);
   const payWaitStartRef = useRef<number | null>(null);
 
-  const [hasSeasonPass, setHasSeasonPass] = useState(false);
-  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   // Refs so the polling interval always reads current values (avoids stale closures)
   const selfPaidRef      = useRef(false);
 
@@ -545,62 +542,23 @@ export default function Lobby() {
         </div>
       )}
 
-      {/* ── Ranked payment modal ─────────────────────────────────────────── */}
+      {/* ── Wager payment modal ──────────────────────────────────────────── */}
       {showPayModal && !selfPaid && (
-        <>
-          <WagerModal
-            mode="wager"
-            onConfirmed={() => {
-              setSelfPaid(true);
-              setShowPayModal(false);
-            }}
-            onSkip={() => {
-              if (matchId && playerRole) {
-                void fetch(`/api/match/${matchId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "quit", role: playerRole }),
-                });
-              }
-              router.replace("/");
-            }}
-          />
-          {/* Season pass upsell — floats below the WagerModal */}
-          <div style={{
-            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
-            zIndex: 9999,
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "10px 20px", borderRadius: 30,
-            backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
-            boxShadow: "0 0 20px rgba(251,191,36,0.1)",
-          }}>
-            <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Want instant ranked access?</span>
-            <button
-              onClick={() => setShowSeasonPassModal(true)}
-              style={{
-                background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
-                border: "1px solid rgba(251,191,36,0.5)",
-                borderRadius: 20, padding: "5px 14px", cursor: "pointer",
-                fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
-                textTransform: "uppercase", fontFamily: "inherit",
-              }}
-            >
-              ⚡ Get Season Pass
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* ── Season Pass Modal ─────────────────────────────────────────────── */}
-      {showSeasonPassModal && (
-        <SeasonPassModal
-          onClose={() => setShowSeasonPassModal(false)}
-          onActivated={() => {
-            setHasSeasonPass(true);
-            setShowSeasonPassModal(false);
-            if (matchMode !== "wager") {
-              setShowPayModal(false);
+        <WagerModal
+          mode="wager"
+          onConfirmed={() => {
+            setSelfPaid(true);
+            setShowPayModal(false);
+          }}
+          onSkip={() => {
+            if (matchId && playerRole) {
+              void fetch(`/api/match/${matchId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "quit", role: playerRole }),
+              });
             }
+            router.replace("/");
           }}
         />
       )}
