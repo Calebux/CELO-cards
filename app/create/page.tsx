@@ -511,7 +511,6 @@ export default function CreateMatch() {
             setShowWager(false);
             router.push("/ready");
           }}
-          mode="wager"
         />
         {/* Season pass upsell — floats below WagerModal */}
         {!hasSeasonPass && (

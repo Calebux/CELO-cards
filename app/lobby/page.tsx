@@ -545,7 +545,6 @@ export default function Lobby() {
       {/* ── Wager payment modal ──────────────────────────────────────────── */}
       {showPayModal && !selfPaid && (
         <WagerModal
-          mode="wager"
           onConfirmed={() => {
             setSelfPaid(true);
             setShowPayModal(false);

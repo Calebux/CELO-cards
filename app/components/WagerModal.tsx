@@ -8,9 +8,9 @@ import {
   useReadContract,
   useSendTransaction,
 } from "wagmi";
-import { CUSD_CONTRACT, WAGER_AMOUNT, ERC20_ABI, WAGER_AMOUNT_CELO, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib/cusd";
+import { CUSD_CONTRACT, ERC20_ABI } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
-import { GDOLLAR_CONTRACT, GDOLLAR_ABI, WAGER_AMOUNT_GDOLLAR, GDOLLAR_COLOR, DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
+import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 import { formatUnits } from "viem";
 
@@ -18,7 +18,6 @@ type Props = {
   onConfirmed: () => void;
   onSkip: () => void;
   lockedAmount?: string; // pre-filled, read-only (joiner matching host's stake, e.g. "0.01")
-  mode?: "wager";
 };
 
 type Step = "idle" | "approving" | "approved" | "entering" | "done" | "error";
