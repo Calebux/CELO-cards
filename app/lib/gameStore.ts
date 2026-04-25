@@ -136,10 +136,6 @@ interface GameState {
     playerTaunt: string | null;
     setPlayerTaunt: (taunt: string | null) => void;
 
-    // Double-down
-    wagerMultiplier: number;  // 1 or 2
-    setWagerMultiplier: (m: number) => void;
-
     // Actions
     setPlayerAddress: (address: string | null) => void;
     setPlayerName: (name: string) => void;
@@ -220,7 +216,6 @@ export const useGameStore = create<GameState>()(
     ultimateActivated: false,
     ultimateUsed: false,
     playerTaunt: null,
-    wagerMultiplier: 1,
     unlockedPremiumCards: [],
 
     purchaseCard: (cardId, price) => set((state) => {
@@ -239,7 +234,6 @@ export const useGameStore = create<GameState>()(
         set({ ultimateActivated: true });
     },
     setPlayerTaunt: (taunt) => set({ playerTaunt: taunt }),
-    setWagerMultiplier: (m) => set({ wagerMultiplier: m }),
 
     setPlayerAddress: (address) => set({ playerAddress: address }),
     setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
@@ -625,7 +619,6 @@ export const useGameStore = create<GameState>()(
             ultimateActivated: false,
             ultimateUsed: false,
             playerTaunt: null,
-            wagerMultiplier: 1,
             currentMatchRounds: [],
         }));
     },
@@ -679,7 +672,6 @@ export const useGameStore = create<GameState>()(
             ultimateActivated: false,
             ultimateUsed: false,
             playerTaunt: null,
-            wagerMultiplier: 1,
             currentMatchRounds: [],
         });
     },
