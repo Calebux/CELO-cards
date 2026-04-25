@@ -162,6 +162,10 @@ export default function CreateMatch() {
       router.push("/select-character");
       return;
     }
+    if (matchType === "tourney") {
+      router.push("/tournament");
+      return;
+    }
     // Generate a fresh matchId BEFORE opening the WagerModal.
     resetMatch();
     setVsBot(false);
@@ -467,6 +471,8 @@ export default function CreateMatch() {
                   {address
                     ? matchType === "ranked"
                       ? "Find a random player or invite a friend via Match ID"
+                      : matchType === "tourney"
+                        ? "Tournament mode is managed from the weekly bracket page"
                       : "Secure connection via Celo network"
                     : "Use the Connect button in the top right ↗"}
                 </p>
