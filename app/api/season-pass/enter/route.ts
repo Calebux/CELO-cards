@@ -3,9 +3,9 @@ import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { redis, getMatch, setMatch } from "../../../lib/redis";
-import { ServerMatch } from "../../match/[matchId]/route";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../lib/cusd";
+import { ServerMatch } from "../../../lib/serverMatch";
 
 // POST /api/season-pass/enter
 // Called by the lobby when a season pass holder needs to enter a ranked match.

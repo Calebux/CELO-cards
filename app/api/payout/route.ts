@@ -3,7 +3,6 @@ import { createPublicClient, createWalletClient, http, formatUnits } from "viem"
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { redis, getMatch } from "../../lib/redis";
-import { ServerMatch } from "../match/[matchId]/route";
 import {
   ERC20_ABI, CUSD_CONTRACT,
   PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO,
@@ -19,6 +18,7 @@ import {
   STREAM_FLOW_RATE,
   STREAM_FLOW_RATE_DUAL,
 } from "../../lib/gooddollar";
+import { ServerMatch } from "../../lib/serverMatch";
 
 interface MatchWagerInfo {
   bothWagered: boolean;
@@ -76,6 +76,14 @@ export async function POST(req: NextRequest) {
   if (existingPayout) {
     console.log(`Payout ${matchId}: already paid — returning cached tx ${existingPayout}`);
     return NextResponse.json({ txHash: existingPayout, cached: true });
+  }
+
+  const match = await getMatch<ServerMatch>(matchId);
+  if (!match) {
+    return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  }
+  if (match.mode !== "wager") {
+    return NextResponse.json({ error: "Payouts are only available for wager matches" }, { status: 409 });
   }
 
   // Check if both players wagered and get the actual payout amount from their stakes
@@ -165,4 +173,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

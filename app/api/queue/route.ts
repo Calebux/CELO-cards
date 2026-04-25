@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { redis, setMatch } from "../../lib/redis";
-import type { ServerMatch } from "../match/[matchId]/route";
+import { MultiplayerMode } from "../../lib/matchmaking";
+import { ServerMatch, newServerMatch } from "../../lib/serverMatch";
 
 const QUEUE_KEY = "mmqueue";
 const QUEUE_TTL  = 90; // seconds a waiting entry lives before expiring
@@ -12,7 +13,7 @@ interface QueueEntry {
   queueId: string;
   address:  string;
   joinedAt: number;
-  ranked?:  boolean;
+  mode: MultiplayerMode;
 }
 
 interface QueueStatus {
@@ -25,35 +26,16 @@ function makeMatchId() {
   return `AO-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
-function emptyMatch(matchId: string): ServerMatch {
-  const now = Date.now();
-  return {
-    id: matchId,
-    createdAt: now,
-    lastActivity: now,
-    host:   { charId: null, playerName: null, address: null, cardIds: null, orderRound: 0 },
-    joiner: { charId: null, playerName: null, address: null, cardIds: null, orderRound: 0 },
-    round: 1,
-    hostWins: 0,
-    joinerWins: 0,
-    resolvedSlots: null,
-    hostWagerTx:      null,
-    joinerWagerTx:    null,
-    hostWagerAmount:  null,
-    joinerWagerAmount: null,
-    abortedBy: null,
-    wagerRequired: false,
-  };
-}
-
 // POST — join queue; immediately returns match if an opponent is already waiting
 export async function POST(req: NextRequest) {
   let address: string;
-  let ranked = false;
+  let mode: MultiplayerMode = "wager";
   try {
-    const body = await req.json() as { address: string; ranked?: boolean };
+    const body = await req.json() as { address: string; mode?: MultiplayerMode; ranked?: boolean };
     address = (body.address ?? "").trim();
-    ranked = !!body.ranked;
+    mode = body.mode === "ranked" || body.mode === "tournament" || body.mode === "wager"
+      ? body.mode
+      : body.ranked ? "ranked" : "wager";
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error();
   } catch {
     return NextResponse.json({ error: "Valid wallet address required" }, { status: 400 });
@@ -88,11 +70,9 @@ export async function POST(req: NextRequest) {
 
   if (opponent) {
     const matchId = makeMatchId();
-    const match = emptyMatch(matchId);
+    const match = newServerMatch(matchId, opponent.mode);
     match.host.address = opponent.address;
     match.joiner.address = address;
-    // Both players pay in the lobby after matching — set wagerRequired if either flagged ranked
-    if (ranked || opponent.ranked) match.wagerRequired = true;
     await setMatch(matchId, match);
 
     // Notify the waiting host via their status key
@@ -105,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   // No opponent found — join the queue as host
   const queueId = crypto.randomUUID();
-  const entry: QueueEntry = { queueId, address, joinedAt: Date.now(), ranked };
+  const entry: QueueEntry = { queueId, address, joinedAt: Date.now(), mode };
   await redis.rpush(QUEUE_KEY, JSON.stringify(entry));
   const status: QueueStatus = { status: "waiting" };
   await redis.set(`queue:${queueId}`, status, { ex: QUEUE_TTL });

@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { getMatch, getOpenMatchIds, removeFromOpenMatches } from "../../../lib/redis";
-import { ServerMatch } from "../../match/[matchId]/route";
+import { isPaidMultiplayerMode } from "../../../lib/matchmaking";
+import { ServerMatch } from "../../../lib/serverMatch";
 
 export async function GET() {
   try {
@@ -21,7 +22,7 @@ export async function GET() {
     const STALE_MS        = 10 * 60 * 1000; // 10 min — free matches
     const WAGER_STALE_MS  = 60 * 60 * 1000; // 60 min — paid matches stay visible longer
 
-    const live: { id: string; hostName: string | null; hostAddress: string | null; createdAt: number; hasWager: boolean }[] = [];
+    const live: { id: string; hostName: string | null; hostAddress: string | null; createdAt: number; mode: ServerMatch["mode"] }[] = [];
 
     for (const { id, match } of results) {
       if (!match) {
@@ -35,7 +36,7 @@ export async function GET() {
         continue;
       }
       // Skip if stale (wager matches get a much longer window)
-      const staleLimit = (match.hostWagerTx || match.wagerRequired) ? WAGER_STALE_MS : STALE_MS;
+      const staleLimit = isPaidMultiplayerMode(match.mode) ? WAGER_STALE_MS : STALE_MS;
       if (now - match.lastActivity > staleLimit) {
         await removeFromOpenMatches(id).catch(() => {});
         continue;
@@ -46,7 +47,7 @@ export async function GET() {
         hostName: match.host.playerName ?? null,
         hostAddress: match.host.address ?? null,
         createdAt: match.createdAt,
-        hasWager: !!(match.hostWagerTx) || !!(match.wagerRequired),
+        mode: match.mode,
       });
     }
 
