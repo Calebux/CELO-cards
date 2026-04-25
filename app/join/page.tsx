@@ -132,14 +132,11 @@ function JoinMatchContent() {
       router.push("/select-character");
       return;
     } catch {
-      // network hiccup — proceed anyway, lobby will surface the error
+      setError("Couldn't verify that match right now. Please try again.");
+      setJoining(false);
+      setJoiningId(null);
+      return;
     }
-
-    resetMatch();
-    setMatchMode("wager");
-    setMatchId(matchCode);
-    setPlayerRole("joiner");
-    router.push("/select-character");
   };
 
   function timeAgo(createdAt: number): string {
