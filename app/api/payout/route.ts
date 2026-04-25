@@ -22,10 +22,9 @@ interface MatchWagerInfo {
   winnerPayout: bigint;
 }
 
-async function getMatchWagerInfo(matchId: string): Promise<MatchWagerInfo> {
+function getMatchWagerInfo(match: ServerMatch): MatchWagerInfo {
   try {
-    const match = await getMatch<ServerMatch>(matchId);
-    if (!match?.hostWagerTx || !match?.joinerWagerTx) return { bothWagered: false, winnerPayout: 0n };
+    if (!match.hostWagerTx || !match.joinerWagerTx) return { bothWagered: false, winnerPayout: 0n };
     const hostAmt   = BigInt(match.hostWagerAmount   ?? "0");
     const joinerAmt = BigInt(match.joinerWagerAmount ?? "0");
     const pot = hostAmt + joinerAmt;
@@ -78,7 +77,7 @@ export async function POST(req: NextRequest) {
   const winner = match.winnerAddress as `0x${string}`;
 
   // Check if both players wagered and get the actual payout amount from their stakes
-  const { bothWagered, winnerPayout: dualPayout } = await getMatchWagerInfo(matchId);
+  const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(match);
 
   try {
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);
