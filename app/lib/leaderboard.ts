@@ -1,4 +1,5 @@
 import { redis } from "./redis";
+import { LeaderboardTab } from "./matchmaking";
 
 const CASUAL_KEY = "leaderboard:casual";
 const RANKED_KEY = "leaderboard:ranked";
@@ -63,9 +64,9 @@ export async function recordMatchResult(params: {
   playerName?: string;
   won: boolean;
   pointsEarned: number;
-  wagered: boolean;
+  leaderboard: LeaderboardTab;
 }) {
-  const { playerAddress, playerName, won, pointsEarned, wagered } = params;
+  const { playerAddress, playerName, won, pointsEarned, leaderboard } = params;
   const addr = playerAddress.toLowerCase();
   const data = await readLeaderboard();
   const now = Date.now();
@@ -80,8 +81,8 @@ export async function recordMatchResult(params: {
     map[addr] = existing;
   }
 
-  upsert(data.casual);
-  if (wagered) upsert(data.ranked);
+  if (leaderboard === "ranked") upsert(data.ranked);
+  else upsert(data.casual);
 
   await writeLeaderboard(data);
 }

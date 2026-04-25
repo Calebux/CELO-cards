@@ -61,7 +61,7 @@ export default function Gameplay() {
     opponentName,
     startMatch,
     autoLockOrder,
-    wagerMode,
+    matchMode,
     setVsBot,
     setWager,
   } = useGameStore();
@@ -313,7 +313,7 @@ export default function Gameplay() {
   };
 
   const handleClaimPayout = async () => {
-    if (!address || !matchId || payoutState !== "idle") return;
+    if (!address || !matchId || payoutState !== "idle" || matchMode !== "wager") return;
     setPayoutState("loading");
     try {
       const res = await fetch("/api/payout", {
@@ -331,18 +331,10 @@ export default function Gameplay() {
     }
   };
 
-  // Record match result on leaderboard + sync achievements (fire-and-forget)
+  // Sync achievements/challenges after a multiplayer or house match completes.
   useEffect(() => {
     if (matchPhase !== "match-end" || !address) return;
-    const isVsHouse = matchId?.startsWith("AO-H-");
-    if (isVsHouse) return; // Server handles leaderboard for solo matches
-    
     const won = playerRoundsWon > opponentRoundsWon;
-    void fetch("/api/leaderboard", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerAddress: address, playerName: playerName || undefined, won, pointsEarned: pointsThisRound, wagered: wagerActive }),
-    });
     const ACHIEVEMENT_META: Record<string, { name: string; icon: string }> = {
       first_blood:  { name: "First Blood",   icon: "🩸" },
       warrior:      { name: "Warrior",        icon: "⚔️" },
@@ -402,16 +394,15 @@ export default function Gameplay() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchPhase]);
 
-  // Auto-trigger payout when match ends and player won a wagered match
-  // Covers both wager and ranked modes — creates on-chain tx visible on Celoscan
+  // Auto-trigger payout when a wager match ends and the local player wins.
   useEffect(() => {
-    if (matchPhase !== "match-end" || !wagerActive || !address || !matchId) return;
+    if (matchPhase !== "match-end" || !wagerActive || !address || !matchId || matchMode !== "wager") return;
     const won = playerRoundsWon > opponentRoundsWon;
     if (!won || payoutFiredRef.current) return;
     payoutFiredRef.current = true;
     void handleClaimPayout();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchPhase]);
+  }, [matchMode, matchPhase]);
 
   const handleBackToMenu = () => {
     playSound(isMatchEnd ? "gameOver" : "click");
@@ -1280,8 +1271,8 @@ export default function Gameplay() {
                     <p style={{ fontSize: 22, fontWeight: 800, color: accentColor, margin: 0, textShadow: `0 0 12px ${accentGlow}` }}>{playerPoints} PTS</p>
                   </div>
 
-                  {/* Payout — auto-fires for all wagered wins (wager + ranked). Creates on-chain tx on Celoscan. */}
-                  {wagerActive && won && (
+                  {/* Payout — wager matches only. */}
+                  {matchMode === "wager" && wagerActive && won && (
                     <div style={{ marginBottom: 20 }}>
                       {(payoutState === "idle" || payoutState === "loading") && (
                         <div style={{ textAlign: "center", padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -1419,7 +1410,7 @@ export default function Gameplay() {
                     {/* Rematch — ranked goes to character select, others go to loadout */}
                     <button
                       onClick={() => {
-                        if (wagerMode === "ranked") {
+                        if (matchMode === "ranked" || matchMode === "tournament") {
                           resetMatch();
                           router.push("/create");
                         } else {

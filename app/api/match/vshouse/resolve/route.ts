@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       playerName,
       won: playerWon,
       pointsEarned,
-      wagered,
+      leaderboard: "casual",
     });
 
     // Clear the match state since it's finished
