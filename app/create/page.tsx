@@ -9,11 +9,6 @@ import { SeasonPassModal } from "../components/SeasonPassModal";
 import { useAccount } from "wagmi";
 import { playSound } from "../lib/soundManager";
 
-type QueueState =
-  | { status: "idle" }
-  | { status: "searching"; queueId: string; elapsedMs: number }
-  | { status: "found"; matchId: string; role: "host" | "joiner"; pendingPayment?: boolean };
-
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
@@ -65,52 +60,24 @@ const MATCH_TYPES: {
   },
 ];
 
-const QUEUE_TTL_MS = 90_000; // mirrors server QUEUE_TTL of 90 seconds
-
 export default function CreateMatch() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("wager");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
-  const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
-  const [showRankedWager, setShowRankedWager] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [hasSeasonPass, setHasSeasonPass] = useState(false);
-  const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
-  const [wfWaiting, setWfWaiting] = useState(false);
-  const [wfOpponentName, setWfOpponentName] = useState<string | null>(null);
-  const [wfCopied, setWfCopied] = useState(false);
-  const wfPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const wfKeepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const queueStartRef = useRef<number>(0);
+  const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
-  const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
   const setOpponentName = useGameStore((s) => s.setOpponentName);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
-  const storeMatchId = useGameStore((s) => s.matchId);
-  const storePlayerRole = useGameStore((s) => s.playerRole);
-  const storeWagerActive = useGameStore((s) => s.wagerActive);
   const { address } = useAccount();
-
-  // Fetch opponent username and store it
-  const fetchOpponentName = async (matchId: string, role: "host" | "joiner") => {
-    try {
-      const res = await fetch(`/api/match/${matchId}`);
-      const data = await res.json() as { opponentAddress?: string };
-      if (data.opponentAddress) {
-        const unRes = await fetch(`/api/username?address=${data.opponentAddress.toLowerCase()}`);
-        const unData = await unRes.json() as { username?: string | null };
-        setOpponentName(unData.username ?? data.opponentAddress.slice(0, 8) + "…");
-      }
-    } catch { /* non-critical */ }
-  };
 
   useEffect(() => {
     const fetchOnline = () => {
@@ -128,51 +95,6 @@ export default function CreateMatch() {
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
       .catch(() => {});
   }, [address]);
-
-  // Auto-restore WITH FRIEND waiting state if user navigated away
-  useEffect(() => {
-    if (storeMatchId && storePlayerRole === "host" && !storeWagerActive) {
-      setWfWaiting(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Keepalive + opponent poll while waiting for friend
-  useEffect(() => {
-    if (!wfWaiting || !storeMatchId) return;
-
-    const keepalive = () => {
-      const { playerName, playerAddress } = useGameStore.getState();
-      void fetch(`/api/match/${storeMatchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, wagerRequired: true }),
-      }).catch(() => {});
-    };
-    keepalive();
-    wfKeepaliveRef.current = setInterval(keepalive, 30_000);
-
-    wfPollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/match/${storeMatchId}?role=host`);
-        const data = await res.json() as { opponentCharId?: string | null; opponentName?: string | null };
-        if (data.opponentCharId) {
-          clearInterval(wfPollRef.current!);
-          clearInterval(wfKeepaliveRef.current!);
-          const name = data.opponentName ?? "Opponent";
-          setOpponentName(name);
-          setWfOpponentName(name);
-          setTimeout(() => router.push("/select-character"), 2200);
-        }
-      } catch { /* ignore */ }
-    }, 2000);
-
-    return () => {
-      clearInterval(wfPollRef.current!);
-      clearInterval(wfKeepaliveRef.current!);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wfWaiting, storeMatchId]);
 
   useEffect(() => {
     const scale = () => {
@@ -199,26 +121,6 @@ export default function CreateMatch() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Tick elapsed time while searching
-  useEffect(() => {
-    if (queueState.status !== "searching") return;
-    const id = setInterval(() => {
-      setQueueState((prev) =>
-        prev.status === "searching"
-          ? { ...prev, elapsedMs: prev.elapsedMs + 1000 }
-          : prev
-      );
-    }, 1000);
-    return () => clearInterval(id);
-  }, [queueState.status]);
-
-  const cancelQueue = useCallback(async () => {
-    if (queueState.status !== "searching") return;
-    if (queuePollRef.current) clearInterval(queuePollRef.current);
-    await fetch(`/api/queue?id=${queueState.queueId}`, { method: "DELETE" }).catch(() => {});
-    setQueueState({ status: "idle" });
-  }, [queueState]);
-
   // Try to enter a ranked match via season pass (treasury pays).
   // Returns true and navigates to /select-character if successful.
   const trySeasonPassEntry = useCallback(async (mId: string, role: "host" | "joiner") => {
@@ -236,7 +138,6 @@ export default function CreateMatch() {
       if (!enterRes.ok) return false;
       const enterData = await enterRes.json() as { txHash?: string };
 
-      // Mark match wager-required so joiner is prompted
       void fetch(`/api/match/${mId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -251,65 +152,29 @@ export default function CreateMatch() {
     }
   }, [address, setWager, router]);
 
+  // FIND PLAYER: create match immediately, verify pass, proceed to character select.
+  // No queue wait — match appears in open games so opponents can join.
   const handleFindMatch = async () => {
     if (!address) return;
     resetMatch();
     setVsBot(false);
     setPlayerRole("host");
-    setQueueExpiredMsg(null);
-    queueStartRef.current = Date.now();
-    setQueueState({ status: "searching", queueId: "", elapsedMs: 0 });
 
-    try {
-      const res = await fetch("/api/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, ranked: true }),
-      });
-      const data = await res.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; queueId?: string };
+    const newMatchId = useGameStore.getState().matchId;
+    if (!newMatchId) return;
 
-      if (data.matched && data.matchId && data.role) {
-        playSound("matchFound");
-        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        setMatchId(data.matchId);
-        setPlayerRole(data.role);
-        setQueueState({ status: "found", matchId: data.matchId, role: data.role, pendingPayment: true });
-        void fetchOpponentName(data.matchId, data.role);
-        const usedPass = await trySeasonPassEntry(data.matchId, data.role);
-        if (!usedPass) setShowRankedWager(true);
-        return;
-      }
+    const playerName = useGameStore.getState().playerName;
+    void fetch(`/api/match/${newMatchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, wagerRequired: true }),
+    });
 
-      if (!data.queueId) { setQueueState({ status: "idle" }); return; }
-      setQueueState({ status: "searching", queueId: data.queueId, elapsedMs: 0 });
-
-      queuePollRef.current = setInterval(async () => {
-        try {
-          const pollRes = await fetch(`/api/queue?id=${data.queueId}`);
-          const pollData = await pollRes.json() as { matched: boolean; matchId?: string; role?: "host" | "joiner"; expired?: boolean };
-
-          if (pollData.expired) {
-            clearInterval(queuePollRef.current!);
-            setQueueState({ status: "idle" });
-            setQueueExpiredMsg("No opponent found — hit Find Player to try again.");
-            return;
-          }
-
-          if (pollData.matched && pollData.matchId && pollData.role) {
-            clearInterval(queuePollRef.current!);
-            playSound("matchFound");
-            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
-            setMatchId(pollData.matchId);
-            setPlayerRole(pollData.role);
-            setQueueState({ status: "found", matchId: pollData.matchId, role: pollData.role, pendingPayment: true });
-            void fetchOpponentName(pollData.matchId, pollData.role);
-            const usedPass = await trySeasonPassEntry(pollData.matchId, pollData.role);
-            if (!usedPass) setShowRankedWager(true);
-          }
-        } catch { /* ignore */ }
-      }, 2000);
-    } catch {
-      setQueueState({ status: "idle" });
+    const usedPass = await trySeasonPassEntry(newMatchId, "host");
+    if (!usedPass) {
+      // No pass — show wager modal, then proceed to character select
+      setPostWagerDest("/select-character");
+      setShowWager(true);
     }
   };
 
@@ -336,17 +201,16 @@ export default function CreateMatch() {
           body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, wagerRequired: true }),
         });
       }
-      setWfWaiting(true); // show inline waiting UI — no navigation needed
+      router.push("/ready?ranked=true");
       return;
     }
+    setPostWagerDest("/ready");
     setShowWager(true);
   };
 
   const proceedAfterPayment = () => {
     setShowWager(false);
-    // Do NOT call resetMatch() here — it would clear the matchId
-    // that was set before the WagerModal and used for the payment.
-    router.push("/ready");
+    router.push(postWagerDest);
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
@@ -525,158 +389,8 @@ export default function CreateMatch() {
                   </div>
                 )}
 
-                {/* Queue expired banner */}
-                {queueExpiredMsg && (
-                  <div style={{ marginBottom: 12, padding: "14px 18px", background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <span className="material-icons" style={{ fontSize: 18, color: "#56a4cb", flexShrink: 0 }}>search_off</span>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>{queueExpiredMsg}</div>
-                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                        <button
-                          onClick={() => { setQueueExpiredMsg(null); void handleFindMatch(); }}
-                          style={{ flex: 1, background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, fontFamily: "inherit", textTransform: "uppercase" }}
-                        >⚡ Search Again</button>
-                        <button onClick={() => setQueueExpiredMsg(null)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: 1, fontFamily: "inherit" }}>✕</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Searching state */}
-                {queueState.status === "searching" && (() => {
-                  const elapsedSec = Math.floor(queueState.elapsedMs / 1000);
-                  const remaining = Math.max(0, 90 - elapsedSec);
-                  const pct = Math.min(100, (elapsedSec / 90) * 100);
-                  const isLate = remaining <= 20;
-                  return (
-                    <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(86,164,203,0.06)", border: `1.5px solid ${isLate ? "rgba(239,68,68,0.5)" : "rgba(86,164,203,0.35)"}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: isLate ? "#f87171" : "#56a4cb", boxShadow: `0 0 6px ${isLate ? "#f87171" : "#56a4cb"}`, animation: "pulse 1s ease-in-out infinite" }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: isLate ? "#fca5a5" : "#b9e7f4", letterSpacing: 2, textTransform: "uppercase" }}>Finding Opponent…</span>
-                        <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, color: isLate ? "#f87171" : "#6b7280", fontVariantNumeric: "tabular-nums" }}>
-                          {remaining}s
-                        </span>
-                      </div>
-                      {/* Countdown progress bar */}
-                      <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${100 - pct}%`, background: isLate ? "#f87171" : "#56a4cb", borderRadius: 2, transition: "width 1s linear" }} />
-                      </div>
-                      {/* Share link while waiting — registers match in Redis so joiner can find it */}
-                      <button
-                        onClick={async () => {
-                          const matchIdStore = useGameStore.getState().matchId;
-                          if (!matchIdStore) return;
-                          // Register match in Redis so the share link is joinable
-                          void fetch(`/api/match/${matchIdStore}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
-                          });
-                          const link = `${window.location.origin}/join?id=${matchIdStore}`;
-                          if (navigator.share) {
-                            void navigator.share({ title: "Action Order", text: "Join my ranked match!", url: link });
-                          } else {
-                            void navigator.clipboard.writeText(link).catch(() => {});
-                          }
-                        }}
-                        style={{ width: "100%", height: 32, background: "rgba(86,164,203,0.07)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}
-                      >
-                        📤 SHARE MATCH LINK
-                      </button>
-                      <button
-                        onClick={() => void cancelQueue()}
-                        style={{ width: "100%", height: 36, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
-                      >
-                        CANCEL SEARCH
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* Found state (queue) */}
-                {queueState.status === "found" && (
-                  <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(74,222,128,0.08)", border: "1.5px solid rgba(74,222,128,0.4)", borderRadius: 8, textAlign: "center" }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", letterSpacing: 2, textTransform: "uppercase" }}>✓ Opponent Found — Entering Match</span>
-                  </div>
-                )}
-
-                {/* ── WITH FRIEND — inline waiting state ─────────────────── */}
-                {wfWaiting && (
-                  <div style={{ marginBottom: 12, padding: "18px 20px", background: "rgba(86,164,203,0.06)", border: `1.5px solid ${wfOpponentName ? "rgba(74,222,128,0.5)" : "rgba(86,164,203,0.35)"}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 12, transition: "border-color 0.3s" }}>
-
-                    {wfOpponentName ? (
-                      /* Opponent joined notification */
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80", flexShrink: 0 }} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>
-                            ⚡ {wfOpponentName} joined!
-                          </div>
-                          <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginTop: 2 }}>Heading to character select…</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Waiting header */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ display: "flex", gap: 4 }}>
-                            {[0, 0.3, 0.6].map((delay, i) => (
-                              <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "#56a4cb", animation: `pulse ${1.2}s ease-in-out ${delay}s infinite` }} />
-                            ))}
-                          </div>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1.5, textTransform: "uppercase" }}>Waiting for friend…</span>
-                        </div>
-
-                        {/* Match code */}
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <div style={{ flex: 1, height: 40, background: "rgba(17,10,24,0.6)", border: "1px solid rgba(86,164,203,0.25)", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span style={{ fontSize: 15, fontWeight: 900, color: "#b9e7f4", letterSpacing: 2, fontVariantNumeric: "tabular-nums" }}>{storeMatchId ?? "—"}</span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              void navigator.clipboard.writeText(storeMatchId ?? "").catch(() => {});
-                              setWfCopied(true);
-                              setTimeout(() => setWfCopied(false), 1500);
-                            }}
-                            style={{ width: 40, height: 40, flexShrink: 0, background: wfCopied ? "rgba(74,222,128,0.12)" : "rgba(86,164,203,0.1)", border: `1px solid ${wfCopied ? "rgba(74,222,128,0.4)" : "rgba(86,164,203,0.3)"}`, borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
-                            title="Copy code"
-                          >
-                            <span className="material-icons" style={{ color: wfCopied ? "#4ade80" : "#56a4cb", fontSize: 16 }}>{wfCopied ? "check" : "content_copy"}</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              const link = `${window.location.origin}/join?id=${storeMatchId}`;
-                              if (navigator.share) void navigator.share({ title: "Action Order", text: "Join my match!", url: link });
-                              else void navigator.clipboard.writeText(link).catch(() => {});
-                            }}
-                            style={{ width: 40, height: 40, flexShrink: 0, background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                            title="Share link"
-                          >
-                            <span className="material-icons" style={{ color: "#56a4cb", fontSize: 16 }}>share</span>
-                          </button>
-                        </div>
-
-                        {/* Cancel */}
-                        <button
-                          onClick={() => {
-                            clearInterval(wfPollRef.current!);
-                            clearInterval(wfKeepaliveRef.current!);
-                            if (storeMatchId) {
-                              void fetch(`/api/match/${storeMatchId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "quit", role: "host" }) });
-                            }
-                            setMatchId(null); setPlayerRole(null); setWfWaiting(false); setWfOpponentName(null);
-                          }}
-                          style={{ width: "100%", height: 34, background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
-                        >
-                          CANCEL
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-
                 {/* Create/Find Match button */}
-                {queueState.status === "idle" && !wfWaiting && (
+                {(
                   !address ? (
                     <button
                       disabled
@@ -806,75 +520,57 @@ export default function CreateMatch() {
       </div>
 
       {showWager && (
+        <>
         <WagerModal
           onConfirmed={proceedAfterPayment}
           onSkip={() => {
             setWager(false, null);
             setShowWager(false);
-            if (matchType !== "ranked") router.push("/ready");
-          }}
-          lockedAmount={matchType === "ranked" ? "0.000007" : undefined}
-          mode={matchType === "ranked" ? "ranked" : "wager"}
-        />
-      )}
-
-      {/* Ranked FIND PLAYER payment — shown after opponent matched, before character select */}
-      {showRankedWager && (
-        <>
-        <WagerModal
-          mode="ranked"
-          lockedAmount="0.000007"
-          onConfirmed={async () => {
-            // Mark match as wager-required so joiner gets prompted too
-            const mid = useGameStore.getState().matchId;
-            if (mid) {
-              void fetch(`/api/match/${mid}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "keepalive", role: "host", wagerRequired: true }),
-              });
+            // If this was a FIND PLAYER ranked entry, quit the created match
+            if (postWagerDest === "/select-character") {
+              const mid = useGameStore.getState().matchId;
+              const role = useGameStore.getState().playerRole;
+              if (mid && role) {
+                void fetch(`/api/match/${mid}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "quit", role }),
+                });
+              }
+              resetMatch();
+              setPostWagerDest("/ready");
+            } else {
+              router.push("/ready");
             }
-            setShowRankedWager(false);
-            router.push("/select-character");
           }}
-          onSkip={() => {
-            // Cancel → leave match
-            const mid = useGameStore.getState().matchId;
-            const role = useGameStore.getState().playerRole;
-            if (mid && role) {
-              void fetch(`/api/match/${mid}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "quit", role }),
-              });
-            }
-            setShowRankedWager(false);
-            setQueueState({ status: "idle" });
-          }}
+          lockedAmount={matchType === "ranked" || postWagerDest === "/select-character" ? "0.000007" : undefined}
+          mode={matchType === "ranked" || postWagerDest === "/select-character" ? "ranked" : "wager"}
         />
         {/* Season pass upsell — floats below WagerModal */}
-        <div style={{
-          position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
-          zIndex: 9999,
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "10px 20px", borderRadius: 30,
-          backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
-          boxShadow: "0 0 20px rgba(251,191,36,0.1)",
-        }}>
-          <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Tired of paying every match?</span>
-          <button
-            onClick={() => setShowSeasonPassModal(true)}
-            style={{
-              background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
-              border: "1px solid rgba(251,191,36,0.5)",
-              borderRadius: 20, padding: "5px 14px", cursor: "pointer",
-              fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
-              textTransform: "uppercase", fontFamily: "inherit",
-            }}
-          >
-            ⚡ Get Season Pass
-          </button>
-        </div>
+        {!hasSeasonPass && (
+          <div style={{
+            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
+            zIndex: 9999,
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 20px", borderRadius: 30,
+            backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
+            boxShadow: "0 0 20px rgba(251,191,36,0.1)",
+          }}>
+            <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Tired of paying every match?</span>
+            <button
+              onClick={() => setShowSeasonPassModal(true)}
+              style={{
+                background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
+                border: "1px solid rgba(251,191,36,0.5)",
+                borderRadius: 20, padding: "5px 14px", cursor: "pointer",
+                fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
+                textTransform: "uppercase", fontFamily: "inherit",
+              }}
+            >
+              ⚡ Get Season Pass
+            </button>
+          </div>
+        )}
         </>
       )}
       {showSeasonPassModal && (

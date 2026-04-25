@@ -1,18 +1,23 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from "wagmi";
-import { parseEther } from "viem";
+import { useAccount, useSendTransaction, useWriteContract } from "wagmi";
+import { parseEther, parseUnits } from "viem";
+import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+
+type Currency = "celo" | "gdollar";
 
 const PLANS = [
   {
     id: "weekly" as const,
     label: "WEEKLY PASS",
     days: 7,
-    price: "0.5",
-    priceWei: parseEther("0.5"),
+    priceCelo: "0.5",
+    priceWeiCelo: parseEther("0.5"),
+    priceGdollar: "1000",
+    priceWeiGdollar: parseUnits("1000", 18),
     tagline: "Try it out",
     color: "#56a4cb",
   },
@@ -20,8 +25,10 @@ const PLANS = [
     id: "monthly" as const,
     label: "MONTHLY PASS",
     days: 30,
-    price: "1.5",
-    priceWei: parseEther("1.5"),
+    priceCelo: "1.5",
+    priceWeiCelo: parseEther("1.5"),
+    priceGdollar: "3000",
+    priceWeiGdollar: parseUnits("3000", 18),
     tagline: "Most popular",
     color: "#fbbf24",
     highlight: true,
@@ -30,8 +37,10 @@ const PLANS = [
     id: "season" as const,
     label: "SEASON PASS",
     days: 90,
-    price: "3.5",
-    priceWei: parseEther("3.5"),
+    priceCelo: "3.5",
+    priceWeiCelo: parseEther("3.5"),
+    priceGdollar: "7000",
+    priceWeiGdollar: parseUnits("7000", 18),
     tagline: "Best value",
     color: "#4ade80",
   },
@@ -48,6 +57,7 @@ type Props = {
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address } = useAccount();
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
+  const [currency, setCurrency] = useState<Currency>("celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
@@ -70,67 +80,76 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       .catch(() => setStep("idle"));
   }, [address]);
 
-  const { sendTransaction, data: txHash } = useSendTransaction();
-  const { isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+  const { sendTransaction } = useSendTransaction();
+  const { writeContract } = useWriteContract();
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
+
+  const pollAndRegister = useCallback(async (hash: `0x${string}`) => {
+    setStep("confirming");
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      if (attempts > 30) {
+        clearInterval(poll);
+        setErrMsg("Transaction confirmation timed out. Contact support.");
+        setStep("error");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/season-pass`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address, txHash: hash, plan: selectedPlan, currency }),
+        });
+        if (res.ok) {
+          const data = await res.json() as { success: boolean; expiry: number };
+          clearInterval(poll);
+          setExpiry(data.expiry);
+          setStep("done");
+          onActivated?.();
+        } else if (res.status !== 404) {
+          const errData = await res.json().catch(() => ({})) as { error?: string };
+          clearInterval(poll);
+          setErrMsg(errData.error || "Activation failed. Try again.");
+          setStep("error");
+        }
+      } catch { /* keep polling on network error */ }
+    }, 3000);
+  }, [address, selectedPlan, currency, onActivated]);
 
   const handlePurchase = useCallback(async () => {
     if (!address) return;
     setStep("waiting-tx");
     setErrMsg("");
     try {
-      sendTransaction(
-        { to: TREASURY, value: plan.priceWei, gas: 21000n },
-        {
-          onSuccess: async (hash) => {
-            setStep("confirming");
-            // Poll for confirmation then register
-            let attempts = 0;
-            const poll = setInterval(async () => {
-              attempts++;
-              if (attempts > 30) {
-                clearInterval(poll);
-                setErrMsg("Transaction confirmation timed out. Contact support.");
-                setStep("error");
-                return;
-              }
-              try {
-                const res = await fetch(`/api/season-pass`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ address, txHash: hash, plan: selectedPlan }),
-                });
-                if (res.ok) {
-                  const data = await res.json() as { success: boolean; expiry: number };
-                  clearInterval(poll);
-                  setExpiry(data.expiry);
-                  setStep("done");
-                  onActivated?.();
-                } else if (res.status !== 404) {
-                  // 404 = tx not yet mined — keep polling
-                  // Any other error is definitive — stop and show it
-                  const errData = await res.json().catch(() => ({})) as { error?: string };
-                  clearInterval(poll);
-                  setErrMsg(errData.error || "Activation failed. Try again.");
-                  setStep("error");
-                }
-              } catch {
-                // network error — keep polling
-              }
-            }, 3000);
+      if (currency === "gdollar") {
+        writeContract(
+          {
+            address: GDOLLAR_CONTRACT,
+            abi: GDOLLAR_ABI,
+            functionName: "transfer",
+            args: [TREASURY, plan.priceWeiGdollar],
           },
-          onError: (err) => {
-            setErrMsg(err.message ?? "Transaction rejected.");
-            setStep("error");
-          },
-        }
-      );
+          {
+            onSuccess: (hash) => { void pollAndRegister(hash); },
+            onError: (err) => { setErrMsg(err.message ?? "Transaction rejected."); setStep("error"); },
+          }
+        );
+      } else {
+        sendTransaction(
+          { to: TREASURY, value: plan.priceWeiCelo, gas: 21000n },
+          {
+            onSuccess: (hash) => { void pollAndRegister(hash); },
+            onError: (err) => { setErrMsg(err.message ?? "Transaction rejected."); setStep("error"); },
+          }
+        );
+      }
     } catch (err) {
       setErrMsg(err instanceof Error ? err.message : "Unknown error");
       setStep("error");
     }
-  }, [address, plan, selectedPlan, sendTransaction, onActivated]);
+  }, [address, currency, plan, sendTransaction, writeContract, pollAndRegister]);
 
   const expiryDate = expiry ? new Date(expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
 
@@ -215,8 +234,28 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           </div>
         ) : (
           <>
+            {/* Currency toggle */}
+            <div style={{ padding: "16px 24px 0", display: "flex", gap: 8 }}>
+              {(["celo", "gdollar"] as Currency[]).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCurrency(c)}
+                  style={{
+                    flex: 1, padding: "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                    border: `1.5px solid ${currency === c ? (c === "gdollar" ? "#00C58E" : "#56a4cb") : "rgba(86,164,203,0.15)"}`,
+                    background: currency === c ? (c === "gdollar" ? "rgba(0,197,142,0.1)" : "rgba(86,164,203,0.1)") : "rgba(255,255,255,0.02)",
+                    fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
+                    color: currency === c ? (c === "gdollar" ? "#00C58E" : "#56a4cb") : "rgba(185,231,244,0.4)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {c === "celo" ? "Pay with CELO" : "Pay with G$"}
+                </button>
+              ))}
+            </div>
+
             {/* Plan selector */}
-            <div style={{ padding: "20px 24px 0" }}>
+            <div style={{ padding: "16px 24px 0" }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "rgba(185,231,244,0.4)", textTransform: "uppercase", marginBottom: 12 }}>
                 Choose Your Pass
               </div>
@@ -246,7 +285,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                       </div>
                     )}
                     <div style={{ fontSize: 20, fontWeight: 800, color: p.color, marginBottom: 2 }}>
-                      {p.price} CELO
+                      {currency === "gdollar" ? `${p.priceGdollar} G$` : `${p.priceCelo} CELO`}
                     </div>
                     <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: selectedPlan === p.id ? p.color : "rgba(185,231,244,0.4)", textTransform: "uppercase" }}>
                       {p.days} DAYS
@@ -306,7 +345,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 {step === "waiting-tx" && <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite" }}>●</span>}
                 {step === "confirming" && <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite" }}>●</span>}
                 {step === "idle" || step === "error"
-                  ? `Pay ${plan.price} CELO → Activate ${plan.days}d Pass`
+                  ? `Pay ${currency === "gdollar" ? `${plan.priceGdollar} G$` : `${plan.priceCelo} CELO`} → Activate ${plan.days}d Pass`
                   : step === "waiting-tx"
                   ? "Confirm in wallet…"
                   : "Confirming on-chain…"}
