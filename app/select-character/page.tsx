@@ -42,6 +42,7 @@ export default function SelectCharacter() {
   const opponentJoinedRef = useRef(false);
   const router = useRouter();
   const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput } = useGameStore();
+  const multiplayerMode = matchMode === "vshouse" ? "wager" : matchMode;
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -89,7 +90,7 @@ export default function SelectCharacter() {
         role: playerRole,
         playerName,
         address: playerAddress,
-        mode: matchMode === "vshouse" ? "wager" : matchMode,
+        mode: multiplayerMode,
       }),
     });
 
@@ -100,7 +101,7 @@ export default function SelectCharacter() {
       void fetch(`/api/match/${matchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: matchMode === "vshouse" ? "wager" : matchMode }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: multiplayerMode }),
       });
     }, 60_000);
     return () => clearInterval(kl);
