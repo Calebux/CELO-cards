@@ -398,9 +398,14 @@ export default function SelectCharacter() {
                 </span>
               </>
             ) : (
-              <span className="font-bold uppercase tracking-[1.6875px] text-center" style={{ fontSize: 16.875, color: opponentJoined ? "#4ade80" : "rgba(255,255,255,0.9)" }}>
-                {opponentJoined ? "Selecting..." : "Selecting..."}
-              </span>
+              <>
+                <span className="font-bold uppercase tracking-[1.2px] text-center" style={{ fontSize: 15, color: "#4ade80", maxWidth: 140, lineHeight: 1.3 }}>
+                  {opponentJoinedName ?? "Opponent"}
+                </span>
+                <span className="font-bold uppercase tracking-[1.6875px] text-center" style={{ fontSize: 11.25, color: "rgba(74,222,128,0.75)" }}>
+                  Selecting...
+                </span>
+              </>
             )}
           </div>
 
@@ -412,7 +417,7 @@ export default function SelectCharacter() {
 
           <div className="absolute" style={{ left: 39.52, top: 316.82 }}>
             <span className="font-bold uppercase" style={{ fontSize: 8.438, letterSpacing: 0.844, color: opponentJoined ? "#4ade80" : "#b9e7f4" }}>
-              {opponentJoined ? (opponentJoinedName ?? "Opponent") : "Waiting for opponent…"}
+              {opponentJoined ? "Connected" : ""}
             </span>
           </div>
 

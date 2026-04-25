@@ -9,7 +9,6 @@ import { useGameStore } from "../lib/gameStore";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
-const DESIGN_CONTENT_H = 1200;
 
 type LeaderboardPlayer = {
   address: string;
@@ -53,20 +52,27 @@ const HOW_IT_WORKS = [
   },
   {
     step: "02",
+    title: "ACTIVATE YOUR PASS",
+    body: "Buy a Season Pass to unlock ranked play. Your pass keeps you eligible for leaderboard climbs, weekly rewards, and tournament qualification without repeated match-fee prompts.",
+    icon: "🎫",
+    color: "#fbbf24",
+  },
+  {
+    step: "03",
     title: "PLAY RANKED MATCHES",
     body: "Every ranked match you win earns Points. Beat higher-ranked opponents for bonus multipliers.",
     icon: "⚔️",
     color: "#f59e0b",
   },
   {
-    step: "03",
+    step: "04",
     title: "CLIMB THE BOARD",
     body: "The leaderboard resets every Monday. Your points this week determine your standing for the prize.",
     icon: "📈",
     color: "#a855f7",
   },
   {
-    step: "04",
+    step: "05",
     title: "TOP PLAYER WINS",
     body: "The #1 ranked player at Monday 00:00 UTC wins the full prize pool in G$ — streamed straight to their wallet.",
     icon: "💰",
@@ -158,12 +164,11 @@ export default function WeeklyChallengePage() {
         const tx = vw / 2 + (DESIGN_H * s) / 2;
         const ty = vh / 2 - (DESIGN_W * s) / 2;
         wrapRef.current.style.transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-        outerRef.current.style.height = `${vh}px`;
       } else {
-        const s = vw / DESIGN_W;
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
         const tx = (vw - DESIGN_W * s) / 2;
-        wrapRef.current.style.transform = `translate(${tx}px, 0px) scale(${s})`;
-        outerRef.current.style.height = `${DESIGN_CONTENT_H * s}px`;
+        const ty = (vh - DESIGN_H * s) / 2;
+        wrapRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
     };
     scale();
@@ -251,7 +256,7 @@ export default function WeeklyChallengePage() {
   const qualified = rank !== null && rank <= 1;
 
   return (
-    <div ref={outerRef} style={{ width: "100vw", overflowX: "hidden", overflowY: "auto", position: "relative", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div ref={outerRef} style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
 
       {/* Background */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
@@ -269,14 +274,14 @@ export default function WeeklyChallengePage() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,5,5,0.7) 0%, rgba(5,5,5,0.4) 40%, rgba(5,5,5,0.85) 100%)" }} />
       </div>
 
-      <div ref={wrapRef} style={{ width: DESIGN_W, minHeight: DESIGN_H, height: "auto", position: "absolute", top: 0, left: 0, transformOrigin: "top left", zIndex: 1 }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", zIndex: 1 }}>
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
-              <span className="material-icons" style={{ fontSize: 16 }}>arrow_back_ios</span>
-              BACK
+              <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+              <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
             </button>
             <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
               <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
@@ -373,7 +378,7 @@ export default function WeeklyChallengePage() {
         </div>
 
         {/* ── Main content: leaderboard + sidebar ──────────────────────── */}
-        <div style={{ position: "absolute", top: 356, left: 64, right: 64, display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ position: "absolute", top: 356, left: 64, right: 52, bottom: 26, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", overflowX: "hidden", paddingRight: 12 }}>
 
           {/* Left column: Live Leaderboard + How It Works below */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
