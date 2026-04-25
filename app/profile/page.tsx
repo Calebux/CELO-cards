@@ -307,7 +307,7 @@ export default function ProfilePage() {
                   </>
                 ) : (
                   <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 10, lineHeight: 1.5 }}>
-                    Skip entry fees on every ranked match.
+                    Unlock ranked play and stay eligible for leaderboard rewards.
                   </div>
                 )}
                 <button

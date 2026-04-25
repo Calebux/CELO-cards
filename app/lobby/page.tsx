@@ -24,7 +24,7 @@ export default function Lobby() {
   const [netErrorCount, setNetErrorCount] = useState(0);
   const waitStartRef = useRef<number | null>(null);
   // For multiplayer: don't start the auto-ready timer until the first poll
-  // comes back so wagerRequired is known — prevents a race on slow networks
+  // comes back so paymentRequired is known — prevents a race on slow networks
   const [firstPollDone, setFirstPollDone] = useState(!playerRole || !matchId);
 
   // Ranked / wager payment gate
@@ -125,7 +125,7 @@ export default function Lobby() {
   }, [playerRole, matchId]);
 
   // Auto-ready P1 after 3s — but only AFTER the first poll confirms
-  // wagerRequired status (prevents racing the poll on slow networks).
+  // paymentRequired status (prevents racing the poll on slow networks).
   // Solo matches skip polling so firstPollDone starts true for them.
   useEffect(() => {
     if (!firstPollDone) return;

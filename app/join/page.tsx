@@ -369,7 +369,7 @@ function JoinMatchContent() {
 
             {/* Season pass teaser */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 18 }}>
-              <span style={{ fontSize: 10, color: "#475569" }}>Skip ranked entry fees?</span>
+              <span style={{ fontSize: 10, color: "#475569" }}>Need ranked access?</span>
               <button
                 onClick={() => setShowSeasonPassModal(true)}
                 style={{
