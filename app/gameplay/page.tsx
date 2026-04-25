@@ -98,6 +98,7 @@ export default function Gameplay() {
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
+  const payoutFiredRef = useRef(false);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -398,6 +399,17 @@ export default function Gameplay() {
         })
         .catch(() => {})
     ).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchPhase]);
+
+  // Auto-trigger payout when match ends and player won a wagered match
+  // Covers both wager and ranked modes — creates on-chain tx visible on Celoscan
+  useEffect(() => {
+    if (matchPhase !== "match-end" || !wagerActive || !address || !matchId) return;
+    const won = playerRoundsWon > opponentRoundsWon;
+    if (!won || payoutFiredRef.current) return;
+    payoutFiredRef.current = true;
+    void handleClaimPayout();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchPhase]);
 
@@ -1268,35 +1280,14 @@ export default function Gameplay() {
                     <p style={{ fontSize: 22, fontWeight: 800, color: accentColor, margin: 0, textShadow: `0 0 12px ${accentGlow}` }}>{playerPoints} PTS</p>
                   </div>
 
-                  {/* Wager payout — only shown when player wagered, won, AND it's a wager match (not ranked) */}
-                  {wagerActive && won && wagerMode === "wager" && (
+                  {/* Payout — auto-fires for all wagered wins (wager + ranked). Creates on-chain tx on Celoscan. */}
+                  {wagerActive && won && (
                     <div style={{ marginBottom: 20 }}>
-                      {payoutState === "idle" && (
-                        <button
-                          onClick={() => void handleClaimPayout()}
-                          style={{
-                            width: "100%", padding: "14px 0",
-                            background: isGDollar
-                              ? "linear-gradient(135deg, rgba(0,197,142,0.15), rgba(0,197,142,0.05))"
-                              : "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
-                            border: `1.5px solid ${isGDollar ? "#00C58E" : "#4ade80"}`,
-                            borderRadius: 6, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          <span className="material-icons" style={{ fontSize: 20, color: isGDollar ? "#00C58E" : "#4ade80" }}>
-                            {isGDollar ? "stream" : "payments"}
-                          </span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: isGDollar ? "#00C58E" : "#4ade80", textTransform: "uppercase", letterSpacing: 3 }}>
-                            {isGDollar ? "Stream G$ Winnings" : `Claim ${payoutAmountDisplay}`}
-                          </span>
-                        </button>
-                      )}
-                      {payoutState === "loading" && (
-                        <div style={{ textAlign: "center", padding: "14px 0" }}>
+                      {(payoutState === "idle" || payoutState === "loading") && (
+                        <div style={{ textAlign: "center", padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, animation: "ml-pulse 1.2s ease-in-out infinite", color: isGDollar ? "#00C58E" : "#b9e7f4" }}>●</span>
                           <span style={{ fontSize: 13, color: isGDollar ? "#00C58E" : "#b9e7f4", letterSpacing: 1 }}>
-                            {isGDollar ? "Starting G$ stream via Superfluid…" : "Sending payout…"}
+                            {isGDollar ? "Starting G$ stream via Superfluid…" : "Sending winnings…"}
                           </span>
                         </div>
                       )}
@@ -1305,9 +1296,13 @@ export default function Gameplay() {
                           <span style={{ fontSize: 13, color: "#4ade80", letterSpacing: 0.5 }}>
                             ✓ {payoutAmountDisplay} sent!{" "}
                             {payoutTxHash && (
-                              <span style={{ fontSize: 11, color: "#6b7280", wordBreak: "break-all" }}>
-                                tx: {payoutTxHash.slice(0, 14)}…
-                              </span>
+                              <a
+                                href={`https://celoscan.io/tx/${payoutTxHash}`}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: 11, color: "#56a4cb", textDecoration: "underline" }}
+                              >
+                                View on Celoscan ↗
+                              </a>
                             )}
                           </span>
                         </div>
@@ -1322,7 +1317,7 @@ export default function Gameplay() {
                             {payoutAmountDisplay} flowing over 24h via Superfluid.{" "}
                             {payoutTxHash && (
                               <a
-                                href={`https://explorer.celo.org/mainnet/tx/${payoutTxHash}`}
+                                href={`https://celoscan.io/tx/${payoutTxHash}`}
                                 target="_blank" rel="noopener noreferrer"
                                 style={{ color: "#00C58E", textDecoration: "underline" }}
                               >
@@ -1336,7 +1331,7 @@ export default function Gameplay() {
                         <div style={{ textAlign: "center", padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 12, color: "#f87171" }}>Payout failed — please try again.</span>
                           <button
-                            onClick={() => { setPayoutState("idle"); void handleClaimPayout(); }}
+                            onClick={() => { payoutFiredRef.current = false; setPayoutState("idle"); void handleClaimPayout(); }}
                             style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.4)", borderRadius: 6, padding: "6px 16px", color: "#f87171", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                           >
                             RETRY PAYOUT
