@@ -49,14 +49,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Treasury not configured" }, { status: 500 });
   }
 
-  let winner: `0x${string}`;
+  let requestedWinner: `0x${string}` | null = null;
   let matchId: string;
   let currency: "cusd" | "celo" | "gdollar" = "cusd";
   let mult = 1n;
   try {
-    const body = await req.json() as { winner: string; matchId: string; currency?: string; multiplier?: number };
-    if (!body.winner || !body.matchId) throw new Error("missing fields");
-    winner = body.winner as `0x${string}`;
+    const body = await req.json() as { winner?: string; matchId: string; currency?: string; multiplier?: number };
+    if (!body.matchId) throw new Error("missing fields");
+    if (body.winner) requestedWinner = body.winner as `0x${string}`;
     matchId = body.matchId;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Basic address validation
-  if (!/^0x[0-9a-fA-F]{40}$/.test(winner)) {
+  if (requestedWinner && !/^0x[0-9a-fA-F]{40}$/.test(requestedWinner)) {
     return NextResponse.json({ error: "Invalid winner address" }, { status: 400 });
   }
 
@@ -85,6 +85,13 @@ export async function POST(req: NextRequest) {
   if (match.mode !== "wager") {
     return NextResponse.json({ error: "Payouts are only available for wager matches" }, { status: 409 });
   }
+  if (!match.completedAt || !match.winnerAddress) {
+    return NextResponse.json({ error: "Match is not ready for payout" }, { status: 409 });
+  }
+  if (requestedWinner && requestedWinner.toLowerCase() !== match.winnerAddress.toLowerCase()) {
+    return NextResponse.json({ error: "Winner does not match recorded result" }, { status: 409 });
+  }
+  const winner = match.winnerAddress as `0x${string}`;
 
   // Check if both players wagered and get the actual payout amount from their stakes
   const { bothWagered, winnerPayout: dualPayout } = await getMatchWagerInfo(matchId);

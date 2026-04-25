@@ -315,6 +315,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       else if (result.roundWinner === "opponent") m.joinerWins++;
 
       if (m.hostWins >= 3 || m.joinerWins >= 3) {
+        m.completedAt = Date.now();
+        m.winnerAddress = m.hostWins >= 3 ? m.host.address : m.joiner.address;
         matchEndSnapshot = { hostWon: m.hostWins >= 3, m: { ...m, host: { ...m.host }, joiner: { ...m.joiner } } };
       }
     }

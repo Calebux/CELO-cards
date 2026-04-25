@@ -24,6 +24,8 @@ export interface ServerMatch {
   joinerWagerTx: string | null;
   hostWagerAmount: string | null;
   joinerWagerAmount: string | null;
+  winnerAddress: string | null;
+  completedAt: number | null;
   abortedBy: "host" | "joiner" | null;
 }
 
@@ -48,6 +50,8 @@ export function newServerMatch(matchId: string, mode: MultiplayerMode = "wager")
     joinerWagerTx: null,
     hostWagerAmount: null,
     joinerWagerAmount: null,
+    winnerAddress: null,
+    completedAt: null,
     abortedBy: null,
   };
 }
