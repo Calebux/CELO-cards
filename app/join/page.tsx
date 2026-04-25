@@ -20,6 +20,7 @@ function JoinMatchContent() {
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
+  const wagerActive = useGameStore((s) => s.wagerActive);
 
   const { address } = useAccount();
   const searchParams = useSearchParams();
@@ -191,7 +192,12 @@ function JoinMatchContent() {
                 <button
                   key={m.id}
                   onClick={() => {
-                    if (isOwnMatch) { router.push("/ready?ranked=true"); return; }
+                    if (isOwnMatch) {
+                      // FIND PLAYER host (wagerActive=true) is already at select-character;
+                      // WITH FRIEND host (wagerActive=false) is still at the ready/share page.
+                      router.push(wagerActive ? "/select-character" : "/ready?ranked=true");
+                      return;
+                    }
                     if (!joining) void handleJoin(m.id);
                   }}
                   disabled={joining && !isOwnMatch}

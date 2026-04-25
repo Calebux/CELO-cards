@@ -76,6 +76,37 @@ export default function SelectCharacter() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
+  // Announce presence on mount + keepalive loop for FIND PLAYER host
+  useEffect(() => {
+    if (!matchId || !playerRole || vsBot) return;
+
+    // Send name immediately so the other player is notified right away
+    void fetch(`/api/match/${matchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "keepalive",
+        role: playerRole,
+        playerName,
+        address: playerAddress,
+        wagerRequired: playerRole === "host",
+      }),
+    });
+
+    // Host: keep the match alive in open games every 60s while waiting
+    if (playerRole !== "host") return;
+    const kl = setInterval(() => {
+      if (opponentJoinedRef.current) { clearInterval(kl); return; }
+      void fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, wagerRequired: true }),
+      });
+    }, 60_000);
+    return () => clearInterval(kl);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, playerRole, vsBot]);
+
   // Poll for opponent joining — multiplayer only
   useEffect(() => {
     if (!matchId || !playerRole || vsBot || opponentJoinedRef.current) return;
