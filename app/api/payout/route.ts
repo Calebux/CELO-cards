@@ -52,16 +52,13 @@ export async function POST(req: NextRequest) {
   let requestedWinner: `0x${string}` | null = null;
   let matchId: string;
   let currency: "cusd" | "celo" | "gdollar" = "cusd";
-  let mult = 1n;
   try {
-    const body = await req.json() as { winner?: string; matchId: string; currency?: string; multiplier?: number };
+    const body = await req.json() as { winner?: string; matchId: string; currency?: string };
     if (!body.matchId) throw new Error("missing fields");
     if (body.winner) requestedWinner = body.winner as `0x${string}`;
     matchId = body.matchId;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
-    // Clamp multiplier to 1 or 2 (double-down)
-    if (typeof body.multiplier === "number" && body.multiplier >= 2) mult = 2n;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -127,13 +124,13 @@ export async function POST(req: NextRequest) {
           GDOLLAR_CONTRACT,
           account.address,
           winner,
-          baseFlowRate * mult,
+          baseFlowRate,
           "0x",
         ],
       });
       txHash = await walletClient.writeContract(request);
       const payoutTag = bothWagered ? "dual-wager" : "solo";
-      console.log(`Payout ${matchId} [${payoutTag}]: G$ stream started to ${winner} @ ${baseFlowRate * mult} wei/sec (×${mult}) — tx ${txHash}`);
+      console.log(`Payout ${matchId} [${payoutTag}]: G$ stream started to ${winner} @ ${baseFlowRate} wei/sec — tx ${txHash}`);
       // Note: stream auto-expires on Superfluid after the token balance is drained;
       // serverless setTimeout cannot be used here (function lifetime too short).
       await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
@@ -153,12 +150,12 @@ export async function POST(req: NextRequest) {
       console.log(`Payout ${matchId}: completeMatch(${winner}) — tx ${txHash}`);
     } else if (currency === "celo") {
       // Native CELO direct transfer
-      const celoAmt = (bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO) * mult;
+      const celoAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO;
       txHash = await walletClient.sendTransaction({ to: winner, value: celoAmt });
-      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct CELO ${formatUnits(celoAmt, 18)} (×${mult}) to ${winner} — tx ${txHash}`);
+      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct CELO ${formatUnits(celoAmt, 18)} to ${winner} — tx ${txHash}`);
     } else {
       // cUSD direct transfer
-      const cusdAmt = (bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT) * mult;
+      const cusdAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT;
       const { request } = await publicClient.simulateContract({
         account,
         address: CUSD_CONTRACT,
@@ -167,7 +164,7 @@ export async function POST(req: NextRequest) {
         args: [winner, cusdAmt],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct transfer ${formatUnits(cusdAmt, 18)} cUSD (×${mult}) to ${winner} — tx ${txHash}`);
+      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct transfer ${formatUnits(cusdAmt, 18)} cUSD to ${winner} — tx ${txHash}`);
     }
 
     // Record payout so it can't be triggered twice

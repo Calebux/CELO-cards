@@ -47,8 +47,6 @@ export default function Gameplay() {
     wagerActive,
     wagerCurrency,
     winStreak,
-    wagerMultiplier,
-    setWagerMultiplier,
     opponentWagered,
     ultimateActivated,
     ultimateUsed,
@@ -91,8 +89,6 @@ export default function Gameplay() {
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
   const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
-  const [showDoubleDown, setShowDoubleDown] = useState(false);
-  const [doubleDownTimer, setDoubleDownTimer] = useState(10);
   const [matchLoading, setMatchLoading] = useState(true);
   const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
@@ -110,24 +106,6 @@ export default function Gameplay() {
     stuckTimerRef.current = setTimeout(() => setGameStuck(true), 90_000);
     return () => { if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current); };
   }, [revealedSlots, isAnimating, showResult, matchPhase]);
-
-  // Double-down prompt: show after round 1 completes if wagerActive and multiplier=1
-  useEffect(() => {
-    if (matchPhase === "round-result" && roundNumber === 1 && wagerActive && wagerMultiplier === 1) {
-      setShowDoubleDown(true);
-      setDoubleDownTimer(10);
-    } else {
-      setShowDoubleDown(false);
-    }
-  }, [matchPhase, roundNumber, wagerActive, wagerMultiplier]);
-
-  // Double-down countdown timer
-  useEffect(() => {
-    if (!showDoubleDown) return;
-    if (doubleDownTimer <= 0) { setShowDoubleDown(false); return; }
-    const t = setInterval(() => setDoubleDownTimer((n) => n - 1), 1000);
-    return () => clearInterval(t);
-  }, [showDoubleDown, doubleDownTimer]);
 
   // Brief cinematic loading screen before match starts
   useEffect(() => {
@@ -319,7 +297,7 @@ export default function Gameplay() {
       const res = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ winner: address, matchId, currency: wagerCurrency, multiplier: wagerMultiplier }),
+        body: JSON.stringify({ winner: address, matchId, currency: wagerCurrency }),
       });
       const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");
@@ -547,54 +525,6 @@ export default function Gameplay() {
             <span style={{ fontSize: 18, fontWeight: 900, color: "#000", letterSpacing: 2 }}>
               {comboBanner === "player" ? "🔥 COMBO STREAK! +3" : "🔥 OPPONENT COMBO! +3"}
             </span>
-          </div>
-        )}
-
-        {/* Double-down overlay */}
-        {showDoubleDown && (
-          <div style={{
-            position: "absolute", inset: 0, zIndex: 90,
-            background: "rgba(0,0,0,0.75)",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            gap: 20,
-          }}>
-            <div style={{
-              background: "rgba(10,15,30,0.97)",
-              border: "2px solid #f59e0b",
-              borderRadius: 12,
-              padding: "40px 56px",
-              textAlign: "center",
-              boxShadow: "0 0 60px rgba(245,158,11,0.4)",
-              maxWidth: 480,
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>WAGER OFFER</div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: "#f1f5f9", marginBottom: 8, letterSpacing: -1 }}>Double Down?</div>
-              <p style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.6, margin: "0 0 24px" }}>
-                Double your wager for twice the reward. You have {doubleDownTimer}s to decide.
-              </p>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  onClick={() => { setWagerMultiplier(2); setShowDoubleDown(false); }}
-                  style={{
-                    flex: 1, padding: "14px", borderRadius: 8, cursor: "pointer",
-                    background: "linear-gradient(135deg, #92400e, #78350f)",
-                    border: "2px solid #f59e0b",
-                    fontWeight: 900, fontSize: 15, color: "#fbbf24", letterSpacing: 2, textTransform: "uppercase",
-                    fontFamily: "inherit",
-                  }}
-                >⚡ DOUBLE IT</button>
-                <button
-                  onClick={() => setShowDoubleDown(false)}
-                  style={{
-                    flex: 1, padding: "14px", borderRadius: 8, cursor: "pointer",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "2px solid rgba(255,255,255,0.12)",
-                    fontWeight: 700, fontSize: 15, color: "#94a3b8", letterSpacing: 1, textTransform: "uppercase",
-                    fontFamily: "inherit",
-                  }}
-                >PASS</button>
-              </div>
-            </div>
           </div>
         )}
 
