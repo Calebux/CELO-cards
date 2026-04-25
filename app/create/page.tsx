@@ -77,6 +77,11 @@ export default function CreateMatch() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [hasSeasonPass, setHasSeasonPass] = useState(false);
   const [queueExpiredMsg, setQueueExpiredMsg] = useState<string | null>(null);
+  const [wfWaiting, setWfWaiting] = useState(false);
+  const [wfOpponentName, setWfOpponentName] = useState<string | null>(null);
+  const [wfCopied, setWfCopied] = useState(false);
+  const wfPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wfKeepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queueStartRef = useRef<number>(0);
   const router = useRouter();
@@ -123,6 +128,51 @@ export default function CreateMatch() {
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
       .catch(() => {});
   }, [address]);
+
+  // Auto-restore WITH FRIEND waiting state if user navigated away
+  useEffect(() => {
+    if (storeMatchId && storePlayerRole === "host" && !storeWagerActive) {
+      setWfWaiting(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keepalive + opponent poll while waiting for friend
+  useEffect(() => {
+    if (!wfWaiting || !storeMatchId) return;
+
+    const keepalive = () => {
+      const { playerName, playerAddress } = useGameStore.getState();
+      void fetch(`/api/match/${storeMatchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, wagerRequired: true }),
+      }).catch(() => {});
+    };
+    keepalive();
+    wfKeepaliveRef.current = setInterval(keepalive, 30_000);
+
+    wfPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${storeMatchId}?role=host`);
+        const data = await res.json() as { opponentCharId?: string | null; opponentName?: string | null };
+        if (data.opponentCharId) {
+          clearInterval(wfPollRef.current!);
+          clearInterval(wfKeepaliveRef.current!);
+          const name = data.opponentName ?? "Opponent";
+          setOpponentName(name);
+          setWfOpponentName(name);
+          setTimeout(() => router.push("/select-character"), 2200);
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+
+    return () => {
+      clearInterval(wfPollRef.current!);
+      clearInterval(wfKeepaliveRef.current!);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wfWaiting, storeMatchId]);
 
   useEffect(() => {
     const scale = () => {
@@ -277,7 +327,6 @@ export default function CreateMatch() {
     setVsBot(false);
     setPlayerRole("host");
     if (matchType === "ranked") {
-      // Pre-register match in Redis immediately so it appears in open games right away
       const newMatchId = useGameStore.getState().matchId;
       if (newMatchId) {
         const playerName = useGameStore.getState().playerName;
@@ -287,7 +336,7 @@ export default function CreateMatch() {
           body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, wagerRequired: true }),
         });
       }
-      router.push("/ready?ranked=true");
+      setWfWaiting(true); // show inline waiting UI — no navigation needed
       return;
     }
     setShowWager(true);
@@ -331,33 +380,7 @@ export default function CreateMatch() {
           <WalletSection />
         </div>
 
-        {/* ── Resume Open Match Banner ─────────────────────────────────── */}
-        {storeMatchId && storePlayerRole === "host" && !storeWagerActive && (
-          <div style={{
-            position: "absolute", top: 74, left: "50%", transform: "translateX(-50%)",
-            display: "flex", alignItems: "center", gap: 12, padding: "10px 20px",
-            background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.4)",
-            borderRadius: 8, zIndex: 20, width: 560,
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 0.5 }}>Open match: </span>
-              <span style={{ fontSize: 11, color: "#56a4cb", fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>{storeMatchId}</span>
-            </div>
-            <button
-              onClick={() => router.push("/ready?ranked=true")}
-              style={{ background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.5)", borderRadius: 5, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1, textTransform: "uppercase" }}
-            >
-              Resume →
-            </button>
-            <button
-              onClick={() => { setMatchId(null); setPlayerRole(null); }}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#475569", padding: "0 4px" }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
+        {/* No resume banner — waiting state is handled inline in the panel */}
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 12 }}>
@@ -570,15 +593,90 @@ export default function CreateMatch() {
                   );
                 })()}
 
-                {/* Found state */}
+                {/* Found state (queue) */}
                 {queueState.status === "found" && (
                   <div style={{ marginBottom: 12, padding: "16px 20px", background: "rgba(74,222,128,0.08)", border: "1.5px solid rgba(74,222,128,0.4)", borderRadius: 8, textAlign: "center" }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", letterSpacing: 2, textTransform: "uppercase" }}>✓ Opponent Found — Entering Match</span>
                   </div>
                 )}
 
+                {/* ── WITH FRIEND — inline waiting state ─────────────────── */}
+                {wfWaiting && (
+                  <div style={{ marginBottom: 12, padding: "18px 20px", background: "rgba(86,164,203,0.06)", border: `1.5px solid ${wfOpponentName ? "rgba(74,222,128,0.5)" : "rgba(86,164,203,0.35)"}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 12, transition: "border-color 0.3s" }}>
+
+                    {wfOpponentName ? (
+                      /* Opponent joined notification */
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80", flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>
+                            ⚡ {wfOpponentName} joined!
+                          </div>
+                          <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginTop: 2 }}>Heading to character select…</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Waiting header */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {[0, 0.3, 0.6].map((delay, i) => (
+                              <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "#56a4cb", animation: `pulse ${1.2}s ease-in-out ${delay}s infinite` }} />
+                            ))}
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1.5, textTransform: "uppercase" }}>Waiting for friend…</span>
+                        </div>
+
+                        {/* Match code */}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <div style={{ flex: 1, height: 40, background: "rgba(17,10,24,0.6)", border: "1px solid rgba(86,164,203,0.25)", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <span style={{ fontSize: 15, fontWeight: 900, color: "#b9e7f4", letterSpacing: 2, fontVariantNumeric: "tabular-nums" }}>{storeMatchId ?? "—"}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              void navigator.clipboard.writeText(storeMatchId ?? "").catch(() => {});
+                              setWfCopied(true);
+                              setTimeout(() => setWfCopied(false), 1500);
+                            }}
+                            style={{ width: 40, height: 40, flexShrink: 0, background: wfCopied ? "rgba(74,222,128,0.12)" : "rgba(86,164,203,0.1)", border: `1px solid ${wfCopied ? "rgba(74,222,128,0.4)" : "rgba(86,164,203,0.3)"}`, borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+                            title="Copy code"
+                          >
+                            <span className="material-icons" style={{ color: wfCopied ? "#4ade80" : "#56a4cb", fontSize: 16 }}>{wfCopied ? "check" : "content_copy"}</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const link = `${window.location.origin}/join?id=${storeMatchId}`;
+                              if (navigator.share) void navigator.share({ title: "Action Order", text: "Join my match!", url: link });
+                              else void navigator.clipboard.writeText(link).catch(() => {});
+                            }}
+                            style={{ width: 40, height: 40, flexShrink: 0, background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            title="Share link"
+                          >
+                            <span className="material-icons" style={{ color: "#56a4cb", fontSize: 16 }}>share</span>
+                          </button>
+                        </div>
+
+                        {/* Cancel */}
+                        <button
+                          onClick={() => {
+                            clearInterval(wfPollRef.current!);
+                            clearInterval(wfKeepaliveRef.current!);
+                            if (storeMatchId) {
+                              void fetch(`/api/match/${storeMatchId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "quit", role: "host" }) });
+                            }
+                            setMatchId(null); setPlayerRole(null); setWfWaiting(false); setWfOpponentName(null);
+                          }}
+                          style={{ width: "100%", height: 34, background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 700, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}
+                        >
+                          CANCEL
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* Create/Find Match button */}
-                {queueState.status === "idle" && (
+                {queueState.status === "idle" && !wfWaiting && (
                   !address ? (
                     <button
                       disabled
