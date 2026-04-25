@@ -129,7 +129,7 @@ export default function WeeklyChallengePage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address } = useAccount();
-  const { resetMatch, setVsBot, setWager } = useGameStore();
+  const { resetMatch, setVsBot, setWager, setMatchMode } = useGameStore();
 
   const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -540,8 +540,9 @@ export default function WeeklyChallengePage() {
             <button
               onClick={() => {
                 resetMatch();
-                setVsBot(true);
-                setWager(false, null, "cusd", "ranked");
+                setVsBot(false);
+                setMatchMode("ranked");
+                setWager(false, null, "cusd");
                 router.push("/select-character");
               }}
               style={{ width: "100%", height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 15, letterSpacing: 2.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)", boxShadow: "0 0 20px rgba(86,164,203,0.2)" }}>

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
+import { MultiplayerMode } from "./matchmaking";
 import {
     generateAIOrder,
     AIRoundContext,
@@ -71,6 +72,8 @@ interface GameState {
     // Match
     matchId: string | null;
     setMatchId: (id: string | null) => void;
+    matchMode: "vshouse" | MultiplayerMode;
+    setMatchMode: (mode: "vshouse" | MultiplayerMode) => void;
 
     // Multiplayer role
     playerRole: "host" | "joiner" | null;
@@ -89,7 +92,6 @@ interface GameState {
 
     // Wager
     wagerActive: boolean;
-    wagerMode: "ranked" | "wager";
     wagerTxHash: string | null;
     wagerCurrency: "cusd" | "celo" | "gdollar";
     wagerAmountInput: string;        // human-readable stake, e.g. "0.01"
@@ -152,7 +154,7 @@ interface GameState {
     unlockedPremiumCards: string[];
     purchaseCard: (cardId: string, price: number) => void;
     setPrecomputedFromServer: (slots: SlotResult[]) => void;
-    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar", mode?: "ranked" | "wager") => void;
+    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar") => void;
     selectCharacter: (character: Character) => void;
     startMatch: () => void;
     addCardToSlot: (card: Card) => void;
@@ -185,6 +187,8 @@ export const useGameStore = create<GameState>()(
     maxEnergy: 10,
     matchId: null,
     setMatchId: (id) => set({ matchId: id }),
+    matchMode: "wager",
+    setMatchMode: (mode) => set({ matchMode: mode }),
     playerRole: null,
     setPlayerRole: (role) => set({ playerRole: role }),
     vsBot: false,
@@ -193,7 +197,6 @@ export const useGameStore = create<GameState>()(
     setAiDifficulty: (d) => set({ aiDifficulty: d }),
     playerAddress: null,
     wagerActive: false,
-    wagerMode: "wager",
     wagerTxHash: null,
     wagerCurrency: "cusd" as "cusd" | "celo" | "gdollar",
     wagerAmountInput: "0.01",
@@ -271,7 +274,7 @@ export const useGameStore = create<GameState>()(
         const { deckPresets } = get();
         set({ deckPresets: deckPresets.filter((_, i) => i !== index) });
     },
-    setWager: (active, txHash, currency = "cusd", mode = "wager") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency as "cusd" | "celo" | "gdollar", wagerMode: mode }),
+    setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency as "cusd" | "celo" | "gdollar" }),
 
     setOpponentCharacterFromServer: (charId) => {
         const char = CHARACTERS.find((c) => c.id === charId);
@@ -309,6 +312,7 @@ export const useGameStore = create<GameState>()(
             opponentCharacter: opponent,
             playerDeck: deck,
             matchPhase: "lobby",
+            matchMode: "vshouse",
             roundNumber: 1,
             playerRoundsWon: 0,
             opponentRoundsWon: 0,
@@ -608,12 +612,12 @@ export const useGameStore = create<GameState>()(
             precomputedRound: null,
             revealedSlots: 0,
             matchId: `AO-${suffix}`,
+            matchMode: "wager",
             playerRole: null,
             maxEnergy: 10,
             playerPoints: state.playerPoints, // keep — persisted to localStorage
             pointsThisRound: 0,
             wagerActive: false,
-            wagerMode: "wager",
             wagerTxHash: null,
             wagerCurrency: "cusd",
             wagerAmountInput: "0.01",
@@ -639,6 +643,7 @@ export const useGameStore = create<GameState>()(
             precomputedRound: null,
             revealedSlots: 0,
             matchPhase: "lobby",
+            matchMode: get().matchMode,
             roundNumber: 1,
             playerRoundsWon: 0,
             opponentRoundsWon: 0,
@@ -658,6 +663,7 @@ export const useGameStore = create<GameState>()(
             currentOrder: [null, null, null, null, null],
             opponentOrder: [],
             matchPhase: "loadout",
+            matchMode: "vshouse",
             roundNumber: 1,
             playerRoundsWon: 0,
             opponentRoundsWon: 0,
@@ -683,6 +689,7 @@ export const useGameStore = create<GameState>()(
       partialize: (state) => ({
         // Game flow state — survives reloads so you don't lose progress mid-match
         matchId: state.matchId,
+        matchMode: state.matchMode,
         playerRole: state.playerRole,
         selectedCharacter: state.selectedCharacter,
         opponentCharacter: state.opponentCharacter,
@@ -690,7 +697,6 @@ export const useGameStore = create<GameState>()(
         vsBot: state.vsBot,
         aiDifficulty: state.aiDifficulty,
         wagerActive: state.wagerActive,
-        wagerMode: state.wagerMode,
         wagerTxHash: state.wagerTxHash,
         wagerCurrency: state.wagerCurrency,
         wagerAmountInput: state.wagerAmountInput,

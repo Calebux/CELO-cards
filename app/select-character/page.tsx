@@ -41,7 +41,7 @@ export default function SelectCharacter() {
   const [joinFlash, setJoinFlash] = useState(false);
   const opponentJoinedRef = useRef(false);
   const router = useRouter();
-  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, vsBot, playerName, wagerTxHash, wagerAmountInput } = useGameStore();
+  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput } = useGameStore();
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
 
@@ -89,7 +89,7 @@ export default function SelectCharacter() {
         role: playerRole,
         playerName,
         address: playerAddress,
-        wagerRequired: playerRole === "host",
+        mode: matchMode === "vshouse" ? "wager" : matchMode,
       }),
     });
 
@@ -100,7 +100,7 @@ export default function SelectCharacter() {
       void fetch(`/api/match/${matchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, wagerRequired: true }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: matchMode === "vshouse" ? "wager" : matchMode }),
       });
     }, 60_000);
     return () => clearInterval(kl);
@@ -150,9 +150,9 @@ export default function SelectCharacter() {
     if (playerRole !== null && matchId) {
       // Multiplayer: init loadout state WITHOUT overwriting matchId (startMatch would corrupt it)
       initMultiplayerLoadout();
-      // Build wager amount as BigInt string if host paid
+      // Build wager amount as BigInt string if host paid a wager match
       let wagerAmountBig: string | undefined;
-      if (playerRole === "host" && wagerTxHash && wagerAmountInput) {
+      if (matchMode === "wager" && playerRole === "host" && wagerTxHash && wagerAmountInput) {
         try {
           const { parseUnits } = await import("viem");
           const n = Number(wagerAmountInput);
@@ -169,7 +169,7 @@ export default function SelectCharacter() {
           characterId: activeChar.id,
           playerName,
           address: playerAddress,
-          ...(playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig } : {}),
+          ...(matchMode === "wager" && playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig } : {}),
         }),
       });
       // Multiplayer always goes through lobby (payment gate + opponent sync)

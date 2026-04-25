@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
@@ -13,6 +13,11 @@ const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 type MatchType = "wager" | "ranked" | "tourney" | "vshouse";
+
+function toStoreMode(matchType: MatchType): "wager" | "ranked" | "tournament" | "vshouse" {
+  if (matchType === "tourney") return "tournament";
+  return matchType;
+}
 
 const MATCH_TYPES: {
   key: MatchType;
@@ -70,6 +75,7 @@ export default function CreateMatch() {
   const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
+  const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setWager = useGameStore((s) => s.setWager);
@@ -121,43 +127,17 @@ export default function CreateMatch() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Try to enter a ranked match via season pass (treasury pays).
-  // Returns true and navigates to /select-character if successful.
-  const trySeasonPassEntry = useCallback(async (mId: string, role: "host" | "joiner") => {
-    if (!address) return false;
-    try {
-      const passRes = await fetch(`/api/season-pass?address=${address}`);
-      const passData = await passRes.json() as { active: boolean };
-      if (!passData.active) return false;
-
-      const enterRes = await fetch("/api/season-pass/enter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, matchId: mId, role }),
-      });
-      if (!enterRes.ok) return false;
-      const enterData = await enterRes.json() as { txHash?: string };
-
-      void fetch(`/api/match/${mId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role, wagerRequired: true }),
-      });
-
-      setWager(true, enterData.txHash ?? null, "celo", "ranked");
-      router.push("/select-character");
-      return true;
-    } catch {
-      return false;
-    }
-  }, [address, setWager, router]);
-
   // FIND PLAYER: create match immediately, verify pass, proceed to character select.
   // No queue wait — match appears in open games so opponents can join.
-  const handleFindMatch = async () => {
+  const handleFindMatch = () => {
     if (!address) return;
+    if (!hasSeasonPass) {
+      setShowSeasonPassModal(true);
+      return;
+    }
     resetMatch();
     setVsBot(false);
+    setMatchMode("ranked");
     setPlayerRole("host");
 
     const newMatchId = useGameStore.getState().matchId;
@@ -167,15 +147,9 @@ export default function CreateMatch() {
     void fetch(`/api/match/${newMatchId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, wagerRequired: true }),
+      body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
     });
-
-    const usedPass = await trySeasonPassEntry(newMatchId, "host");
-    if (!usedPass) {
-      // No pass — show wager modal, then proceed to character select
-      setPostWagerDest("/select-character");
-      setShowWager(true);
-    }
+    router.push("/select-character");
   };
 
   const handleCreateMatch = () => {
@@ -183,6 +157,7 @@ export default function CreateMatch() {
     if (matchType === "vshouse") {
       resetMatch();
       setVsBot(true);
+      setMatchMode(toStoreMode(matchType));
       setPlayerRole(null);
       router.push("/select-character");
       return;
@@ -190,15 +165,20 @@ export default function CreateMatch() {
     // Generate a fresh matchId BEFORE opening the WagerModal.
     resetMatch();
     setVsBot(false);
+    setMatchMode(toStoreMode(matchType));
     setPlayerRole("host");
     if (matchType === "ranked") {
+      if (!hasSeasonPass) {
+        setShowSeasonPassModal(true);
+        return;
+      }
       const newMatchId = useGameStore.getState().matchId;
       if (newMatchId) {
         const playerName = useGameStore.getState().playerName;
         void fetch(`/api/match/${newMatchId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, wagerRequired: true }),
+          body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
         });
       }
       router.push("/ready?ranked=true");
@@ -327,7 +307,7 @@ export default function CreateMatch() {
                       <span style={{ fontSize: 14 }}>⚡</span>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: 1 }}>SEASON PASS</div>
-                        <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>Skip entry fees on every ranked match</div>
+                        <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>Unlock unlimited ranked matches during your active pass</div>
                       </div>
                     </div>
                     <button
@@ -352,7 +332,7 @@ export default function CreateMatch() {
                   }}>
                     <span style={{ fontSize: 13 }}>⚡</span>
                     <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>SEASON PASS ACTIVE</div>
-                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>— entry fee covered</div>
+                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>— ranked unlocked</div>
                   </div>
                 )}
 
@@ -526,25 +506,9 @@ export default function CreateMatch() {
           onSkip={() => {
             setWager(false, null);
             setShowWager(false);
-            // If this was a FIND PLAYER ranked entry, quit the created match
-            if (postWagerDest === "/select-character") {
-              const mid = useGameStore.getState().matchId;
-              const role = useGameStore.getState().playerRole;
-              if (mid && role) {
-                void fetch(`/api/match/${mid}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "quit", role }),
-                });
-              }
-              resetMatch();
-              setPostWagerDest("/ready");
-            } else {
-              router.push("/ready");
-            }
+            router.push("/ready");
           }}
-          lockedAmount={matchType === "ranked" || postWagerDest === "/select-character" ? "0.000007" : undefined}
-          mode={matchType === "ranked" || postWagerDest === "/select-character" ? "ranked" : "wager"}
+          mode="wager"
         />
         {/* Season pass upsell — floats below WagerModal */}
         {!hasSeasonPass && (
@@ -556,7 +520,7 @@ export default function CreateMatch() {
             backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
             boxShadow: "0 0 20px rgba(251,191,36,0.1)",
           }}>
-            <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Tired of paying every match?</span>
+            <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Want instant ranked access?</span>
             <button
               onClick={() => setShowSeasonPassModal(true)}
               style={{

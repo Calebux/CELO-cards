@@ -12,13 +12,14 @@ const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-type LiveMatch = { id: string; hostName: string | null; hostAddress: string | null; createdAt: number; hasWager: boolean };
+type LiveMatch = { id: string; hostName: string | null; hostAddress: string | null; createdAt: number; mode: "wager" | "ranked" | "tournament" };
 
 function JoinMatchContent() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
+  const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const wagerActive = useGameStore((s) => s.wagerActive);
 
@@ -106,11 +107,29 @@ function JoinMatchContent() {
         setJoiningId(null);
         return;
       }
+      const data = await res.json() as { mode?: "wager" | "ranked" | "tournament" };
+      if (data.mode === "ranked") {
+        const passRes = await fetch(`/api/season-pass?address=${address}`);
+        const passData = await passRes.json() as { active?: boolean };
+        if (!passData.active) {
+          setShowSeasonPassModal(true);
+          setJoining(false);
+          setJoiningId(null);
+          return;
+        }
+      }
+      resetMatch();
+      setMatchMode(data.mode ?? "wager");
+      setMatchId(matchCode);
+      setPlayerRole("joiner");
+      router.push("/select-character");
+      return;
     } catch {
       // network hiccup — proceed anyway, lobby will surface the error
     }
 
     resetMatch();
+    setMatchMode("wager");
     setMatchId(matchCode);
     setPlayerRole("joiner");
     router.push("/select-character");
@@ -216,8 +235,8 @@ function JoinMatchContent() {
                   }}
                 >
                   {/* Avatar */}
-                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: isOwnMatch ? "linear-gradient(135deg, rgba(86,164,203,0.3), rgba(86,164,203,0.1))" : m.hasWager ? "linear-gradient(135deg, rgba(251,204,92,0.3), rgba(251,204,92,0.1))" : "linear-gradient(135deg, rgba(86,164,203,0.3), rgba(86,164,203,0.1))", border: `1px solid ${isOwnMatch ? "rgba(86,164,203,0.4)" : m.hasWager ? "rgba(251,204,92,0.4)" : "rgba(86,164,203,0.4)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <span style={{ fontSize: 17 }}>{isOwnMatch ? "🏠" : m.hasWager ? "⚡" : "⚔️"}</span>
+                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: isOwnMatch ? "linear-gradient(135deg, rgba(86,164,203,0.3), rgba(86,164,203,0.1))" : m.mode === "wager" ? "linear-gradient(135deg, rgba(251,204,92,0.3), rgba(251,204,92,0.1))" : "linear-gradient(135deg, rgba(86,164,203,0.3), rgba(86,164,203,0.1))", border: `1px solid ${isOwnMatch ? "rgba(86,164,203,0.4)" : m.mode === "wager" ? "rgba(251,204,92,0.4)" : "rgba(86,164,203,0.4)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <span style={{ fontSize: 17 }}>{isOwnMatch ? "🏠" : m.mode === "wager" ? "⚡" : m.mode === "ranked" ? "🏆" : "🎯"}</span>
                   </div>
 
                   {/* Info */}
@@ -228,8 +247,8 @@ function JoinMatchContent() {
                       </span>
                       {isOwnMatch ? (
                         <span style={{ fontSize: 8, fontWeight: 900, color: "#56a4cb", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 3, padding: "1px 5px", letterSpacing: 1, flexShrink: 0 }}>HOST</span>
-                      ) : m.hasWager && (
-                        <span style={{ fontSize: 8, fontWeight: 900, color: "#fbbf24", background: "rgba(251,204,92,0.15)", border: "1px solid rgba(251,204,92,0.35)", borderRadius: 3, padding: "1px 5px", letterSpacing: 1, flexShrink: 0 }}>RANKED</span>
+                      ) : (
+                        <span style={{ fontSize: 8, fontWeight: 900, color: m.mode === "wager" ? "#fbbf24" : m.mode === "ranked" ? "#56a4cb" : "#c084fc", background: m.mode === "wager" ? "rgba(251,204,92,0.15)" : m.mode === "ranked" ? "rgba(86,164,203,0.15)" : "rgba(192,132,252,0.12)", border: `1px solid ${m.mode === "wager" ? "rgba(251,204,92,0.35)" : m.mode === "ranked" ? "rgba(86,164,203,0.35)" : "rgba(192,132,252,0.35)"}`, borderRadius: 3, padding: "1px 5px", letterSpacing: 1, flexShrink: 0 }}>{m.mode.toUpperCase()}</span>
                       )}
                     </div>
                     <div style={{ fontSize: 9, color: isOwnMatch ? "#56a4cb" : "#a08040", letterSpacing: 0.5, display: "flex", gap: 6, alignItems: "center" }}>
