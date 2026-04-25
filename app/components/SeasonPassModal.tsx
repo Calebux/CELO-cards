@@ -107,7 +107,8 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           clearInterval(poll);
           setExpiry(data.expiry);
           setStep("done");
-          onActivated?.();
+          // Don't call onActivated here — show the animation first.
+          // onActivated is called when user dismisses the done screen.
         } else if (res.status !== 404) {
           const errData = await res.json().catch(() => ({})) as { error?: string };
           clearInterval(poll);
@@ -116,7 +117,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         }
       } catch { /* keep polling on network error */ }
     }, 3000);
-  }, [address, selectedPlan, currency, onActivated]);
+  }, [address, selectedPlan, currency]);
 
   const handlePurchase = useCallback(async () => {
     if (!address) return;
@@ -267,7 +268,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 ⚡ Extend / Stack Pass
               </button>
               <button
-                onClick={onClose}
+                onClick={() => { onActivated?.(); onClose(); }}
                 style={{
                   padding: "12px 32px", borderRadius: 7,
                   background: "linear-gradient(135deg, #22c55e, #16a34a)",
