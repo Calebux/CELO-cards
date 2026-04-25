@@ -47,6 +47,8 @@ export type MatchPhase =
     | "round-result"
     | "match-end";
 
+export type MatchMode = "vshouse" | MultiplayerMode;
+
 interface GameState {
     // Characters
     selectedCharacter: Character | null;
@@ -72,8 +74,8 @@ interface GameState {
     // Match
     matchId: string | null;
     setMatchId: (id: string | null) => void;
-    matchMode: "vshouse" | MultiplayerMode;
-    setMatchMode: (mode: "vshouse" | MultiplayerMode) => void;
+    matchMode: MatchMode;
+    setMatchMode: (mode: MatchMode) => void;
 
     // Multiplayer role
     playerRole: "host" | "joiner" | null;

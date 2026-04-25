@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useGameStore } from "../lib/gameStore";
+import { MatchMode, useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
@@ -13,7 +13,7 @@ const DESIGN_H = 823;
 
 type MatchType = "wager" | "ranked" | "tourney" | "vshouse";
 
-function toStoreMode(matchType: MatchType): "wager" | "ranked" | "tournament" | "vshouse" {
+function toStoreMode(matchType: MatchType): MatchMode {
   if (matchType === "tourney") return "tournament";
   return matchType;
 }
