@@ -22,7 +22,14 @@ export async function GET() {
     const STALE_MS        = 10 * 60 * 1000; // 10 min — free matches
     const WAGER_STALE_MS  = 60 * 60 * 1000; // 60 min — paid matches stay visible longer
 
-    const live: { id: string; hostName: string | null; hostAddress: string | null; createdAt: number; mode: ServerMatch["mode"] }[] = [];
+    const live: {
+      id: string;
+      hostName: string | null;
+      hostAddress: string | null;
+      createdAt: number;
+      mode: ServerMatch["mode"];
+      hostCharSelected: boolean;
+    }[] = [];
 
     for (const { id, match } of results) {
       if (!match) {
@@ -48,6 +55,7 @@ export async function GET() {
         hostAddress: match.host.address ?? null,
         createdAt: match.createdAt,
         mode: match.mode,
+        hostCharSelected: !!match.host.charId,
       });
     }
 

@@ -12,7 +12,14 @@ const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-type LiveMatch = { id: string; hostName: string | null; hostAddress: string | null; createdAt: number; mode: "wager" | "ranked" | "tournament" };
+type LiveMatch = {
+  id: string;
+  hostName: string | null;
+  hostAddress: string | null;
+  createdAt: number;
+  mode: "wager" | "ranked" | "tournament";
+  hostCharSelected: boolean;
+};
 
 function JoinMatchContent() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -21,7 +28,6 @@ function JoinMatchContent() {
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
-  const wagerActive = useGameStore((s) => s.wagerActive);
 
   const { address } = useAccount();
   const searchParams = useSearchParams();
@@ -212,9 +218,11 @@ function JoinMatchContent() {
                   key={m.id}
                   onClick={() => {
                     if (isOwnMatch) {
-                      // FIND PLAYER host (wagerActive=true) is already at select-character;
-                      // WITH FRIEND host (wagerActive=false) is still at the ready/share page.
-                      router.push(wagerActive ? "/select-character" : "/ready?ranked=true");
+                      if (m.hostCharSelected) {
+                        router.push("/select-character");
+                        return;
+                      }
+                      router.push(m.mode === "ranked" ? "/ready?ranked=true" : "/ready");
                       return;
                     }
                     if (!joining) void handleJoin(m.id);
