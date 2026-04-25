@@ -76,8 +76,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Service temporarily unavailable — please pay manually or contact support" }, { status: 503 });
     }
 
-    // Treasury calls enterMatchWithCelo on behalf of the season pass holder
-    const matchIdBytes32 = matchIdToBytes32(matchId);
+    // Treasury calls enterMatchWithCelo on behalf of the season pass holder.
+    // Include role in the hash so host and joiner get distinct bytes32 slots —
+    // the contract rejects duplicate (matchId, sender) pairs and the treasury
+    // is the sender for both, so we differentiate via matchId:role.
+    const matchIdBytes32 = matchIdToBytes32(`${matchId}:${role}`);
     const { request } = await publicClient.simulateContract({
       account,
       address: ARENA_ADDRESS,
