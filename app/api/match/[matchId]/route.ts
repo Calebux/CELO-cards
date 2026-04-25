@@ -27,6 +27,10 @@ function validMode(mode: unknown): mode is MultiplayerMode {
   return mode === "wager" || mode === "ranked" || mode === "tournament";
 }
 
+function modeNeedsEntryTx(mode: MultiplayerMode): boolean {
+  return mode === "wager" || mode === "ranked";
+}
+
 // ── Perspective flip for joiner ─────────────────────────────────────────────
 
 function flipPerspective(slots: SlotResult[]): SlotResult[] {
@@ -99,7 +103,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     hostWagerAmount: match.hostWagerAmount,
     abortedBy:       match.abortedBy ?? null,
     mode:            match.mode,
-    paymentRequired: isPaidMultiplayerMode(match.mode),
+    paymentRequired: modeNeedsEntryTx(match.mode),
   });
 }
 

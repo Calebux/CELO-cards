@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../../../lib/redis";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { celo } from "viem/chains";
 import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult } from "../../../../lib/leaderboard";
+import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
+import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +17,34 @@ interface HouseMatchState {
   opponentRoundsWon: number;
   roundNumber: number;
   lastUpdated: number;
+}
+
+async function ensureHouseEntryTx(matchId: string): Promise<string | null> {
+  const cacheKey = `house-entry:${matchId}`;
+  const cached = await redis.get<string>(cacheKey);
+  if (cached) return cached;
+
+  const treasuryKey = process.env.TREASURY_PRIVATE_KEY;
+  if (!treasuryKey || ARENA_ADDRESS === "0x0000000000000000000000000000000000000000") {
+    return null;
+  }
+
+  const account = privateKeyToAccount(treasuryKey as `0x${string}`);
+  const publicClient = createPublicClient({ chain: celo, transport: http() });
+  const walletClient = createWalletClient({ account, chain: celo, transport: http() });
+
+  const { request } = await publicClient.simulateContract({
+    account,
+    address: ARENA_ADDRESS,
+    abi: ARENA_ABI,
+    functionName: "enterMatchWithCelo",
+    args: [matchIdToBytes32(matchId)],
+    value: WAGER_AMOUNT_CELO,
+  });
+
+  const txHash = await walletClient.writeContract(request);
+  await redis.set(cacheKey, txHash, { ex: 24 * 60 * 60 });
+  return txHash;
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +84,7 @@ export async function POST(req: NextRequest) {
 
   const addr = playerAddress.toLowerCase();
   const redisKey = `match:vshouse:${addr}`;
+  let entryTxHash: string | null = null;
 
   // 1. Get or Initialize Match State
   let state = await redis.get<HouseMatchState>(redisKey);
@@ -62,6 +96,12 @@ export async function POST(req: NextRequest) {
       roundNumber: 1,
       lastUpdated: Date.now(),
     };
+
+    try {
+      entryTxHash = await ensureHouseEntryTx(matchId);
+    } catch (e) {
+      console.error("House entry tx failed:", e);
+    }
   }
 
   // 2. Prepare Data for Resolution
@@ -134,6 +174,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    entryTxHash,
     aiOrder,
     slots: resolution.slots,
     totalPlayerKnock: resolution.totalPlayerKnock,

@@ -26,7 +26,7 @@ export default function Lobby() {
   // comes back so paymentRequired is known — prevents a race on slow networks
   const [firstPollDone, setFirstPollDone] = useState(!playerRole || !matchId);
 
-  // Wager payment gate
+  // Entry gate
   const [paymentRequired, setPaymentRequired] = useState<boolean | null>(null);
   // Host who already paid in create page starts as selfPaid
   const [selfPaid, setSelfPaid] = useState(() => !!(wagerActive && playerRole === "host"));
@@ -34,10 +34,12 @@ export default function Lobby() {
   const [showPayModal, setShowPayModal] = useState(false);
   const [opponentAbandoned, setOpponentAbandoned] = useState(false);
   const [payWaitMs, setPayWaitMs] = useState(0);
+  const [rankedEntryError, setRankedEntryError] = useState<string | null>(null);
   const payWaitStartRef = useRef<number | null>(null);
 
   // Refs so the polling interval always reads current values (avoids stale closures)
   const selfPaidRef      = useRef(false);
+  const rankedEntryFiredRef = useRef(false);
 
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
@@ -139,6 +141,36 @@ export default function Lobby() {
     }
   }, [selfPaid]);
 
+  useEffect(() => {
+    if (!showPayModal || selfPaid || matchMode !== "ranked" || !matchId || !playerRole) return;
+    if (rankedEntryFiredRef.current) return;
+
+    const address = useGameStore.getState().playerAddress;
+    if (!address) {
+      setRankedEntryError("Wallet not connected.");
+      return;
+    }
+
+    rankedEntryFiredRef.current = true;
+    setRankedEntryError(null);
+
+    void fetch("/api/season-pass/enter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, matchId, role: playerRole }),
+    })
+      .then(async (res) => {
+        const data = await res.json() as { txHash?: string; error?: string };
+        if (!res.ok || data.error) throw new Error(data.error ?? "Ranked entry failed");
+        setSelfPaid(true);
+        setShowPayModal(false);
+      })
+      .catch((e) => {
+        rankedEntryFiredRef.current = false;
+        setRankedEntryError(e instanceof Error ? e.message : "Ranked entry failed");
+      });
+  }, [showPayModal, selfPaid, matchMode, matchId, playerRole]);
+
   // Track how long we've been waiting for opponent to pay
   useEffect(() => {
     if (!selfPaid || opponentPaid || !paymentRequired) return;
@@ -171,11 +203,15 @@ export default function Lobby() {
 
   // ── Status label text ───────────────────────────────────────────────────
   const statusLabel = !p1Ready
-    ? paymentRequired ? "WAITING FOR PAYMENT…" : "GETTING READY…"
+    ? paymentRequired
+      ? matchMode === "ranked" ? "STARTING RANKED ENTRY…" : "WAITING FOR PAYMENT…"
+      : "GETTING READY…"
     : !p2Ready
       ? opponentWaitMs > OPPONENT_WARN_MS
         ? "OPPONENT NOT RESPONDING…"
-        : "WAITING FOR OPPONENT…"
+        : paymentRequired && matchMode === "ranked"
+          ? "WAITING FOR OPPONENT ENTRY…"
+          : "WAITING FOR OPPONENT…"
       : countdown !== null && countdown > 0
         ? `MATCH STARTS IN ${countdown}`
         : "LAUNCHING…";
@@ -478,7 +514,7 @@ export default function Lobby() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className="material-icons" style={{ color: "#f59e0b", fontSize: 16 }}>hourglass_empty</span>
             <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>
-              Waiting for opponent to pay…
+              {matchMode === "ranked" ? "Waiting for opponent entry…" : "Waiting for opponent to pay…"}
             </span>
           </div>
           {payWaitMs >= 90_000 && (
@@ -504,6 +540,37 @@ export default function Lobby() {
               Leave Match
             </button>
           )}
+        </div>
+      )}
+
+      {rankedEntryError && (
+        <div style={{
+          position: "absolute", bottom: 50, left: "50%", transform: "translateX(-50%)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+          padding: "14px 18px",
+          background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)",
+          borderRadius: 8, maxWidth: 420,
+        }}>
+          <div style={{ fontSize: 12, color: "#f87171", fontWeight: 700, letterSpacing: 0.4, textAlign: "center" }}>
+            Ranked entry failed: {rankedEntryError}
+          </div>
+          <button
+            onClick={() => {
+              rankedEntryFiredRef.current = false;
+              setRankedEntryError(null);
+              setShowPayModal(false);
+              setTimeout(() => setShowPayModal(true), 0);
+            }}
+            style={{
+              padding: "7px 18px",
+              background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.35)",
+              borderRadius: 6, cursor: "pointer",
+              fontSize: 11, fontWeight: 700, color: "#b9e7f4",
+              fontFamily: "inherit", letterSpacing: 1.2, textTransform: "uppercase",
+            }}
+          >
+            Retry Ranked Entry
+          </button>
         </div>
       )}
 
@@ -543,7 +610,7 @@ export default function Lobby() {
       )}
 
       {/* ── Wager payment modal ──────────────────────────────────────────── */}
-      {showPayModal && !selfPaid && (
+      {showPayModal && !selfPaid && matchMode === "wager" && (
         <WagerModal
           onConfirmed={() => {
             setSelfPaid(true);
