@@ -7,7 +7,6 @@ import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { useAccount } from "wagmi";
-import { playSound } from "../lib/soundManager";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -77,10 +76,8 @@ export default function CreateMatch() {
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
-  const setMatchId = useGameStore((s) => s.setMatchId);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
-  const setOpponentName = useGameStore((s) => s.setOpponentName);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
