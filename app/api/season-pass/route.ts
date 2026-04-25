@@ -23,10 +23,10 @@ export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address");
   if (!address) return NextResponse.json({ error: "Missing address" }, { status: 400 });
 
-  const raw = await redis.get(passKey(address)) as string | null;
-  if (!raw) return NextResponse.json({ active: false, expiry: null, plan: null });
+  const data = await redis.get<{ expiry: number; plan: SeasonPlan }>(passKey(address));
+  if (!data) return NextResponse.json({ active: false, expiry: null, plan: null });
 
-  const { expiry, plan } = JSON.parse(raw) as { expiry: number; plan: SeasonPlan };
+  const { expiry, plan } = data;
   if (expiry < Date.now()) {
     await redis.del(passKey(address));
     return NextResponse.json({ active: false, expiry: null, plan: null });
@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
   const durationMs = planConfig.days * 24 * 60 * 60 * 1000;
 
   // Stack on top of existing pass if still active
-  const raw = await redis.get(passKey(address)) as string | null;
-  const baseExpiry = raw ? Math.max(Date.now(), (JSON.parse(raw) as { expiry: number }).expiry) : Date.now();
+  const existing = await redis.get<{ expiry: number }>(passKey(address));
+  const baseExpiry = existing ? Math.max(Date.now(), existing.expiry) : Date.now();
   const expiry = baseExpiry + durationMs;
 
   const ttlSec = Math.ceil((expiry - Date.now()) / 1000) + 86400; // +1 day buffer
