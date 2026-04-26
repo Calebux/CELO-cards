@@ -89,6 +89,7 @@ export function setMuted(muted: boolean) {
     _saveSoundPrefs();
     if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("ao-mute-change", { detail: { muted } }));
+        window.dispatchEvent(new CustomEvent("ao-sound-change", { detail: { muted: _muted, volume: _volume } }));
     }
 }
 
@@ -96,6 +97,9 @@ export function setVolume(v: number) {
     _volume = Math.max(0, Math.min(1, v));
     if (_bgAudio) _bgAudio.volume = _volume * 0.3; // bg at 30% of master
     _saveSoundPrefs();
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ao-sound-change", { detail: { muted: _muted, volume: _volume } }));
+    }
 }
 
 export function playSound(name: SoundName) {

@@ -124,6 +124,13 @@ export default function CreateMatch() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
+  useEffect(() => {
+    const mode = new URLSearchParams(window.location.search).get("mode");
+    if (mode === "ranked" || mode === "wager" || mode === "tourney" || mode === "vshouse") {
+      setMatchType(mode);
+    }
+  }, []);
+
   // FIND PLAYER: create match immediately, verify pass, proceed to character select.
   // No queue wait — match appears in open games so opponents can join.
   const handleFindMatch = () => {
@@ -209,8 +216,8 @@ export default function CreateMatch() {
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
-              <span className="material-icons" style={{ fontSize: 16 }}>arrow_back_ios</span>
-              BACK
+              <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+              <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
             </button>
             <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
               <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />

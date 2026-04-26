@@ -9,6 +9,7 @@ import { useGameStore } from "../lib/gameStore";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
+const BOUNTY_EXTENSION_DAYS = 5;
 
 type LeaderboardPlayer = {
   address: string;
@@ -26,7 +27,7 @@ function useCountdown() {
       const now = new Date();
       const next = new Date(now);
       const daysUntilMonday = (8 - now.getUTCDay()) % 7 || 7;
-      next.setUTCDate(now.getUTCDate() + daysUntilMonday);
+      next.setUTCDate(now.getUTCDate() + daysUntilMonday + BOUNTY_EXTENSION_DAYS);
       next.setUTCHours(0, 0, 0, 0);
       const diff = Math.max(0, next.getTime() - now.getTime());
       const d = Math.floor(diff / 86400000);
@@ -67,14 +68,14 @@ const HOW_IT_WORKS = [
   {
     step: "04",
     title: "CLIMB THE BOARD",
-    body: "The leaderboard resets every Monday. Your points this week determine your standing for the prize.",
+    body: "The bounty window now runs 5 extra days. Keep climbing until the countdown ends to improve your standing.",
     icon: "📈",
     color: "#a855f7",
   },
   {
     step: "05",
     title: "TOP PLAYER WINS",
-    body: "The #1 ranked player at Monday 00:00 UTC wins the full prize pool in G$ — streamed straight to their wallet.",
+    body: "The #1 ranked player when the extended countdown hits zero wins the full prize pool in G$ — streamed straight to their wallet.",
     icon: "💰",
     color: "#4ade80",
   },
@@ -309,7 +310,7 @@ export default function WeeklyChallengePage() {
             WEEKLY CHALLENGE
           </div>
           <div style={{ fontSize: 15, color: "#9ca3af", letterSpacing: 0.5, textAlign: "center", maxWidth: 560, lineHeight: 1.6 }}>
-            Earn points in ranked matches all week. The #1 player when the clock hits zero claims the entire prize pool — paid on-chain.
+            Earn points in ranked matches through the extended bounty window. The #1 player when the clock hits zero claims the entire prize pool — paid on-chain.
           </div>
 
           {/* Stats row */}
@@ -349,7 +350,7 @@ export default function WeeklyChallengePage() {
               </div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 2 }}>WEEK ENDS IN</div>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 2 }}>BOUNTY ENDS IN</div>
               <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
                 {[
                   { v: countdown.days, label: "D" },
@@ -548,7 +549,7 @@ export default function WeeklyChallengePage() {
                 setVsBot(false);
                 setMatchMode("ranked");
                 setWager(false, null, "cusd");
-                router.push("/select-character");
+                router.push("/create?mode=ranked");
               }}
               style={{ width: "100%", height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 15, letterSpacing: 2.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)", boxShadow: "0 0 20px rgba(86,164,203,0.2)" }}>
               PLAY RANKED NOW ▸

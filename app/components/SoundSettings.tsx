@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { isMuted, setMuted, getVolume, setVolume } from "../lib/soundManager";
+import { getVolume, isMuted, playSound, setMuted, setVolume } from "../lib/soundManager";
 
 interface SoundSettingsProps {
   /** Called when the modal closes */
@@ -14,19 +14,35 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
   const [volume, setVolumeState] = useState(100);
 
   useEffect(() => {
-    setMutedState(isMuted());
-    setVolumeState(Math.round(getVolume() * 100));
+    const sync = () => {
+      setMutedState(isMuted());
+      setVolumeState(Math.round(getVolume() * 100));
+    };
+
+    const handleSoundChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ muted?: boolean; volume?: number }>).detail;
+      if (typeof detail?.muted === "boolean") setMutedState(detail.muted);
+      if (typeof detail?.volume === "number") setVolumeState(Math.round(detail.volume * 100));
+    };
+
+    sync();
+    window.addEventListener("ao-sound-change", handleSoundChange);
+    return () => window.removeEventListener("ao-sound-change", handleSoundChange);
   }, []);
 
   const handleMuteToggle = () => {
     const next = !muted;
     setMuted(next);
-    setMutedState(next);
+    if (!next) {
+      playSound("click");
+    }
   };
 
   const handleVolume = (v: number) => {
-    setVolumeState(v);
     setVolume(v / 100);
+    if (!muted) {
+      playSound("click");
+    }
   };
 
   return createPortal(
@@ -90,7 +106,6 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
               onChange={(e) => handleVolume(Number(e.target.value))}
               style={{ flex: 1, accentColor: "#56a4cb", cursor: muted ? "not-allowed" : "pointer" }}
             />
-            <span style={{ fontSize: 14, color: "#475569" }}>🔊</span>
           </div>
         </div>
 
@@ -106,4 +121,3 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     document.body
   );
 }
-
