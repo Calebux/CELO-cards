@@ -186,7 +186,7 @@ export const CARDS: Card[] = [
         effect: "Phase through defenses with spectral force",
         color: "#fbac4b",
         bgColor: "#421f1b",
-        image: "/cards/phantom_break.webp",
+        image: "/bad cards/Phantombreak.png",
     },
     {
         id: "storm_kick",
@@ -272,7 +272,7 @@ export const CARDS: Card[] = [
         effect: "Reflect incoming strike damage back",
         color: "#06b6d4",
         bgColor: "#164e63",
-        image: "/cards/reversal_edge.webp",
+        image: "/bad cards/Reversaledge.png",
     },
     {
         id: "anticipation",

@@ -33,7 +33,6 @@ const MATCH_TYPES: {
     icon: "military_tech",
     label: "RANKED",
     sub: "1V1",
-    subSecondary: "Earn Points",
     desc: "Climb the leaderboard. Qualify for the weekly tournament.",
     color: "#f59e0b",
     badge: "POPULAR",
