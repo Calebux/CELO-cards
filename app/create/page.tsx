@@ -23,35 +23,20 @@ const MATCH_TYPES: {
   icon: string;
   label: string;
   sub: string;
+  subSecondary?: string;
   desc: string;
   color: string;
   badge?: string;
 }[] = [
   {
-    key: "wager",
-    icon: "toll",
-    label: "WAGER",
-    sub: "Stake",
-    desc: "Both players stake tokens. Winner claims 90% of the combined pot.",
-    color: "#fbbf24",
-    badge: "NEW",
-  },
-  {
     key: "ranked",
     icon: "military_tech",
     label: "RANKED",
-    sub: "Earn Points",
+    sub: "1V1",
+    subSecondary: "Earn Points",
     desc: "Climb the leaderboard. Qualify for the weekly tournament.",
     color: "#f59e0b",
     badge: "POPULAR",
-  },
-  {
-    key: "tourney",
-    icon: "emoji_events",
-    label: "TOURNEY",
-    sub: "Bracketed",
-    desc: "Tournament play. Only available to qualified top-16 players.",
-    color: "#a855f7",
   },
   {
     key: "vshouse",
@@ -62,11 +47,28 @@ const MATCH_TYPES: {
     color: "#00C58E",
     badge: "INSTANT",
   },
+  {
+    key: "wager",
+    icon: "toll",
+    label: "WAGER",
+    sub: "Stake",
+    desc: "Both players stake tokens. Winner claims 90% of the combined pot.",
+    color: "#fbbf24",
+    badge: "NEW",
+  },
+  {
+    key: "tourney",
+    icon: "emoji_events",
+    label: "TOURNEY",
+    sub: "Bracketed",
+    desc: "Tournament play. Only available to qualified top-16 players.",
+    color: "#a855f7",
+  },
 ];
 
 export default function CreateMatch() {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [matchType, setMatchType] = useState<MatchType>("wager");
+  const [matchType, setMatchType] = useState<MatchType>("ranked");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
@@ -215,7 +217,7 @@ export default function CreateMatch() {
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
+            <button onClick={() => router.push("/")} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
               <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
             </button>
@@ -292,6 +294,11 @@ export default function CreateMatch() {
                           <span className="material-icons" style={{ fontSize: 28, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 8 }}>{mt.icon}</span>
                           <div style={{ fontSize: 13, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{mt.label}</div>
                           <div style={{ fontSize: 9, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{mt.sub}</div>
+                          {mt.subSecondary && (
+                            <div style={{ fontSize: 8, color: active ? `${mt.color}cc` : "#6b7280", fontWeight: 500, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>
+                              {mt.subSecondary}
+                            </div>
+                          )}
                         </button>
                       </div>
                     );
@@ -516,7 +523,6 @@ export default function CreateMatch() {
           onSkip={() => {
             setWager(false, null);
             setShowWager(false);
-            router.push("/ready");
           }}
         />
         {/* Season pass upsell — floats below WagerModal */}
