@@ -425,6 +425,50 @@ export const CARDS: Card[] = [
         id: "bite", name: "Bite", type: "strike", priority: 6, knock: 3, energyCost: 1,
         effect: "A vicious, desperate attack that sneaks past guards.", color: "#f59e0b", bgColor: "#451a03", image: "/cards/market/bite.png", isPremium: true, price: 2000
     },
+    {
+        id: "cage", name: "Cage", type: "control", priority: 5, knock: 5, energyCost: 3,
+        effect: "Trap the opponent in a tight box and force a losing exchange.", color: "#f43f5e", bgColor: "#4c0519", image: "/bad cards/Cage.png", isPremium: true, price: 4800
+    },
+    {
+        id: "ethereal_form", name: "Ethereal Form", type: "defense", priority: 7, knock: 3, energyCost: 2,
+        effect: "Phase out of danger and negate most incoming pressure this slot.", color: "#a78bfa", bgColor: "#2e1065", image: "/bad cards/ETHEREAL FORM.png", isPremium: true, price: 5200
+    },
+    {
+        id: "fire", name: "Fire", type: "strike", priority: 4, knock: 9, energyCost: 4,
+        effect: "A scorching burst that burns through weak setups and punishes hesitation.", color: "#f97316", bgColor: "#431407", image: "/bad cards/Fire.png", isPremium: true, price: 6200
+    },
+    {
+        id: "grab", name: "Grab", type: "control", priority: 6, knock: 4, energyCost: 2,
+        effect: "Interrupt the opponent's rhythm and drag them into your tempo.", color: "#22d3ee", bgColor: "#083344", image: "/bad cards/GRAB.png", isPremium: true, price: 4200
+    },
+    {
+        id: "gravity_well", name: "Gravity Well", type: "control", priority: 3, knock: 7, energyCost: 3,
+        effect: "Collapse the arena around your target, crushing escape routes.", color: "#7c3aed", bgColor: "#3b0764", image: "/bad cards/Gavity well.png", isPremium: true, price: 5600
+    },
+    {
+        id: "halo_knee_jab", name: "Halo Knee Jab", type: "strike", priority: 7, knock: 7, energyCost: 3,
+        effect: "Explosive knee-first engage with elite opening speed.", color: "#f59e0b", bgColor: "#451a03", image: "/bad cards/Halo Knee jab.png", isPremium: true, price: 5900
+    },
+    {
+        id: "halo_shield", name: "Halo Shield", type: "defense", priority: 6, knock: 3, energyCost: 1,
+        effect: "A radiant shield that absorbs impact and steadies your stance.", color: "#38bdf8", bgColor: "#0c2340", image: "/bad cards/Halo shield.png", isPremium: true, price: 3600
+    },
+    {
+        id: "jaw_breaker", name: "Jaw Breaker", type: "strike", priority: 4, knock: 10, energyCost: 4,
+        effect: "Heavy close-range smash designed to end rounds instantly.", color: "#ef4444", bgColor: "#450a0a", image: "/bad cards/Jaw breaker.png", isPremium: true, price: 7000
+    },
+    {
+        id: "lightning", name: "Lightning", type: "strike", priority: 8, knock: 7, energyCost: 4,
+        effect: "Near-instant electric strike that hits before most counters activate.", color: "#fde047", bgColor: "#422006", image: "/bad cards/LIGHTNING.png", isPremium: true, price: 6800
+    },
+    {
+        id: "shadow_bind", name: "Shadow Bind", type: "control", priority: 7, knock: 6, energyCost: 3,
+        effect: "Lock the opponent's movement and force a bad follow-up.", color: "#8b5cf6", bgColor: "#2e1065", image: "/bad cards/Shadow bind.png", isPremium: true, price: 5400
+    },
+    {
+        id: "downslide", name: "Downslide", type: "defense", priority: 6, knock: 3, energyCost: 2,
+        effect: "Low evasive slide that avoids high pressure and resets spacing.", color: "#10b981", bgColor: "#052e16", image: "/bad cards/downslide.png", isPremium: true, price: 3900
+    },
 
 ];
 
@@ -434,4 +478,3 @@ export function buildDeck(unlockedCards: string[] = []): Card[] {
     const shuffled = [...availableCards].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 10);
 }
-
