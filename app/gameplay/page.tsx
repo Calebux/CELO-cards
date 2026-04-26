@@ -62,6 +62,7 @@ export default function Gameplay() {
     matchMode,
     setVsBot,
     setWager,
+    setMatchMode,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -401,6 +402,13 @@ export default function Gameplay() {
 
   const handleNextOpponent = useCallback(() => {
     playSound("click");
+    if (vsBot) {
+      resetMatch();
+      setVsBot(true);
+      setMatchMode("vshouse");
+      router.push("/select-character");
+      return;
+    }
     // Reset all local combat state
     setRevealedSlots(0);
     setSlotResults([]);
@@ -422,7 +430,7 @@ export default function Gameplay() {
     // Re-show loading screen
     setMatchLoading(true);
     setTimeout(() => setMatchLoading(false), 2200);
-  }, [startMatch, autoLockOrder]);
+  }, [vsBot, resetMatch, setVsBot, setMatchMode, router, startMatch, autoLockOrder]);
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;

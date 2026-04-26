@@ -29,8 +29,8 @@ const STEPS = [
   },
   {
     icon: "🏆",
-    title: "Win 2 Rounds to Win the Match",
-    body: "A match is best-of-3 rounds. Win 2 rounds and you win the match. Each round you get a fresh deck to build a new order — adapt to your opponent's patterns.",
+    title: "Win 3 Rounds to Win the Match",
+    body: "A match is first to 3 rounds. Win 3 rounds and you win the match. Each round you get a fresh deck to build a new order — adapt to your opponent's patterns.",
     color: "#4ade80",
   },
   {
