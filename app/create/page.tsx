@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
@@ -73,7 +73,6 @@ export default function CreateMatch() {
   const [hasSeasonPass, setHasSeasonPass] = useState(false);
   const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
   const router = useRouter();
-  const searchParams = useSearchParams();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
@@ -126,11 +125,11 @@ export default function CreateMatch() {
   }, []);
 
   useEffect(() => {
-    const mode = searchParams.get("mode");
+    const mode = new URLSearchParams(window.location.search).get("mode");
     if (mode === "ranked" || mode === "wager" || mode === "tourney" || mode === "vshouse") {
       setMatchType(mode);
     }
-  }, [searchParams]);
+  }, []);
 
   // FIND PLAYER: create match immediately, verify pass, proceed to character select.
   // No queue wait — match appears in open games so opponents can join.
