@@ -7,7 +7,7 @@ import { CARDS, Card, CardType } from "../lib/gameData";
 import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
-const BG_MAIN = "/new addition/Gameplay real 1.webp";
+const BG_MAIN = "/new addition/new_loadout_bg.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -74,6 +74,9 @@ export default function Loadout() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState(0);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+  const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
 
   const {
     selectedCharacter,
@@ -136,6 +139,7 @@ export default function Loadout() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      setIsShortLandscape(vw > vh && vh < 760);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -234,7 +238,7 @@ export default function Loadout() {
         <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
           {/* Logo */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 4, height: 28, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
@@ -258,7 +262,7 @@ export default function Loadout() {
 
         {/* Left character panel — shows selected character's standing art */}
         <div style={{
-          position: "absolute", left: 109, top: 68, width: 326, height: 636,
+          position: "absolute", left: 109, top: `calc(${safeTop} + 68px)`, width: 326, height: 636,
           overflow: "hidden", pointerEvents: "none",
           borderRadius: 6,
           border: `1.5px solid ${selectedCharacter?.color || "#56a4cb"}40`,
@@ -303,7 +307,7 @@ export default function Loadout() {
         {/* ═══════════════ NEW Card Selection Panel ═══════════════ */}
         <div style={{
           position: "absolute",
-          left: 480, top: 68,
+          left: 480, top: `calc(${safeTop} + 68px)`,
           width: 920, height: 535,
           display: "flex", flexDirection: "column",
         }}>
@@ -557,7 +561,7 @@ export default function Loadout() {
         {/* Cover the old baked-in deck loadout from BG_MAIN */}
         <div style={{
           position: "absolute",
-          left: 200, top: 600,
+          left: 200, top: isShortLandscape ? 580 : 600,
           width: 1100, height: 230,
           backgroundColor: "#0b0f1a",
           zIndex: 9,
@@ -566,7 +570,7 @@ export default function Loadout() {
         {/* ═══════════════ Bottom Deck Loadout ═══════════════ */}
         <div style={{
           position: "absolute",
-          left: 250, top: 605,
+          left: 250, top: isShortLandscape ? 585 : 605,
           width: 1000, height: 220,
           backgroundColor: "rgba(15, 25, 40, 0.95)",
           border: "2px solid rgba(90, 191, 230, 0.4)",
@@ -592,9 +596,8 @@ export default function Loadout() {
             }}>DECK LOADOUT</span>
           </div>
 
-          {/* Energy bar + Preset buttons */}
-          <div style={{ position: "absolute", top: 14, left: 20, display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Preset controls */}
+          {/* Preset controls — bottom-left so dialogs are always visible */}
+          <div style={{ position: "absolute", left: 20, bottom: 12, zIndex: 40 }}>
             <div style={{ position: "relative" }}>
               <div style={{ display: "flex", gap: 6 }}>
                 {/* Save preset */}
@@ -615,7 +618,7 @@ export default function Loadout() {
 
               {/* Save preset input */}
               {savingPreset && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 100, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 300, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}>Save Preset</div>
                   <input
                     autoFocus
@@ -638,7 +641,7 @@ export default function Loadout() {
 
               {/* Preset list dropdown */}
               {showPresets && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 100, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 300, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Saved Presets</div>
                   {deckPresets.map((preset, idx) => (
                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -653,7 +656,10 @@ export default function Loadout() {
                 </div>
               )}
             </div>
+          </div>
 
+          {/* Energy bar — keep clear at top-right */}
+          <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
               ⚡ {usedEnergy} / {maxEnergy}
             </span>
@@ -775,7 +781,7 @@ export default function Loadout() {
 
         {/* Lock Sequence button — appears when order is complete */}
         {isOrderComplete && !waiting && (
-          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 16, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <button
               onClick={() => void handleLockOrder()}
               className="ko-btn ko-btn-primary"
@@ -823,7 +829,7 @@ export default function Loadout() {
           onClick={() => router.back()}
           className="ko-btn ko-btn-secondary"
           style={{
-            position: "absolute", left: 32, bottom: 24,
+            position: "absolute", left: 32, bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 20}px)`,
             padding: "8px 16px", zIndex: 20,
           }}
         >

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
@@ -13,13 +13,26 @@ const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 export default function ActionOrderLandingPage() {
-  const { playerPoints, winStreak } = useGameStore();
+  const { playerPoints, winStreak, matchPhase, matchId, playerRole, selectedCharacter, vsBot } = useGameStore();
   const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+
+  const resumeRoute = useMemo(() => {
+    if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
+    if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
+    if (matchPhase === "loadout") return "/loadout";
+    if (matchPhase === "lobby") {
+      if (vsBot) return "/select-character";
+      if (matchId && playerRole === "host") return "/ready";
+      return "/select-character";
+    }
+    if (matchPhase === "waiting-for-opponent" && matchId) return "/ready";
+    return null;
+  }, [matchId, matchPhase, playerRole, selectedCharacter, vsBot]);
 
 
 
@@ -278,6 +291,20 @@ export default function ActionOrderLandingPage() {
                 <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
               </div>
             </Link>
+
+            {/* ── Match Resume Banner ──────────────────────────────── */}
+            {resumeRoute && (
+              <Link href={resumeRoute} style={{
+                position: "absolute", left: "50%", transform: "translateX(-50%)", top: 118, zIndex: 16,
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
+                background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
+                border: "1px solid rgba(6,168,249,0.45)", borderRadius: 6, textDecoration: "none",
+                boxShadow: "0 0 14px rgba(6,168,249,0.28)",
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Tap to Resume</span>
+              </Link>
+            )}
 
             {/* ── Left Nav ─────────────────────────────────────────── */}
             <Link className="ko-nav-btn ko-btn-create" href="/create">

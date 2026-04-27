@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
@@ -73,15 +73,23 @@ export default function CreateMatch() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [hasSeasonPass, setHasSeasonPass] = useState(false);
   const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
+  const [isShortLandscape, setIsShortLandscape] = useState(false);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const matchPhase = useGameStore((s) => s.matchPhase);
+  const matchId = useGameStore((s) => s.matchId);
+  const playerRole = useGameStore((s) => s.playerRole);
+  const selectedCharacter = useGameStore((s) => s.selectedCharacter);
+  const vsBot = useGameStore((s) => s.vsBot);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
 
   useEffect(() => {
     const fetchOnline = () => {
@@ -105,6 +113,7 @@ export default function CreateMatch() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      setIsShortLandscape(vw > vh && vh < 760);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -203,6 +212,18 @@ export default function CreateMatch() {
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
+  const resumeRoute = useMemo(() => {
+    if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
+    if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
+    if (matchPhase === "loadout") return "/loadout";
+    if (matchPhase === "lobby") {
+      if (vsBot) return "/select-character";
+      if (matchId && playerRole === "host") return "/ready";
+      return "/select-character";
+    }
+    if (matchPhase === "waiting-for-opponent" && matchId) return "/ready";
+    return null;
+  }, [matchId, matchPhase, playerRole, selectedCharacter, vsBot]);
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -214,7 +235,7 @@ export default function CreateMatch() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.85) 0%, rgba(5,8,18,0.75) 50%, rgba(5,5,5,0.85) 100%)", pointerEvents: "none" }} />
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button onClick={() => router.push("/")} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
@@ -233,10 +254,45 @@ export default function CreateMatch() {
           <WalletSection />
         </div>
 
-        {/* No resume banner — waiting state is handled inline in the panel */}
+        {/* Match Resume Banner */}
+        {resumeRoute && (
+          <button
+            onClick={() => router.push(resumeRoute)}
+            style={{
+              position: "absolute",
+              top: `calc(${safeTop} + 76px)`,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 11,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "8px 16px",
+              background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
+              border: "1px solid rgba(6,168,249,0.45)",
+              borderRadius: 6,
+              boxShadow: "0 0 14px rgba(6,168,249,0.28)",
+              fontFamily: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Resume</span>
+          </button>
+        )}
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 12 }}>
+        <div style={{
+          position: "absolute",
+          top: `calc(${safeTop} + ${resumeRoute ? 112 : 68}px)`,
+          left: 0,
+          right: 0,
+          bottom: `calc(${safeBottom} + ${isShortLandscape ? 8 : 0}px)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          paddingTop: isShortLandscape ? 2 : 12,
+        }}>
 
           {/* Panel */}
           <div style={{ position: "relative", width: 560 }}>
@@ -527,7 +583,7 @@ export default function CreateMatch() {
         {/* Season pass upsell — floats below WagerModal */}
         {!hasSeasonPass && (
           <div style={{
-            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
+            position: "fixed", bottom: `calc(${safeBottom} + 18px)`, left: "50%", transform: "translateX(-50%)",
             zIndex: 9999,
             display: "flex", alignItems: "center", gap: 10,
             padding: "10px 20px", borderRadius: 30,

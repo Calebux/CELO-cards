@@ -96,6 +96,11 @@ export default function Gameplay() {
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
   const payoutFiredRef = useRef(false);
+  const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const [quitArmed, setQuitArmed] = useState(false);
+  const quitArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -153,6 +158,7 @@ export default function Gameplay() {
     if (!wrapRef.current) return;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    setIsShortLandscape(vw > vh && vh < 760);
     const isPortrait = vh > vw;
     let transform: string;
     if (isPortrait) {
@@ -400,6 +406,22 @@ export default function Gameplay() {
     router.push("/");
   };
 
+  const handleQuitClick = () => {
+    if (quitArmed) {
+      if (quitArmTimerRef.current) clearTimeout(quitArmTimerRef.current);
+      setQuitArmed(false);
+      handleBackToMenu();
+      return;
+    }
+    setQuitArmed(true);
+    if (quitArmTimerRef.current) clearTimeout(quitArmTimerRef.current);
+    quitArmTimerRef.current = setTimeout(() => setQuitArmed(false), 2500);
+  };
+
+  useEffect(() => () => {
+    if (quitArmTimerRef.current) clearTimeout(quitArmTimerRef.current);
+  }, []);
+
   const handleNextOpponent = useCallback(() => {
     playSound("click");
     if (vsBot) {
@@ -454,6 +476,11 @@ export default function Gameplay() {
       : PAYOUT_AMOUNT;
   const payoutAmountDisplay = `${formatUnits(effectivePayoutAmt, 18)} ${payoutTokenSymbol}`;
   const isGDollar = wagerCurrency === "gdollar";
+  const payoutSteps = [
+    { key: "submitted", label: "Submitted", done: payoutState === "loading" || payoutState === "done" },
+    { key: "confirmed", label: "Confirmed", done: payoutState === "done" },
+    { key: "streamed", label: isGDollar ? "Streamed" : "Settled", done: payoutState === "done" },
+  ];
   const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 
   if (!selectedCharacter || !opponentCharacter) {
@@ -554,7 +581,7 @@ export default function Gameplay() {
         )}
 
         {/* Momentum bar */}
-        <div style={{ position: "absolute", bottom: 88, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 106 : 88}px)`, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
           <div style={{ display: "flex", gap: 3 }}>
             {Array.from({ length: 5 }).map((_, i) => (
@@ -569,31 +596,30 @@ export default function Gameplay() {
         </div>
 
         {/* Bottom Left Controls */}
-        <div style={{ position: "absolute", bottom: 16, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
+        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
           {!isMatchEnd && (
             <button
-              onClick={() => {
-                if (window.confirm("Are you sure you want to quit? This will abandon the match.")) {
-                  handleBackToMenu();
-                }
-              }}
+              onClick={handleQuitClick}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "6px 14px",
-                background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)",
+                background: quitArmed ? "rgba(239,68,68,0.2)" : "rgba(0,0,0,0.6)",
+                border: quitArmed ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
                 backdropFilter: "blur(6px)",
                 transition: "all 0.2s ease",
               }}
             >
-              <span className="material-icons" style={{ fontSize: 14, color: "#6b7280" }}>arrow_back</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>QUIT</span>
+              <span className="material-icons" style={{ fontSize: 14, color: quitArmed ? "#fca5a5" : "#6b7280" }}>arrow_back</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: quitArmed ? "#fca5a5" : "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>
+                {quitArmed ? "PRESS AGAIN TO QUIT" : "QUIT"}
+              </span>
             </button>
           )}
         </div>
 
         {/* ── HUD ──────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 16, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 16px)`, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
 
           {/* P1 block */}
           <div style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: "1px solid rgba(6,168,249,0.15)", borderRadius: 4, padding: "10px 14px" }}>
@@ -651,7 +677,7 @@ export default function Gameplay() {
         </div>
 
         {/* ── Total Points Panel ───────────────────────────── */}
-        <div style={{ position: "absolute", top: 96, left: 32, zIndex: 10, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 4, padding: "8px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 96px)`, left: 32, zIndex: 10, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 4, padding: "8px 16px", display: "flex", alignItems: "center", gap: 12 }}>
           <span className="material-icons" style={{ color: "#fbbf24", fontSize: 22, textShadow: "0 0 10px rgba(251,191,36,0.6)" }}>stars</span>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: 9, letterSpacing: 1, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", fontWeight: 700 }}>Total Score</span>
@@ -663,7 +689,7 @@ export default function Gameplay() {
 
         {/* ── Ultimate Ability Button ──────────────────────── */}
         {player?.ultimate && !ultimateUsed && (
-          <div style={{ position: "absolute", top: 96, right: 32, zIndex: 10 }}>
+          <div style={{ position: "absolute", top: `calc(${safeTop} + 96px)`, right: 32, zIndex: 10 }}>
             <button
               onClick={() => { if (!ultimateActivated && !isAnimating) { activateUltimate(); playSound("click"); } }}
               disabled={ultimateActivated || isAnimating || revealedSlots > 0}
@@ -709,7 +735,7 @@ export default function Gameplay() {
         )}
 
         {/* ── Combat Resolution Area ────────────────────────── */}
-        <div style={{ position: "absolute", top: 120, left: 0, right: 0, bottom: 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 24, gap: 16, zIndex: 5 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 120px)`, left: 0, right: 0, bottom: isShortLandscape ? 292 : 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 24, gap: 16, zIndex: 5 }}>
 
           {/* Knock Totals */}
           <div style={{ display: "flex", gap: 60, alignItems: "center", marginBottom: 8 }}>
@@ -758,8 +784,8 @@ export default function Gameplay() {
         {/* Panel — matches loadout bottom deck panel exactly */}
         <div style={{
           position: "absolute",
-          left: 100, top: 565,
-          width: 1240, height: 215,
+          left: 100, top: isShortLandscape ? 542 : 565,
+          width: 1240, height: isShortLandscape ? 198 : 215,
           backgroundColor: "rgba(15, 25, 40, 0.92)",
           border: "2px solid rgba(90, 191, 230, 0.4)",
           borderRadius: 10,
@@ -1023,10 +1049,10 @@ export default function Gameplay() {
                   <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 20 }}>
                     <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
                     <button
-                      onClick={handleBackToMenu}
+                      onClick={handleQuitClick}
                       style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
                     >
-                      Quit Match
+                      {quitArmed ? "Press Again to Quit" : "Quit Match"}
                     </button>
                     <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
                   </div>
@@ -1164,50 +1190,49 @@ export default function Gameplay() {
                   {/* Payout — wager matches only. */}
                   {matchMode === "wager" && wagerActive && won && (
                     <div style={{ marginBottom: 20 }}>
-                      {(payoutState === "idle" || payoutState === "loading") && (
-                        <div style={{ textAlign: "center", padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                          <span style={{ fontSize: 12, animation: "ml-pulse 1.2s ease-in-out infinite", color: isGDollar ? "#00C58E" : "#b9e7f4" }}>●</span>
-                          <span style={{ fontSize: 13, color: isGDollar ? "#00C58E" : "#b9e7f4", letterSpacing: 1 }}>
-                            {isGDollar ? "Starting G$ stream via Superfluid…" : "Sending winnings…"}
+                      <div style={{ padding: "12px 14px", background: isGDollar ? "rgba(0,197,142,0.08)" : "rgba(86,164,203,0.08)", border: `1px solid ${isGDollar ? "rgba(0,197,142,0.35)" : "rgba(86,164,203,0.35)"}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: isGDollar ? "#00C58E" : "#56a4cb", textTransform: "uppercase" }}>
+                            Payout Timeline
                           </span>
+                          {payoutTxHash && (
+                            <a
+                              href={`https://celoscan.io/tx/${payoutTxHash}`}
+                              target="_blank" rel="noopener noreferrer"
+                              style={{ fontSize: 10, fontWeight: 700, color: isGDollar ? "#00C58E" : "#56a4cb", textDecoration: "underline", letterSpacing: 0.4 }}
+                            >
+                              View on Celoscan ↗
+                            </a>
+                          )}
                         </div>
-                      )}
-                      {payoutState === "done" && !isGDollar && (
-                        <div style={{ textAlign: "center", padding: "14px 0" }}>
-                          <span style={{ fontSize: 13, color: "#4ade80", letterSpacing: 0.5 }}>
-                            ✓ {payoutAmountDisplay} sent!{" "}
-                            {payoutTxHash && (
-                              <a
-                                href={`https://celoscan.io/tx/${payoutTxHash}`}
-                                target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize: 11, color: "#56a4cb", textDecoration: "underline" }}
-                              >
-                                View on Celoscan ↗
-                              </a>
-                            )}
-                          </span>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr", alignItems: "center", gap: 6 }}>
+                          {payoutSteps.map((step, idx) => (
+                            <div key={step.key} style={{ display: "contents" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <div style={{
+                                  width: 9, height: 9, borderRadius: "50%",
+                                  background: step.done ? (isGDollar ? "#00C58E" : "#56a4cb") : "rgba(100,116,139,0.45)",
+                                  boxShadow: step.done ? `0 0 8px ${isGDollar ? "#00C58E" : "#56a4cb"}` : "none",
+                                  animation: payoutState === "loading" && step.key === "submitted" ? "pulse 1.2s ease-in-out infinite" : "none",
+                                }} />
+                                <span style={{ fontSize: 10, color: step.done ? "#e2e8f0" : "#64748b", fontWeight: 600 }}>{step.label}</span>
+                              </div>
+                              {idx < payoutSteps.length - 1 && (
+                                <div style={{ width: 16, height: 1, background: "rgba(100,116,139,0.5)" }} />
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      )}
-                      {payoutState === "done" && isGDollar && (
-                        <div style={{ padding: "14px 16px", background: "rgba(0,197,142,0.08)", border: "1px solid rgba(0,197,142,0.35)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00C58E", boxShadow: "0 0 8px #00C58E", animation: "pulse 1.5s ease-in-out infinite" }} />
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "#00C58E", letterSpacing: 0.5 }}>G$ streaming to your wallet</span>
-                          </div>
-                          <span style={{ fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
-                            {payoutAmountDisplay} flowing over 24h via Superfluid.{" "}
-                            {payoutTxHash && (
-                              <a
-                                href={`https://celoscan.io/tx/${payoutTxHash}`}
-                                target="_blank" rel="noopener noreferrer"
-                                style={{ color: "#00C58E", textDecoration: "underline" }}
-                              >
-                                View stream ↗
-                              </a>
-                            )}
-                          </span>
-                        </div>
-                      )}
+                        <span style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.45 }}>
+                          {payoutState === "done"
+                            ? (isGDollar
+                              ? `${payoutAmountDisplay} is flowing via Superfluid stream.`
+                              : `${payoutAmountDisplay} settled to your wallet.`)
+                            : (isGDollar
+                              ? "Submitting payout and opening stream..."
+                              : "Submitting payout transaction...")}
+                        </span>
+                      </div>
                       {payoutState === "error" && (
                         <div style={{ textAlign: "center", padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 12, color: "#f87171" }}>Payout failed — please try again.</span>
