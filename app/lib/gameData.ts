@@ -133,14 +133,14 @@ export const CHARACTERS: Character[] = [
 export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
     kaira: {
         kaira: "/arena-backgrounds/arena_kaira_kaira.webp",
-        kenji: "/arena-backgrounds/arena_kaira_kenji_new.webp",
+        kenji: "/arena-backgrounds/arena_kaira_kenji.webp",
         riven: "/arena-backgrounds/arena_kaira_riven.webp",
         zane:  "/arena-backgrounds/arena_kaira_zane.webp",
         elara: "/arena-backgrounds/arena_kaira_elara.jpg",
     },
     kenji: {
         kenji: "/arena-backgrounds/arena_kenji_kenji.webp",
-        kaira: "/arena-backgrounds/arena_kenji_kaira_new.webp",
+        kaira: "/arena-backgrounds/arena_kenji_kaira.webp",
         riven: "/arena-backgrounds/arena_kenji_riven.webp",
         zane:  "/arena-backgrounds/arena_kenji_zane.webp",
         elara: "/arena-backgrounds/arena_kenji_elara.webp",

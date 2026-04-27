@@ -724,55 +724,6 @@ export default function Gameplay() {
             </div>
           </div>
 
-          {/* Current Slot Display */}
-          {slotResults.length > 0 && (
-            <div key={slotResults.length} style={{
-              display: "flex", alignItems: "center", gap: 40,
-              backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)",
-              border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "20px 40px",
-            }}>
-              {/* Last revealed slot result */}
-              {(() => {
-                const last = slotResults[slotResults.length - 1];
-                return (
-                  <>
-                    {/* Player card */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 110, height: 153, borderRadius: 6, position: "relative", overflow: "hidden", border: `2px solid ${last.winner === "player" ? "#4ade80" : last.winner === "draw" ? "yellow" : "#ef4444"}`, boxShadow: last.winner === "player" ? "0 0 20px rgba(74,222,128,0.4)" : "none" }}>
-                        <img src={last.playerCard.image} alt={last.playerCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
-                        {last.winner === "player" && <div style={{ position: "absolute", inset: 0, border: "3px solid #4ade80", borderRadius: 4, pointerEvents: "none" }} />}
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "white" }}>{last.playerCard.name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#06a8f9" }}>+{last.playerKnock} KNC</span>
-                    </div>
-
-                    {/* VS */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 24, fontWeight: 700, color: "rgba(255,255,255,0.3)" }}>VS</span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, padding: "4px 10px", borderRadius: 4,
-                        backgroundColor: last.winner === "player" ? "rgba(6,168,249,0.2)" : last.winner === "opponent" ? "rgba(249,6,168,0.2)" : "rgba(255,255,0,0.2)",
-                        color: last.winner === "player" ? "#06a8f9" : last.winner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24",
-                      }}>
-                        {last.winner === "player" ? "WIN" : last.winner === "opponent" ? "LOSE" : "DRAW"}
-                      </span>
-                    </div>
-
-                    {/* Opponent card */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 110, height: 153, borderRadius: 6, position: "relative", overflow: "hidden", border: `2px solid ${last.winner === "opponent" ? "#4ade80" : last.winner === "draw" ? "yellow" : "#ef4444"}`, boxShadow: last.winner === "opponent" ? "0 0 20px rgba(74,222,128,0.4)" : "none" }}>
-                        <img src={last.opponentCard.image} alt={last.opponentCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
-                        {last.winner === "opponent" && <div style={{ position: "absolute", inset: 0, border: "3px solid #4ade80", borderRadius: 4, pointerEvents: "none" }} />}
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "white" }}>{last.opponentCard.name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: opponent?.color || "#f906a8" }}>+{last.opponentKnock} KNC</span>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          )}
-
           {/* Combat message callout */}
           {slotResults.length > 0 && (() => {
             const last = slotResults[slotResults.length - 1];
@@ -799,6 +750,7 @@ export default function Gameplay() {
               </div>
             );
           })()}
+
         </div>
 
         {/* ── Slot Timeline — raised, loadout-style panel ────── */}

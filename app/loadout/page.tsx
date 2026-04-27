@@ -7,7 +7,7 @@ import { CARDS, Card, CardType } from "../lib/gameData";
 import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
-const BG_MAIN = "/new addition/new_loadout_bg.webp";
+const BG_MAIN = "/new addition/Gameplay real 1.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -593,7 +593,7 @@ export default function Loadout() {
           </div>
 
           {/* Energy bar + Preset buttons */}
-          <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ position: "absolute", top: 14, left: 20, display: "flex", alignItems: "center", gap: 12 }}>
             {/* Preset controls */}
             <div style={{ position: "relative" }}>
               <div style={{ display: "flex", gap: 6 }}>
@@ -615,7 +615,7 @@ export default function Loadout() {
 
               {/* Save preset input */}
               {savingPreset && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 100, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 100, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}>Save Preset</div>
                   <input
                     autoFocus
@@ -638,7 +638,7 @@ export default function Loadout() {
 
               {/* Preset list dropdown */}
               {showPresets && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 100, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 100, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Saved Presets</div>
                   {deckPresets.map((preset, idx) => (
                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)" }}>

@@ -4,6 +4,18 @@ import { useState } from "react";
 
 const STEPS = [
   {
+    icon: "⚔️",
+    title: "Play 1V1 Battles",
+    body: "Action Order is a 1v1 game. Every match is you versus one opponent in direct tactical combat across 5 card slots.",
+    color: "#56a4cb",
+  },
+  {
+    icon: "🔗",
+    title: "Create or Join a Game",
+    body: "Tap Create Match to host, then share your Match ID or link. To join, open Join Match and paste the Match ID or link, then lock in your fighter and order.",
+    color: "#22d3ee",
+  },
+  {
     icon: "🎫",
     title: "Buy a Season Pass for Ranked",
     body: "A Season Pass unlocks ranked access so you can play competitive matches without stopping to pay the match fee every time. Once active, you stay eligible for ranked rewards and tournaments during the pass period.",
