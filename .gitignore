@@ -20,10 +20,6 @@ artifacts/
 cache/
 .vercel
 
-# Bot scripts (keep local only)
-scripts/agent-bot.mjs
-scripts/
-
 # Local/internal docs
 docs/dev.md
 prd.md
