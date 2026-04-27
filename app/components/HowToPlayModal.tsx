@@ -4,6 +4,12 @@ import { useState } from "react";
 
 const STEPS = [
   {
+    icon: "🎫",
+    title: "Buy a Season Pass for Ranked",
+    body: "A Season Pass unlocks ranked access so you can play competitive matches without stopping to pay the match fee every time. Once active, you stay eligible for ranked rewards and tournaments during the pass period.",
+    color: "#fbbf24",
+  },
+  {
     icon: "🎮",
     title: "Choose Your Fighter",
     body: "Pick one of 5 unique characters — each has different Knock, Priority, and Drain stats, plus a Passive ability and a one-time Ultimate move. Your character shapes your play style.",
@@ -14,12 +20,6 @@ const STEPS = [
     title: "Build Your Order",
     body: "Select 5 cards from your deck and arrange them into slots 1–5. You have an Energy budget — each card costs Energy. Choose Strike, Defense, or Control cards to build your strategy.",
     color: "#f97316",
-  },
-  {
-    icon: "🎫",
-    title: "Buy a Season Pass for Ranked",
-    body: "A Season Pass unlocks ranked access so you can play competitive matches without stopping to pay the match fee every time. Once active, you stay eligible for ranked rewards and tournaments during the pass period.",
-    color: "#fbbf24",
   },
   {
     icon: "⚡",
