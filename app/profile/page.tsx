@@ -421,10 +421,22 @@ export default function ProfilePage() {
                   </button>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8, justifyItems: "center" }}>
                   {ownedCards.map((card) => (
-                    <div key={card.id} title={card.name} style={{ borderRadius: 6, overflow: "hidden", border: `1.5px solid ${card.color}`, position: "relative", background: "rgba(2,6,23,0.7)" }}>
-                      <img src={card.image} alt={card.name} style={{ width: "100%", height: 110, objectFit: "cover", display: "block" }} />
+                    <div
+                      key={card.id}
+                      title={card.name}
+                      style={{
+                        width: 82,
+                        borderRadius: 6,
+                        overflow: "hidden",
+                        border: `1.5px solid ${card.color}`,
+                        position: "relative",
+                        background: "rgba(2,6,23,0.7)",
+                        aspectRatio: "170 / 236",
+                      }}
+                    >
+                      <img src={card.image} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))", padding: "10px 6px 5px", textAlign: "center" }}>
                         <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.35, lineHeight: 1.2 }}>{card.name}</div>
                       </div>
