@@ -173,12 +173,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       .then((v) => !!v)
       .catch(() => true);
     if (shouldNotify && match) {
-      void sendTelegramNewMatchAlert({
+      await sendTelegramNewMatchAlert({
         matchId,
         mode: match.mode,
         hostName: match.host.playerName,
         hostAddress: match.host.address,
-      });
+      }).catch(() => false);
     }
   } else if (role === "joiner") {
     await removeFromOpenMatches(matchId).catch(() => {});
@@ -239,12 +239,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         // Fail open: if Redis lock is unavailable, still send alert.
         .catch(() => true);
       if (shouldNotify) {
-        void sendTelegramNewMatchAlert({
+        await sendTelegramNewMatchAlert({
           matchId,
           mode: match.mode,
           hostName: match.host.playerName,
           hostAddress: match.host.address,
-        });
+        }).catch(() => false);
       }
     }
     // Keep the match visible in open matches while waiting for a joiner

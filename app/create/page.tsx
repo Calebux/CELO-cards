@@ -143,7 +143,20 @@ export default function CreateMatch() {
 
   // FIND PLAYER: create match immediately, verify pass, proceed to character select.
   // No queue wait — match appears in open games so opponents can join.
-  const handleFindMatch = () => {
+  const sendHostKeepalive = async (matchId: string, mode: "ranked" | "wager" | "tournament") => {
+    const playerName = useGameStore.getState().playerName;
+    try {
+      await fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode }),
+      });
+    } catch {
+      // Best-effort: keep UX responsive even if network is flaky.
+    }
+  };
+
+  const handleFindMatch = async () => {
     if (!address) return;
     if (!hasSeasonPass) {
       setShowSeasonPassModal(true);
@@ -157,16 +170,11 @@ export default function CreateMatch() {
     const newMatchId = useGameStore.getState().matchId;
     if (!newMatchId) return;
 
-    const playerName = useGameStore.getState().playerName;
-    void fetch(`/api/match/${newMatchId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
-    });
+    await sendHostKeepalive(newMatchId, "ranked");
     router.push("/select-character");
   };
 
-  const handleCreateMatch = () => {
+  const handleCreateMatch = async () => {
     if (!address) return;
     if (matchType === "vshouse") {
       resetMatch();
@@ -191,14 +199,7 @@ export default function CreateMatch() {
         return;
       }
       const newMatchId = useGameStore.getState().matchId;
-      if (newMatchId) {
-        const playerName = useGameStore.getState().playerName;
-        void fetch(`/api/match/${newMatchId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
-        });
-      }
+      if (newMatchId) await sendHostKeepalive(newMatchId, "ranked");
       router.push("/ready?ranked=true");
       return;
     }

@@ -33,15 +33,19 @@ export async function sendTelegramNewMatchAlert(payload: NewMatchAlert): Promise
   ].join("\n");
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         chat_id: chatId,
         text,
         disable_web_page_preview: true,
       }),
     });
+    clearTimeout(timeout);
     return res.ok;
   } catch {
     // best-effort only; gameplay should never fail due to Telegram issues
