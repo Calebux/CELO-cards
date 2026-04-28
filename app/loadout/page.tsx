@@ -93,12 +93,21 @@ function CardTooltip({ card }: { card: Card }) {
 }
 
 export default function Loadout() {
+  const storePersist = (useGameStore as typeof useGameStore & {
+    persist?: {
+      hasHydrated?: () => boolean;
+      onHydrate?: (fn: () => void) => () => void;
+      onFinishHydration?: (fn: () => void) => () => void;
+    };
+  }).persist;
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [activeTab, setActiveTab] = useState(0);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [isShortLandscape, setIsShortLandscape] = useState(false);
-  const [storeHydrated, setStoreHydrated] = useState(useGameStore.persist.hasHydrated());
+  const [storeHydrated, setStoreHydrated] = useState(
+    typeof window !== "undefined" ? (storePersist?.hasHydrated?.() ?? true) : true
+  );
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
 
@@ -159,14 +168,18 @@ export default function Loadout() {
   const isOrderComplete = filledSlots === 5;
 
   useEffect(() => {
-    const unsubStart = useGameStore.persist.onHydrate(() => setStoreHydrated(false));
-    const unsubFinish = useGameStore.persist.onFinishHydration(() => setStoreHydrated(true));
-    setStoreHydrated(useGameStore.persist.hasHydrated());
+    if (!storePersist?.onHydrate || !storePersist?.onFinishHydration || !storePersist?.hasHydrated) {
+      setStoreHydrated(true);
+      return;
+    }
+    const unsubStart = storePersist.onHydrate(() => setStoreHydrated(false));
+    const unsubFinish = storePersist.onFinishHydration(() => setStoreHydrated(true));
+    setStoreHydrated(storePersist.hasHydrated());
     return () => {
       unsubStart();
       unsubFinish();
     };
-  }, []);
+  }, [storePersist]);
 
   useEffect(() => {
     if (storeHydrated && !selectedCharacter) {
