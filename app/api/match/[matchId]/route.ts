@@ -208,7 +208,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (role === "host") {
       // Robust one-time alert per match id, even if the match was created before keepalive.
       const notifyKey = `notify:new-match:${matchId}`;
-      const shouldNotify = await redis.set(notifyKey, "1", { nx: true, ex: 7200 }).catch(() => null);
+      const shouldNotify = await redis
+        .set(notifyKey, "1", { nx: true, ex: 7200 })
+        .then((v) => !!v)
+        // Fail open: if Redis lock is unavailable, still send alert.
+        .catch(() => true);
       if (shouldNotify) {
         void sendTelegramNewMatchAlert({
           matchId,

@@ -181,6 +181,11 @@ export default function Gameplay() {
     return () => window.removeEventListener("resize", applyScale);
   }, [applyScale]);
 
+  // Prefetch next screen so round transitions are less sensitive to poor network.
+  useEffect(() => {
+    void router.prefetch("/loadout");
+  }, [router]);
+
   // wrapRef only mounts after matchLoading → false, so re-apply scale then
   useEffect(() => {
     if (!matchLoading) applyScale();
@@ -295,6 +300,12 @@ export default function Gameplay() {
     setComboBanner(null);
     nextRound();
     router.push("/loadout");
+    // Fallback: if app-router navigation stalls due poor connection, force route.
+    setTimeout(() => {
+      if (window.location.pathname.includes("/gameplay")) {
+        window.location.replace("/loadout");
+      }
+    }, 450);
   };
 
   const handleClaimPayout = async () => {
