@@ -20,6 +20,7 @@ export interface ServerMatch {
   hostWins: number;
   joinerWins: number;
   resolvedSlots: SlotResult[] | null;
+  roundSubmitStartedAt: number | null; // timestamp when first player submitted for current round
   hostWagerTx: string | null;
   joinerWagerTx: string | null;
   hostWagerAmount: string | null;
@@ -46,6 +47,7 @@ export function newServerMatch(matchId: string, mode: MultiplayerMode = "wager")
     hostWins: 0,
     joinerWins: 0,
     resolvedSlots: null,
+    roundSubmitStartedAt: null,
     hostWagerTx: null,
     joinerWagerTx: null,
     hostWagerAmount: null,

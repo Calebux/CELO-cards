@@ -25,14 +25,10 @@ export default function ActionOrderLandingPage() {
     if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
     if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
     if (matchPhase === "loadout") return "/loadout";
-    if (matchPhase === "lobby") {
-      if (vsBot) return "/select-character";
-      if (matchId && playerRole === "host") return "/ready";
-      return "/select-character";
-    }
-    if (matchPhase === "waiting-for-opponent" && matchId) return "/ready";
+    if (matchPhase === "lobby") return "/select-character";
+    if (matchPhase === "waiting-for-opponent" && matchId) return "/select-character";
     return null;
-  }, [matchId, matchPhase, playerRole, selectedCharacter, vsBot]);
+  }, [matchId, matchPhase, selectedCharacter]);
 
 
 

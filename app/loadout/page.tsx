@@ -98,6 +98,7 @@ export default function Loadout() {
   const [activeTab, setActiveTab] = useState(0);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const [storeHydrated, setStoreHydrated] = useState(useGameStore.persist.hasHydrated());
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
 
@@ -127,6 +128,8 @@ export default function Loadout() {
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [pollErrorCount, setPollErrorCount] = useState(0);
+  const [netStatus, setNetStatus] = useState<"online" | "reconnecting" | "offline">("online");
+  const [graceRemainingMs, setGraceRemainingMs] = useState<number>(0);
   const [showPresets, setShowPresets] = useState(false);
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState("");
@@ -156,11 +159,21 @@ export default function Loadout() {
   const isOrderComplete = filledSlots === 5;
 
   useEffect(() => {
-    if (!selectedCharacter) {
+    const unsubStart = useGameStore.persist.onHydrate(() => setStoreHydrated(false));
+    const unsubFinish = useGameStore.persist.onFinishHydration(() => setStoreHydrated(true));
+    setStoreHydrated(useGameStore.persist.hasHydrated());
+    return () => {
+      unsubStart();
+      unsubFinish();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (storeHydrated && !selectedCharacter) {
       const fallback = CHARACTERS.find((c) => !c.isLocked) ?? CHARACTERS[0];
       if (fallback) selectCharacter(fallback);
     }
-  }, [selectedCharacter, selectCharacter]);
+  }, [selectedCharacter, selectCharacter, storeHydrated]);
 
   useEffect(() => {
     const scale = () => {
@@ -188,9 +201,32 @@ export default function Loadout() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Multiplayer polling ref — cleaned up on unmount
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+  // Multiplayer polling + retry refs
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollDelayRef = useRef(2000);
+  const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number } | null>(null);
+  useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
+  useEffect(() => {
+    const handleOnline = () => {
+      setNetStatus("online");
+      pollDelayRef.current = 2000;
+      const p = pendingSubmitRef.current;
+      if (p && matchId) {
+        void fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(p),
+        }).catch(() => {});
+      }
+    };
+    const handleOffline = () => setNetStatus("offline");
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [matchId]);
 
   const handleLockOrder = useCallback(async () => {
     if (!isOrderComplete) return;
@@ -208,24 +244,49 @@ export default function Loadout() {
       .filter((c): c is NonNullable<typeof c> => c !== null)
       .map((c) => c.id);
 
-    try {
-      await fetch(`/api/match/${matchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: playerRole, cardIds, round: roundNumber }),
-      });
-    } catch {
-      setLockError("Network error — try again.");
-      return;
-    }
-
+    const payload = { role: playerRole, cardIds, round: roundNumber } as const;
+    pendingSubmitRef.current = payload;
+    const pendingKey = `pending-submit:${matchId}`;
+    try { sessionStorage.setItem(pendingKey, JSON.stringify(payload)); } catch {}
     setWaiting(true);
+    setNetStatus(navigator.onLine ? "online" : "offline");
+    pollDelayRef.current = 2000;
 
-    pollRef.current = setInterval(async () => {
+    const submitPending = async () => {
+      if (!pendingSubmitRef.current || !matchId) return;
+      try {
+        await fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pendingSubmitRef.current),
+        });
+      } catch {
+        // keep queued; we'll retry on reconnect/poll
+      }
+    };
+
+    const stopPolling = () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
+    };
+
+    const pollOnce = async () => {
+      if (!matchId || !playerRole) return;
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { phase: string; slots: unknown; opponentCharId?: string; opponentName?: string | null; abortedBy?: "host" | "joiner" | null };
+        const data = await res.json() as {
+          phase: string;
+          slots: unknown;
+          opponentCharId?: string;
+          opponentName?: string | null;
+          abortedBy?: "host" | "joiner" | null;
+          opponentReconnecting?: boolean;
+          graceRemainingMs?: number;
+        };
         setPollErrorCount(0); // successful response
+        setNetStatus("online");
+        pollDelayRef.current = 2000;
+        setGraceRemainingMs(data.graceRemainingMs ?? 0);
 
         // Sync opponent character if joined
         if (data.opponentCharId) {
@@ -238,7 +299,7 @@ export default function Loadout() {
         // Abort if timed out or opponent quit
         const opponentRole = playerRole === "host" ? "joiner" : "host";
         if (data.phase === "timed-out" || data.abortedBy === opponentRole) {
-          if (pollRef.current) clearInterval(pollRef.current);
+          stopPolling();
           alert("Your opponent has left the match.");
           resetMatch();
           router.push("/");
@@ -246,14 +307,27 @@ export default function Loadout() {
         }
 
         if (data.phase === "resolved" && data.slots) {
-          if (pollRef.current) clearInterval(pollRef.current);
+          stopPolling();
+          try { sessionStorage.removeItem(pendingKey); } catch {}
+          pendingSubmitRef.current = null;
           setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
           router.push("/gameplay");
+          return;
+        }
+        if (data.opponentReconnecting) {
+          setNetStatus("reconnecting");
         }
       } catch {
         setPollErrorCount((n) => n + 1);
+        setNetStatus(navigator.onLine ? "reconnecting" : "offline");
+        pollDelayRef.current = Math.min(10_000, Math.round(pollDelayRef.current * 1.5));
+        await submitPending();
       }
-    }, 2000);
+      pollRef.current = setTimeout(() => { void pollOnce(); }, pollDelayRef.current);
+    };
+
+    void submitPending();
+    void pollOnce();
   }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
@@ -841,10 +915,40 @@ export default function Loadout() {
             <span style={{ fontSize: 20, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 3 }}>
               Waiting for opponent...
             </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.28)", borderRadius: 6 }}>
+              <span className="material-icons" style={{ color: netStatus === "offline" ? "#f87171" : netStatus === "reconnecting" ? "#fbbf24" : "#4ade80", fontSize: 14 }}>
+                {netStatus === "offline" ? "wifi_off" : netStatus === "reconnecting" ? "sync" : "wifi"}
+              </span>
+              <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>
+                {netStatus === "offline" ? "Offline — queued, will auto-resend" : netStatus === "reconnecting" ? "Reconnecting..." : "Connected"}
+              </span>
+            </div>
+            {graceRemainingMs > 0 && (
+              <div style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600 }}>
+                Opponent reconnect grace: {Math.ceil(graceRemainingMs / 1000)}s
+              </div>
+            )}
             {pollErrorCount >= 3 && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6 }}>
                 <span className="material-icons" style={{ color: "#fbbf24", fontSize: 14 }}>wifi_off</span>
                 <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600 }}>Connection issues — retrying…</span>
+                <button
+                  onClick={async () => {
+                    const p = pendingSubmitRef.current;
+                    if (!p || !matchId) return;
+                    try {
+                      await fetch(`/api/match/${matchId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(p),
+                      });
+                      setPollErrorCount(0);
+                    } catch {}
+                  }}
+                  style={{ marginLeft: 10, background: "rgba(251,191,36,0.2)", border: "1px solid rgba(251,191,36,0.5)", borderRadius: 4, color: "#fbbf24", fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer" }}
+                >
+                  RETRY NOW
+                </button>
               </div>
             )}
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

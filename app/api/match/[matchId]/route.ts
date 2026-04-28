@@ -13,6 +13,7 @@ import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 
 const INACTIVITY_TIMEOUT      = 5  * 60 * 1000; // 5 minutes (free matches)
 const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes (paid matches)
+const ROUND_GRACE_MS = 30 * 1000; // grace when one player has submitted and the other is reconnecting
 
 function isTimedOut(match: ServerMatch): boolean {
   const bothJoined = match.host.charId && match.joiner.charId;
@@ -90,6 +91,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const slots = rawSlots
     ? role === "joiner" ? flipPerspective(rawSlots) : rawSlots
     : null;
+  const oneSubmittedThisRound =
+    (match.host.orderRound === match.round && !!match.host.cardIds) !==
+    (match.joiner.orderRound === match.round && !!match.joiner.cardIds);
+  const submitStartedAt = match.roundSubmitStartedAt ?? null;
+  const graceRemainingMs = oneSubmittedThisRound && submitStartedAt
+    ? Math.max(0, ROUND_GRACE_MS - (Date.now() - submitStartedAt))
+    : 0;
+  const opponentReconnecting = oneSubmittedThisRound && graceRemainingMs > 0;
 
   return NextResponse.json({
     round: match.round,
@@ -106,6 +115,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     abortedBy:       match.abortedBy ?? null,
     mode:            match.mode,
     paymentRequired: modeNeedsEntryTx(match.mode),
+    opponentReconnecting,
+    graceRemainingMs,
   });
 }
 
@@ -155,6 +166,20 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   // Track open/closed state in the lobby list
   if (role === "host") {
     await addToOpenMatches(matchId).catch(() => {});
+    // Backup alert path: if keepalive was skipped, notify on first host character registration.
+    const notifyKey = `notify:new-match:${matchId}`;
+    const shouldNotify = await redis
+      .set(notifyKey, "1", { nx: true, ex: 7200 })
+      .then((v) => !!v)
+      .catch(() => true);
+    if (shouldNotify && match) {
+      void sendTelegramNewMatchAlert({
+        matchId,
+        mode: match.mode,
+        hostName: match.host.playerName,
+        hostAddress: match.host.address,
+      });
+    }
   } else if (role === "joiner") {
     await removeFromOpenMatches(matchId).catch(() => {});
   }
@@ -303,11 +328,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match.joiner.cardIds = null;
       match.joiner.orderRound = 0;
       match.resolvedSlots = null;
+      match.roundSubmitStartedAt = null;
     }
 
     const slot = role === "host" ? match.host : match.joiner;
     slot.cardIds = cardIds;
     slot.orderRound = round;
+    if (!match.roundSubmitStartedAt) {
+      match.roundSubmitStartedAt = Date.now();
+    }
 
     const m = match;
     // Check if both players have submitted for the current round
@@ -333,6 +362,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
       const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar);
       m.resolvedSlots = result.slots;
+      m.roundSubmitStartedAt = null;
 
       if (result.roundWinner === "player") m.hostWins++;
       else if (result.roundWinner === "opponent") m.joinerWins++;
