@@ -3,6 +3,7 @@
 interface MatchLoadingScreenProps {
   playerName: string;
   opponentName: string;
+  matchId?: string | null;
   playerColor?: string;
   opponentColor?: string;
   playerPortrait?: string;
@@ -13,6 +14,7 @@ interface MatchLoadingScreenProps {
 export function MatchLoadingScreen({
   playerName,
   opponentName,
+  matchId,
   playerColor = "#06a8f9",
   opponentColor = "#f906a8",
   playerPortrait,
@@ -34,6 +36,28 @@ export function MatchLoadingScreen({
         @keyframes ml-pulse   { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
         @keyframes ml-bar     { from { width:0%; } to { width:100%; } }
       `}</style>
+
+      {/* Match ID badge */}
+      {matchId && (
+        <div style={{
+          position: "absolute",
+          top: "max(16px, env(safe-area-inset-top))",
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 14px",
+          background: "rgba(10,15,28,0.75)",
+          border: "1px solid rgba(86,164,203,0.35)",
+          borderRadius: 6,
+          boxShadow: "0 0 12px rgba(86,164,203,0.2)",
+          animation: "ml-fadein 0.4s ease forwards",
+        }}>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.8, color: "#94a3b8", textTransform: "uppercase" }}>Match</span>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#b9e7f4", fontVariantNumeric: "tabular-nums" }}>{matchId}</span>
+        </div>
+      )}
 
       {/* Fighter portraits / name blocks */}
       <div style={{

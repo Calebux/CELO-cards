@@ -8,6 +8,7 @@ import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatche
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 import { MultiplayerMode, isPaidMultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
 import { ServerMatch, newServerMatch, matchNeedsPayment } from "../../../lib/serverMatch";
+import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 
 const INACTIVITY_TIMEOUT      = 5  * 60 * 1000; // 5 minutes (free matches)
 const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes (paid matches)
@@ -187,6 +188,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   // ── Keepalive (host waiting on ready page) ──────────────────────────────
   if (action === "keepalive") {
     let match = await getMatch<ServerMatch>(matchId);
+    const isNewMatch = !match;
     if (!match) {
       // Match doesn't exist yet — create it now so it appears in open matches
       match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "wager");
@@ -203,6 +205,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     if (validMode(requestedMode)) match.mode = requestedMode;
     await setMatch(matchId, match).catch(() => {});
+    if (isNewMatch && role === "host") {
+      void sendTelegramNewMatchAlert({
+        matchId,
+        mode: match.mode,
+        hostName: match.host.playerName,
+        hostAddress: match.host.address,
+      });
+    }
     // Keep the match visible in open matches while waiting for a joiner
     if (validRole(role) && role === "host" && !match.joiner.charId) {
       await addToOpenMatches(matchId).catch(() => {});

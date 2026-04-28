@@ -507,6 +507,7 @@ export default function Gameplay() {
           <MatchLoadingScreen
             playerName={playerName || selectedCharacter.name}
             opponentName={opponentName || opponentCharacter.name}
+            matchId={matchId}
             playerColor={selectedCharacter.color}
             opponentColor={opponentCharacter.color}
             playerPortrait={selectedCharacter.standingArt}

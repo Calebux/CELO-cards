@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
-import { CARDS, Card, CardType } from "../lib/gameData";
+import { CARDS, Card, CardType, CHARACTERS } from "../lib/gameData";
 import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
@@ -30,6 +30,29 @@ const TYPE_COLORS: Record<string, string> = {
 // Special cards shown separately below
 const SPECIAL_STRIKE_ID = "phantom_break";
 const SPECIAL_DEFENSE_ID = "reversal_edge";
+
+function getPlayTips(charId?: string): string[] {
+  switch (charId) {
+    case "kaira":
+      return ["Open aggressive on slot 1 to trigger First Strike.", "Save Ultimate for high-knock strike cards."];
+    case "kenji":
+      return ["Prioritize cards with high priority to snowball.", "Use Ultimate when you expect a slot win."];
+    case "riven":
+      return ["Anchor risky cards on slot 3 for passive value.", "Use Ultimate to nullify enemy power spikes."];
+    case "zane":
+      return ["Lean into strike-heavy sequences for bonus knock.", "Use Ultimate before opponent burst turns."];
+    case "elara":
+      return ["Mix control cards to sustain drain pressure.", "Ultimate works best when tempo is contested."];
+    default:
+      return ["Build a balanced sequence of strike, defense, and control.", "Keep 1 low-energy card for flexibility."];
+  }
+}
+
+function compactText(text?: string): string {
+  if (!text) return "—";
+  const firstSentence = text.split(".")[0]?.trim() ?? text.trim();
+  return firstSentence.length > 64 ? `${firstSentence.slice(0, 61)}...` : `${firstSentence}${firstSentence.endsWith(".") ? "" : "."}`;
+}
 
 function CardTooltip({ card }: { card: Card }) {
   const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
@@ -80,6 +103,7 @@ export default function Loadout() {
 
   const {
     selectedCharacter,
+    selectCharacter,
     currentOrder,
     addCardToSlot,
     removeCardFromSlot,
@@ -95,9 +119,6 @@ export default function Loadout() {
     savePreset,
     loadPreset,
     deletePreset,
-    ultimateActivated,
-    ultimateUsed,
-    activateUltimate,
     unlockedPremiumCards,
     setOpponentCharacterFromServer,
     setOpponentName,
@@ -133,6 +154,13 @@ export default function Loadout() {
   const { regular: regularCards, special: specialCard } = getCardsForTab();
   const filledSlots = currentOrder.filter((s) => s !== null).length;
   const isOrderComplete = filledSlots === 5;
+
+  useEffect(() => {
+    if (!selectedCharacter) {
+      const fallback = CHARACTERS.find((c) => !c.isLocked) ?? CHARACTERS[0];
+      if (fallback) selectCharacter(fallback);
+    }
+  }, [selectedCharacter, selectCharacter]);
 
   useEffect(() => {
     const scale = () => {
@@ -239,10 +267,16 @@ export default function Loadout() {
 
         {/* ── Top Bar ── */}
         <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 4, height: 28, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
-            <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+          {/* Left: back + logo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
+              <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+              <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 4, height: 28, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+              <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+            </div>
           </div>
 
           {/* Round + score */}
@@ -260,44 +294,80 @@ export default function Loadout() {
           </div>
         </div>
 
-        {/* Left character panel — shows selected character's standing art */}
+        {/* Left character panel — compact portrait + ability intel */}
         <div style={{
-          position: "absolute", left: 109, top: `calc(${safeTop} + 68px)`, width: 326, height: 636,
-          overflow: "hidden", pointerEvents: "none",
-          borderRadius: 6,
-          border: `1.5px solid ${selectedCharacter?.color || "#56a4cb"}40`,
-          boxShadow: `0 0 28px ${selectedCharacter?.color || "#56a4cb"}18`,
+          position: "absolute", left: 164, top: `calc(${safeTop} + 68px)`, width: 306, height: 520,
+          display: "flex", flexDirection: "column", gap: 10,
+          pointerEvents: "none",
         }}>
           {selectedCharacter && (
             <>
-              <img
-                src={selectedCharacter.standingArt}
-                alt={selectedCharacter.name}
-                style={{
-                  position: "absolute", width: "100%", height: "100%",
-                  objectFit: "cover", objectPosition: "top center",
-                }}
-              />
-              {/* Bottom gradient so name reads cleanly */}
               <div style={{
-                position: "absolute", inset: 0,
-                background: "linear-gradient(to top, rgba(5,5,5,0.92) 0%, rgba(5,5,5,0.2) 40%, transparent 65%)",
-              }} />
-              {/* Character label */}
-              <div style={{ position: "absolute", bottom: 20, left: 18, right: 18 }}>
-                <span style={{
-                  display: "block", fontSize: 9, fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: 2.5,
-                  color: selectedCharacter.color, marginBottom: 4,
-                }}>
-                  {selectedCharacter.className}
-                </span>
+                position: "relative", height: 318,
+                overflow: "hidden",
+                borderRadius: 8,
+                border: `1.5px solid ${selectedCharacter.color}55`,
+                boxShadow: `0 0 24px ${selectedCharacter.color}20`,
+              }}>
+                <img
+                  src={selectedCharacter.standingArt}
+                  alt={selectedCharacter.name}
+                  style={{
+                    position: "absolute", width: "100%", height: "100%",
+                    objectFit: "cover", objectPosition: "top center",
+                    transform: "scale(0.9)",
+                  }}
+                />
                 <div style={{
-                  fontSize: 28, fontWeight: 800, color: "#fff",
-                  letterSpacing: -1, lineHeight: 1,
-                  textShadow: `0 0 20px ${selectedCharacter.color}70`,
-                }}>
-                  {selectedCharacter.name}
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(to top, rgba(5,5,5,0.92) 0%, rgba(5,5,5,0.25) 42%, transparent 72%)",
+                }} />
+                <div style={{ position: "absolute", bottom: 14, left: 14, right: 14 }}>
+                  <span style={{
+                    display: "block", fontSize: 9, fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: 2.4,
+                    color: selectedCharacter.color, marginBottom: 4,
+                  }}>
+                    {selectedCharacter.className}
+                  </span>
+                  <div style={{
+                    fontSize: 22, fontWeight: 800, color: "#fff",
+                    letterSpacing: -0.7, lineHeight: 1,
+                    textShadow: `0 0 20px ${selectedCharacter.color}66`,
+                  }}>
+                    {selectedCharacter.name}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                height: 192,
+                borderRadius: 8,
+                background: "rgba(10,15,28,0.88)",
+                border: `1.5px solid ${selectedCharacter.color}35`,
+                boxShadow: `inset 0 1px 0 ${selectedCharacter.color}22`,
+                padding: "10px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                overflow: "hidden",
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 2.3, color: selectedCharacter.color, textTransform: "uppercase" }}>
+                  Ability Intel
+                </div>
+                <div style={{ padding: "7px 9px", borderRadius: 6, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(148,163,184,0.2)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#7dd3fc", textTransform: "uppercase", letterSpacing: 1.4 }}>Passive · {selectedCharacter.passive?.name ?? "—"}</div>
+                  <div style={{ marginTop: 3, fontSize: 10, color: "#cbd5e1", lineHeight: 1.28 }}>{compactText(selectedCharacter.passive?.description ?? "No passive available.")}</div>
+                </div>
+                <div style={{ padding: "7px 9px", borderRadius: 6, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(148,163,184,0.2)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 1.4 }}>Ultimate · {selectedCharacter.ultimate?.name ?? "—"}</div>
+                  <div style={{ marginTop: 3, fontSize: 10, color: "#cbd5e1", lineHeight: 1.28 }}>{compactText(selectedCharacter.ultimate?.description ?? "No ultimate available.")}</div>
+                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(148,163,184,0.2)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1.4, marginBottom: 4 }}>Best Move Tip</div>
+                  </div>
+                  <div style={{ fontSize: 9.5, color: "#cbd5e1", lineHeight: 1.28 }}>
+                    • {getPlayTips(selectedCharacter.id)[0]}
+                  </div>
                 </div>
               </div>
             </>
@@ -736,49 +806,6 @@ export default function Loadout() {
           </div>
         </div>
 
-        {/* Ultimate + Taunt buttons */}
-        {selectedCharacter?.ultimate && (
-          <div style={{ position: "absolute", left: 32, bottom: 80, zIndex: 20, display: "flex", gap: 10, alignItems: "center" }}>
-            {/* Ultimate button */}
-            <button
-              onClick={activateUltimate}
-              disabled={ultimateUsed || ultimateActivated}
-              style={{
-                padding: "10px 18px",
-                background: ultimateActivated
-                  ? `linear-gradient(135deg, ${selectedCharacter.color}40, ${selectedCharacter.color}20)`
-                  : ultimateUsed
-                  ? "rgba(255,255,255,0.04)"
-                  : `linear-gradient(135deg, ${selectedCharacter.color}30, ${selectedCharacter.color}15)`,
-                border: ultimateActivated
-                  ? `2px solid ${selectedCharacter.color}`
-                  : ultimateUsed
-                  ? "2px solid rgba(255,255,255,0.08)"
-                  : `2px solid ${selectedCharacter.color}60`,
-                borderRadius: 8,
-                cursor: ultimateUsed ? "default" : "pointer",
-                opacity: ultimateUsed ? 0.45 : 1,
-                boxShadow: ultimateActivated ? `0 0 16px ${selectedCharacter.color}60` : "none",
-                transition: "all 0.2s ease",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="material-icons" style={{ fontSize: 18, color: ultimateUsed ? "#475569" : selectedCharacter.color }}>
-                  {ultimateActivated ? "flash_on" : "bolt"}
-                </span>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 1 }}>
-                    {ultimateUsed ? "USED" : ultimateActivated ? "ACTIVATED" : "ULTIMATE"}
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: ultimateUsed ? "#475569" : "#f1f5f9", letterSpacing: 0.5 }}>
-                    {selectedCharacter.ultimate.name}
-                  </div>
-                </div>
-              </div>
-            </button>
-          </div>
-        )}
-
         {/* Lock Sequence button — appears when order is complete */}
         {isOrderComplete && !waiting && (
           <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -823,19 +850,6 @@ export default function Loadout() {
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
-
-        {/* Back button */}
-        <button
-          onClick={() => router.back()}
-          className="ko-btn ko-btn-secondary"
-          style={{
-            position: "absolute", left: 32, bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 20}px)`,
-            padding: "8px 16px", zIndex: 20,
-          }}
-        >
-          <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
-          <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
-        </button>
 
       </div>
     </div>
