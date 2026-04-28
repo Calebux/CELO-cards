@@ -23,7 +23,7 @@ export function MatchLoadingScreen({
 }: MatchLoadingScreenProps) {
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 300,
+      position: "absolute", inset: 0, zIndex: 300,
       background: "#050810",
       display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",

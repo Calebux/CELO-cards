@@ -251,18 +251,25 @@ export const useGameStore = create<GameState>()(
     },
 
     loadPreset: (index) => {
-        const { deckPresets, playerDeck, maxEnergy } = get();
+        const { deckPresets, maxEnergy } = get();
         const preset = deckPresets[index];
         if (!preset) return;
         const allCards = [...CARDS];
         const cards = preset.cardIds
             .map((id) => allCards.find((c) => c.id === id))
             .filter((c): c is Card => !!c);
-        // Validate energy budget
-        const totalCost = cards.reduce((s, c) => s + c.energyCost, 0);
-        if (totalCost > maxEnergy) return; // preset no longer valid for this character
+        // If preset exceeds energy for current character, apply a best-fit subset
+        // instead of silently failing so the user always gets a loaded result.
+        const fitted: Card[] = [];
+        let spent = 0;
+        for (const c of cards) {
+            if (fitted.length >= 5) break;
+            if (spent + c.energyCost > maxEnergy) continue;
+            fitted.push(c);
+            spent += c.energyCost;
+        }
         const newOrder: (Card | null)[] = [null, null, null, null, null];
-        cards.slice(0, 5).forEach((c, i) => { newOrder[i] = c; });
+        fitted.forEach((c, i) => { newOrder[i] = c; });
         set({ currentOrder: newOrder });
     },
 

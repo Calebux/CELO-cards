@@ -403,7 +403,8 @@ export default function Gameplay() {
 
     resetMatch();
     stopBgMusic();
-    router.push("/");
+    // Hard navigation guarantees we always land on home from any gameplay state.
+    window.location.href = "/";
   };
 
   const handleQuitClick = () => {

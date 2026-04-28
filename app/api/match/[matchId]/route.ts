@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatches } from "../../../lib/redis";
+import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 import { MultiplayerMode, isPaidMultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
 import { ServerMatch, newServerMatch, matchNeedsPayment } from "../../../lib/serverMatch";
@@ -188,7 +189,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   // ── Keepalive (host waiting on ready page) ──────────────────────────────
   if (action === "keepalive") {
     let match = await getMatch<ServerMatch>(matchId);
-    const isNewMatch = !match;
     if (!match) {
       // Match doesn't exist yet — create it now so it appears in open matches
       match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "wager");
@@ -205,13 +205,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     if (validMode(requestedMode)) match.mode = requestedMode;
     await setMatch(matchId, match).catch(() => {});
-    if (isNewMatch && role === "host") {
-      void sendTelegramNewMatchAlert({
-        matchId,
-        mode: match.mode,
-        hostName: match.host.playerName,
-        hostAddress: match.host.address,
-      });
+    if (role === "host") {
+      // Robust one-time alert per match id, even if the match was created before keepalive.
+      const notifyKey = `notify:new-match:${matchId}`;
+      const shouldNotify = await redis.set(notifyKey, "1", { nx: true, ex: 7200 }).catch(() => null);
+      if (shouldNotify) {
+        void sendTelegramNewMatchAlert({
+          matchId,
+          mode: match.mode,
+          hostName: match.host.playerName,
+          hostAddress: match.host.address,
+        });
+      }
     }
     // Keep the match visible in open matches while waiting for a joiner
     if (validRole(role) && role === "host" && !match.joiner.charId) {
