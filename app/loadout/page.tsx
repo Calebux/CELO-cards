@@ -163,6 +163,7 @@ export default function Loadout() {
     setSelectedCharacterFromServer,
     setOpponentCharacterFromServer,
     setCurrentOrderFromIds,
+    syncMultiplayerRoundState,
     setOpponentName,
     resetMatch,
     markOnboardingStep,
@@ -236,6 +237,9 @@ export default function Loadout() {
         if (!res.ok) return;
         const data = await res.json() as {
           phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          round: number;
+          hostWins: number;
+          opponentWins: number;
           selfCharId?: string | null;
           opponentCharId?: string | null;
           opponentName?: string | null;
@@ -247,11 +251,16 @@ export default function Loadout() {
         if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
         if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
         if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        syncMultiplayerRoundState({
+          roundNumber: data.round,
+          selfWins: data.hostWins,
+          opponentWins: data.opponentWins,
+          resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
+        });
         if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
           setCurrentOrderFromIds(data.selfCardIds);
         }
         if (data.phase === "resolved" && data.slots) {
-          setPrecomputedFromServer(data.slots);
           router.replace("/gameplay");
         }
       } catch {
@@ -387,6 +396,9 @@ export default function Loadout() {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
         const data = await res.json() as {
           phase: string;
+          round: number;
+          hostWins: number;
+          opponentWins: number;
           slots: unknown;
           opponentCharId?: string;
           opponentName?: string | null;
@@ -406,6 +418,14 @@ export default function Loadout() {
         if (data.opponentName !== undefined) {
           setOpponentName(data.opponentName);
         }
+        syncMultiplayerRoundState({
+          roundNumber: data.round,
+          selfWins: data.hostWins,
+          opponentWins: data.opponentWins,
+          resolvedSlots: data.phase === "resolved"
+            ? data.slots as Parameters<typeof setPrecomputedFromServer>[0]
+            : null,
+        });
 
         // Abort if timed out or opponent quit
         const opponentRole = playerRole === "host" ? "joiner" : "host";
@@ -421,7 +441,6 @@ export default function Loadout() {
           stopPolling();
           try { sessionStorage.removeItem(pendingKey); } catch {}
           pendingSubmitRef.current = null;
-          setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
           router.push("/gameplay");
           return;
         }
@@ -439,7 +458,7 @@ export default function Loadout() {
 
     void submitPending();
     void pollOnce();
-  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router, markOnboardingStep]);
+  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, syncMultiplayerRoundState, router, markOnboardingStep]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
   const tutorialSteps = [

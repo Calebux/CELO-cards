@@ -66,6 +66,7 @@ export default function Gameplay() {
     setWager,
     setMatchMode,
     markOnboardingStep,
+    syncMultiplayerRoundState,
     setSelectedCharacterFromServer,
     setOpponentCharacterFromServer,
     setCurrentOrderFromIds,
@@ -137,11 +138,34 @@ export default function Gameplay() {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { abortedBy?: string | null };
+        const data = await res.json() as {
+          abortedBy?: string | null;
+          phase?: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          round?: number;
+          hostWins?: number;
+          opponentWins?: number;
+          slots?: Parameters<typeof setPrecomputedFromServer>[0] | null;
+          selfCardIds?: string[] | null;
+        };
         const opponentRole = playerRole === "host" ? "joiner" : "host";
         if (data.abortedBy === opponentRole) {
           setOpponentLeft(true);
           clearInterval(interval);
+        }
+        if (
+          typeof data.round === "number" &&
+          typeof data.hostWins === "number" &&
+          typeof data.opponentWins === "number"
+        ) {
+          syncMultiplayerRoundState({
+            roundNumber: data.round,
+            selfWins: data.hostWins,
+            opponentWins: data.opponentWins,
+            resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
+          });
+        }
+        if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
         }
       } catch (e) {
         // ignore polling errors
@@ -149,7 +173,7 @@ export default function Gameplay() {
     }, 4000);
     
     return () => clearInterval(interval);
-  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft]);
+  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft, setCurrentOrderFromIds, setPrecomputedFromServer, syncMultiplayerRoundState]);
 
   // Start background music on mount
   useEffect(() => {
@@ -170,6 +194,9 @@ export default function Gameplay() {
         if (!res.ok) return;
         const data = await res.json() as {
           phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          round: number;
+          hostWins: number;
+          opponentWins: number;
           selfCharId?: string | null;
           opponentCharId?: string | null;
           opponentName?: string | null;
@@ -181,11 +208,16 @@ export default function Gameplay() {
         if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
         if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
         if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        syncMultiplayerRoundState({
+          roundNumber: data.round,
+          selfWins: data.hostWins,
+          opponentWins: data.opponentWins,
+          resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
+        });
         if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
           setCurrentOrderFromIds(data.selfCardIds);
         }
         if (data.phase === "resolved" && data.slots) {
-          setPrecomputedFromServer(data.slots);
         } else if (data.phase !== "resolved" && matchPhase !== "match-end") {
           router.replace("/loadout");
         }
@@ -210,6 +242,7 @@ export default function Gameplay() {
     setOpponentName,
     setPrecomputedFromServer,
     setSelectedCharacterFromServer,
+    syncMultiplayerRoundState,
     vsBot,
   ]);
 

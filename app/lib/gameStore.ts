@@ -149,6 +149,12 @@ interface GameState {
     markOnboardingStep: (step: OnboardingStepId) => void;
     resetOnboardingProgress: () => void;
     setOnboardingCoachHidden: (hidden: boolean) => void;
+    syncMultiplayerRoundState: (payload: {
+        roundNumber: number;
+        selfWins: number;
+        opponentWins: number;
+        resolvedSlots?: SlotResult[] | null;
+    }) => void;
     setSelectedCharacterFromServer: (charId: string) => void;
     setCurrentOrderFromIds: (cardIds: string[]) => void;
     savePreset: (name: string) => void;
@@ -261,6 +267,35 @@ export const useGameStore = create<GameState>()(
     }),
     resetOnboardingProgress: () => set({ onboardingProgress: createEmptyOnboardingProgress(), onboardingCoachHidden: false }),
     setOnboardingCoachHidden: (hidden) => set({ onboardingCoachHidden: hidden }),
+    syncMultiplayerRoundState: ({ roundNumber, selfWins, opponentWins, resolvedSlots }) => {
+        let baseSelfWins = selfWins;
+        let baseOpponentWins = opponentWins;
+
+        if (resolvedSlots) {
+            const totalPlayerKnock = resolvedSlots.reduce((sum, slot) => sum + slot.playerKnock, 0);
+            const totalOpponentKnock = resolvedSlots.reduce((sum, slot) => sum + slot.opponentKnock, 0);
+            if (totalPlayerKnock > totalOpponentKnock) {
+                baseSelfWins = Math.max(0, selfWins - 1);
+            } else if (totalOpponentKnock > totalPlayerKnock) {
+                baseOpponentWins = Math.max(0, opponentWins - 1);
+            }
+        }
+
+        set({
+            roundNumber,
+            playerRoundsWon: baseSelfWins,
+            opponentRoundsWon: baseOpponentWins,
+            ...(resolvedSlots
+                ? {
+                    precomputedRound: resolvedSlots,
+                    opponentOrder: resolvedSlots.map((slot) => slot.opponentCard),
+                    matchPhase: "combat" as MatchPhase,
+                    revealedSlots: 0,
+                    currentRoundResult: null,
+                }
+                : {}),
+        });
+    },
     setSelectedCharacterFromServer: (charId) => {
         const char = CHARACTERS.find((c) => c.id === charId);
         if (char) set({ selectedCharacter: char, maxEnergy: calcEnergyPool(char) });
