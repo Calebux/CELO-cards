@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
 import { MultiplayerMode } from "./matchmaking";
+import { createEmptyOnboardingProgress, isOnboardingComplete, OnboardingProgress, OnboardingStepId } from "./onboarding";
 import {
     generateAIOrder,
     AIRoundContext,
@@ -125,6 +126,8 @@ interface GameState {
     playerName: string;
     opponentName: string | null;
     hasSeenTutorial: boolean;
+    onboardingProgress: OnboardingProgress;
+    onboardingCoachHidden: boolean;
 
     // Deck presets
     deckPresets: DeckPreset[];
@@ -143,6 +146,9 @@ interface GameState {
     setPlayerName: (name: string) => void;
     setOpponentName: (name: string | null) => void;
     setHasSeenTutorial: (v: boolean) => void;
+    markOnboardingStep: (step: OnboardingStepId) => void;
+    resetOnboardingProgress: () => void;
+    setOnboardingCoachHidden: (hidden: boolean) => void;
     savePreset: (name: string) => void;
     loadPreset: (index: number) => void;
     deletePreset: (index: number) => void;
@@ -214,6 +220,8 @@ export const useGameStore = create<GameState>()(
     playerName: "",
     opponentName: null,
     hasSeenTutorial: false,
+    onboardingProgress: createEmptyOnboardingProgress(),
+    onboardingCoachHidden: false,
     deckPresets: [],
     ultimateActivated: false,
     ultimateUsed: false,
@@ -241,6 +249,16 @@ export const useGameStore = create<GameState>()(
     setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
     setOpponentName: (name) => set({ opponentName: name ? name.slice(0, 20) : null }),
     setHasSeenTutorial: (v) => set({ hasSeenTutorial: v }),
+    markOnboardingStep: (step) => set((state) => {
+        if (state.onboardingProgress[step]) return state;
+        const nextProgress = { ...state.onboardingProgress, [step]: true };
+        if (isOnboardingComplete(nextProgress) && !nextProgress.completedAt) {
+            nextProgress.completedAt = Date.now();
+        }
+        return { onboardingProgress: nextProgress };
+    }),
+    resetOnboardingProgress: () => set({ onboardingProgress: createEmptyOnboardingProgress(), onboardingCoachHidden: false }),
+    setOnboardingCoachHidden: (hidden) => set({ onboardingCoachHidden: hidden }),
 
     savePreset: (name) => {
         const { currentOrder, deckPresets } = get();
@@ -717,6 +735,8 @@ export const useGameStore = create<GameState>()(
         matchHistory: state.matchHistory,
         playerName: state.playerName,
         hasSeenTutorial: state.hasSeenTutorial,
+        onboardingProgress: state.onboardingProgress,
+        onboardingCoachHidden: state.onboardingCoachHidden,
         deckPresets: state.deckPresets,
         unlockedPremiumCards: state.unlockedPremiumCards,
       }),

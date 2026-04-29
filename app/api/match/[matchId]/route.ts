@@ -8,6 +8,7 @@ import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatche
 import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 import { MultiplayerMode, isPaidMultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
+import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
 import { ServerMatch, newServerMatch, matchNeedsPayment } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 
@@ -313,6 +314,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   let saved = false;
   // Captured after match state is saved — fired once outside the retry loop
   let matchEndSnapshot: { hostWon: boolean; m: ServerMatch } | null = null;
+  let roundTelemetrySnapshot: {
+    hostCharId: string;
+    joinerCharId: string;
+    hostCardIds: string[];
+    joinerCardIds: string[];
+    hostWonRound: boolean | null;
+    roundDurationMs: number;
+    round: number;
+  } | null = null;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     match = await getMatch<ServerMatch>(matchId);
@@ -360,9 +370,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         .map((id) => CARDS.find((c) => c.id === id))
         .filter(Boolean) as typeof CARDS;
 
+      const roundDurationMs = match.roundSubmitStartedAt ? Math.max(0, Date.now() - match.roundSubmitStartedAt) : 0;
       const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar);
       m.resolvedSlots = result.slots;
       m.roundSubmitStartedAt = null;
+      roundTelemetrySnapshot = {
+        hostCharId: hostChar.id,
+        joinerCharId: joinerChar.id,
+        hostCardIds: m.host.cardIds,
+        joinerCardIds: m.joiner.cardIds,
+        hostWonRound: result.roundWinner === "player" ? true : result.roundWinner === "opponent" ? false : null,
+        roundDurationMs,
+        round: m.round,
+      };
 
       if (result.roundWinner === "player") m.hostWins++;
       else if (result.roundWinner === "opponent") m.joinerWins++;
@@ -382,6 +402,30 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       matchEndSnapshot = null; // reset — will be re-computed on next attempt
       // Small random delay before retry
       await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+    }
+  }
+
+  if (
+    saved &&
+    roundTelemetrySnapshot &&
+    match &&
+    isRankedMultiplayerMode(match.mode) &&
+    match.host.address &&
+    match.joiner.address
+  ) {
+    try {
+      await recordRankedRoundTelemetry({
+        matchId,
+        round: roundTelemetrySnapshot.round,
+        hostCharId: roundTelemetrySnapshot.hostCharId,
+        joinerCharId: roundTelemetrySnapshot.joinerCharId,
+        hostCardIds: roundTelemetrySnapshot.hostCardIds,
+        joinerCardIds: roundTelemetrySnapshot.joinerCardIds,
+        hostWonRound: roundTelemetrySnapshot.hostWonRound,
+        roundDurationMs: roundTelemetrySnapshot.roundDurationMs,
+      });
+    } catch {
+      // Best-effort only.
     }
   }
 
@@ -431,6 +475,25 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
           pointsEarned: hostWon ? 25 : 150,
           playerRoundsWon: m.joinerWins,
           opponentRoundsWon: m.hostWins,
+        });
+      }
+      if (
+        m.host.address &&
+        m.joiner.address &&
+        m.host.charId &&
+        m.joiner.charId &&
+        m.completedAt &&
+        isRankedMultiplayerMode(m.mode)
+      ) {
+        await recordRankedMatchTelemetry({
+          matchId,
+          hostAddress: m.host.address,
+          joinerAddress: m.joiner.address,
+          hostCharId: m.host.charId,
+          joinerCharId: m.joiner.charId,
+          hostWonMatch: hostWon,
+          createdAt: m.createdAt,
+          completedAt: m.completedAt,
         });
       }
     } catch {

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
+import { ArchetypeKey, getStarterArchetypes } from "../lib/archetypes";
+import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 import { playSound } from "../lib/soundManager";
 
@@ -39,12 +41,27 @@ export default function SelectCharacter() {
   const [opponentJoined, setOpponentJoined] = useState(false);
   const [opponentJoinedName, setOpponentJoinedName] = useState<string | null>(null);
   const [joinFlash, setJoinFlash] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
   const opponentJoinedRef = useRef(false);
   const router = useRouter();
-  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput } = useGameStore();
+  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput, markOnboardingStep } = useGameStore();
   const multiplayerMode = matchMode === "vshouse" ? "wager" : matchMode;
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
 
   const activeChar = CHARACTERS[selectedIdx] || CHARACTERS[0];
+  const preferredPlanKey: Record<string, ArchetypeKey> = {
+    kaira: "aggro",
+    kenji: "tempo",
+    riven: "tempo",
+    zane: "aggro",
+    elara: "control",
+  };
+  const recommendedPlans = getStarterArchetypes(activeChar.id);
+  const highlightedPlan = recommendedPlans.find((plan) => plan.key === preferredPlanKey[activeChar.id]) ?? recommendedPlans[0];
+  const highlightedPlanSummary = highlightedPlan?.why.length && highlightedPlan.why.length > 82
+    ? `${highlightedPlan.why.slice(0, 79).trimEnd()}...`
+    : highlightedPlan?.why ?? "";
 
   // Build the 15-slot grid: 5 real characters + 10 grey locked
   const gridSlots = [
@@ -57,6 +74,7 @@ export default function SelectCharacter() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -147,6 +165,7 @@ export default function SelectCharacter() {
   }, [timer]);
 
   const handleLock = async () => {
+    markOnboardingStep("select_fighter");
     selectCharacter(activeChar);
     if (playerRole !== null && matchId) {
       // Multiplayer: init loadout state WITHOUT overwriting matchId (startMatch would corrupt it)
@@ -193,7 +212,7 @@ export default function SelectCharacter() {
 
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: isCompactPhone ? "0 28px" : "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
@@ -201,6 +220,8 @@ export default function SelectCharacter() {
           <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>SELECT FIGHTER</div>
           <WalletSection />
         </div>
+
+        <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 82px)`, right: 20, zIndex: 12 }} />
 
         {/* ── Left: Player Preview Panel ───────────────────────── */}
         <div className="absolute flex flex-col gap-[16.875px]"
@@ -278,7 +299,7 @@ export default function SelectCharacter() {
 
         {/* ── Centre: Character Grid ───────────────────────────── */}
         <div className="absolute flex flex-col gap-[0.007px] items-center justify-center"
-          style={{ left: "calc(50% - 14.5px)", transform: "translateX(-50%)", top: 91, bottom: 108, width: 637, zIndex: 2 }}>
+          style={{ left: "calc(50% - 14.5px)", transform: "translateX(-50%)", top: 91, bottom: isCompactPhone ? 122 : 108, width: 637, zIndex: 2 }}>
 
           <div className="relative overflow-hidden rounded-[11.25px] border-[0.703px] border-[rgba(255,255,255,0.05)] shrink-0"
             style={{ width: "100%", height: 491, backgroundColor: "rgba(25,16,34,0.3)" }}>
@@ -431,7 +452,7 @@ export default function SelectCharacter() {
         {/* ── Footer Action Bar ────────────────────────────────── */}
         <div className="absolute flex items-center border-t"
           style={{
-            top: 732, left: "calc(50% - 17.5px)", transform: "translateX(-50%)",
+            left: "calc(50% - 17.5px)", transform: "translateX(-50%)", bottom: safeBottom,
             width: 1197, height: 83,
             backgroundColor: "#222f42",
             backdropFilter: "blur(12px)",
@@ -458,6 +479,15 @@ export default function SelectCharacter() {
               <div className="flex flex-col">
                 <span className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: 1, color: "rgba(255,255,255,0.5)" }}>Selected Unit</span>
                 <span className="font-bold text-[#f1f5f9]" style={{ fontSize: 14, letterSpacing: -0.35 }}>{activeChar.name}</span>
+              </div>
+            </div>
+
+            <div className="absolute" style={{ left: 0, top: "calc(50% + 18px)", maxWidth: 210 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.2, color: activeChar.color, textTransform: "uppercase" }}>
+                Best Plan · {highlightedPlan?.label ?? "Tempo"}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 9, lineHeight: 1.35, color: "#94a3b8" }}>
+                {highlightedPlanSummary}
               </div>
             </div>
 

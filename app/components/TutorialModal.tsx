@@ -59,21 +59,33 @@ export function TutorialModal() {
 
   const slides = [
     {
-      title: "THE ARENA",
-      icon: "swords",
-      content: "Draft 5 cards in order. The highest total Knock wins the round. First to win 3 rounds takes the match.",
+      title: "START A MATCH",
+      icon: "sports_martial_arts",
+      content: "Begin with Ranked, VS House, or Wager. Create hosts a lobby instantly, and Join lets you jump into a friend's Match ID or invite link.",
+      color: "#56a4cb"
+    },
+    {
+      title: "SEASON PASS",
+      icon: "military_tech",
+      content: "Ranked play runs through the Season Pass. Once active, you stay eligible for leaderboard climbs and tournament qualification during the pass window.",
+      color: "#fbbf24"
+    },
+    {
+      title: "LOCK A FIGHTER",
+      icon: "groups",
+      content: "Pick the fighter whose passive and ultimate match your plan. Kaira and Zane reward pressure, while Riven, Kenji, and Elara reward timing and reads.",
       color: "#f87171"
     },
     {
-      title: "ELEMENTS & SYNERGY",
-      icon: "water_drop",
-      content: "Rock-paper-scissors mechanics. Use cards that counter your opponent's element. Matching your character's class gives a bonus.",
+      title: "BUILD 5 CARDS",
+      icon: "view_carousel",
+      content: "Draft 5 cards in order while staying inside your energy cap. Strike, Defense, and Control each solve different matchup problems.",
       color: "#60a5fa"
     },
     {
-      title: "ENERGY & ULTIMATES",
+      title: "READ THE RESULT",
       icon: "bolt",
-      content: "Manage your energy budget. Build up your gauge to unleash powerful, rule-breaking Ultimate abilities.",
+      content: "Each slot resolves by priority and knock. First to 3 rounds wins, then you can review the result, payouts, and what sequence actually worked.",
       color: "#fbbf24"
     }
   ];
@@ -129,6 +141,22 @@ export function TutorialModal() {
           </p>
 
           <div style={{ display: "flex", gap: 16 }}>
+            <button
+              onClick={() => {
+                setHasSeenTutorial(true);
+                setShow(false);
+              }}
+              style={{
+                padding: "14px 18px",
+                background: "transparent",
+                border: "1.5px solid rgba(255,255,255,0.1)",
+                borderRadius: 6, cursor: "pointer",
+                color: "#94a3b8", fontSize: 13, fontWeight: 800, textTransform: "uppercase",
+                letterSpacing: 2, fontFamily: "inherit"
+              }}
+            >
+              Skip
+            </button>
             {slide > 0 && (
               <button
                 onClick={() => setSlide(s => s - 1)}

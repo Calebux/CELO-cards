@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
+import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
@@ -74,12 +75,14 @@ export default function CreateMatch() {
   const [hasSeasonPass, setHasSeasonPass] = useState(false);
   const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
   const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const markOnboardingStep = useGameStore((s) => s.markOnboardingStep);
   const matchPhase = useGameStore((s) => s.matchPhase);
   const matchId = useGameStore((s) => s.matchId);
   const playerRole = useGameStore((s) => s.playerRole);
@@ -114,6 +117,7 @@ export default function CreateMatch() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       setIsShortLandscape(vw > vh && vh < 760);
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -166,6 +170,7 @@ export default function CreateMatch() {
     setVsBot(false);
     setMatchMode("ranked");
     setPlayerRole("host");
+    markOnboardingStep("create_match");
 
     const newMatchId = useGameStore.getState().matchId;
     if (!newMatchId) return;
@@ -181,6 +186,7 @@ export default function CreateMatch() {
       setVsBot(true);
       setMatchMode(toStoreMode(matchType));
       setPlayerRole(null);
+      markOnboardingStep("create_match");
       router.push("/select-character");
       return;
     }
@@ -193,6 +199,7 @@ export default function CreateMatch() {
     setVsBot(false);
     setMatchMode(toStoreMode(matchType));
     setPlayerRole("host");
+    markOnboardingStep("create_match");
     if (matchType === "ranked") {
       if (!hasSeasonPass) {
         setShowSeasonPassModal(true);
@@ -232,7 +239,7 @@ export default function CreateMatch() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.85) 0%, rgba(5,8,18,0.75) 50%, rgba(5,5,5,0.85) 100%)", pointerEvents: "none" }} />
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: isCompactPhone ? "0 28px" : "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button onClick={() => router.push("/")} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
@@ -251,6 +258,8 @@ export default function CreateMatch() {
           <WalletSection />
         </div>
 
+        <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 76px)`, right: 18, zIndex: 12 }} />
+
         {/* Match Resume Banner */}
         {resumeRoute && (
           <button
@@ -264,7 +273,7 @@ export default function CreateMatch() {
               display: "flex",
               alignItems: "center",
               gap: 10,
-              padding: "8px 16px",
+              padding: isCompactPhone ? "7px 12px" : "8px 16px",
               background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
               border: "1px solid rgba(6,168,249,0.45)",
               borderRadius: 6,
@@ -292,7 +301,7 @@ export default function CreateMatch() {
         }}>
 
           {/* Panel */}
-          <div style={{ position: "relative", width: 560 }}>
+          <div style={{ position: "relative", width: isCompactPhone ? 520 : 560 }}>
 
             {/* Corner accents */}
             {[

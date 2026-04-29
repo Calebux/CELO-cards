@@ -12,6 +12,7 @@ import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
+import { OnboardingCoach } from "../components/OnboardingCoach";
 import { ShareCard } from "../components/ShareCard";
 
 const DEFAULT_BG = "/new addition/gameplay777.webp";
@@ -63,6 +64,7 @@ export default function Gameplay() {
     setVsBot,
     setWager,
     setMatchMode,
+    markOnboardingStep,
   } = useGameStore();
   const { address } = useAccount();
 
@@ -97,6 +99,7 @@ export default function Gameplay() {
   const [showShareCard, setShowShareCard] = useState(false);
   const payoutFiredRef = useRef(false);
   const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
   const [quitArmed, setQuitArmed] = useState(false);
   const quitArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safeTop = "env(safe-area-inset-top)";
@@ -154,11 +157,18 @@ export default function Gameplay() {
     }
   }, [selectedCharacter, opponentCharacter, router]);
 
+  useEffect(() => {
+    if (matchPhase === "match-end") {
+      markOnboardingStep("finish_match");
+    }
+  }, [matchPhase, markOnboardingStep]);
+
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     setIsShortLandscape(vw > vh && vh < 760);
+    setIsCompactPhone(Math.min(vw, vh) <= 430);
     const isPortrait = vh > vw;
     let transform: string;
     if (isPortrait) {
@@ -594,12 +604,12 @@ export default function Gameplay() {
         )}
 
         {/* Momentum bar */}
-        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 106 : 88}px)`, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
+        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 106 : 88}px)`, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: isCompactPhone ? 4 : 6 }}>
+          <span style={{ fontSize: isCompactPhone ? 8 : 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
           <div style={{ display: "flex", gap: 3 }}>
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} style={{
-                width: 18, height: 8, borderRadius: 2,
+                width: isCompactPhone ? 15 : 18, height: 8, borderRadius: 2,
                 background: i < momentum ? "#4ade80" : "rgba(255,255,255,0.1)",
                 boxShadow: i < momentum ? "0 0 6px #4ade80" : "none",
                 transition: "all 0.3s ease",
@@ -615,7 +625,7 @@ export default function Gameplay() {
               onClick={handleQuitClick}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 14px",
+                padding: isCompactPhone ? "6px 10px" : "6px 14px",
                 background: quitArmed ? "rgba(239,68,68,0.2)" : "rgba(0,0,0,0.6)",
                 border: quitArmed ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
@@ -624,12 +634,14 @@ export default function Gameplay() {
               }}
             >
               <span className="material-icons" style={{ fontSize: 14, color: quitArmed ? "#fca5a5" : "#6b7280" }}>arrow_back</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: quitArmed ? "#fca5a5" : "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>
+              <span style={{ fontSize: isCompactPhone ? 9 : 10, fontWeight: 700, color: quitArmed ? "#fca5a5" : "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>
                 {quitArmed ? "PRESS AGAIN TO QUIT" : "QUIT"}
               </span>
             </button>
           )}
         </div>
+
+        {!isMatchEnd && <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 90px)`, right: 20, zIndex: 18 }} accent="#4ade80" />}
 
         {/* ── HUD ──────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: `calc(${safeTop} + 16px)`, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>

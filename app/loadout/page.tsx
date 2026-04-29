@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType, CHARACTERS } from "../lib/gameData";
+import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../lib/archetypes";
+import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
@@ -30,23 +33,7 @@ const TYPE_COLORS: Record<string, string> = {
 // Special cards shown separately below
 const SPECIAL_STRIKE_ID = "phantom_break";
 const SPECIAL_DEFENSE_ID = "reversal_edge";
-
-function getPlayTips(charId?: string): string[] {
-  switch (charId) {
-    case "kaira":
-      return ["Open aggressive on slot 1 to trigger First Strike.", "Save Ultimate for high-knock strike cards."];
-    case "kenji":
-      return ["Prioritize cards with high priority to snowball.", "Use Ultimate when you expect a slot win."];
-    case "riven":
-      return ["Anchor risky cards on slot 3 for passive value.", "Use Ultimate to nullify enemy power spikes."];
-    case "zane":
-      return ["Lean into strike-heavy sequences for bonus knock.", "Use Ultimate before opponent burst turns."];
-    case "elara":
-      return ["Mix control cards to sustain drain pressure.", "Ultimate works best when tempo is contested."];
-    default:
-      return ["Build a balanced sequence of strike, defense, and control.", "Keep 1 low-energy card for flexibility."];
-  }
-}
+const LOADOUT_GUIDE_KEY = "ao-loadout-guide-seen";
 
 function compactText(text?: string): string {
   if (!text) return "—";
@@ -54,26 +41,64 @@ function compactText(text?: string): string {
   return firstSentence.length > 64 ? `${firstSentence.slice(0, 61)}...` : `${firstSentence}${firstSentence.endsWith(".") ? "" : "."}`;
 }
 
-function CardTooltip({ card }: { card: Card }) {
+function compactPresetWhy(text?: string): string {
+  if (!text) return "";
+  return text.length > 58 ? `${text.slice(0, 55).trimEnd()}...` : text;
+}
+
+type TooltipAnchor = { left: number; top: number; width: number; height: number };
+
+function CardTooltip({ card, anchor, mobileSheet = false }: { card: Card; anchor: TooltipAnchor; mobileSheet?: boolean }) {
   const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
   const col = typeColors[card.type] ?? "#56a4cb";
-  return (
+  const intel = CARD_INTEL[card.id];
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+  const tooltipWidth = mobileSheet ? Math.min(320, Math.max(260, viewportWidth - 24)) : 210;
+  const tooltipHeight = mobileSheet ? (intel ? 248 : 190) : (intel ? 210 : 160);
+  const preferLeft = anchor.left + anchor.width / 2 + tooltipWidth > viewportWidth - 16;
+  const left = mobileSheet
+    ? Math.max(12, (viewportWidth - tooltipWidth) / 2)
+    : preferLeft
+      ? Math.max(12, anchor.left + anchor.width / 2 - tooltipWidth)
+      : Math.min(viewportWidth - tooltipWidth - 12, anchor.left + anchor.width / 2);
+  const top = mobileSheet
+    ? Math.max(12, viewportHeight - tooltipHeight - 20)
+    : Math.min(
+        Math.max(12, anchor.top + anchor.height / 2 - tooltipHeight / 2),
+        Math.max(12, viewportHeight - tooltipHeight - 12),
+      );
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div style={{
-      position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
-      width: 210, zIndex: 200, pointerEvents: "none",
+      position: "fixed",
+      top,
+      left,
+      width: tooltipWidth,
+      zIndex: 600,
+      pointerEvents: "none",
       backgroundColor: "rgba(8, 12, 24, 0.98)",
       border: `1.5px solid ${col}70`,
-      borderRadius: 8,
-      padding: "12px 14px",
-      boxShadow: `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.9)`,
+      borderRadius: mobileSheet ? 12 : 8,
+      padding: mobileSheet ? "14px 16px" : "12px 14px",
+      boxShadow: mobileSheet ? `0 0 24px ${col}26, 0 16px 36px rgba(0,0,0,0.9)` : `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.9)`,
     }}>
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, backgroundColor: col, borderRadius: "10px 10px 0 0" }} />
-      <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
+      <div style={{ fontSize: mobileSheet ? 14 : 13, fontWeight: 800, color: "#fff", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
       <div style={{ display: "flex", gap: 6, marginBottom: 9 }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: col, backgroundColor: `${col}20`, padding: "2px 7px", borderRadius: 3, textTransform: "uppercase" }}>{card.type}</span>
-        <span style={{ fontSize: 9, color: "#94a3b8", padding: "2px 7px", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 3 }}>⚡{card.energyCost}</span>
+        <span style={{ fontSize: mobileSheet ? 10 : 9, fontWeight: 700, color: col, backgroundColor: `${col}20`, padding: mobileSheet ? "3px 8px" : "2px 7px", borderRadius: 3, textTransform: "uppercase" }}>{card.type}</span>
+        <span style={{ fontSize: mobileSheet ? 10 : 9, color: "#94a3b8", padding: mobileSheet ? "3px 8px" : "2px 7px", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 3 }}>⚡{card.energyCost}</span>
       </div>
-      <p style={{ fontSize: 11, color: "#94a3b8", lineHeight: "15px", margin: 0, marginBottom: 11 }}>{card.effect}</p>
+      <p style={{ fontSize: mobileSheet ? 12 : 11, color: "#94a3b8", lineHeight: mobileSheet ? "17px" : "15px", margin: 0, marginBottom: 11 }}>{card.effect}</p>
+      {intel && (
+        <div style={{ marginBottom: 10, padding: "7px 8px", borderRadius: 6, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.18)" }}>
+          <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#56a4cb", letterSpacing: 1.1, textTransform: "uppercase", fontWeight: 700 }}>Role: {intel.role}</div>
+          <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#93c5fd", marginTop: 3 }}>Strong vs {intel.strongVs}</div>
+          <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#fca5a5", marginTop: 2 }}>Weak vs {intel.weakVs}</div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 14, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 9 }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{card.knock}</div>
@@ -88,7 +113,8 @@ function CardTooltip({ card }: { card: Card }) {
           <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Energy</div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -104,6 +130,10 @@ export default function Loadout() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState(0);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ card: Card; anchor: TooltipAnchor } | null>(null);
+  const [pinnedTooltip, setPinnedTooltip] = useState<{ card: Card; anchor: TooltipAnchor } | null>(null);
+  const [isTouchMode, setIsTouchMode] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
   const [isShortLandscape, setIsShortLandscape] = useState(false);
   const [storeHydrated, setStoreHydrated] = useState(
     typeof window !== "undefined" ? (storePersist?.hasHydrated?.() ?? true) : true
@@ -133,6 +163,7 @@ export default function Loadout() {
     setOpponentCharacterFromServer,
     setOpponentName,
     resetMatch,
+    markOnboardingStep,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -142,6 +173,9 @@ export default function Loadout() {
   const [showPresets, setShowPresets] = useState(false);
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState("");
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [showLoadoutGuide, setShowLoadoutGuide] = useState(false);
+  const [selectedArchetypeKey, setSelectedArchetypeKey] = useState<ArchetypeKey | null>(null);
 
   const currentFilter = TABS[activeTab].filter;
   const accentColor = TYPE_COLORS[currentFilter];
@@ -164,6 +198,8 @@ export default function Loadout() {
   };
 
   const { regular: regularCards, special: specialCard } = getCardsForTab();
+  const starterArchetypes = getStarterArchetypes(selectedCharacter?.id);
+  const selectedArchetype = starterArchetypes.find((preset) => preset.key === selectedArchetypeKey) ?? starterArchetypes[0] ?? null;
   const filledSlots = currentOrder.filter((s) => s !== null).length;
   const isOrderComplete = filledSlots === 5;
 
@@ -194,6 +230,7 @@ export default function Loadout() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       setIsShortLandscape(vw > vh && vh < 760);
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -212,6 +249,15 @@ export default function Loadout() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(hover: none), (pointer: coarse)");
+    const syncTouchMode = () => setIsTouchMode(mq.matches);
+    syncTouchMode();
+    mq.addEventListener?.("change", syncTouchMode);
+    return () => mq.removeEventListener?.("change", syncTouchMode);
   }, []);
 
   // Multiplayer polling + retry refs
@@ -244,6 +290,7 @@ export default function Loadout() {
   const handleLockOrder = useCallback(async () => {
     if (!isOrderComplete) return;
     setLockError(null);
+    markOnboardingStep("lock_sequence");
 
     // Solo path — unchanged
     if (!playerRole || !matchId) {
@@ -341,9 +388,71 @@ export default function Loadout() {
 
     void submitPending();
     void pollOnce();
-  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router]);
+  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router, markOnboardingStep]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
+  const tutorialSteps = [
+    "Pick 5 cards to build your round loadout. Mix strike, defense, and control.",
+    "Watch your energy meter. Staying balanced gives you more flexible counters.",
+    "Use SAVE to store decks and PRESETS to quickly switch styles before locking in.",
+    "When ready, LOCK SEQUENCE to enter the matchup.",
+  ];
+
+  const updateTooltipAnchor = (card: Card, el: HTMLDivElement) => {
+    const rect = el.getBoundingClientRect();
+    setHoveredTooltip({
+      card,
+      anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    });
+  };
+
+  const applyStarterPreset = (presetKey: ArchetypeKey) => {
+    const preset = starterArchetypes.find((p) => p.key === presetKey);
+    if (!preset) return;
+    setHoveredCardId(null);
+    setHoveredTooltip(null);
+    setPinnedTooltip(null);
+    setSelectedArchetypeKey(presetKey);
+    currentOrder.forEach((slot, idx) => {
+      if (slot) removeCardFromSlot(idx);
+    });
+    preset.cardIds.forEach((id) => {
+      const card = CARDS.find((c) => c.id === id);
+      if (card) addCardToSlot(card);
+    });
+  };
+
+  useEffect(() => {
+    if (!storeHydrated || typeof window === "undefined") return;
+    const seen = window.localStorage.getItem(LOADOUT_GUIDE_KEY) === "1";
+    if (!seen) {
+      setTutorialStep(0);
+      setShowLoadoutGuide(true);
+    }
+  }, [storeHydrated]);
+
+  useEffect(() => {
+    setHoveredCardId(null);
+    setHoveredTooltip(null);
+    setPinnedTooltip(null);
+  }, [activeTab]);
+
+  useEffect(() => {
+    setSelectedArchetypeKey(null);
+  }, [selectedCharacter?.id]);
+
+  useEffect(() => {
+    if (filledSlots === 5) {
+      markOnboardingStep("build_sequence");
+    }
+  }, [filledSlots, markOnboardingStep]);
+
+  const dismissLoadoutGuide = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOADOUT_GUIDE_KEY, "1");
+    }
+    setShowLoadoutGuide(false);
+  };
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -380,6 +489,8 @@ export default function Loadout() {
             <WalletSection />
           </div>
         </div>
+
+        <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 74px)`, right: 18, zIndex: 45 }} />
 
         {/* Left character panel — compact portrait + ability intel */}
         <div style={{
@@ -541,7 +652,12 @@ export default function Loadout() {
               padding: "20px 24px",
               overflowY: "auto",
               display: "flex", flexDirection: "column", gap: 14,
-            }}>
+            }}
+              onScroll={() => {
+                setHoveredCardId(null);
+                setHoveredTooltip(null);
+              }}
+            >
               {/* Regular cards */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
                 {regularCards.map((card) => {
@@ -559,8 +675,17 @@ export default function Loadout() {
                           addCardToSlot(card);
                         }
                       }}
-                      onMouseEnter={() => setHoveredCardId(card.id)}
-                      onMouseLeave={() => setHoveredCardId(null)}
+                      onMouseEnter={(e) => {
+                        setHoveredCardId(card.id);
+                        updateTooltipAnchor(card, e.currentTarget);
+                      }}
+                      onMouseMove={(e) => {
+                        if (hoveredCardId === card.id) updateTooltipAnchor(card, e.currentTarget);
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredCardId(null);
+                        setHoveredTooltip(null);
+                      }}
                       style={{
                         width: 152, height: 210,
                         position: "relative", flexShrink: 0,
@@ -583,7 +708,6 @@ export default function Loadout() {
                         zIndex: isHovered ? 50 : "auto",
                       }}
                     >
-                      {isHovered && <CardTooltip card={card} />}
                       <img src={card.image} alt={card.name} style={{
                         position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                       }} />
@@ -625,6 +749,33 @@ export default function Loadout() {
                           {card.type}
                         </span>
                       </div>
+                      {isTouchMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHoveredCardId(card.id);
+                            updateTooltipAnchor(card, e.currentTarget.parentElement as HTMLDivElement);
+                            const rect = (e.currentTarget.parentElement as HTMLDivElement).getBoundingClientRect();
+                            setPinnedTooltip({
+                              card,
+                              anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+                            });
+                          }}
+                          style={{
+                            position: "absolute", bottom: 7, right: 7,
+                            width: isCompactPhone ? 28 : 22, height: isCompactPhone ? 28 : 22, borderRadius: "50%",
+                            border: `1px solid ${card.color}55`,
+                            background: "rgba(6,10,20,0.82)",
+                            color: "#dbeafe",
+                            fontSize: isCompactPhone ? 13 : 11,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}
+                        >
+                          i
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -650,8 +801,17 @@ export default function Loadout() {
                         addCardToSlot(specialCard);
                       }
                     }}
-                    onMouseEnter={() => setHoveredCardId(specialCard.id)}
-                    onMouseLeave={() => setHoveredCardId(null)}
+                    onMouseEnter={(e) => {
+                      setHoveredCardId(specialCard.id);
+                      updateTooltipAnchor(specialCard, e.currentTarget);
+                    }}
+                    onMouseMove={(e) => {
+                      if (hoveredCardId === specialCard.id) updateTooltipAnchor(specialCard, e.currentTarget);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredCardId(null);
+                      setHoveredTooltip(null);
+                    }}
                     style={{
                       width: 170, height: 235,
                       position: "relative", overflow: "visible",
@@ -668,7 +828,6 @@ export default function Loadout() {
                       zIndex: spHovered ? 50 : "auto",
                     }}
                   >
-                    {spHovered && <CardTooltip card={specialCard} />}
                     <img src={specialCard.image} alt={specialCard.name} style={{
                       position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                     }} />
@@ -693,6 +852,33 @@ export default function Loadout() {
                     }}>
                       <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{specialCard.energyCost}</span>
                     </div>
+                    {isTouchMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHoveredCardId(specialCard.id);
+                          updateTooltipAnchor(specialCard, e.currentTarget.parentElement as HTMLDivElement);
+                          const rect = (e.currentTarget.parentElement as HTMLDivElement).getBoundingClientRect();
+                          setPinnedTooltip({
+                            card: specialCard,
+                            anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+                          });
+                        }}
+                        style={{
+                          position: "absolute", top: 10, right: 10,
+                          width: isCompactPhone ? 30 : 24, height: isCompactPhone ? 30 : 24, borderRadius: "50%",
+                          border: `1px solid ${specialCard.color}60`,
+                          background: "rgba(6,10,20,0.82)",
+                          color: "#dbeafe",
+                          fontSize: isCompactPhone ? 13 : 11,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >
+                        i
+                      </button>
+                    )}
                     {/* Name bar */}
                     <div style={{
                       position: "absolute", bottom: 0, left: 0, right: 0,
@@ -753,29 +939,77 @@ export default function Loadout() {
             }}>DECK LOADOUT</span>
           </div>
 
-          {/* Preset controls — bottom-left so dialogs are always visible */}
-          <div style={{ position: "absolute", left: 20, bottom: 12, zIndex: 40 }}>
+          {/* Preset controls */}
+          <div style={{ position: "absolute", left: 20, top: 18, zIndex: 40, maxWidth: isCompactPhone ? 420 : 340 }}>
             <div style={{ position: "relative" }}>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 4, flexWrap: "nowrap", alignItems: "flex-start", maxWidth: isCompactPhone ? 420 : "none" }}>
+                <div style={{ display: "flex", gap: 4, marginRight: 0, flexWrap: "nowrap" }}>
+                  {starterArchetypes.map((preset) => (
+                    <button
+                      key={preset.key}
+                      onClick={() => applyStarterPreset(preset.key)}
+                      style={{
+                        background: selectedArchetypeKey === preset.key ? "rgba(125,211,252,0.22)" : "rgba(125,211,252,0.1)",
+                        border: selectedArchetypeKey === preset.key ? "1px solid rgba(125,211,252,0.55)" : "1px solid rgba(125,211,252,0.3)",
+                        borderRadius: 5,
+                        padding: isCompactPhone ? "6px 10px" : "4px 8px",
+                        color: "#7dd3fc",
+                        fontSize: isCompactPhone ? 10 : 9,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        letterSpacing: 0.8,
+                        boxShadow: selectedArchetypeKey === preset.key ? "0 0 10px rgba(125,211,252,0.18)" : "none",
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "flex-start" }}>
                 {/* Save preset */}
                 {isOrderComplete && !savingPreset && (
                   <button
                     onClick={() => { setSavingPreset(true); setPresetName(""); setShowPresets(false); }}
-                    style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 5, padding: "4px 10px", color: "#4ade80", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                    style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 5, padding: isCompactPhone ? "6px 12px" : "4px 10px", color: "#4ade80", fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                   >SAVE</button>
                 )}
                 {/* Load presets */}
                 {deckPresets.length > 0 && (
                   <button
                     onClick={() => { setShowPresets((v) => !v); setSavingPreset(false); }}
-                    style={{ background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: "4px 10px", color: "#56a4cb", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                    style={{ background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: isCompactPhone ? "6px 12px" : "4px 10px", color: "#56a4cb", fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                   >PRESETS ({deckPresets.length})</button>
                 )}
               </div>
+              {selectedArchetype && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    maxWidth: isCompactPhone ? 170 : 160,
+                    fontSize: isCompactPhone ? 10 : 9,
+                    lineHeight: 1.22,
+                    color: "#94a3b8",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "normal",
+                    minHeight: isCompactPhone ? 34 : 30,
+                  }}
+                >
+                  <span style={{ color: "#7dd3fc", fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
+                    {selectedCharacter?.name ?? "Starter"} {selectedArchetype.label}
+                  </span>
+                  {" "}
+                  {compactPresetWhy(selectedArchetype.why)}
+                </div>
+              )}
 
               {/* Save preset input */}
               {savingPreset && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 300, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 300, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}>Save Preset</div>
                   <input
                     autoFocus
@@ -798,7 +1032,7 @@ export default function Loadout() {
 
               {/* Preset list dropdown */}
               {showPresets && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 300, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 300, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Saved Presets</div>
                   {deckPresets.map((preset, idx) => (
                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -965,6 +1199,64 @@ export default function Loadout() {
               </div>
             )}
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
+        {pinnedTooltip && !waiting && !showLoadoutGuide && (
+          <>
+            <button
+              onClick={() => {
+                setPinnedTooltip(null);
+                setHoveredCardId(null);
+                setHoveredTooltip(null);
+              }}
+              style={{ position: "fixed", inset: 0, zIndex: 599, background: "transparent", border: "none", padding: 0, cursor: "default" }}
+              aria-label="Close card details"
+            />
+            <CardTooltip card={pinnedTooltip.card} anchor={pinnedTooltip.anchor} mobileSheet={isTouchMode} />
+          </>
+        )}
+
+        {!pinnedTooltip && hoveredTooltip && !waiting && !showLoadoutGuide && !isTouchMode && (
+          <CardTooltip card={hoveredTooltip.card} anchor={hoveredTooltip.anchor} />
+        )}
+
+        {showLoadoutGuide && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 500, background: "rgba(3,6,12,0.82)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 520, borderRadius: 10, border: "1px solid rgba(86,164,203,0.35)", background: "rgba(9,14,26,0.96)", boxShadow: "0 20px 60px rgba(0,0,0,0.65)", padding: "18px 20px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase" }}>Loadout Guide</div>
+              <div style={{ marginTop: 8, fontSize: 18, fontWeight: 800, color: "#e2e8f0" }}>Step {tutorialStep + 1} / {tutorialSteps.length}</div>
+              <p style={{ marginTop: 10, marginBottom: 0, color: "#cbd5e1", fontSize: 13, lineHeight: 1.5 }}>{tutorialSteps[tutorialStep]}</p>
+              <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <button
+                  onClick={dismissLoadoutGuide}
+                  style={{ background: "transparent", border: "none", color: "#64748b", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Skip
+                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => setTutorialStep((s) => Math.max(0, s - 1))}
+                    disabled={tutorialStep === 0}
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 6, padding: "7px 12px", color: tutorialStep === 0 ? "#475569" : "#cbd5e1", fontSize: 12, fontWeight: 700, cursor: tutorialStep === 0 ? "default" : "pointer" }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (tutorialStep === tutorialSteps.length - 1) {
+                        dismissLoadoutGuide();
+                        return;
+                      }
+                      setTutorialStep((s) => s + 1);
+                    }}
+                    style={{ background: "rgba(86,164,203,0.2)", border: "1px solid rgba(86,164,203,0.4)", borderRadius: 6, padding: "7px 14px", color: "#b9e7f4", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    {tutorialStep === tutorialSteps.length - 1 ? "Finish" : "Next"}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

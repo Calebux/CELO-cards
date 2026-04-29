@@ -41,6 +41,8 @@ export default function ProfilePage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address } = useAccount();
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
 
   const {
     playerPoints,
@@ -214,7 +216,7 @@ export default function ProfilePage() {
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.78)" }} />
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
@@ -226,7 +228,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Main layout — 3 columns, pinned below nav, no scroll */}
-        <div style={{ position: "absolute", left: "50%", top: 80, transform: "translateX(-50%)", width: 1300, display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ position: "absolute", left: "50%", top: `calc(${safeTop} + 80px)`, bottom: `calc(${safeBottom} + 12px)`, transform: "translateX(-50%)", width: 1300, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", paddingRight: 8 }}>
 
           {/* ── Col 1: Identity + G$ + Stats ── */}
           <div style={{ width: 230, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
