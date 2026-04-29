@@ -157,11 +157,15 @@ export default function Gameplay() {
           typeof data.hostWins === "number" &&
           typeof data.opponentWins === "number"
         ) {
+          const shouldRestoreCombat =
+            data.phase === "resolved" &&
+            matchPhase !== "round-result" &&
+            !showResult;
           syncMultiplayerRoundState({
             roundNumber: data.round,
             selfWins: data.hostWins,
             opponentWins: data.opponentWins,
-            resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
+            resolvedSlots: shouldRestoreCombat ? data.slots ?? null : null,
           });
         }
         if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
@@ -173,7 +177,7 @@ export default function Gameplay() {
     }, 4000);
     
     return () => clearInterval(interval);
-  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft, setCurrentOrderFromIds, setPrecomputedFromServer, syncMultiplayerRoundState]);
+  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft, matchPhase, showResult, setCurrentOrderFromIds, setPrecomputedFromServer, syncMultiplayerRoundState]);
 
   // Start background music on mount
   useEffect(() => {
@@ -208,11 +212,16 @@ export default function Gameplay() {
         if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
         if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
         if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        const shouldRestoreCombat =
+          data.phase === "resolved" &&
+          matchPhase !== "round-result" &&
+          matchPhase !== "match-end" &&
+          !showResult;
         syncMultiplayerRoundState({
           roundNumber: data.round,
           selfWins: data.hostWins,
           opponentWins: data.opponentWins,
-          resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
+          resolvedSlots: shouldRestoreCombat ? data.slots ?? null : null,
         });
         if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
           setCurrentOrderFromIds(data.selfCardIds);
@@ -242,6 +251,7 @@ export default function Gameplay() {
     setOpponentName,
     setPrecomputedFromServer,
     setSelectedCharacterFromServer,
+    showResult,
     syncMultiplayerRoundState,
     vsBot,
   ]);
@@ -260,6 +270,14 @@ export default function Gameplay() {
       markOnboardingStep("finish_match");
     }
   }, [matchPhase, markOnboardingStep]);
+
+  useEffect(() => {
+    if (matchPhase !== "match-end" || typeof window === "undefined") return;
+    const navEntry = window.performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (navEntry?.type !== "reload") return;
+    resetMatch();
+    router.replace("/");
+  }, [matchPhase, resetMatch, router]);
 
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
