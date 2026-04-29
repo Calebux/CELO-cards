@@ -8,6 +8,7 @@ import {
   buildOpsAuthMessage,
   isOpsAllowed,
   normalizeAdminAddress,
+  opsSessionKey,
   OPS_AUTH_TTL_SECONDS,
   OPS_SESSION_COOKIE,
   OPS_SESSION_TTL_SECONDS,
@@ -15,7 +16,6 @@ import {
 import { redis } from "../../../lib/redis";
 
 const nonceKey = (address: string) => `ops-auth:nonce:${address}`;
-const sessionKey = (token: string) => `ops-auth:session:${token}`;
 
 export async function GET(req: NextRequest) {
   const address = normalizeAdminAddress(req.nextUrl.searchParams.get("address"));
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   await redis.del(nonceKey(normalized!));
 
   const token = randomUUID();
-  await redis.set(sessionKey(token), { address: normalized, createdAt: Date.now() }, { ex: OPS_SESSION_TTL_SECONDS });
+  await redis.set(opsSessionKey(token), { address: normalized, createdAt: Date.now() }, { ex: OPS_SESSION_TTL_SECONDS });
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set({
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const token = req.cookies.get(OPS_SESSION_COOKIE)?.value;
   if (token) {
-    await redis.del(sessionKey(token)).catch(() => {});
+    await redis.del(opsSessionKey(token)).catch(() => {});
   }
   const response = NextResponse.json({ ok: true });
   response.cookies.set({

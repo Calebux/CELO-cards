@@ -149,6 +149,8 @@ interface GameState {
     markOnboardingStep: (step: OnboardingStepId) => void;
     resetOnboardingProgress: () => void;
     setOnboardingCoachHidden: (hidden: boolean) => void;
+    setSelectedCharacterFromServer: (charId: string) => void;
+    setCurrentOrderFromIds: (cardIds: string[]) => void;
     savePreset: (name: string) => void;
     loadPreset: (index: number) => void;
     deletePreset: (index: number) => void;
@@ -259,6 +261,20 @@ export const useGameStore = create<GameState>()(
     }),
     resetOnboardingProgress: () => set({ onboardingProgress: createEmptyOnboardingProgress(), onboardingCoachHidden: false }),
     setOnboardingCoachHidden: (hidden) => set({ onboardingCoachHidden: hidden }),
+    setSelectedCharacterFromServer: (charId) => {
+        const char = CHARACTERS.find((c) => c.id === charId);
+        if (char) set({ selectedCharacter: char, maxEnergy: calcEnergyPool(char) });
+    },
+    setCurrentOrderFromIds: (cardIds) => {
+        const nextOrder: (Card | null)[] = [null, null, null, null, null];
+        cardIds
+            .slice(0, 5)
+            .forEach((id, index) => {
+                const card = CARDS.find((c) => c.id === id) ?? null;
+                nextOrder[index] = card;
+            });
+        set({ currentOrder: nextOrder });
+    },
 
     savePreset: (name) => {
         const { currentOrder, deckPresets } = get();
@@ -715,6 +731,11 @@ export const useGameStore = create<GameState>()(
         matchPhase: state.matchPhase,
         vsBot: state.vsBot,
         aiDifficulty: state.aiDifficulty,
+        currentOrder: state.currentOrder,
+        opponentOrder: state.opponentOrder,
+        currentRoundResult: state.currentRoundResult,
+        precomputedRound: state.precomputedRound,
+        revealedSlots: state.revealedSlots,
         wagerActive: state.wagerActive,
         wagerTxHash: state.wagerTxHash,
         wagerCurrency: state.wagerCurrency,

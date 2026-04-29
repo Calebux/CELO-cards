@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
@@ -14,6 +14,7 @@ import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } fr
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { ShareCard } from "../components/ShareCard";
+import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
 
 const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
@@ -65,8 +66,14 @@ export default function Gameplay() {
     setWager,
     setMatchMode,
     markOnboardingStep,
+    setSelectedCharacterFromServer,
+    setOpponentCharacterFromServer,
+    setCurrentOrderFromIds,
+    setPrecomputedFromServer,
+    setOpponentName,
   } = useGameStore();
   const { address } = useAccount();
+  const { signMessageAsync } = useSignMessage();
 
   const isMatchEnd = matchPhase === "match-end";
 
@@ -101,6 +108,7 @@ export default function Gameplay() {
   const [isShortLandscape, setIsShortLandscape] = useState(false);
   const [isCompactPhone, setIsCompactPhone] = useState(false);
   const [quitArmed, setQuitArmed] = useState(false);
+  const [resumeChecked, setResumeChecked] = useState(false);
   const quitArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
@@ -150,12 +158,69 @@ export default function Gameplay() {
   }, []);
 
   useEffect(() => {
+    if (vsBot || !matchId || !playerRole) {
+      setResumeChecked(true);
+      return;
+    }
+
+    let cancelled = false;
+    const recover = async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        if (!res.ok) return;
+        const data = await res.json() as {
+          phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          selfCharId?: string | null;
+          opponentCharId?: string | null;
+          opponentName?: string | null;
+          selfCardIds?: string[] | null;
+          slots?: Parameters<typeof setPrecomputedFromServer>[0] | null;
+        };
+        if (cancelled) return;
+
+        if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
+        if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
+        if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
+        }
+        if (data.phase === "resolved" && data.slots) {
+          setPrecomputedFromServer(data.slots);
+        } else if (data.phase !== "resolved" && matchPhase !== "match-end") {
+          router.replace("/loadout");
+        }
+      } catch {
+        // Best-effort only. Existing local state remains the fallback.
+      } finally {
+        if (!cancelled) setResumeChecked(true);
+      }
+    };
+
+    void recover();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    matchId,
+    matchPhase,
+    playerRole,
+    router,
+    setCurrentOrderFromIds,
+    setOpponentCharacterFromServer,
+    setOpponentName,
+    setPrecomputedFromServer,
+    setSelectedCharacterFromServer,
+    vsBot,
+  ]);
+
+  useEffect(() => {
     if (!selectedCharacter || !opponentCharacter) {
+      if (!resumeChecked && !vsBot && matchId && playerRole) return;
       console.warn("Gameplay rendered without player/opponent state. Redirecting...");
       const t = setTimeout(() => router.push("/select-character"), 1500);
       return () => clearTimeout(t);
     }
-  }, [selectedCharacter, opponentCharacter, router]);
+  }, [selectedCharacter, opponentCharacter, router, resumeChecked, vsBot, matchId, playerRole]);
 
   useEffect(() => {
     if (matchPhase === "match-end") {
@@ -322,10 +387,13 @@ export default function Gameplay() {
     if (!address || !matchId || payoutState !== "idle" || matchMode !== "wager") return;
     setPayoutState("loading");
     try {
+      const signature = await signMessageAsync({
+        message: buildPayoutClaimAuthMessage(address, matchId, wagerCurrency),
+      });
       const res = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, currency: wagerCurrency }),
+        body: JSON.stringify({ matchId, currency: wagerCurrency, address, signature }),
       });
       const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");

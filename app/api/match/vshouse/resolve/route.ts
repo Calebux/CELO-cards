@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
   const addr = playerAddress.toLowerCase();
   const redisKey = `match:vshouse:${addr}`;
   let entryTxHash: string | null = null;
+  const allowTreasuryEntry = process.env.ENABLE_VSHOUSE_TREASURY_ENTRY === "true";
 
   // 1. Get or Initialize Match State
   let state = await redis.get<HouseMatchState>(redisKey);
@@ -97,10 +98,12 @@ export async function POST(req: NextRequest) {
       lastUpdated: Date.now(),
     };
 
-    try {
-      entryTxHash = await ensureHouseEntryTx(matchId);
-    } catch (e) {
-      console.error("House entry tx failed:", e);
+    if (wagered && allowTreasuryEntry) {
+      try {
+        entryTxHash = await ensureHouseEntryTx(matchId);
+      } catch (e) {
+        console.error("House entry tx failed:", e);
+      }
     }
   }
 

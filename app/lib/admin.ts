@@ -1,3 +1,6 @@
+import { NextRequest, NextResponse } from "next/server";
+import { redis } from "./redis";
+
 export const OPS_ALLOWLIST = [
   "0x0067378592a4d0ccc3146dba13137e21589921ed",
 ] as const;
@@ -25,4 +28,21 @@ export function buildOpsAuthMessage(address: string, nonce: string, issuedAt: st
     `Nonce: ${nonce}`,
     `Issued At: ${issuedAt}`,
   ].join("\n");
+}
+
+export const opsSessionKey = (token: string) => `ops-auth:session:${token}`;
+
+export async function getOpsSessionAddress(req: NextRequest): Promise<string | null> {
+  const token = req.cookies.get(OPS_SESSION_COOKIE)?.value;
+  if (!token) return null;
+  const session = await redis.get<{ address: string }>(opsSessionKey(token));
+  return isOpsAllowed(session?.address) ? normalizeAdminAddress(session?.address) : null;
+}
+
+export async function requireOpsSession(req: NextRequest): Promise<string | NextResponse> {
+  const address = await getOpsSessionAddress(req);
+  if (!address) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return address;
 }

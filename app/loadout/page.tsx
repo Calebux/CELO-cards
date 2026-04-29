@@ -160,7 +160,9 @@ export default function Loadout() {
     loadPreset,
     deletePreset,
     unlockedPremiumCards,
+    setSelectedCharacterFromServer,
     setOpponentCharacterFromServer,
+    setCurrentOrderFromIds,
     setOpponentName,
     resetMatch,
     markOnboardingStep,
@@ -218,11 +220,60 @@ export default function Loadout() {
   }, [storePersist]);
 
   useEffect(() => {
-    if (storeHydrated && !selectedCharacter) {
+    if (storeHydrated && !selectedCharacter && !(matchId && playerRole)) {
       const fallback = CHARACTERS.find((c) => !c.isLocked) ?? CHARACTERS[0];
       if (fallback) selectCharacter(fallback);
     }
-  }, [selectedCharacter, selectCharacter, storeHydrated]);
+  }, [selectedCharacter, selectCharacter, storeHydrated, matchId, playerRole]);
+
+  useEffect(() => {
+    if (!storeHydrated || !matchId || !playerRole) return;
+    let cancelled = false;
+
+    const syncFromServer = async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        if (!res.ok) return;
+        const data = await res.json() as {
+          phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          selfCharId?: string | null;
+          opponentCharId?: string | null;
+          opponentName?: string | null;
+          selfCardIds?: string[] | null;
+          slots?: Parameters<typeof setPrecomputedFromServer>[0] | null;
+        };
+        if (cancelled) return;
+
+        if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
+        if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
+        if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
+        }
+        if (data.phase === "resolved" && data.slots) {
+          setPrecomputedFromServer(data.slots);
+          router.replace("/gameplay");
+        }
+      } catch {
+        // Best-effort recovery only.
+      }
+    };
+
+    void syncFromServer();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    storeHydrated,
+    matchId,
+    playerRole,
+    router,
+    setCurrentOrderFromIds,
+    setOpponentCharacterFromServer,
+    setOpponentName,
+    setPrecomputedFromServer,
+    setSelectedCharacterFromServer,
+  ]);
 
   useEffect(() => {
     const scale = () => {

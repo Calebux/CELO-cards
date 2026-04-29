@@ -8,8 +8,10 @@ import {
   CFA_FORWARDER,
   CFA_FORWARDER_ABI,
 } from "../../lib/gooddollar";
+import { requireOpsSession } from "../../lib/admin";
 
 const TOURNAMENT_KEY = "tournament:current";
+const TOURNAMENT_PAYOUT_LOCK_KEY = "tournament:current:payout-lock";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,8 +128,8 @@ function computeSlots(data: TournamentData) {
 // Top 4 split: 1st 60%, 2nd 25%, 3rd/4th 7.5% each
 const PRIZE_SPLIT = [6000n, 2500n, 750n, 750n]; // basis points out of 10000
 
-async function streamPrize(winner: `0x${string}`, flowRate: bigint): Promise<string> {
-  const key = process.env.TREASURY_PRIVATE_KEY!;
+async function streamPrize(treasuryKey: string, winner: `0x${string}`, flowRate: bigint): Promise<string> {
+  const key = treasuryKey;
   const account = privateKeyToAccount(key as `0x${string}`);
   const publicClient = createPublicClient({ chain: celo, transport: http() });
   const walletClient = createWalletClient({ account, chain: celo, transport: http() });
@@ -203,6 +205,9 @@ export async function POST(req: NextRequest) {
 
   // ── Create ──────────────────────────────────────────────────────────────────
   if (action === "create") {
+    const session = await requireOpsSession(req);
+    if (session instanceof NextResponse) return session;
+
     const data: TournamentData = {
       weekId: currentWeekId(),
       status: "registration",
@@ -259,6 +264,9 @@ export async function POST(req: NextRequest) {
 
   // ── Seed ────────────────────────────────────────────────────────────────────
   if (action === "seed") {
+    const session = await requireOpsSession(req);
+    if (session instanceof NextResponse) return session;
+
     const data = await getTournament();
     if (!data) return NextResponse.json({ error: "No tournament found" }, { status: 404 });
 
@@ -280,57 +288,68 @@ export async function POST(req: NextRequest) {
 
   // ── Payout ──────────────────────────────────────────────────────────────────
   if (action === "payout") {
-    const treasuryKey = process.env.TREASURY_PRIVATE_KEY;
+    const session = await requireOpsSession(req);
+    if (session instanceof NextResponse) return session;
+
+    const treasuryKey = process.env.TOURNAMENT_TREASURY_PRIVATE_KEY;
     if (!treasuryKey) {
-      return NextResponse.json({ error: "Treasury not configured" }, { status: 500 });
+      return NextResponse.json({ error: "Tournament treasury not configured" }, { status: 500 });
     }
 
-    const data = await getTournament();
-    if (!data) return NextResponse.json({ error: "No tournament found" }, { status: 404 });
-    if (data.status !== "complete") {
-      return NextResponse.json({ error: "Tournament not complete yet" }, { status: 409 });
+    const payoutLock = await redis.set(TOURNAMENT_PAYOUT_LOCK_KEY, Date.now().toString(), { nx: true, ex: 120 });
+    if (!payoutLock) {
+      return NextResponse.json({ error: "Tournament payout already in progress" }, { status: 409 });
     }
 
-    const slots = computeSlots(data);
-    const champion = slots.champion?.address as `0x${string}` | undefined;
-    const finalist = slots.final[0].top?.address === champion
-      ? slots.final[0].bottom?.address
-      : slots.final[0].top?.address;
-    const third1 = slots.thirdPlace[0]?.address;
-    const third2 = slots.thirdPlace[1]?.address;
-
-    const recipients = [champion, finalist, third1, third2]
-      .filter(Boolean) as `0x${string}`[];
-
-    const pool = BigInt(data.prizePool || "0");
-    if (pool === 0n) {
-      return NextResponse.json({ error: "Prize pool is 0" }, { status: 400 });
-    }
-
-    // Stream over 24h
-    const STREAM_DURATION = 86_400n;
-    const txHashes: Record<string, string> = { ...data.payouts };
-
-    for (let i = 0; i < recipients.length; i++) {
-      const addr = recipients[i];
-      if (txHashes[addr]) continue; // already paid
-
-      const share = pool * PRIZE_SPLIT[i] / 10000n;
-      const flowRate = share / STREAM_DURATION;
-
-      try {
-        const txHash = await streamPrize(addr, flowRate);
-        txHashes[addr] = txHash;
-        console.log(`Tournament payout ${i + 1}/${recipients.length}: ${formatShare(PRIZE_SPLIT[i])} G$ → ${addr} @ ${flowRate} wei/s — ${txHash}`);
-      } catch (e) {
-        console.error(`Payout failed for ${addr}:`, e);
-        return NextResponse.json({ error: `Payout failed for ${addr}: ${e instanceof Error ? e.message : e}` }, { status: 500 });
+    try {
+      const data = await getTournament();
+      if (!data) return NextResponse.json({ error: "No tournament found" }, { status: 404 });
+      if (data.status !== "complete") {
+        return NextResponse.json({ error: "Tournament not complete yet" }, { status: 409 });
       }
-    }
 
-    data.payouts = txHashes;
-    await saveTournament(data);
-    return NextResponse.json({ ok: true, payouts: txHashes });
+      const slots = computeSlots(data);
+      const champion = slots.champion?.address as `0x${string}` | undefined;
+      const finalist = slots.final[0].top?.address === champion
+        ? slots.final[0].bottom?.address
+        : slots.final[0].top?.address;
+      const third1 = slots.thirdPlace[0]?.address;
+      const third2 = slots.thirdPlace[1]?.address;
+
+      const recipients = [champion, finalist, third1, third2]
+        .filter(Boolean) as `0x${string}`[];
+
+      const pool = BigInt(data.prizePool || "0");
+      if (pool === 0n) {
+        return NextResponse.json({ error: "Prize pool is 0" }, { status: 400 });
+      }
+
+      const STREAM_DURATION = 86_400n;
+      const txHashes: Record<string, string> = { ...data.payouts };
+
+      for (let i = 0; i < recipients.length; i++) {
+        const addr = recipients[i];
+        if (txHashes[addr]) continue;
+
+        const share = pool * PRIZE_SPLIT[i] / 10000n;
+        const flowRate = share / STREAM_DURATION;
+
+        try {
+          const txHash = await streamPrize(treasuryKey, addr, flowRate);
+          txHashes[addr] = txHash;
+          console.log(`Tournament payout ${i + 1}/${recipients.length}: ${formatShare(PRIZE_SPLIT[i])} G$ → ${addr} @ ${flowRate} wei/s — ${txHash}`);
+        } catch (e) {
+          console.error(`Payout failed for ${addr}:`, e);
+          return NextResponse.json({ error: `Payout failed for ${addr}: ${e instanceof Error ? e.message : e}` }, { status: 500 });
+        }
+      }
+
+      data.payouts = txHashes;
+      await saveTournament(data);
+      return NextResponse.json({ ok: true, payouts: txHashes });
+    } finally {
+      await redis.del(TOURNAMENT_PAYOUT_LOCK_KEY).catch(() => {});
+    }
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
@@ -342,6 +361,9 @@ function formatShare(bps: bigint): string {
 
 // PATCH /api/tournament — record a match result
 export async function PATCH(req: NextRequest) {
+  const session = await requireOpsSession(req);
+  if (session instanceof NextResponse) return session;
+
   let body: { round?: string; match?: number; winner?: "top" | "bottom" };
   try {
     body = await req.json() as typeof body;
@@ -377,7 +399,10 @@ export async function PATCH(req: NextRequest) {
 }
 
 // DELETE /api/tournament — wipe and reset
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  const session = await requireOpsSession(req);
+  if (session instanceof NextResponse) return session;
+
   await redis.del(TOURNAMENT_KEY);
   return NextResponse.json({ ok: true });
 }

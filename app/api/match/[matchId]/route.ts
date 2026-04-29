@@ -106,6 +106,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     opponentCharId,
     opponentName: other.playerName,
     selfCharId: self.charId,
+    selfCardIds: self.orderRound === match.round ? self.cardIds : null,
     phase,
     slots,
     hostWins:        role === "host" ? match.hostWins   : match.joinerWins,
