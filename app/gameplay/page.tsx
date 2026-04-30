@@ -106,6 +106,7 @@ export default function Gameplay() {
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
   const payoutFiredRef = useRef(false);
+  const showResultRef = useRef(false);
   const [isShortLandscape, setIsShortLandscape] = useState(false);
   const [isCompactPhone, setIsCompactPhone] = useState(false);
   const [quitArmed, setQuitArmed] = useState(false);
@@ -115,6 +116,9 @@ export default function Gameplay() {
   const safeBottom = "env(safe-area-inset-bottom)";
   const calloutWidth = isCompactPhone ? 420 : 560;
   const combatMessage = slotResults.length > 0 ? slotResults[slotResults.length - 1] : null;
+
+  // Keep showResultRef current so async polling callbacks read the live value.
+  useEffect(() => { showResultRef.current = showResult; }, [showResult]);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -159,10 +163,15 @@ export default function Gameplay() {
           typeof data.hostWins === "number" &&
           typeof data.opponentWins === "number"
         ) {
+          // Read live state after the async fetch — the closure values of
+          // matchPhase/showResult may be stale if finishRound() ran while
+          // the fetch was in-flight, which would wrongly reset currentRoundResult.
+          const liveMatchPhase = useGameStore.getState().matchPhase;
           const shouldRestoreCombat =
             data.phase === "resolved" &&
-            matchPhase !== "round-result" &&
-            !showResult;
+            liveMatchPhase !== "round-result" &&
+            liveMatchPhase !== "match-end" &&
+            !showResultRef.current;
           syncMultiplayerRoundState({
             roundNumber: data.round,
             selfWins: data.hostWins,
@@ -214,11 +223,12 @@ export default function Gameplay() {
         if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
         if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
         if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        const livePhase = useGameStore.getState().matchPhase;
         const shouldRestoreCombat =
           data.phase === "resolved" &&
-          matchPhase !== "round-result" &&
-          matchPhase !== "match-end" &&
-          !showResult;
+          livePhase !== "round-result" &&
+          livePhase !== "match-end" &&
+          !showResultRef.current;
         syncMultiplayerRoundState({
           roundNumber: data.round,
           selfWins: data.hostWins,
