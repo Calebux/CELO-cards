@@ -8,6 +8,11 @@ export const redis = new Redis({
 
 const MATCH_TTL = 2 * 60 * 60; // 2-hour expiry (matches auto-clean)
 const OPEN_MATCHES_KEY = "open_matches";
+const ACTIVE_MATCH_BY_ADDRESS_PREFIX = "active_match_by_address:";
+
+function activeMatchAddressKey(address: string): string {
+  return `${ACTIVE_MATCH_BY_ADDRESS_PREFIX}${address.toLowerCase()}`;
+}
 
 export async function getMatch<T>(matchId: string): Promise<T | null> {
   return redis.get<T>(`match:${matchId}`);
@@ -33,4 +38,21 @@ export async function removeFromOpenMatches(matchId: string): Promise<void> {
 export async function getOpenMatchIds(): Promise<string[]> {
   const members = await redis.smembers(OPEN_MATCHES_KEY);
   return (members ?? []) as string[];
+}
+
+export async function setActiveMatchForAddress(address: string, matchId: string): Promise<void> {
+  await redis.set(activeMatchAddressKey(address), matchId, { ex: MATCH_TTL });
+}
+
+export async function getActiveMatchIdForAddress(address: string): Promise<string | null> {
+  return await redis.get<string>(activeMatchAddressKey(address));
+}
+
+export async function clearActiveMatchForAddress(address: string, matchId?: string): Promise<void> {
+  const key = activeMatchAddressKey(address);
+  if (matchId) {
+    const activeMatchId = await redis.get<string>(key);
+    if (activeMatchId && activeMatchId !== matchId) return;
+  }
+  await redis.del(key);
 }

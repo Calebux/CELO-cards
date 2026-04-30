@@ -4,10 +4,12 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
+import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
 import { CHARACTERS } from './lib/gameData';
 import { WalletSection } from './components/WalletSection';
 import { HowToPlayModal } from './components/HowToPlayModal';
 import { SeasonPassModal } from './components/SeasonPassModal';
+import { useAccount } from 'wagmi';
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -20,6 +22,8 @@ export default function ActionOrderLandingPage() {
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const { address } = useAccount();
+  const serverResumeMatch = useActiveMatchResume(address);
 
   const resumeRoute = useMemo(() => {
     if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
@@ -29,6 +33,13 @@ export default function ActionOrderLandingPage() {
     if (matchPhase === "waiting-for-opponent" && matchId) return "/select-character";
     return null;
   }, [matchId, matchPhase, selectedCharacter]);
+
+  const effectiveResumeRoute = resumeRoute ?? serverResumeMatch?.route ?? null;
+
+  const handleResume = () => {
+    if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
+    if (effectiveResumeRoute) router.push(effectiveResumeRoute);
+  };
 
 
 
@@ -289,17 +300,22 @@ export default function ActionOrderLandingPage() {
             </Link>
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
-            {resumeRoute && (
-              <Link href={resumeRoute} style={{
+            {effectiveResumeRoute && (
+              <button
+                onClick={handleResume}
+                style={{
                 position: "absolute", left: "50%", transform: "translateX(-50%)", top: 118, zIndex: 16,
                 display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
                 background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
                 border: "1px solid rgba(6,168,249,0.45)", borderRadius: 6, textDecoration: "none",
                 boxShadow: "0 0 14px rgba(6,168,249,0.28)",
-              }}>
+                fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+              >
                 <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Tap to Resume</span>
-              </Link>
+              </button>
             )}
 
             {/* ── Left Nav ─────────────────────────────────────────── */}

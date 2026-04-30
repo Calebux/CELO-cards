@@ -1,4 +1,5 @@
 import { getRankedDashboardSnapshot, RankedDashboardSnapshot } from "./rankedTelemetry";
+import { getOpsActivitySnapshot } from "./opsActivity";
 
 export const BALANCE_POLICY = {
   currentVersion: "Season 1.3",
@@ -57,10 +58,14 @@ export function buildBalanceWatchlist(snapshot: RankedDashboardSnapshot): Balanc
 }
 
 export async function getBalanceDashboard() {
-  const snapshot = await getRankedDashboardSnapshot();
+  const [snapshot, activity] = await Promise.all([
+    getRankedDashboardSnapshot(),
+    getOpsActivitySnapshot(),
+  ]);
   return {
     snapshot,
     policy: BALANCE_POLICY,
     watchlist: buildBalanceWatchlist(snapshot),
+    activity,
   };
 }

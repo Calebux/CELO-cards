@@ -36,7 +36,7 @@ export default function BlackMarket() {
   const router = useRouter();
   const { address } = useAccount();
 
-  const { unlockedPremiumCards } = useGameStore();
+  const { unlockedPremiumCards, playerName } = useGameStore();
   const unlockCard = useGameStore((s) => s.purchaseCard);
 
   const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>("celo");
@@ -79,8 +79,9 @@ export default function BlackMarket() {
     setBuyError("");
     const amt = ptsToOnchain(price);
     try {
+      let txHash: string;
       if (buyCurrency === "gdollar") {
-        await writeContractAsync({
+        txHash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
           functionName: "transfer",
@@ -88,8 +89,20 @@ export default function BlackMarket() {
         });
       } else {
         // CELO — native transfer
-        await sendTransactionAsync({ to: TREASURY, value: amt });
+        txHash = await sendTransactionAsync({ to: TREASURY, value: amt });
       }
+      await fetch("/api/black-market/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address,
+          playerName,
+          cardId: id,
+          currency: buyCurrency,
+          pricePoints: price,
+          txHash,
+        }),
+      }).catch(() => {});
       // Unlock locally (store + localStorage). Pass 0 so points are untouched.
       unlockCard(id, 0);
     } catch (e) {

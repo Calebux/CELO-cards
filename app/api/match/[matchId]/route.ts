@@ -4,7 +4,15 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
-import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatches } from "../../../lib/redis";
+import {
+  getMatch,
+  setMatch,
+  deleteMatch,
+  addToOpenMatches,
+  removeFromOpenMatches,
+  setActiveMatchForAddress,
+  clearActiveMatchForAddress,
+} from "../../../lib/redis";
 import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 import { MultiplayerMode, isPaidMultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
@@ -186,6 +194,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     await removeFromOpenMatches(matchId).catch(() => {});
   }
 
+  const activeAddress = role === "host" ? match?.host.address : match?.joiner.address;
+  if (activeAddress) {
+    await setActiveMatchForAddress(activeAddress, matchId).catch(() => {});
+  }
+
   return NextResponse.json({ ok: true });
 }
 
@@ -221,17 +234,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "wager");
     }
     match.lastActivity = Date.now();
-    // Store player name and address if host provides them before character selection
-    if (validRole(role) && role === "host") {
-      if (typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
-        match.host.playerName = patchPlayerName;
-      }
-      if (typeof patchAddress === "string" && patchAddress && !match.host.address) {
-        match.host.address = patchAddress;
-      }
+    // Store player name and address if either side reconnects before character selection.
+    const playerSlot = role === "host" ? match.host : match.joiner;
+    if (typeof patchPlayerName === "string" && patchPlayerName && !playerSlot.playerName) {
+      playerSlot.playerName = patchPlayerName;
+    }
+    if (typeof patchAddress === "string" && patchAddress && !playerSlot.address) {
+      playerSlot.address = patchAddress;
     }
     if (validMode(requestedMode)) match.mode = requestedMode;
     await setMatch(matchId, match).catch(() => {});
+    const activeAddress = role === "host" ? match.host.address : match.joiner.address;
+    if (activeAddress) {
+      await setActiveMatchForAddress(activeAddress, matchId).catch(() => {});
+    }
     if (role === "host") {
       // Robust one-time alert per match id, even if the match was created before keepalive.
       const notifyKey = `notify:new-match:${matchId}`;
@@ -283,6 +299,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Quit match ──────────────────────────────────────────────────────────
   if (action === "quit") {
+    let abortedMatch: ServerMatch | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);
       if (!match) return NextResponse.json({ ok: true });
@@ -290,12 +307,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match.lastActivity = Date.now();
       try {
         await setMatch(matchId, match);
+        abortedMatch = match;
         break;
       } catch {
         await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
       }
     }
     await removeFromOpenMatches(matchId).catch(() => {});
+    if (abortedMatch?.host.address) {
+      await clearActiveMatchForAddress(abortedMatch.host.address, matchId).catch(() => {});
+    }
+    if (abortedMatch?.joiner.address) {
+      await clearActiveMatchForAddress(abortedMatch.joiner.address, matchId).catch(() => {});
+    }
     return NextResponse.json({ ok: true });
   }
 
@@ -500,6 +524,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     } catch {
       // Best-effort — leaderboard failure must not break the card submission
     }
+    if (m.host.address) {
+      await clearActiveMatchForAddress(m.host.address, matchId).catch(() => {});
+    }
+    if (m.joiner.address) {
+      await clearActiveMatchForAddress(m.joiner.address, matchId).catch(() => {});
+    }
   }
 
   if (!saved) {
@@ -511,6 +541,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 // DELETE — clean up a finished or abandoned match
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
+  const match = await getMatch<ServerMatch>(matchId);
   await deleteMatch(matchId);
+  await removeFromOpenMatches(matchId).catch(() => {});
+  if (match?.host.address) {
+    await clearActiveMatchForAddress(match.host.address, matchId).catch(() => {});
+  }
+  if (match?.joiner.address) {
+    await clearActiveMatchForAddress(match.joiner.address, matchId).catch(() => {});
+  }
   return NextResponse.json({ ok: true });
 }

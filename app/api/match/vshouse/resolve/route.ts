@@ -6,6 +6,7 @@ import { celo } from "viem/chains";
 import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult } from "../../../../lib/leaderboard";
+import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
 
@@ -167,6 +168,21 @@ export async function POST(req: NextRequest) {
       pointsEarned,
       leaderboard: "casual",
     });
+
+    await recordHouseMatchActivity({
+      matchId,
+      playerAddress: addr,
+      playerName: playerName?.trim() ? playerName.trim().slice(0, 24) : null,
+      playerCharacterId,
+      opponentCharacterId,
+      difficulty,
+      wagered,
+      outcome: playerWon ? "win" : "loss",
+      pointsEarned,
+      playerRoundsWon: state.playerRoundsWon,
+      opponentRoundsWon: state.opponentRoundsWon,
+      completedAt: Date.now(),
+    }).catch(() => {});
 
     // Clear the match state since it's finished
     await redis.del(redisKey);

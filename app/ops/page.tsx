@@ -11,6 +11,15 @@ function pct(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function shortHash(value: string) {
+  return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
+}
+
+function ptsToDisplay(value: number) {
+  const tokens = value / 1000;
+  return Number.isInteger(tokens) ? tokens.toString() : tokens.toFixed(1);
+}
+
 export default function OpsPage() {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -179,7 +188,7 @@ export default function OpsPage() {
     );
   }
 
-  const { snapshot, policy, watchlist } = data;
+  const { snapshot, policy, watchlist, activity } = data;
 
   return (
     <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", padding: "40px 32px 64px" }}>
@@ -212,12 +221,14 @@ export default function OpsPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 28 }}>
           {[
             { label: "Ranked Matches", value: snapshot.aggregate.totalMatches.toLocaleString() },
             { label: "Avg Match Length", value: `${snapshot.averageMatchMinutes.toFixed(1)} min` },
             { label: "Avg Round Length", value: `${snapshot.averageRoundSeconds.toFixed(1)} sec` },
             { label: "Mirror Match Rate", value: pct(snapshot.mirrorMatchRate) },
+            { label: "House Matches", value: activity.house.totalMatches.toLocaleString() },
+            { label: "Black Market Buys", value: activity.blackMarket.totalPurchases.toLocaleString() },
           ].map((item) => (
             <div key={item.label} style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: "18px 18px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase" }}>{item.label}</div>
@@ -307,6 +318,70 @@ export default function OpsPage() {
               <div style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>Using ranked points as the current skill-bucket proxy until true MMR exists.</div>
             </section>
           </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start", marginTop: 18 }}>
+          <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>House Match Activity</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                Win {pct(activity.house.winRate)} · Wagered {activity.house.wageredMatches}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12, fontSize: 12, color: "#64748b" }}>
+              Avg points {activity.house.averagePointsEarned.toFixed(1)}
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {activity.house.recentMatches.length === 0 && (
+                <div style={{ fontSize: 13, color: "#94a3b8" }}>No completed matches against the house have been logged yet.</div>
+              )}
+              {activity.house.recentMatches.map((match) => (
+                <div key={`${match.matchId}-${match.completedAt}`} style={{ padding: "12px 12px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ fontWeight: 800 }}>{match.playerName ?? shortHash(match.playerAddress)}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: match.outcome === "win" ? "#86efac" : "#fca5a5", textTransform: "uppercase" }}>{match.outcome}</div>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
+                    {match.playerCharacterName} vs {match.opponentCharacterName} · {match.playerRoundsWon}-{match.opponentRoundsWon}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
+                    Difficulty {match.difficulty} · {match.wagered ? "Wagered" : "Free"} · {match.pointsEarned} pts · {new Date(match.completedAt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>Black Market Purchases</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                Buyers {activity.blackMarket.uniqueBuyers} · {ptsToDisplay(activity.blackMarket.revenuePoints)} total
+              </div>
+            </div>
+            <div style={{ marginBottom: 12, fontSize: 12, color: "#64748b" }}>
+              CELO {activity.blackMarket.celoPurchases} · G$ {activity.blackMarket.gdollarPurchases}
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {activity.blackMarket.recentPurchases.length === 0 && (
+                <div style={{ fontSize: 13, color: "#94a3b8" }}>No black market purchases have been logged yet.</div>
+              )}
+              {activity.blackMarket.recentPurchases.map((purchase) => (
+                <div key={`${purchase.txHash}-${purchase.purchasedAt}`} style={{ padding: "12px 12px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ fontWeight: 800 }}>{purchase.playerName ?? shortHash(purchase.address)}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: purchase.currency === "gdollar" ? "#00C58E" : "#fbbf24", textTransform: "uppercase" }}>{purchase.currency}</div>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
+                    {purchase.cardName} · {ptsToDisplay(purchase.pricePoints)} {purchase.currency === "gdollar" ? "G$" : "CELO"}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
+                    {shortHash(purchase.txHash)} · {new Date(purchase.purchasedAt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>

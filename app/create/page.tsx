@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
+import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
@@ -91,6 +92,7 @@ export default function CreateMatch() {
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
+  const serverResumeMatch = useActiveMatchResume(address);
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
 
@@ -228,6 +230,12 @@ export default function CreateMatch() {
     if (matchPhase === "waiting-for-opponent" && matchId) return "/lobby";
     return null;
   }, [matchId, matchPhase, selectedCharacter]);
+  const effectiveResumeRoute = resumeRoute ?? serverResumeMatch?.route ?? null;
+
+  const handleResume = () => {
+    if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
+    if (effectiveResumeRoute) router.push(effectiveResumeRoute);
+  };
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -261,9 +269,9 @@ export default function CreateMatch() {
         <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 76px)`, right: 18, zIndex: 12 }} />
 
         {/* Match Resume Banner */}
-        {resumeRoute && (
+        {effectiveResumeRoute && (
           <button
-            onClick={() => router.push(resumeRoute)}
+            onClick={handleResume}
             style={{
               position: "absolute",
               top: `calc(${safeTop} + 76px)`,
@@ -290,7 +298,7 @@ export default function CreateMatch() {
         {/* ── Main Layout ───────────────────────────────────────────────── */}
         <div style={{
           position: "absolute",
-          top: `calc(${safeTop} + ${resumeRoute ? 112 : 68}px)`,
+          top: `calc(${safeTop} + ${effectiveResumeRoute ? 112 : 68}px)`,
           left: 0,
           right: 0,
           bottom: `calc(${safeBottom} + ${isShortLandscape ? 8 : 0}px)`,
