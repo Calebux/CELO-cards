@@ -330,7 +330,7 @@ export default function CreateMatch() {
                 </div>
 
                 {/* Match type cards */}
-                <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: isCompactPhone ? 14 : 12, marginBottom: 24 }}>
                   {MATCH_TYPES.map((mt) => {
                     const active = matchType === mt.key;
                     return (
@@ -343,7 +343,7 @@ export default function CreateMatch() {
                         <button
                           onClick={() => setMatchType(mt.key)}
                           style={{
-                            width: "100%", padding: "20px 12px 16px",
+                            width: "100%", minHeight: isCompactPhone ? 132 : 0, padding: isCompactPhone ? "24px 12px 20px" : "20px 12px 16px",
                             background: active ? `${mt.color}1e` : "rgba(255,255,255,0.03)",
                             border: active ? `1.5px solid ${mt.color}` : "1.5px solid rgba(255,255,255,0.08)",
                             borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
@@ -352,11 +352,11 @@ export default function CreateMatch() {
                             boxShadow: active ? `0 0 20px ${mt.color}25` : "none",
                           }}
                         >
-                          <span className="material-icons" style={{ fontSize: 28, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 8 }}>{mt.icon}</span>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{mt.label}</div>
-                          <div style={{ fontSize: 9, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{mt.sub}</div>
+                          <span className="material-icons" style={{ fontSize: isCompactPhone ? 34 : 28, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 8 }}>{mt.icon}</span>
+                          <div style={{ fontSize: isCompactPhone ? 14 : 13, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{mt.label}</div>
+                          <div style={{ fontSize: isCompactPhone ? 10 : 9, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{mt.sub}</div>
                           {mt.subSecondary && (
-                            <div style={{ fontSize: 8, color: active ? `${mt.color}cc` : "#6b7280", fontWeight: 500, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>
+                            <div style={{ fontSize: isCompactPhone ? 9 : 8, color: active ? `${mt.color}cc` : "#6b7280", fontWeight: 500, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>
                               {mt.subSecondary}
                             </div>
                           )}
@@ -368,7 +368,7 @@ export default function CreateMatch() {
 
                 {/* Description of selected type */}
                 <div style={{ marginBottom: matchType === "ranked" ? 10 : matchType === "vshouse" ? 16 : 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
-                  <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
+                  <p style={{ fontSize: isCompactPhone ? 13 : 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
 
                 {/* Season Pass callout — ranked only, hidden if user already has a pass */}
@@ -451,13 +451,13 @@ export default function CreateMatch() {
                     <button
                       disabled
                       style={{
-                        width: "100%", height: 56,
+                        width: "100%", height: isCompactPhone ? 64 : 56,
                         background: "rgba(255,255,255,0.03)",
                         border: "1.5px solid rgba(255,255,255,0.1)",
                         borderRadius: 6,
                         cursor: "not-allowed",
                         fontFamily: "inherit",
-                        fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                        fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 3,
                         color: "#475569",
                         textTransform: "uppercase",
                         clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -465,21 +465,21 @@ export default function CreateMatch() {
                         opacity: 0.6,
                       }}
                     >
-                      <span className="material-icons" style={{ fontSize: 20, color: "#475569" }}>lock</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: "#475569" }}>lock</span>
                       CONNECT WALLET TO PLAY
                     </button>
                   ) : matchType === "ranked" ? (
-                    <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ display: "flex", flexDirection: isCompactPhone ? "column" : "row", gap: 12 }}>
                       <button
                         onClick={() => void handleFindMatch()}
                         style={{
-                          flex: 1, height: 56,
+                          flex: 1, height: isCompactPhone ? 64 : 56,
                           background: "linear-gradient(135deg, #1a3a52, #0f2233)",
                           border: `1.5px solid ${selected.color}`,
                           borderRadius: 6,
                           cursor: "pointer",
                           fontFamily: "inherit",
-                          fontWeight: 900, fontSize: 16, letterSpacing: 1.5,
+                          fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 1.5,
                           color: "#b9e7f4",
                           textTransform: "uppercase",
                           clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -488,20 +488,20 @@ export default function CreateMatch() {
                           transition: "all 0.2s ease"
                         }}
                       >
-                        <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>manage_search</span>
+                        <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: selected.color }}>manage_search</span>
                         FIND PLAYER
                       </button>
                       
                       <button
                         onClick={handleCreateMatch}
                         style={{
-                          flex: 1, height: 56,
+                          flex: 1, height: isCompactPhone ? 64 : 56,
                           background: "rgba(255,255,255,0.03)",
                           border: `1.5px solid rgba(86,164,203,0.4)`,
                           borderRadius: 6,
                           cursor: "pointer",
                           fontFamily: "inherit",
-                          fontWeight: 900, fontSize: 16, letterSpacing: 1.5,
+                          fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 1.5,
                           color: "#56a4cb",
                           textTransform: "uppercase",
                           clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -509,7 +509,7 @@ export default function CreateMatch() {
                           transition: "all 0.2s ease"
                         }}
                       >
-                        <span className="material-icons" style={{ fontSize: 20, color: "#56a4cb" }}>group</span>
+                        <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: "#56a4cb" }}>group</span>
                         WITH FRIEND
                       </button>
                     </div>
@@ -517,13 +517,13 @@ export default function CreateMatch() {
                     <button
                       onClick={handleCreateMatch}
                       style={{
-                        width: "100%", height: 56,
+                        width: "100%", height: isCompactPhone ? 64 : 56,
                         background: "linear-gradient(135deg, #1a3a52, #0f2233)",
                         border: `1.5px solid ${selected.color}`,
                         borderRadius: 6,
                         cursor: "pointer",
                         fontFamily: "inherit",
-                        fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                        fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 3,
                         color: "#b9e7f4",
                         textTransform: "uppercase",
                         clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -532,9 +532,9 @@ export default function CreateMatch() {
                         transition: "all 0.2s ease"
                       }}
                     >
-                      <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>radar</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: selected.color }}>radar</span>
                       CREATE MATCH
-                      <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: selected.color }}>arrow_forward_ios</span>
                     </button>
                   )
                 )}

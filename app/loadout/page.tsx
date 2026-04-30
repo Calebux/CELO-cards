@@ -1010,7 +1010,7 @@ export default function Loadout() {
           </div>
 
           {/* Preset controls */}
-          <div style={{ position: "absolute", left: 20, top: 18, zIndex: 40, maxWidth: isCompactPhone ? 420 : 340 }}>
+          <div style={{ position: "absolute", left: 20, top: 18, zIndex: 40, maxWidth: isCompactPhone ? 470 : 340 }}>
             <div style={{ position: "relative" }}>
               <div style={{ display: "flex", gap: 4, flexWrap: "nowrap", alignItems: "flex-start", maxWidth: isCompactPhone ? 420 : "none" }}>
                 <div style={{ display: "flex", gap: 4, marginRight: 0, flexWrap: "nowrap" }}>
@@ -1022,9 +1022,9 @@ export default function Loadout() {
                         background: selectedArchetypeKey === preset.key ? "rgba(125,211,252,0.22)" : "rgba(125,211,252,0.1)",
                         border: selectedArchetypeKey === preset.key ? "1px solid rgba(125,211,252,0.55)" : "1px solid rgba(125,211,252,0.3)",
                         borderRadius: 5,
-                        padding: isCompactPhone ? "6px 10px" : "4px 8px",
+                        padding: isCompactPhone ? "8px 12px" : "4px 8px",
                         color: "#7dd3fc",
-                        fontSize: isCompactPhone ? 10 : 9,
+                        fontSize: isCompactPhone ? 11 : 9,
                         fontWeight: 700,
                         cursor: "pointer",
                         letterSpacing: 0.8,
@@ -1041,14 +1041,14 @@ export default function Loadout() {
                 {isOrderComplete && !savingPreset && (
                   <button
                     onClick={() => { setSavingPreset(true); setPresetName(""); setShowPresets(false); }}
-                    style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 5, padding: isCompactPhone ? "6px 12px" : "4px 10px", color: "#4ade80", fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                    style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 5, padding: isCompactPhone ? "8px 14px" : "4px 10px", color: "#4ade80", fontSize: isCompactPhone ? 12 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                   >SAVE</button>
                 )}
                 {/* Load presets */}
                 {deckPresets.length > 0 && (
                   <button
                     onClick={() => { setShowPresets((v) => !v); setSavingPreset(false); }}
-                    style={{ background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: isCompactPhone ? "6px 12px" : "4px 10px", color: "#56a4cb", fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                    style={{ background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: isCompactPhone ? "8px 14px" : "4px 10px", color: "#56a4cb", fontSize: isCompactPhone ? 12 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                   >PRESETS ({deckPresets.length})</button>
                 )}
               </div>
@@ -1056,8 +1056,8 @@ export default function Loadout() {
                 <div
                   style={{
                     marginTop: 6,
-                    maxWidth: isCompactPhone ? 170 : 160,
-                    fontSize: isCompactPhone ? 10 : 9,
+                    maxWidth: isCompactPhone ? 205 : 160,
+                    fontSize: isCompactPhone ? 11 : 9,
                     lineHeight: 1.22,
                     color: "#94a3b8",
                     display: "-webkit-box",
@@ -1066,7 +1066,7 @@ export default function Loadout() {
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "normal",
-                    minHeight: isCompactPhone ? 34 : 30,
+                    minHeight: isCompactPhone ? 42 : 30,
                   }}
                 >
                   <span style={{ color: "#7dd3fc", fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
@@ -1137,7 +1137,7 @@ export default function Loadout() {
           </div>
 
           {/* Slots */}
-          <div style={{ display: "flex", gap: 14, marginTop: 28 }}>
+          <div style={{ display: "flex", gap: isCompactPhone ? 16 : 14, marginTop: 28 }}>
             {[0, 1, 2, 3, 4].map((i) => {
               const card = currentOrder[i];
               return (
@@ -1145,7 +1145,7 @@ export default function Loadout() {
                   key={i}
                   onClick={() => card && removeCardFromSlot(i)}
                   style={{
-                    width: 108, height: 140,
+                    width: isCompactPhone ? 116 : 108, height: isCompactPhone ? 150 : 140,
                     borderRadius: 6,
                     cursor: card ? "pointer" : "default",
                     position: "relative", overflow: "hidden",
@@ -1169,18 +1169,18 @@ export default function Loadout() {
                         background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent)",
                         padding: "20px 4px 6px 4px", textAlign: "center"
                       }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.5, textShadow: "0 1px 4px #000" }}>
+                        <span style={{ fontSize: isCompactPhone ? 11 : 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.5, textShadow: "0 1px 4px #000" }}>
                           {card.name}
                         </span>
                       </div>
                       <div style={{
                         position: "absolute", top: 4, right: 4,
-                        width: 20, height: 20, borderRadius: "50%",
+                        width: isCompactPhone ? 24 : 20, height: isCompactPhone ? 24 : 20, borderRadius: "50%",
                         backgroundColor: "rgba(239,68,68,0.85)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         boxShadow: "0 0 6px rgba(239,68,68,0.5)",
                       }}>
-                        <span className="material-icons" style={{ fontSize: 13, color: "#fff" }}>close</span>
+                        <span className="material-icons" style={{ fontSize: isCompactPhone ? 15 : 13, color: "#fff" }}>close</span>
                       </div>
                     </>
                   ) : (
@@ -1203,13 +1203,13 @@ export default function Loadout() {
             <button
               onClick={() => void handleLockOrder()}
               className="ko-btn ko-btn-primary"
-              style={{ padding: "12px 40px" }}
+              style={{ padding: isCompactPhone ? "14px 46px" : "12px 40px" }}
             >
               <span className="ko-btn-text" style={{
-                fontSize: 18, fontWeight: 800, textTransform: "uppercase",
+                fontSize: isCompactPhone ? 19 : 18, fontWeight: 800, textTransform: "uppercase",
                 letterSpacing: 3, color: "#fff",
               }}>LOCK SEQUENCE</span>
-              <span className="material-icons ko-btn-icon" style={{ fontSize: 22, color: "#fff" }}>double_arrow</span>
+              <span className="material-icons ko-btn-icon" style={{ fontSize: isCompactPhone ? 24 : 22, color: "#fff" }}>double_arrow</span>
             </button>
             {lockError && <span style={{ fontSize: 12, color: "#f87171" }}>{lockError}</span>}
           </div>

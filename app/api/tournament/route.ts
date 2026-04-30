@@ -159,6 +159,43 @@ async function streamPrize(treasuryKey: string, winner: `0x${string}`, flowRate:
   return txHash;
 }
 
+type TournamentPayoutPreview = {
+  place: number;
+  address: `0x${string}`;
+  shareBps: string;
+  amount: string;
+  flowRate: string;
+  alreadyPaid: boolean;
+};
+
+function buildTournamentPayoutPreview(data: TournamentData): TournamentPayoutPreview[] {
+  const slots = computeSlots(data);
+  const champion = slots.champion?.address as `0x${string}` | undefined;
+  const finalist = slots.final[0].top?.address === champion
+    ? slots.final[0].bottom?.address
+    : slots.final[0].top?.address;
+  const third1 = slots.thirdPlace[0]?.address;
+  const third2 = slots.thirdPlace[1]?.address;
+
+  const recipients = [champion, finalist, third1, third2]
+    .filter(Boolean) as `0x${string}`[];
+
+  const pool = BigInt(data.prizePool || "0");
+  const STREAM_DURATION = 86_400n;
+
+  return recipients.map((address, index) => {
+    const share = pool * PRIZE_SPLIT[index] / 10000n;
+    return {
+      place: index + 1,
+      address,
+      shareBps: PRIZE_SPLIT[index].toString(),
+      amount: share.toString(),
+      flowRate: (share / STREAM_DURATION).toString(),
+      alreadyPaid: !!data.payouts[address],
+    };
+  });
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 // GET /api/tournament
@@ -286,6 +323,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...data, slots });
   }
 
+  if (action === "preview-payout") {
+    const session = await requireOpsSession(req);
+    if (session instanceof NextResponse) return session;
+
+    const data = await getTournament();
+    if (!data) return NextResponse.json({ error: "No tournament found" }, { status: 404 });
+
+    return NextResponse.json({
+      ok: true,
+      status: data.status,
+      prizePool: data.prizePool,
+      tournamentTreasuryAddress: process.env.NEXT_PUBLIC_TOURNAMENT_TREASURY_ADDRESS ?? null,
+      preview: buildTournamentPayoutPreview(data),
+    });
+  }
+
   // ── Payout ──────────────────────────────────────────────────────────────────
   if (action === "payout") {
     const session = await requireOpsSession(req);
@@ -308,36 +361,23 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Tournament not complete yet" }, { status: 409 });
       }
 
-      const slots = computeSlots(data);
-      const champion = slots.champion?.address as `0x${string}` | undefined;
-      const finalist = slots.final[0].top?.address === champion
-        ? slots.final[0].bottom?.address
-        : slots.final[0].top?.address;
-      const third1 = slots.thirdPlace[0]?.address;
-      const third2 = slots.thirdPlace[1]?.address;
-
-      const recipients = [champion, finalist, third1, third2]
-        .filter(Boolean) as `0x${string}`[];
-
+      const preview = buildTournamentPayoutPreview(data);
       const pool = BigInt(data.prizePool || "0");
       if (pool === 0n) {
         return NextResponse.json({ error: "Prize pool is 0" }, { status: 400 });
       }
 
-      const STREAM_DURATION = 86_400n;
       const txHashes: Record<string, string> = { ...data.payouts };
 
-      for (let i = 0; i < recipients.length; i++) {
-        const addr = recipients[i];
+      for (let i = 0; i < preview.length; i++) {
+        const item = preview[i];
+        const addr = item.address;
         if (txHashes[addr]) continue;
 
-        const share = pool * PRIZE_SPLIT[i] / 10000n;
-        const flowRate = share / STREAM_DURATION;
-
         try {
-          const txHash = await streamPrize(treasuryKey, addr, flowRate);
+          const txHash = await streamPrize(treasuryKey, addr, BigInt(item.flowRate));
           txHashes[addr] = txHash;
-          console.log(`Tournament payout ${i + 1}/${recipients.length}: ${formatShare(PRIZE_SPLIT[i])} G$ → ${addr} @ ${flowRate} wei/s — ${txHash}`);
+          console.log(`Tournament payout ${i + 1}/${preview.length}: ${formatShare(PRIZE_SPLIT[i])} G$ → ${addr} @ ${item.flowRate} wei/s — ${txHash}`);
         } catch (e) {
           console.error(`Payout failed for ${addr}:`, e);
           return NextResponse.json({ error: `Payout failed for ${addr}: ${e instanceof Error ? e.message : e}` }, { status: 500 });

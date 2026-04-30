@@ -43,6 +43,7 @@ export default function ProfilePage() {
   const { address } = useAccount();
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
 
   const {
     playerPoints,
@@ -147,6 +148,7 @@ export default function ProfilePage() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -216,7 +218,7 @@ export default function ProfilePage() {
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.78)" }} />
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: isCompactPhone ? "0 28px" : "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
@@ -228,7 +230,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Main layout — 3 columns, pinned below nav, no scroll */}
-        <div style={{ position: "absolute", left: "50%", top: `calc(${safeTop} + 80px)`, bottom: `calc(${safeBottom} + 12px)`, transform: "translateX(-50%)", width: 1300, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", paddingRight: 8 }}>
+        <div style={{ position: "absolute", left: "50%", top: `calc(${safeTop} + 80px)`, bottom: `calc(${safeBottom} + 12px)`, transform: "translateX(-50%)", width: isCompactPhone ? 1330 : 1300, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", paddingRight: 8 }}>
 
           {/* ── Col 1: Identity + G$ + Stats ── */}
           <div style={{ width: 230, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -423,13 +425,13 @@ export default function ProfilePage() {
                   </button>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8, justifyItems: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(4, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: isCompactPhone ? 12 : 8, justifyItems: "center" }}>
                   {ownedCards.map((card) => (
                     <div
                       key={card.id}
                       title={card.name}
                       style={{
-                        width: 82,
+                        width: isCompactPhone ? 98 : 82,
                         borderRadius: 6,
                         overflow: "hidden",
                         border: `1.5px solid ${card.color}`,

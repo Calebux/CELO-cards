@@ -113,6 +113,8 @@ export default function Gameplay() {
   const quitArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
+  const calloutWidth = isCompactPhone ? 420 : 560;
+  const combatMessage = slotResults.length > 0 ? slotResults[slotResults.length - 1] : null;
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -670,55 +672,136 @@ export default function Gameplay() {
           }} />
         )}
 
-        {/* Critical hit banner */}
-        {critBanner && (
+        {/* Centered combat callouts */}
+        {(critBanner || comboBanner || (isLastStand && !isMatchEnd) || combatMessage) && (
           <div style={{
-            position: "absolute", top: "30%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 80, pointerEvents: "none",
-            padding: "12px 28px",
-            background: critBanner === "player" ? "rgba(249,115,22,0.95)" : "rgba(239,68,68,0.95)",
-            border: `2px solid ${critBanner === "player" ? "#f97316" : "#ef4444"}`,
-            borderRadius: 6,
-            boxShadow: `0 0 40px ${critBanner === "player" ? "#f97316" : "#ef4444"}`,
-            animation: "critPop 0.3s ease-out",
+            position: "absolute",
+            top: isCompactPhone ? "35%" : "33%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: calloutWidth,
+            zIndex: 80,
+            pointerEvents: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
           }}>
-            <span style={{ fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: 2, textTransform: "uppercase" }}>
-              {critBanner === "player" ? "⚡ CRITICAL HIT!" : "💥 OPPONENT CRITS!"}
-            </span>
-          </div>
-        )}
-
-        {/* Combo banner */}
-        {comboBanner && (
-          <div style={{
-            position: "absolute", top: "38%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 79, pointerEvents: "none",
-            padding: "10px 24px",
-            background: comboBanner === "player" ? "rgba(251,191,36,0.95)" : "rgba(167,139,250,0.95)",
-            borderRadius: 6,
-            boxShadow: `0 0 30px ${comboBanner === "player" ? "#fbbf24" : "#a78bfa"}`,
-            animation: "critPop 0.3s ease-out",
-          }}>
-            <span style={{ fontSize: 18, fontWeight: 900, color: "#000", letterSpacing: 2 }}>
-              {comboBanner === "player" ? "🔥 COMBO STREAK! +3" : "🔥 OPPONENT COMBO! +3"}
-            </span>
-          </div>
-        )}
-
-        {/* Last Stand banner */}
-        {isLastStand && !isMatchEnd && (
-          <div style={{
-            position: "absolute", bottom: 120, left: "50%", transform: "translateX(-50%)",
-            zIndex: 60, pointerEvents: "none",
-            padding: "8px 20px",
-            background: "rgba(239,68,68,0.15)",
-            border: "1px solid rgba(239,68,68,0.5)",
-            borderRadius: 6,
-            animation: "pulse 1.5s ease-in-out infinite",
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: "#ef4444", letterSpacing: 2, textTransform: "uppercase" }}>
-              🛡️ LAST STAND — +20% KNOCK
-            </span>
+            {critBanner && (
+              <div style={{
+                width: "100%",
+                padding: isCompactPhone ? "12px 18px" : "14px 24px",
+                background: critBanner === "player"
+                  ? "linear-gradient(135deg, rgba(249,115,22,0.24), rgba(15,25,40,0.94))"
+                  : "linear-gradient(135deg, rgba(239,68,68,0.22), rgba(15,25,40,0.94))",
+                border: `1.5px solid ${critBanner === "player" ? "rgba(249,115,22,0.7)" : "rgba(239,68,68,0.7)"}`,
+                borderRadius: 10,
+                boxShadow: `0 0 26px ${critBanner === "player" ? "rgba(249,115,22,0.22)" : "rgba(239,68,68,0.22)"}`,
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+                animation: "critPop 0.3s ease-out",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: critBanner === "player" ? "#fdba74" : "#fca5a5", letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 4 }}>
+                  Impact Window
+                </div>
+                <div style={{ fontSize: isCompactPhone ? 20 : 24, fontWeight: 900, color: "#fff", letterSpacing: 1.4, textTransform: "uppercase", textShadow: `0 0 14px ${critBanner === "player" ? "rgba(249,115,22,0.55)" : "rgba(239,68,68,0.55)"}` }}>
+                  {critBanner === "player" ? "Critical Hit" : "Opponent Critical"}
+                </div>
+              </div>
+            )}
+            {comboBanner && (
+              <div style={{
+                width: "100%",
+                padding: isCompactPhone ? "10px 18px" : "12px 22px",
+                background: comboBanner === "player"
+                  ? "linear-gradient(135deg, rgba(251,191,36,0.2), rgba(15,25,40,0.92))"
+                  : "linear-gradient(135deg, rgba(167,139,250,0.2), rgba(15,25,40,0.92))",
+                border: `1.5px solid ${comboBanner === "player" ? "rgba(251,191,36,0.55)" : "rgba(167,139,250,0.55)"}`,
+                borderRadius: 10,
+                boxShadow: `0 0 22px ${comboBanner === "player" ? "rgba(251,191,36,0.18)" : "rgba(167,139,250,0.18)"}`,
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+                animation: "critPop 0.3s ease-out",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: comboBanner === "player" ? "#fde68a" : "#ddd6fe", letterSpacing: 2.2, textTransform: "uppercase", marginBottom: 3 }}>
+                  Sequence Pressure
+                </div>
+                <div style={{ fontSize: isCompactPhone ? 16 : 18, fontWeight: 900, color: "#fff", letterSpacing: 1.3, textTransform: "uppercase" }}>
+                  {comboBanner === "player" ? "Combo Streak +3" : "Opponent Combo +3"}
+                </div>
+              </div>
+            )}
+            {isLastStand && !isMatchEnd && (
+              <div style={{
+                width: "100%",
+                padding: isCompactPhone ? "9px 16px" : "10px 18px",
+                background: "linear-gradient(135deg, rgba(239,68,68,0.18), rgba(15,25,40,0.9))",
+                border: "1.5px solid rgba(239,68,68,0.45)",
+                borderRadius: 10,
+                boxShadow: "0 0 18px rgba(239,68,68,0.14)",
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+                animation: "pulse 1.5s ease-in-out infinite",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#fca5a5", letterSpacing: 2.2, textTransform: "uppercase", marginBottom: 3 }}>
+                  Last Chance
+                </div>
+                <div style={{ fontSize: isCompactPhone ? 14 : 15, fontWeight: 900, color: "#fff", letterSpacing: 1.2, textTransform: "uppercase" }}>
+                  +20% Knock Boost Active
+                </div>
+              </div>
+            )}
+            {combatMessage && (
+              <div key={slotResults.length} style={{
+                width: "100%",
+                padding: isCompactPhone ? "12px 18px" : "14px 24px",
+                borderRadius: 10,
+                backgroundColor: "rgba(15,25,40,0.92)",
+                border: `1.5px solid ${
+                  combatMessage.winner === "player"
+                    ? "rgba(6,168,249,0.5)"
+                    : combatMessage.winner === "opponent"
+                      ? `${opponent?.color || "#f906a8"}80`
+                      : "rgba(251,191,36,0.5)"
+                }`,
+                boxShadow: `0 0 24px ${
+                  combatMessage.winner === "player"
+                    ? "rgba(6,168,249,0.16)"
+                    : combatMessage.winner === "opponent"
+                      ? `${opponent?.color || "#f906a8"}22`
+                      : "rgba(251,191,36,0.16)"
+                }`,
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+              }}>
+                <div style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: 2.2,
+                  color: combatMessage.winner === "player" ? "#7dd3fc" : combatMessage.winner === "opponent" ? "#f9a8d4" : "#fcd34d",
+                  textTransform: "uppercase",
+                  marginBottom: 4,
+                }}>
+                  Slot Resolution
+                </div>
+                <div style={{
+                  fontSize: isCompactPhone ? 15 : 18,
+                  fontWeight: 800,
+                  color: "#fff",
+                  letterSpacing: 0.35,
+                  lineHeight: 1.45,
+                  textShadow: `0 0 10px ${
+                    combatMessage.winner === "player"
+                      ? "rgba(6,168,249,0.3)"
+                      : combatMessage.winner === "opponent"
+                        ? `${opponent?.color || "#f906a8"}55`
+                        : "rgba(251,191,36,0.28)"
+                  }`,
+                }}>
+                  {combatMessage.description}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -738,13 +821,13 @@ export default function Gameplay() {
         </div>
 
         {/* Bottom Left Controls */}
-        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
+        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, left: isCompactPhone ? 20 : 32, zIndex: 20, display: "flex", gap: 12 }}>
           {!isMatchEnd && (
             <button
               onClick={handleQuitClick}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: isCompactPhone ? "6px 10px" : "6px 14px",
+                padding: isCompactPhone ? "9px 14px" : "6px 14px",
                 background: quitArmed ? "rgba(239,68,68,0.2)" : "rgba(0,0,0,0.6)",
                 border: quitArmed ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
@@ -752,8 +835,8 @@ export default function Gameplay() {
                 transition: "all 0.2s ease",
               }}
             >
-              <span className="material-icons" style={{ fontSize: 14, color: quitArmed ? "#fca5a5" : "#6b7280" }}>arrow_back</span>
-              <span style={{ fontSize: isCompactPhone ? 9 : 10, fontWeight: 700, color: quitArmed ? "#fca5a5" : "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>
+              <span className="material-icons" style={{ fontSize: isCompactPhone ? 18 : 14, color: quitArmed ? "#fca5a5" : "#6b7280" }}>arrow_back</span>
+              <span style={{ fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, color: quitArmed ? "#fca5a5" : "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>
                 {quitArmed ? "PRESS AGAIN TO QUIT" : "QUIT"}
               </span>
             </button>
@@ -894,33 +977,6 @@ export default function Gameplay() {
             </div>
           </div>
 
-          {/* Combat message callout */}
-          {slotResults.length > 0 && (() => {
-            const last = slotResults[slotResults.length - 1];
-            const msgColor = last.winner === "player" ? "#06a8f9" : last.winner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24";
-            return (
-              <div key={slotResults.length} style={{
-                maxWidth: 620,
-                textAlign: "center",
-                padding: "14px 28px",
-                borderRadius: 8,
-                backgroundColor: `${msgColor}12`,
-                border: `1.5px solid ${msgColor}50`,
-                boxShadow: `0 0 20px ${msgColor}20`,
-              }}>
-                <div style={{
-                  fontSize: 18, fontWeight: 800,
-                  color: "#fff",
-                  letterSpacing: 0.5,
-                  lineHeight: 1.5,
-                  textShadow: `0 0 12px ${msgColor}80`,
-                }}>
-                  {last.description}
-                </div>
-              </div>
-            );
-          })()}
-
         </div>
 
         {/* ── Slot Timeline — raised, loadout-style panel ────── */}
@@ -1052,21 +1108,21 @@ export default function Gameplay() {
                   onClick={!isAnimating ? revealNextSlot : undefined}
                   className="ko-btn ko-btn-primary"
                   style={{
-                    padding: "9px 28px",
+                    padding: isCompactPhone ? "12px 34px" : "9px 28px",
                     cursor: isAnimating ? "wait" : "pointer",
                     opacity: isAnimating ? 0.5 : 1,
                   }}
                 >
-                  <span className="ko-btn-text" style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 3, color: "#fff" }}>REVEAL SLOT</span>
-                  <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "#fff" }}>play_arrow</span>
+                  <span className="ko-btn-text" style={{ fontSize: isCompactPhone ? 15 : 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 3, color: "#fff" }}>REVEAL SLOT</span>
+                  <span className="material-icons ko-btn-icon" style={{ fontSize: isCompactPhone ? 20 : 16, color: "#fff" }}>play_arrow</span>
                 </button>
                 <button
                   onClick={autoReveal}
                   className="ko-btn ko-btn-secondary"
-                  style={{ padding: "9px 24px" }}
+                  style={{ padding: isCompactPhone ? "12px 28px" : "9px 24px" }}
                 >
-                  <span className="ko-btn-text" style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "rgba(255,255,255,0.9)" }}>AUTO REVEAL</span>
-                  <span className="material-icons ko-btn-icon" style={{ fontSize: 15, color: "rgba(255,255,255,0.9)" }}>double_arrow</span>
+                  <span className="ko-btn-text" style={{ fontSize: isCompactPhone ? 14 : 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "rgba(255,255,255,0.9)" }}>AUTO REVEAL</span>
+                  <span className="material-icons ko-btn-icon" style={{ fontSize: isCompactPhone ? 18 : 15, color: "rgba(255,255,255,0.9)" }}>double_arrow</span>
                 </button>
               </>
             )}
@@ -1465,7 +1521,7 @@ export default function Gameplay() {
                   )}
 
                   {/* Action buttons */}
-                  <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
+                  <div style={{ display: "flex", gap: isCompactPhone ? 12 : 10, marginBottom: 0 }}>
                     {/* Rematch — ranked goes to character select, others go to loadout */}
                     <button
                       onClick={() => {
@@ -1477,14 +1533,14 @@ export default function Gameplay() {
                           router.push("/loadout");
                         }
                       }}
-                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
+                      style={{ flex: 2, height: isCompactPhone ? 60 : 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: isCompactPhone ? 15 : 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
                     >
                       🔄 REMATCH
                     </button>
                     {/* Play Again — new character */}
                     <button
                       onClick={() => { resetMatch(); router.push("/select-character"); }}
-                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 12, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" }}
+                      style={{ flex: 2, height: isCompactPhone ? 60 : 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: isCompactPhone ? 13 : 12, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" }}
                     >
                       NEW MATCH
                     </button>
@@ -1493,11 +1549,11 @@ export default function Gameplay() {
                       <button
                         onClick={handleNextOpponent}
                         style={{
-                          flex: 2, height: 52,
+                          flex: 2, height: isCompactPhone ? 60 : 52,
                           background: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
                           border: "1.5px solid #4ade80",
                           borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-                          fontWeight: 800, fontSize: 12, letterSpacing: 1.5,
+                          fontWeight: 800, fontSize: isCompactPhone ? 13 : 12, letterSpacing: 1.5,
                           color: "#4ade80", textTransform: "uppercase",
                         }}
                       >
@@ -1507,13 +1563,13 @@ export default function Gameplay() {
                     {/* Share card */}
                     <button
                       onClick={() => setShowShareCard(true)}
-                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      style={{ width: isCompactPhone ? 60 : 52, height: isCompactPhone ? 60 : 52, flexShrink: 0, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                       title="Share result card"
                     >
-                      <span className="material-icons" style={{ fontSize: 20, color: "#e2e8f0" }}>share</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 24 : 20, color: "#e2e8f0" }}>share</span>
                     </button>
                     {/* Return to Menu — secondary */}
-                    <button onClick={handleBackToMenu} style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11, letterSpacing: 1, color: "#6b7280", textTransform: "uppercase" }}>
+                    <button onClick={handleBackToMenu} style={{ width: isCompactPhone ? 60 : 52, height: isCompactPhone ? 60 : 52, flexShrink: 0, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: isCompactPhone ? 12 : 11, letterSpacing: 1, color: "#6b7280", textTransform: "uppercase" }}>
                       MENU
                     </button>
                   </div>
