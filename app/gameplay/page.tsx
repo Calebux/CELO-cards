@@ -170,7 +170,7 @@ export default function Gameplay() {
             resolvedSlots: shouldRestoreCombat ? data.slots ?? null : null,
           });
         }
-        if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+        if (typeof data.round === "number" && data.round >= roundNumber && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
           setCurrentOrderFromIds(data.selfCardIds);
         }
       } catch (e) {
@@ -225,7 +225,7 @@ export default function Gameplay() {
           opponentWins: data.opponentWins,
           resolvedSlots: shouldRestoreCombat ? data.slots ?? null : null,
         });
-        if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+        if (data.round >= roundNumber && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
           setCurrentOrderFromIds(data.selfCardIds);
         }
         if (data.phase === "resolved" && data.slots) {

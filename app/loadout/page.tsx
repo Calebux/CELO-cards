@@ -251,16 +251,19 @@ export default function Loadout() {
         if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
         if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
         if (data.opponentName !== undefined) setOpponentName(data.opponentName);
-        syncMultiplayerRoundState({
-          roundNumber: data.round,
-          selfWins: data.hostWins,
-          opponentWins: data.opponentWins,
-          resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
-        });
-        if (Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+        const serverIsCurrentOrNewerRound = data.round >= roundNumber;
+        if (serverIsCurrentOrNewerRound) {
+          syncMultiplayerRoundState({
+            roundNumber: data.round,
+            selfWins: data.hostWins,
+            opponentWins: data.opponentWins,
+            resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
+          });
+        }
+        if (serverIsCurrentOrNewerRound && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
           setCurrentOrderFromIds(data.selfCardIds);
         }
-        if (data.phase === "resolved" && data.slots) {
+        if (data.phase === "resolved" && data.slots && serverIsCurrentOrNewerRound) {
           router.replace("/gameplay");
         }
       } catch {
@@ -325,6 +328,118 @@ export default function Loadout() {
   const pollDelayRef = useRef(2000);
   const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number } | null>(null);
   useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
+  const beginWaitingForResolution = useCallback((pendingKey: string, expectedRound: number) => {
+    if (!matchId || !playerRole) return;
+
+    const submitPending = async () => {
+      if (!pendingSubmitRef.current || !matchId) return;
+      try {
+        await fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pendingSubmitRef.current),
+        });
+      } catch {
+        // keep queued; we'll retry on reconnect/poll
+      }
+    };
+
+    const stopPolling = () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
+    };
+
+    setWaiting(true);
+    setNetStatus(navigator.onLine ? "online" : "offline");
+    pollDelayRef.current = 2000;
+
+    const pollOnce = async () => {
+      if (!matchId || !playerRole) return;
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        const data = await res.json() as {
+          phase: string;
+          round: number;
+          hostWins: number;
+          opponentWins: number;
+          slots: unknown;
+          selfCardIds?: string[] | null;
+          opponentCharId?: string;
+          opponentName?: string | null;
+          abortedBy?: "host" | "joiner" | null;
+          opponentReconnecting?: boolean;
+          graceRemainingMs?: number;
+        };
+        setPollErrorCount(0);
+        setNetStatus("online");
+        pollDelayRef.current = 2000;
+        setGraceRemainingMs(data.graceRemainingMs ?? 0);
+
+        if (data.opponentCharId) {
+          setOpponentCharacterFromServer(data.opponentCharId);
+        }
+        if (data.opponentName !== undefined) {
+          setOpponentName(data.opponentName);
+        }
+
+        const serverIsCurrentOrNewerRound = data.round >= expectedRound;
+        if (serverIsCurrentOrNewerRound) {
+          syncMultiplayerRoundState({
+            roundNumber: data.round,
+            selfWins: data.hostWins,
+            opponentWins: data.opponentWins,
+            resolvedSlots: data.phase === "resolved"
+              ? data.slots as Parameters<typeof setPrecomputedFromServer>[0]
+              : null,
+          });
+        }
+        if (serverIsCurrentOrNewerRound && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
+        }
+
+        const opponentRole = playerRole === "host" ? "joiner" : "host";
+        if (data.phase === "timed-out" || data.abortedBy === opponentRole) {
+          stopPolling();
+          setWaiting(false);
+          alert("Your opponent has left the match.");
+          resetMatch();
+          router.push("/");
+          return;
+        }
+
+        if (data.phase === "resolved" && data.slots && serverIsCurrentOrNewerRound) {
+          stopPolling();
+          setWaiting(false);
+          try { sessionStorage.removeItem(pendingKey); } catch {}
+          pendingSubmitRef.current = null;
+          router.push("/gameplay");
+          return;
+        }
+        if (data.opponentReconnecting) {
+          setNetStatus("reconnecting");
+        }
+      } catch {
+        setPollErrorCount((n) => n + 1);
+        setNetStatus(navigator.onLine ? "reconnecting" : "offline");
+        pollDelayRef.current = Math.min(10_000, Math.round(pollDelayRef.current * 1.5));
+        await submitPending();
+      }
+      pollRef.current = setTimeout(() => { void pollOnce(); }, pollDelayRef.current);
+    };
+
+    void submitPending();
+    void pollOnce();
+  }, [
+    matchId,
+    playerRole,
+    resetMatch,
+    router,
+    setCurrentOrderFromIds,
+    setOpponentCharacterFromServer,
+    setOpponentName,
+    setPrecomputedFromServer,
+    syncMultiplayerRoundState,
+  ]);
   useEffect(() => {
     const handleOnline = () => {
       setNetStatus("online");
@@ -347,6 +462,34 @@ export default function Loadout() {
     };
   }, [matchId]);
 
+  useEffect(() => {
+    if (!matchId || !playerRole) return;
+    const pendingKey = `pending-submit:${matchId}`;
+    try {
+      const raw = sessionStorage.getItem(pendingKey);
+      if (!raw) return;
+      const restored = JSON.parse(raw) as { role?: "host" | "joiner"; cardIds?: string[]; round?: number };
+      if (
+        restored.role === playerRole &&
+        Array.isArray(restored.cardIds) &&
+        restored.cardIds.length === 5 &&
+        typeof restored.round === "number" &&
+        restored.round === roundNumber
+      ) {
+        pendingSubmitRef.current = {
+          role: restored.role,
+          cardIds: restored.cardIds,
+          round: restored.round,
+        };
+        beginWaitingForResolution(pendingKey, restored.round);
+        return;
+      }
+      sessionStorage.removeItem(pendingKey);
+    } catch {
+      sessionStorage.removeItem(pendingKey);
+    }
+  }, [beginWaitingForResolution, matchId, playerRole, roundNumber]);
+
   const handleLockOrder = useCallback(async () => {
     if (!isOrderComplete) return;
     setLockError(null);
@@ -368,97 +511,8 @@ export default function Loadout() {
     pendingSubmitRef.current = payload;
     const pendingKey = `pending-submit:${matchId}`;
     try { sessionStorage.setItem(pendingKey, JSON.stringify(payload)); } catch {}
-    setWaiting(true);
-    setNetStatus(navigator.onLine ? "online" : "offline");
-    pollDelayRef.current = 2000;
-
-    const submitPending = async () => {
-      if (!pendingSubmitRef.current || !matchId) return;
-      try {
-        await fetch(`/api/match/${matchId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pendingSubmitRef.current),
-        });
-      } catch {
-        // keep queued; we'll retry on reconnect/poll
-      }
-    };
-
-    const stopPolling = () => {
-      if (pollRef.current) clearTimeout(pollRef.current);
-      pollRef.current = null;
-    };
-
-    const pollOnce = async () => {
-      if (!matchId || !playerRole) return;
-      try {
-        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as {
-          phase: string;
-          round: number;
-          hostWins: number;
-          opponentWins: number;
-          slots: unknown;
-          opponentCharId?: string;
-          opponentName?: string | null;
-          abortedBy?: "host" | "joiner" | null;
-          opponentReconnecting?: boolean;
-          graceRemainingMs?: number;
-        };
-        setPollErrorCount(0); // successful response
-        setNetStatus("online");
-        pollDelayRef.current = 2000;
-        setGraceRemainingMs(data.graceRemainingMs ?? 0);
-
-        // Sync opponent character if joined
-        if (data.opponentCharId) {
-          setOpponentCharacterFromServer(data.opponentCharId);
-        }
-        if (data.opponentName !== undefined) {
-          setOpponentName(data.opponentName);
-        }
-        syncMultiplayerRoundState({
-          roundNumber: data.round,
-          selfWins: data.hostWins,
-          opponentWins: data.opponentWins,
-          resolvedSlots: data.phase === "resolved"
-            ? data.slots as Parameters<typeof setPrecomputedFromServer>[0]
-            : null,
-        });
-
-        // Abort if timed out or opponent quit
-        const opponentRole = playerRole === "host" ? "joiner" : "host";
-        if (data.phase === "timed-out" || data.abortedBy === opponentRole) {
-          stopPolling();
-          alert("Your opponent has left the match.");
-          resetMatch();
-          router.push("/");
-          return;
-        }
-
-        if (data.phase === "resolved" && data.slots) {
-          stopPolling();
-          try { sessionStorage.removeItem(pendingKey); } catch {}
-          pendingSubmitRef.current = null;
-          router.push("/gameplay");
-          return;
-        }
-        if (data.opponentReconnecting) {
-          setNetStatus("reconnecting");
-        }
-      } catch {
-        setPollErrorCount((n) => n + 1);
-        setNetStatus(navigator.onLine ? "reconnecting" : "offline");
-        pollDelayRef.current = Math.min(10_000, Math.round(pollDelayRef.current * 1.5));
-        await submitPending();
-      }
-      pollRef.current = setTimeout(() => { void pollOnce(); }, pollDelayRef.current);
-    };
-
-    void submitPending();
-    void pollOnce();
-  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, syncMultiplayerRoundState, router, markOnboardingStep]);
+    beginWaitingForResolution(pendingKey, roundNumber);
+  }, [beginWaitingForResolution, isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router, markOnboardingStep]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
   const tutorialSteps = [

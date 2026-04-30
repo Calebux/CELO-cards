@@ -268,32 +268,39 @@ export const useGameStore = create<GameState>()(
     resetOnboardingProgress: () => set({ onboardingProgress: createEmptyOnboardingProgress(), onboardingCoachHidden: false }),
     setOnboardingCoachHidden: (hidden) => set({ onboardingCoachHidden: hidden }),
     syncMultiplayerRoundState: ({ roundNumber, selfWins, opponentWins, resolvedSlots }) => {
-        let baseSelfWins = selfWins;
-        let baseOpponentWins = opponentWins;
-
-        if (resolvedSlots) {
-            const totalPlayerKnock = resolvedSlots.reduce((sum, slot) => sum + slot.playerKnock, 0);
-            const totalOpponentKnock = resolvedSlots.reduce((sum, slot) => sum + slot.opponentKnock, 0);
-            if (totalPlayerKnock > totalOpponentKnock) {
-                baseSelfWins = Math.max(0, selfWins - 1);
-            } else if (totalOpponentKnock > totalPlayerKnock) {
-                baseOpponentWins = Math.max(0, opponentWins - 1);
+        set((state) => {
+            // Never let an older server snapshot pull the client back into a previous round.
+            if (roundNumber < state.roundNumber) {
+                return state;
             }
-        }
 
-        set({
-            roundNumber,
-            playerRoundsWon: baseSelfWins,
-            opponentRoundsWon: baseOpponentWins,
-            ...(resolvedSlots
-                ? {
-                    precomputedRound: resolvedSlots,
-                    opponentOrder: resolvedSlots.map((slot) => slot.opponentCard),
-                    matchPhase: "combat" as MatchPhase,
-                    revealedSlots: 0,
-                    currentRoundResult: null,
+            let baseSelfWins = selfWins;
+            let baseOpponentWins = opponentWins;
+
+            if (resolvedSlots) {
+                const totalPlayerKnock = resolvedSlots.reduce((sum, slot) => sum + slot.playerKnock, 0);
+                const totalOpponentKnock = resolvedSlots.reduce((sum, slot) => sum + slot.opponentKnock, 0);
+                if (totalPlayerKnock > totalOpponentKnock) {
+                    baseSelfWins = Math.max(0, selfWins - 1);
+                } else if (totalOpponentKnock > totalPlayerKnock) {
+                    baseOpponentWins = Math.max(0, opponentWins - 1);
                 }
-                : {}),
+            }
+
+            return {
+                roundNumber,
+                playerRoundsWon: baseSelfWins,
+                opponentRoundsWon: baseOpponentWins,
+                ...(resolvedSlots
+                    ? {
+                        precomputedRound: resolvedSlots,
+                        opponentOrder: resolvedSlots.map((slot) => slot.opponentCard),
+                        matchPhase: "combat" as MatchPhase,
+                        revealedSlots: 0,
+                        currentRoundResult: null,
+                    }
+                    : {}),
+            };
         });
     },
     setSelectedCharacterFromServer: (charId) => {

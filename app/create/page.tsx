@@ -224,8 +224,8 @@ export default function CreateMatch() {
     if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
     if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
     if (matchPhase === "loadout") return "/loadout";
-    if (matchPhase === "lobby") return "/select-character";
-    if (matchPhase === "waiting-for-opponent" && matchId) return "/select-character";
+    if (matchPhase === "lobby") return "/lobby";
+    if (matchPhase === "waiting-for-opponent" && matchId) return "/lobby";
     return null;
   }, [matchId, matchPhase, selectedCharacter]);
 
