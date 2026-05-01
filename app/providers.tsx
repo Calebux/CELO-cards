@@ -33,11 +33,8 @@ const config = createConfig({
 });
 
 const queryClient = new QueryClient();
-const AUTH_MODE_STORAGE_KEY = "ao-auth-mode";
 const APP_ACCENT = "#56a4cb";
 const APP_TEXT_ON_ACCENT = "#020202";
-const APP_SURFACE = "#0b1220";
-const APP_SURFACE_ALT = "#111c2d";
 
 const web3AuthClientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
 const web3AuthEnabled = Boolean(web3AuthClientId);
@@ -122,17 +119,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       setSocialLoginRequested(false);
       return;
     }
-
-    const savedMode = window.localStorage.getItem(AUTH_MODE_STORAGE_KEY);
-    if (savedMode === "web3auth") {
-      setAuthMode("web3auth");
-    }
   }, []);
-
-  useEffect(() => {
-    if (!web3AuthEnabled || isMiniPay()) return;
-    window.localStorage.setItem(AUTH_MODE_STORAGE_KEY, authMode);
-  }, [authMode]);
 
   const authModeValue = useMemo(() => ({
     mode: authMode,

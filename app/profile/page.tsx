@@ -70,7 +70,10 @@ export default function ProfilePage() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setPassInfo(null);
+      return;
+    }
     fetch(`/api/season-pass?address=${address}`)
       .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
       .then(setPassInfo)

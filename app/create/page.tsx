@@ -106,7 +106,10 @@ export default function CreateMatch() {
   }, []);
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setHasSeasonPass(false);
+      return;
+    }
     fetch(`/api/season-pass?address=${address}`)
       .then(r => r.json())
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
