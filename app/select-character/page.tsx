@@ -95,6 +95,11 @@ export default function SelectCharacter() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
+  useEffect(() => {
+    if (!vsBot || playerAddress) return;
+    router.replace("/create");
+  }, [playerAddress, router, vsBot]);
+
   // Announce presence on mount + keepalive loop for FIND PLAYER host
   useEffect(() => {
     if (!matchId || !playerRole || vsBot) return;
@@ -165,6 +170,10 @@ export default function SelectCharacter() {
   }, [timer]);
 
   const handleLock = async () => {
+    if (vsBot && !playerAddress) {
+      router.replace("/create");
+      return;
+    }
     markOnboardingStep("select_fighter");
     selectCharacter(activeChar);
     if (playerRole !== null && matchId) {

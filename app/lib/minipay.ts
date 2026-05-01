@@ -1,9 +1,31 @@
 // MiniPay wallet detection and Celo address helpers
 
+import type { EIP1193Provider } from "viem";
+import { injected } from "wagmi/connectors";
+
+type MiniPayProvider = EIP1193Provider & {
+  isMiniPay?: boolean;
+};
+
 export function isMiniPay(): boolean {
   if (typeof window === "undefined") return false;
   // MiniPay injects window.ethereum with isMiniPay = true
   return !!(window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay;
+}
+
+export function getMiniPayConnector() {
+  return injected({
+    shimDisconnect: false,
+    unstable_shimAsyncInject: 3_000,
+    target: {
+      id: "minipay",
+      name: "MiniPay",
+      provider(window) {
+        const provider = window?.ethereum as MiniPayProvider | undefined;
+        return provider?.isMiniPay ? provider : undefined;
+      },
+    },
+  });
 }
 
 export async function getMiniPayAddress(): Promise<string | null> {

@@ -5,24 +5,62 @@
 // • Everywhere: keeps gameStore.playerAddress + playerName in sync with wagmi address
 
 import { useEffect } from "react";
-import { useAccount, useConnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { celo } from "wagmi/chains";
+import { useAccount, useConnect, useSwitchChain } from "wagmi";
 import { useGameStore } from "./gameStore";
-import { isMiniPay } from "./minipay";
+import { getMiniPayConnector, isMiniPay } from "./minipay";
 
 export function WalletSync() {
   const { address, isConnected } = useAccount();
-  const { connect } = useConnect();
+  const { connectAsync } = useConnect();
+  const { switchChainAsync } = useSwitchChain();
   const setPlayerAddress = useGameStore((s) => s.setPlayerAddress);
   const setPlayerName = useGameStore((s) => s.setPlayerName);
   const playerName = useGameStore((s) => s.playerName);
 
   useEffect(() => {
-    if (!isConnected && isMiniPay()) {
-      connect({ connector: injected() });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!isMiniPay() || isConnected) return;
+
+    let cancelled = false;
+    let inFlight = false;
+    let attempts = 0;
+    const connector = getMiniPayConnector();
+
+    const ensureConnected = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        const result = await connectAsync({ connector, chainId: celo.id });
+        if (!cancelled && result.chainId !== celo.id) {
+          await switchChainAsync({ chainId: celo.id }).catch(() => {});
+        }
+      } catch {
+        // Provider injection can lag inside MiniPay WebViews; retry below.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void ensureConnected();
+
+    const retry = window.setInterval(() => {
+      if (cancelled || isConnected) {
+        window.clearInterval(retry);
+        return;
+      }
+      attempts += 1;
+      if (attempts > 8) {
+        window.clearInterval(retry);
+        return;
+      }
+      void ensureConnected();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(retry);
+    };
+  }, [connectAsync, isConnected, switchChainAsync]);
 
   useEffect(() => {
     setPlayerAddress(address ?? null);

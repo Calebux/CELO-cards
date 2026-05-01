@@ -8,6 +8,7 @@ import {
   useReadContract,
   useSendTransaction,
 } from "wagmi";
+import { celo } from "wagmi/chains";
 import { CUSD_CONTRACT, ERC20_ABI } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
@@ -36,7 +37,7 @@ const DESIGN_H = 823;
 
 export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const { address, chainId } = useAccount();
+  const { address } = useAccount();
   const setWager            = useGameStore((s) => s.setWager);
   const matchId             = useGameStore((s) => s.matchId);
   const playerRole          = useGameStore((s) => s.playerRole);
@@ -182,7 +183,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         functionName: "transfer",
         args: [TREASURY, amt],
         account: address,
-        chainId: chainId,
+        chainId: celo.id,
       });
       setTxHash(hash);
     } catch (e) {
@@ -203,7 +204,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         functionName: "approve",
         args: [ARENA_ADDRESS, amt],
         account: address,
-        chainId: chainId,
+        chainId: celo.id,
       });
       setTxHash(hash);
     } catch (e) {
@@ -223,7 +224,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         functionName: "enterMatch",
         args: [matchIdToBytes32(matchId)],
         account: address,
-        chainId: chainId,
+        chainId: celo.id,
       });
       setTxHash(hash);
     } catch (e) {
@@ -246,7 +247,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         args: [matchIdToBytes32(matchId)],
         value: amt,
         account: address,
-        chainId: chainId,
+        chainId: celo.id,
       });
       setTxHash(hash);
     } catch (e) {
@@ -268,7 +269,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         functionName: "transfer",
         args: [TREASURY, amt],
         account: address,
-        chainId: chainId,
+        chainId: celo.id,
       });
       setTxHash(hash);
     } catch (e) {
@@ -287,7 +288,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         to: TREASURY,
         value: amt,
         account: address,
-        chainId: chainId,
+        chainId: celo.id,
       });
       setTxHash(hash);
     } catch (e) {

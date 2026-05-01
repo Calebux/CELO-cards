@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useBalance, useReadContract } from "wagmi";
+import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
-import { isMiniPay, formatAddress } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay, formatAddress } from "../lib/minipay";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { formatUnits } from "viem";
 import { isMuted } from "../lib/soundManager";
@@ -91,6 +91,8 @@ function MuteButton() {
 
 export function WalletSection() {
   const { address, isConnected } = useAccount();
+  const { connectAsync, isPending: isConnectingMiniPay } = useConnect();
+  const { switchChainAsync } = useSwitchChain();
   const { playerName } = useGameStore();
 
   const base: React.CSSProperties = {
@@ -105,6 +107,46 @@ export function WalletSection() {
     boxShadow: "0 0 16px rgba(86,164,203,0.3), inset 0 0 20px rgba(86,164,203,0.07)",
     fontFamily: "var(--font-space-grotesk), sans-serif",
   };
+
+  if (isMiniPay() && !isConnected) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <MuteButton />
+        <button
+          onClick={() => {
+            const connector = getMiniPayConnector();
+            void connectAsync({ connector, chainId: celo.id })
+              .then(async (result) => {
+                if (result.chainId !== celo.id) {
+                  await switchChainAsync({ chainId: celo.id }).catch(() => {});
+                }
+              })
+              .catch(() => {});
+          }}
+          style={{
+            ...base,
+            cursor: isConnectingMiniPay ? "default" : "pointer",
+            opacity: isConnectingMiniPay ? 0.75 : 1,
+            background: "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",
+          }}
+        >
+          <div style={{
+            width: 7, height: 7, borderRadius: "50%",
+            background: "#56a4cb",
+            boxShadow: "0 0 6px #56a4cb",
+          }} />
+          <div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
+              MiniPay
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
+              {isConnectingMiniPay ? "CONNECTING..." : "CONNECT WALLET"}
+            </div>
+          </div>
+        </button>
+      </div>
+    );
+  }
 
   if (isMiniPay() && isConnected && address) {
     return (

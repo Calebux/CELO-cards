@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useAccount, useSendTransaction, useWriteContract } from "wagmi";
+import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 
@@ -142,6 +143,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             abi: GDOLLAR_ABI,
             functionName: "transfer",
             args: [TREASURY, plan.priceWeiGdollar],
+            chainId: celo.id,
           },
           {
             onSuccess: (hash) => { void pollAndRegister(hash); },
@@ -150,7 +152,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         );
       } else {
         sendTransaction(
-          { to: TREASURY, value: plan.priceWeiCelo, gas: 21000n },
+          { to: TREASURY, value: plan.priceWeiCelo, gas: 21000n, chainId: celo.id },
           {
             onSuccess: (hash) => { void pollAndRegister(hash); },
             onError: (err) => { setErrMsg(err.message ?? "Transaction rejected."); setStep("error"); },

@@ -57,6 +57,7 @@ export default function Gameplay() {
     matchesPlayed,
     maxWinStreak,
     matchesLost,
+    playerAddress,
     playerName,
     opponentName,
     startMatch,
@@ -116,6 +117,14 @@ export default function Gameplay() {
   const safeBottom = "env(safe-area-inset-bottom)";
   const calloutWidth = isCompactPhone ? 420 : 560;
   const combatMessage = slotResults.length > 0 ? slotResults[slotResults.length - 1] : null;
+
+  useEffect(() => {
+    if (!vsBot || playerAddress) return;
+    resetMatch();
+    setVsBot(false);
+    setMatchMode("vshouse");
+    router.replace("/create");
+  }, [playerAddress, resetMatch, router, setMatchMode, setVsBot, vsBot]);
 
   // Keep showResultRef current so async polling callbacks read the live value.
   useEffect(() => { showResultRef.current = showResult; }, [showResult]);

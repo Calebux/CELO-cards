@@ -10,6 +10,7 @@ import {
   useSendTransaction,
   useAccount,
 } from "wagmi";
+import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { parseUnits } from "viem";
 
@@ -86,10 +87,11 @@ export default function BlackMarket() {
           abi: GDOLLAR_ABI,
           functionName: "transfer",
           args: [TREASURY, amt],
+          chainId: celo.id,
         });
       } else {
         // CELO — native transfer
-        txHash = await sendTransactionAsync({ to: TREASURY, value: amt });
+        txHash = await sendTransactionAsync({ to: TREASURY, value: amt, chainId: celo.id });
       }
       await fetch("/api/black-market/purchase", {
         method: "POST",
