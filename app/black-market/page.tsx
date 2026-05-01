@@ -15,7 +15,7 @@ import {
 import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { parseUnits } from "viem";
-import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -126,7 +126,15 @@ export default function BlackMarket() {
         });
       } else {
         // CELO — native transfer
-        txHash = await sendTransactionAsync({ to: TREASURY, value: amt, account: activeAddress, chainId: celo.id });
+        txHash = isMiniPay()
+          ? await sendMiniPayNativeTransaction({
+              from: activeAddress,
+              to: TREASURY,
+              value: amt,
+              gas: 21000n,
+              data: "0x",
+            })
+          : await sendTransactionAsync({ to: TREASURY, value: amt, account: activeAddress, chainId: celo.id });
       }
       await fetch("/api/black-market/purchase", {
         method: "POST",
