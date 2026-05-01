@@ -13,6 +13,13 @@ import { useAccount } from "wagmi";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
+async function fetchSeasonPass(address: string) {
+  const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
+    cache: "no-store",
+  });
+  return res.json() as Promise<{ active: boolean }>;
+}
+
 type MatchType = "wager" | "ranked" | "tourney" | "vshouse";
 
 function toStoreMode(matchType: MatchType): MatchMode {
@@ -107,8 +114,7 @@ export default function CreateMatch() {
 
   useEffect(() => {
     if (!address) return;
-    fetch(`/api/season-pass?address=${address}`)
-      .then(r => r.json())
+    fetchSeasonPass(address)
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
       .catch(() => {});
   }, [address]);
