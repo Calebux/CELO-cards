@@ -8,22 +8,24 @@ import { useEffect } from "react";
 import { useAccount, useConnect } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { useGameStore } from "./gameStore";
+import { useAuthMode } from "./authMode";
 import { isMiniPay } from "./minipay";
 
 export function WalletSync() {
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
+  const authMode = useAuthMode();
   const setPlayerAddress = useGameStore((s) => s.setPlayerAddress);
   const setPlayerName    = useGameStore((s) => s.setPlayerName);
   const playerName       = useGameStore((s) => s.playerName);
 
   // Auto-connect inside MiniPay on first render
   useEffect(() => {
-    if (!isConnected && isMiniPay()) {
+    if (authMode === "wagmi" && !isConnected && isMiniPay()) {
       connect({ connector: injected() });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authMode]);
 
   // Keep address in sync
   useEffect(() => {
@@ -47,4 +49,3 @@ export function WalletSync() {
 
   return null;
 }
-

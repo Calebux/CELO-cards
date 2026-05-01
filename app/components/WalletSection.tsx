@@ -3,7 +3,9 @@
 import React, { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, useReadContract } from "wagmi";
+import { useWeb3AuthConnect, useWeb3AuthDisconnect } from "@web3auth/modal/react";
 import { isMiniPay, formatAddress } from "../lib/minipay";
+import { useAuthMode } from "../lib/authMode";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { formatUnits } from "viem";
 import { isMuted } from "../lib/soundManager";
@@ -82,9 +84,55 @@ function MuteButton() {
   );
 }
 
+function Web3AuthWalletButton({ base, address, playerName }: { base: React.CSSProperties; address?: `0x${string}`; playerName: string }) {
+  const { connect, loading: connecting } = useWeb3AuthConnect();
+  const { disconnect, loading: disconnecting } = useWeb3AuthDisconnect();
+  const connected = Boolean(address);
+  const busy = connecting || disconnecting;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <MuteButton />
+      {connected && address && <Balances address={address} />}
+      <button
+        onClick={() => void (connected ? disconnect({ cleanup: true }) : connect())}
+        disabled={busy}
+        style={{
+          ...base,
+          cursor: busy ? "default" : "pointer",
+          opacity: busy ? 0.75 : 1,
+          background: connected
+            ? "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))"
+            : "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",
+        }}
+        title={connected ? "Sign out" : "Sign in with social login"}
+      >
+        <div
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: connected ? "#4ade80" : "#56a4cb",
+            boxShadow: `0 0 6px ${connected ? "#4ade80" : "#56a4cb"}`,
+          }}
+        />
+        <div>
+          <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
+            {connected ? "SOCIAL WALLET" : "SOCIAL LOGIN"}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
+            {busy ? "LOADING..." : connected ? (playerName || formatAddress(address!)) : "SIGN IN"}
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
 export function WalletSection() {
   const { address, isConnected } = useAccount();
   const { playerName } = useGameStore();
+  const authMode = useAuthMode();
 
   const base: React.CSSProperties = {
     display: "flex",
@@ -98,6 +146,10 @@ export function WalletSection() {
     boxShadow: "0 0 16px rgba(86,164,203,0.3), inset 0 0 20px rgba(86,164,203,0.07)",
     fontFamily: "var(--font-space-grotesk), sans-serif",
   };
+
+  if (authMode === "web3auth" && !isMiniPay()) {
+    return <Web3AuthWalletButton base={base} address={address} playerName={playerName} />;
+  }
 
   if (isMiniPay() && isConnected && address) {
     return (
