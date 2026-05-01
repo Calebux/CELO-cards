@@ -72,7 +72,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
 
   // Check for an existing active pass when the modal opens
   useEffect(() => {
-    if (!address) { setStep("idle"); return; }
+    if (!address) {
+      setExpiry(null);
+      setExistingPlan(null);
+      setStep("idle");
+      return;
+    }
     fetchSeasonPass(address)
       .then(data => {
         if (data.active && data.expiry) {

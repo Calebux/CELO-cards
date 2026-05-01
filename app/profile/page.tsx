@@ -77,7 +77,10 @@ export default function ProfilePage() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setPassInfo(null);
+      return;
+    }
     fetchSeasonPass(address)
       .then(setPassInfo)
       .catch(() => {});

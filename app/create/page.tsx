@@ -113,7 +113,10 @@ export default function CreateMatch() {
   }, []);
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setHasSeasonPass(false);
+      return;
+    }
     fetchSeasonPass(address)
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
       .catch(() => {});
