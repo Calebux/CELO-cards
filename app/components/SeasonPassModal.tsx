@@ -205,18 +205,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           abi: GDOLLAR_ABI,
           functionName: "transfer",
           args: [TREASURY, plan.priceWeiGdollar],
-          account: activeAddress,
-          chainId: celo.id,
         });
         void pollAndRegister(hash);
       } else {
         const hash = await sendTransactionAsync({
           to: TREASURY,
           value: plan.priceWeiCelo,
-          gas: 21000n,
-          data: "0x",
-          account: activeAddress,
-          chainId: celo.id,
         });
         void pollAndRegister(hash);
       }
