@@ -211,6 +211,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         const hash = await sendTransactionAsync({
           to: TREASURY,
           value: plan.priceWeiCelo,
+          data: "0x",
         });
         void pollAndRegister(hash);
       }
