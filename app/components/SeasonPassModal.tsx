@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
@@ -210,22 +210,14 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         });
         void pollAndRegister(hash);
       } else {
-        const hash = isMiniPay()
-          ? await sendMiniPayNativeTransaction({
-              from: activeAddress,
-              to: TREASURY,
-              value: plan.priceWeiCelo,
-              gas: 21000n,
-              data: "0x",
-            })
-          : await sendTransactionAsync({
-              to: TREASURY,
-              value: plan.priceWeiCelo,
-              gas: 21000n,
-              data: "0x",
-              account: activeAddress,
-              chainId: celo.id,
-            });
+        const hash = await sendTransactionAsync({
+          to: TREASURY,
+          value: plan.priceWeiCelo,
+          gas: 21000n,
+          data: "0x",
+          account: activeAddress,
+          chainId: celo.id,
+        });
         void pollAndRegister(hash);
       }
     } catch (err) {
