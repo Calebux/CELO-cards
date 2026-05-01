@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
   if (!passData) {
     return NextResponse.json({ error: "No active season pass" }, { status: 403 });
   }
-  if (typeof passData.expiry !== "number" || passData.expiry < Date.now()) {
+  const expiry = Number(passData.expiry);
+  if (!Number.isFinite(expiry) || expiry < Date.now()) {
     await redis.del(passKey);
     return NextResponse.json({ error: "Season pass expired" }, { status: 403 });
   }

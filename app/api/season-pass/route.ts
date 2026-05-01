@@ -5,6 +5,8 @@ import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
 
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const publicClient = createPublicClient({ chain: celo, transport: http() });
 
@@ -28,9 +30,10 @@ function parseSeasonPassRecord(value: unknown): SeasonPassRecord | null {
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value) as Partial<SeasonPassRecord>;
-      if (typeof parsed.expiry === "number" && typeof parsed.plan === "string" && parsed.plan in SEASON_PLANS) {
+      const expiry = Number(parsed.expiry);
+      if (Number.isFinite(expiry) && typeof parsed.plan === "string" && parsed.plan in SEASON_PLANS) {
         return {
-          expiry: parsed.expiry,
+          expiry,
           plan: parsed.plan as SeasonPlan,
           txHash: typeof parsed.txHash === "string" ? parsed.txHash : undefined,
         };
@@ -43,9 +46,10 @@ function parseSeasonPassRecord(value: unknown): SeasonPassRecord | null {
 
   if (typeof value === "object") {
     const parsed = value as Partial<SeasonPassRecord>;
-    if (typeof parsed.expiry === "number" && typeof parsed.plan === "string" && parsed.plan in SEASON_PLANS) {
+    const expiry = Number(parsed.expiry);
+    if (Number.isFinite(expiry) && typeof parsed.plan === "string" && parsed.plan in SEASON_PLANS) {
       return {
-        expiry: parsed.expiry,
+        expiry,
         plan: parsed.plan as SeasonPlan,
         txHash: typeof parsed.txHash === "string" ? parsed.txHash : undefined,
       };

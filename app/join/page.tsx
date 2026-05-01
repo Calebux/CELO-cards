@@ -13,6 +13,13 @@ const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
+async function fetchSeasonPass(address: string) {
+  const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
+    cache: "no-store",
+  });
+  return res.json() as Promise<{ active?: boolean }>;
+}
+
 type LiveMatch = {
   id: string;
   hostName: string | null;
@@ -116,8 +123,7 @@ function JoinMatchContent() {
       }
       const data = await res.json() as { mode?: MultiplayerMode };
       if (data.mode === "ranked") {
-        const passRes = await fetch(`/api/season-pass?address=${address}`);
-        const passData = await passRes.json() as { active?: boolean };
+        const passData = await fetchSeasonPass(address);
         if (!passData.active) {
           setShowSeasonPassModal(true);
           setJoining(false);
