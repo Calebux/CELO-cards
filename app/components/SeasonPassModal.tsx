@@ -9,10 +9,17 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
 
+const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+const USDT_ABI = [
+  { name: "transfer", type: "function", stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }] },
+] as const;
+
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-type Currency = "celo" | "gdollar";
+type Currency = "celo" | "gdollar" | "usdt";
 
 const PLANS = [
   {
@@ -23,6 +30,8 @@ const PLANS = [
     priceWeiCelo: parseEther("0.5"),
     priceGdollar: "1000",
     priceWeiGdollar: parseUnits("1000", 18),
+    priceUsdt: "0.50",
+    priceWeiUsdt: parseUnits("0.50", 6),
     tagline: "Try it out",
     color: "#56a4cb",
   },
@@ -34,6 +43,8 @@ const PLANS = [
     priceWeiCelo: parseEther("1.5"),
     priceGdollar: "3000",
     priceWeiGdollar: parseUnits("3000", 18),
+    priceUsdt: "1.50",
+    priceWeiUsdt: parseUnits("1.50", 6),
     tagline: "Most popular",
     color: "#fbbf24",
     highlight: true,
@@ -46,6 +57,8 @@ const PLANS = [
     priceWeiCelo: parseEther("3.5"),
     priceGdollar: "7000",
     priceWeiGdollar: parseUnits("7000", 18),
+    priceUsdt: "3.50",
+    priceWeiUsdt: parseUnits("3.50", 6),
     tagline: "Best value",
     color: "#4ade80",
   },
@@ -71,7 +84,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>("celo");
+  const [currency, setCurrency] = useState<Currency>(isMiniPay() ? "usdt" : "celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
@@ -199,7 +212,15 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     setErrMsg("");
     try {
       const activeAddress = await ensureWalletReady();
-      if (currency === "gdollar") {
+      if (currency === "usdt") {
+        const hash = await writeContractAsync({
+          address: USDT_CONTRACT,
+          abi: USDT_ABI,
+          functionName: "transfer",
+          args: [TREASURY, plan.priceWeiUsdt],
+        });
+        void pollAndRegister(hash);
+      } else if (currency === "gdollar") {
         const hash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
@@ -363,22 +384,26 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           <>
             {/* Currency toggle */}
             <div style={{ padding: "16px 24px 0", display: "flex", gap: 8 }}>
-              {(["celo", "gdollar"] as Currency[]).map((c) => (
+              {(isMp ? ["usdt", "gdollar"] : ["celo", "gdollar"] as Currency[]).map((c) => {
+                const activeColor = c === "gdollar" ? "#00C58E" : c === "usdt" ? "#26a17b" : "#56a4cb";
+                const label = c === "celo" ? "Pay with CELO" : c === "usdt" ? "Pay with USDT" : "Pay with G$";
+                return (
                 <button
                   key={c}
-                  onClick={() => setCurrency(c)}
+                  onClick={() => setCurrency(c as Currency)}
                   style={{
                     flex: 1, padding: isMp ? "38px 8px" : "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
-                    border: `1.5px solid ${currency === c ? (c === "gdollar" ? "#00C58E" : "#56a4cb") : "rgba(86,164,203,0.15)"}`,
-                    background: currency === c ? (c === "gdollar" ? "rgba(0,197,142,0.1)" : "rgba(86,164,203,0.1)") : "rgba(255,255,255,0.02)",
+                    border: `1.5px solid ${currency === c ? activeColor : "rgba(86,164,203,0.15)"}`,
+                    background: currency === c ? `${activeColor}1a` : "rgba(255,255,255,0.02)",
                     fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
-                    color: currency === c ? (c === "gdollar" ? "#00C58E" : "#56a4cb") : "rgba(185,231,244,0.4)",
+                    color: currency === c ? activeColor : "rgba(185,231,244,0.4)",
                     transition: "all 0.15s",
                   }}
                 >
-                  {c === "celo" ? "Pay with CELO" : "Pay with G$"}
+                  {label}
                 </button>
-              ))}
+                );
+              })}
             </div>
 
             {/* Plan selector */}
@@ -412,7 +437,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                       </div>
                     )}
                     <div style={{ fontSize: 20, fontWeight: 800, color: p.color, marginBottom: 2 }}>
-                      {currency === "gdollar" ? `${p.priceGdollar} G$` : `${p.priceCelo} CELO`}
+                      {currency === "gdollar" ? `${p.priceGdollar} G$` : currency === "usdt" ? `$${p.priceUsdt} USDT` : `${p.priceCelo} CELO`}
                     </div>
                     <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: selectedPlan === p.id ? p.color : "rgba(185,231,244,0.4)", textTransform: "uppercase" }}>
                       {p.days} DAYS
@@ -472,7 +497,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 {step === "waiting-tx" && <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite" }}>●</span>}
                 {step === "confirming" && <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite" }}>●</span>}
                 {step === "idle" || step === "error"
-                  ? `Pay ${currency === "gdollar" ? `${plan.priceGdollar} G$` : `${plan.priceCelo} CELO`} → Activate ${plan.days}d Pass`
+                  ? `Pay ${currency === "gdollar" ? `${plan.priceGdollar} G$` : currency === "usdt" ? `$${plan.priceUsdt} USDT` : `${plan.priceCelo} CELO`} → Activate ${plan.days}d Pass`
                   : step === "waiting-tx"
                   ? "Confirm in wallet…"
                   : "Confirming on-chain…"}
