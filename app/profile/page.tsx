@@ -14,13 +14,6 @@ const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-async function fetchSeasonPass(address: string) {
-  const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
-    cache: "no-store",
-  });
-  return res.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>;
-}
-
 type Achievement = {
   id: string;
   icon: string;
@@ -77,11 +70,9 @@ export default function ProfilePage() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
 
   useEffect(() => {
-    if (!address) {
-      setPassInfo(null);
-      return;
-    }
-    fetchSeasonPass(address)
+    if (!address) return;
+    fetch(`/api/season-pass?address=${address}`)
+      .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
       .then(setPassInfo)
       .catch(() => {});
   }, [address]);
@@ -521,7 +512,8 @@ export default function ProfilePage() {
             setShowSeasonPassModal(false);
             // Refresh pass info after purchase/renewal
             if (address) {
-              fetchSeasonPass(address)
+              fetch(`/api/season-pass?address=${address}`)
+                .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
                 .then(setPassInfo)
                 .catch(() => {});
             }

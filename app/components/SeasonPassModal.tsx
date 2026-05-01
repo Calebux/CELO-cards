@@ -54,13 +54,6 @@ type Props = {
   onActivated?: () => void;
 };
 
-async function fetchSeasonPass(address: string) {
-  const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
-    cache: "no-store",
-  });
-  return res.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>;
-}
-
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address } = useAccount();
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
@@ -72,13 +65,9 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
 
   // Check for an existing active pass when the modal opens
   useEffect(() => {
-    if (!address) {
-      setExpiry(null);
-      setExistingPlan(null);
-      setStep("idle");
-      return;
-    }
-    fetchSeasonPass(address)
+    if (!address) { setStep("idle"); return; }
+    fetch(`/api/season-pass?address=${address}`)
+      .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
       .then(data => {
         if (data.active && data.expiry) {
           setExpiry(data.expiry);
