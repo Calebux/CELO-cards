@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImgHTMLAttributes } from "react";
+import { useEffect, useState, type ImgHTMLAttributes } from "react";
 import { isMiniPay } from "../lib/minipay";
 
 type MiniPayImageProps = ImgHTMLAttributes<HTMLImageElement> & {
@@ -36,9 +36,13 @@ export function MiniPayImage({
   ...props
 }: MiniPayImageProps) {
   const srcValue = typeof src === "string" ? src : "";
-  const optimizeForMiniPay = srcValue.startsWith("/") && isMiniPay();
+  const [optimizeForMiniPay, setOptimizeForMiniPay] = useState(false);
   const effectiveMiniPaySizes =
     minipaySizes ?? (minipayWidth <= 480 ? `${Math.max(96, Math.round(minipayWidth / 2))}px` : "100vw");
+
+  useEffect(() => {
+    setOptimizeForMiniPay(srcValue.startsWith("/") && isMiniPay());
+  }, [srcValue]);
 
   return (
     <img

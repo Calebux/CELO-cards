@@ -13,19 +13,21 @@ export function isMiniPay(): boolean {
   return !!(window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay;
 }
 
-export function getMiniPayConnector() {
-  return injected({
-    shimDisconnect: false,
-    unstable_shimAsyncInject: 3_000,
-    target: {
-      id: "minipay",
-      name: "MiniPay",
-      provider(window) {
-        const provider = window?.ethereum as MiniPayProvider | undefined;
-        return provider?.isMiniPay ? provider : undefined;
-      },
+export const miniPayConnector = injected({
+  shimDisconnect: false,
+  unstable_shimAsyncInject: 3_000,
+  target: {
+    id: "minipay",
+    name: "MiniPay",
+    provider(window) {
+      const provider = window?.ethereum as MiniPayProvider | undefined;
+      return provider?.isMiniPay ? provider : undefined;
     },
-  });
+  },
+});
+
+export function getMiniPayConnector() {
+  return miniPayConnector;
 }
 
 export async function getMiniPayAddress(): Promise<string | null> {
