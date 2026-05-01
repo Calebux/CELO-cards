@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useBalance, useReadContract } from "wagmi";
+import { useAccount, useBalance, useDisconnect, useReadContract } from "wagmi";
 import { useWeb3Auth, useWeb3AuthConnect, useWeb3AuthDisconnect } from "@web3auth/modal/react";
 import { celo } from "wagmi/chains";
 import { isMiniPay, formatAddress } from "../lib/minipay";
@@ -217,10 +217,11 @@ function Web3AuthWalletButton({ base, address, playerName }: { base: React.CSSPr
     if (!socialLoginRequested || web3AuthConnected || connecting || disconnecting || isInitializing) return;
 
     let cancelled = false;
+    clearSocialLoginRequest();
 
     void (async () => {
       await connect();
-      if (!cancelled) clearSocialLoginRequest();
+      if (cancelled) return;
     })();
 
     return () => {
@@ -349,7 +350,6 @@ function WagmiWalletButton({
   connected,
   web3AuthEnabled,
   openConnectModal,
-  openAccountModal,
   requestSocialLogin,
 }: {
   base: React.CSSProperties;
@@ -360,10 +360,10 @@ function WagmiWalletButton({
   connected: boolean;
   web3AuthEnabled: boolean;
   openConnectModal: () => void;
-  openAccountModal: () => void;
   requestSocialLogin: () => void;
 }) {
   const [showChooser, setShowChooser] = useState(false);
+  const { disconnect, isPending: disconnecting } = useDisconnect();
 
   return (
     <>
@@ -401,18 +401,19 @@ function WagmiWalletButton({
         title={connected ? "Wallet Connected" : "Choose Login Method"}
         subtitle={
           connected
-            ? "Your season pass and GoodDollar status follow the connected address. Open your wallet or switch to social login if you want a different identity."
+            ? "Your season pass and GoodDollar status follow the connected address. Disconnect this wallet or switch to social login if you want a different identity."
             : "Use wallet connect for your normal CELO wallet, or choose social login for a separate Web3Auth wallet."
         }
         actions={
           connected
             ? [
                 {
-                  label: "Open Wallet",
-                  accent: true,
+                  label: "Disconnect Wallet",
+                  danger: true,
+                  disabled: disconnecting,
                   onClick: () => {
                     setShowChooser(false);
-                    openAccountModal();
+                    disconnect();
                   },
                 },
                 ...(web3AuthEnabled && !isMiniPay()
@@ -420,6 +421,7 @@ function WagmiWalletButton({
                       label: "Use Social Login",
                       onClick: () => {
                         setShowChooser(false);
+                        disconnect();
                         requestSocialLogin();
                       },
                     }]
@@ -490,7 +492,7 @@ export function WalletSection() {
 
   return (
     <ConnectButton.Custom>
-      {({ account, chain, openConnectModal, openAccountModal, mounted }) => {
+      {({ account, chain, openConnectModal, mounted }) => {
         if (!mounted) return null;
         const connected = !!(account && chain);
         return (
@@ -503,7 +505,6 @@ export function WalletSection() {
             connected={connected}
             web3AuthEnabled={web3AuthEnabled}
             openConnectModal={openConnectModal}
-            openAccountModal={openAccountModal}
             requestSocialLogin={requestSocialLogin}
           />
         );

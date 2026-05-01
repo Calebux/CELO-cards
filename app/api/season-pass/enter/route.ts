@@ -37,11 +37,16 @@ export async function POST(req: NextRequest) {
   }
 
   const passKey = `season-pass:${address.toLowerCase()}`;
-  const passData = await redis.get<{ expiry: number }>(passKey);
+  const rawPassData = await redis.get<unknown>(passKey);
+  const passData = typeof rawPassData === "string"
+    ? (() => {
+        try { return JSON.parse(rawPassData) as { expiry?: number }; } catch { return null; }
+      })()
+    : rawPassData as { expiry?: number } | null;
   if (!passData) {
     return NextResponse.json({ error: "No active season pass" }, { status: 403 });
   }
-  if (passData.expiry < Date.now()) {
+  if (typeof passData.expiry !== "number" || passData.expiry < Date.now()) {
     await redis.del(passKey);
     return NextResponse.json({ error: "Season pass expired" }, { status: 403 });
   }

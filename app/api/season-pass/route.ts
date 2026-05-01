@@ -16,16 +16,50 @@ export const SEASON_PLANS = {
 } as const;
 
 export type SeasonPlan = keyof typeof SEASON_PLANS;
+type SeasonPassRecord = { expiry: number; plan: SeasonPlan; txHash?: string };
 
 function passKey(address: string) {
   return `season-pass:${address.toLowerCase()}`;
+}
+
+function parseSeasonPassRecord(value: unknown): SeasonPassRecord | null {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as Partial<SeasonPassRecord>;
+      if (typeof parsed.expiry === "number" && typeof parsed.plan === "string" && parsed.plan in SEASON_PLANS) {
+        return {
+          expiry: parsed.expiry,
+          plan: parsed.plan as SeasonPlan,
+          txHash: typeof parsed.txHash === "string" ? parsed.txHash : undefined,
+        };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  if (typeof value === "object") {
+    const parsed = value as Partial<SeasonPassRecord>;
+    if (typeof parsed.expiry === "number" && typeof parsed.plan === "string" && parsed.plan in SEASON_PLANS) {
+      return {
+        expiry: parsed.expiry,
+        plan: parsed.plan as SeasonPlan,
+        txHash: typeof parsed.txHash === "string" ? parsed.txHash : undefined,
+      };
+    }
+  }
+
+  return null;
 }
 
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address");
   if (!address) return NextResponse.json({ error: "Missing address" }, { status: 400 });
 
-  const data = await redis.get<{ expiry: number; plan: SeasonPlan }>(passKey(address));
+  const data = parseSeasonPassRecord(await redis.get(passKey(address)));
   if (!data) return NextResponse.json({ active: false, expiry: null, plan: null });
 
   const { expiry, plan } = data;
@@ -96,12 +130,12 @@ export async function POST(req: NextRequest) {
   const durationMs = planConfig.days * 24 * 60 * 60 * 1000;
 
   // Stack on top of existing pass if still active
-  const existing = await redis.get<{ expiry: number }>(passKey(address));
+  const existing = parseSeasonPassRecord(await redis.get(passKey(address)));
   const baseExpiry = existing ? Math.max(Date.now(), existing.expiry) : Date.now();
   const expiry = baseExpiry + durationMs;
 
   const ttlSec = Math.ceil((expiry - Date.now()) / 1000) + 86400; // +1 day buffer
-  await redis.set(passKey(address), JSON.stringify({ expiry, plan, txHash }), { ex: ttlSec });
+  await redis.set(passKey(address), { expiry, plan, txHash }, { ex: ttlSec });
   await redis.set(txKey, "1", { ex: ttlSec });
 
   return NextResponse.json({ success: true, expiry, plan });
