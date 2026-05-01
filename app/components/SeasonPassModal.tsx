@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { isMiniPay } from "../lib/minipay";
-import { useAccount, useSendTransaction, useWriteContract } from "wagmi";
+import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
+import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
@@ -67,7 +67,7 @@ async function fetchSeasonPass(address: string) {
 }
 
 export function SeasonPassModal({ onClose, onActivated }: Props) {
-  const { address } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
@@ -124,10 +124,41 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       .catch(() => setStep("idle"));
   }, [address]);
 
-  const { sendTransaction } = useSendTransaction();
-  const { writeContract } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
+  const { writeContractAsync } = useWriteContract();
+  const { connectAsync } = useConnect();
+  const { switchChainAsync } = useSwitchChain();
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
+
+  const ensureWalletReady = useCallback(async () => {
+    let activeAddress = address;
+    let activeChainId = chainId;
+    let connected = isConnected;
+
+    if (!connected && isMiniPay()) {
+      const connector = getMiniPayConnector();
+      const result = await connectAsync({ connector, chainId: celo.id });
+      activeAddress = result.accounts[0] as `0x${string}` | undefined;
+      activeChainId = result.chainId;
+      connected = true;
+    }
+
+    if (!connected || !activeAddress) {
+      throw new Error("Connect your wallet first.");
+    }
+
+    if (activeChainId !== celo.id) {
+      await switchChainAsync({ chainId: celo.id });
+      activeChainId = celo.id;
+    }
+
+    if (activeChainId !== celo.id) {
+      throw new Error("Switch to Celo and try again.");
+    }
+
+    return activeAddress;
+  }, [address, chainId, connectAsync, isConnected, switchChainAsync]);
 
   const pollAndRegister = useCallback(async (hash: `0x${string}`) => {
     setStep("confirming");
@@ -164,38 +195,36 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   }, [address, selectedPlan, currency]);
 
   const handlePurchase = useCallback(async () => {
-    if (!address) return;
     setStep("waiting-tx");
     setErrMsg("");
     try {
+      const activeAddress = await ensureWalletReady();
       if (currency === "gdollar") {
-        writeContract(
-          {
-            address: GDOLLAR_CONTRACT,
-            abi: GDOLLAR_ABI,
-            functionName: "transfer",
-            args: [TREASURY, plan.priceWeiGdollar],
-            chainId: celo.id,
-          },
-          {
-            onSuccess: (hash) => { void pollAndRegister(hash); },
-            onError: (err) => { setErrMsg(err.message ?? "Transaction rejected."); setStep("error"); },
-          }
-        );
+        const hash = await writeContractAsync({
+          address: GDOLLAR_CONTRACT,
+          abi: GDOLLAR_ABI,
+          functionName: "transfer",
+          args: [TREASURY, plan.priceWeiGdollar],
+          account: activeAddress,
+          chainId: celo.id,
+        });
+        void pollAndRegister(hash);
       } else {
-        sendTransaction(
-          { to: TREASURY, value: plan.priceWeiCelo, gas: 21000n, chainId: celo.id },
-          {
-            onSuccess: (hash) => { void pollAndRegister(hash); },
-            onError: (err) => { setErrMsg(err.message ?? "Transaction rejected."); setStep("error"); },
-          }
-        );
+        const hash = await sendTransactionAsync({
+          to: TREASURY,
+          value: plan.priceWeiCelo,
+          gas: 21000n,
+          data: "0x",
+          account: activeAddress,
+          chainId: celo.id,
+        });
+        void pollAndRegister(hash);
       }
     } catch (err) {
-      setErrMsg(err instanceof Error ? err.message : "Unknown error");
+      setErrMsg(err instanceof Error ? err.message : "Transaction rejected.");
       setStep("error");
     }
-  }, [address, currency, plan, sendTransaction, writeContract, pollAndRegister]);
+  }, [currency, ensureWalletReady, plan, pollAndRegister, sendTransactionAsync, writeContractAsync]);
 
   const expiryDate = expiry ? new Date(expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
 

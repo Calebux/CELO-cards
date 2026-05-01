@@ -29,6 +29,7 @@ export function MiniPayImage({
   decoding,
   fetchPriority,
   sizes,
+  onError,
   minipayWidth = 960,
   minipayQuality = 60,
   minipaySizes,
@@ -53,6 +54,13 @@ export function MiniPayImage({
       loading={loading ?? (priority ? "eager" : "lazy")}
       decoding={decoding ?? (optimizeForMiniPay ? "async" : "auto")}
       fetchPriority={fetchPriority ?? (priority ? "high" : "auto")}
+      onError={(event) => {
+        if (optimizeForMiniPay) {
+          setOptimizeForMiniPay(false);
+          return;
+        }
+        onError?.(event);
+      }}
       suppressHydrationWarning
     />
   );
