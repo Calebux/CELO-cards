@@ -75,7 +75,7 @@ function MuteButton() {
           border: "1px solid rgba(86,164,203,0.25)",
           borderRadius: 6,
           cursor: "pointer",
-          padding: "5px 8px",
+          padding: isMiniPay() ? "16px 14px" : "5px 8px",
           display: "flex", alignItems: "center", gap: 4,
           transition: "all 0.2s",
         }}
@@ -101,7 +101,7 @@ export function WalletSection() {
     gap: 10,
     border: "1.5px solid #56a4cb",
     borderRadius: 6,
-    padding: "8px 18px",
+    padding: isMiniPay() ? "16px 18px" : "8px 18px",
     backdropFilter: "blur(10px)",
     clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
     boxShadow: "0 0 16px rgba(86,164,203,0.3), inset 0 0 20px rgba(86,164,203,0.07)",

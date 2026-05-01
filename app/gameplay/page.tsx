@@ -12,9 +12,11 @@ import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { ShareCard } from "../components/ShareCard";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
+import { isMiniPay } from "../lib/minipay";
 
 const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
@@ -25,6 +27,7 @@ const DESIGN_H = 823;
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMp = isMiniPay();
 
   const {
     selectedCharacter,
@@ -679,7 +682,7 @@ export default function Gameplay() {
         )}
 
         {/* Background */}
-        <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_MAIN} alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
 
         {/* Flash Effect */}
@@ -1073,7 +1076,7 @@ export default function Gameplay() {
                       transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                     }}>
                       {revealed && pCard ? (
-                        <img src={pCard.image} alt={pCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                        <MiniPayImage src={pCard.image} alt={pCard.name} minipayWidth={160} minipayQuality={50} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         <div style={{ position: "relative" }}>
                           <span className="material-icons" style={{ fontSize: 14, color: "rgba(90,191,230,0.15)" }}>help_outline</span>
@@ -1091,7 +1094,7 @@ export default function Gameplay() {
                       transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                     }}>
                       {revealed && oCard ? (
-                        <img src={oCard.image} alt={oCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                        <MiniPayImage src={oCard.image} alt={oCard.name} minipayWidth={160} minipayQuality={50} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         <div style={{ position: "relative" }}>
                           <span className="material-icons" style={{ fontSize: 14, color: "rgba(90,191,230,0.15)" }}>help_outline</span>
@@ -1156,7 +1159,7 @@ export default function Gameplay() {
           return (
             <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
-              <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
+              <MiniPayImage src={BG_MAIN} alt="" minipayWidth={1280} minipayQuality={56} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
 
               <div style={{ position: "relative", width: 540 }}>
                 {/* Corner accents */}
@@ -1192,7 +1195,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 16px ${won ? "rgba(74,222,128,0.4)" : "rgba(239,68,68,0.3)"}`,
                         opacity: won ? 1 : 0.55,
                       }}>
-                        <img src={player?.standingArt} alt={player?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={player?.standingArt} alt={player?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#06a8f9", textTransform: "uppercase" }}>{player?.name}</span>
                     </div>
@@ -1216,7 +1219,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 16px ${roundWinner === "opponent" ? "rgba(74,222,128,0.4)" : "rgba(239,68,68,0.3)"}`,
                         opacity: roundWinner === "opponent" ? 1 : 0.55,
                       }}>
-                        <img src={opponent?.standingArt} alt={opponent?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={opponent?.standingArt} alt={opponent?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: opponent?.color ?? "#f906a8", textTransform: "uppercase" }}>{opponent?.name}</span>
                     </div>
@@ -1293,10 +1296,10 @@ export default function Gameplay() {
               {/* Background */}
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               {/* Winner finisher video */}
-              <video key={finisherVideo} autoPlay loop muted playsInline
+              {!isMp && <video key={finisherVideo} autoPlay loop muted playsInline preload="metadata"
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.28, zIndex: -1, pointerEvents: "none" }}>
                 <source src={finisherVideo} type="video/webm" />
-              </video>
+              </video>}
 
               {/* Centered layout — matches join page exactly */}
               <div style={{ position: "relative", width: 540 }}>
@@ -1334,7 +1337,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 20px ${won ? "rgba(74,222,128,0.5)" : "rgba(239,68,68,0.3)"}`,
                         opacity: won ? 1 : 0.45,
                       }}>
-                        <img src={player?.standingArt} alt={player?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={player?.standingArt} alt={player?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#06a8f9", textTransform: "uppercase" }}>{player?.name}</span>
                     </div>
@@ -1360,7 +1363,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 20px ${!won ? "rgba(74,222,128,0.5)" : "rgba(239,68,68,0.3)"}`,
                         opacity: !won ? 1 : 0.45,
                       }}>
-                        <img src={opponent?.standingArt} alt={opponent?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={opponent?.standingArt} alt={opponent?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: opponent?.color ?? "#f906a8", textTransform: "uppercase" }}>{opponent?.name}</span>
                     </div>
@@ -1497,7 +1500,7 @@ export default function Gameplay() {
                                 border: `1.5px solid ${s.winner === "player" ? "#4ade80" : "#334155"}`,
                                 boxShadow: s.winner === "player" ? "0 0 6px rgba(74,222,128,0.4)" : "none",
                               }}>
-                                <img src={s.playerCard.image} alt={s.playerCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <MiniPayImage src={s.playerCard.image} alt={s.playerCard.name} minipayWidth={120} minipayQuality={48} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               </div>
                               <span style={{ fontSize: 8, fontWeight: 600, color: s.winner === "player" ? "#b9e7f4" : "#475569", lineHeight: 1.2, wordBreak: "break-word" }}>{s.playerCard.name}</span>
                             </div>
@@ -1513,7 +1516,7 @@ export default function Gameplay() {
                                 border: `1.5px solid ${s.winner === "opponent" ? "#f87171" : "#334155"}`,
                                 boxShadow: s.winner === "opponent" ? "0 0 6px rgba(248,113,113,0.4)" : "none",
                               }}>
-                                <img src={s.opponentCard.image} alt={s.opponentCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <MiniPayImage src={s.opponentCard.image} alt={s.opponentCard.name} minipayWidth={120} minipayQuality={48} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               </div>
                             </div>
                             {/* KNK score */}

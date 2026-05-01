@@ -14,6 +14,7 @@ import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 import { formatUnits } from "viem";
+import { isMiniPay } from "../lib/minipay";
 
 type Props = {
   onConfirmed: () => void;
@@ -36,6 +37,7 @@ const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
+  const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
   const { address } = useAccount();
   const setWager            = useGameStore((s) => s.setWager);
@@ -71,7 +73,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
-  }, []);
+  }, [isMp]);
 
   const { writeContractAsync }  = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
@@ -362,7 +364,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
                 onClick={() => { if (!busy) { setCurrency(c); setErrMsg(""); setStep("idle"); } }}
                 disabled={busy}
                 style={{
-                  flex: 1, padding: "8px 0",
+                  flex: 1, padding: isMp ? "40px 0" : "8px 0",
                   background: currency === c ? `${cc.color}26` : "rgba(255,255,255,0.03)",
                   border: `1.5px solid ${currency === c ? cc.color : "#334155"}`,
                   borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
@@ -408,14 +410,14 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
               onChange={(e) => { if (!busy && !lockedAmount) setAmountInput(e.target.value); }}
               disabled={busy || !!lockedAmount}
               style={{
-                flex: 1, padding: "10px 14px",
+                flex: 1, padding: isMp ? "28px 14px" : "10px 14px",
                 background: "rgba(0,0,0,0.4)",
                 border: "none", outline: "none",
                 fontSize: 18, fontWeight: 700, color: lockedAmount ? "#6b7280" : "#f1f5f9",
                 fontFamily: "inherit",
               }}
             />
-            <div style={{ padding: "10px 14px", background: "rgba(255,255,255,0.04)", fontSize: 13, fontWeight: 700, color: cfg.color, letterSpacing: 1 }}>
+            <div style={{ padding: isMp ? "28px 14px" : "10px 14px", background: "rgba(255,255,255,0.04)", fontSize: 13, fontWeight: 700, color: cfg.color, letterSpacing: 1 }}>
               {cfg.symbol}
             </div>
           </div>
@@ -462,7 +464,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
           onClick={() => void handlePay()}
           disabled={busy}
           style={{
-            width: "100%", padding: "14px 0", marginBottom: 12,
+            width: "100%", padding: isMp ? "36px 0" : "14px 0", marginBottom: 12,
             background: busy ? `${cfg.color}40` : `${cfg.color}18`,
             border: `1.5px solid ${cfg.color}`,
             borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
@@ -483,7 +485,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
           onClick={onSkip}
           disabled={busy}
           style={{
-            width: "100%", padding: "10px 0", marginTop: 4,
+            width: "100%", padding: isMp ? "38px 0" : "10px 0", marginTop: 4,
             background: "transparent",
             border: "1px solid rgba(255,255,255,0.08)",
             borderRadius: 5,

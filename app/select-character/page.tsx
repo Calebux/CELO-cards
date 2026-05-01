@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
 import { ArchetypeKey, getStarterArchetypes } from "../lib/archetypes";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 import { playSound } from "../lib/soundManager";
@@ -215,7 +216,7 @@ export default function SelectCharacter() {
 
         {/* Background */}
         <div className="absolute inset-0">
-          <img src={BG} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+          <MiniPayImage src={BG} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" minipayWidth={1280} minipayQuality={56} priority />
           <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.8)" }} />
         </div>
 
@@ -253,10 +254,12 @@ export default function SelectCharacter() {
           <div className="relative flex-1 overflow-hidden rounded-[8.438px] border-[1.406px] p-[1.406px]"
             style={{ borderColor: activeChar.color, boxShadow: `0 0 24px ${activeChar.color}40`, transition: "border-color 0.3s ease, box-shadow 0.3s ease" }}>
             <div className="absolute inset-0" style={{ backgroundColor: "#0a060e" }} />
-            <img
+            <MiniPayImage
               key={selectedIdx}
               src={activeChar.standingArt}
               alt={activeChar.name}
+              minipayWidth={760}
+              minipayQuality={58}
               className="absolute inset-0 w-full h-full pointer-events-none"
               style={{
                 objectFit: "cover",
@@ -334,9 +337,12 @@ export default function SelectCharacter() {
                         pointerEvents: c.isLocked ? "none" : "auto",
                       }}
                     >
-                      <img
+                      <MiniPayImage
                         src={c.src}
                         alt=""
+                        minipayWidth={240}
+                        minipayQuality={52}
+                        loading={c.grey ? "lazy" : "eager"}
                         className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                         style={{ filter: c.isLocked ? "grayscale(1)" : "none" }}
                       />

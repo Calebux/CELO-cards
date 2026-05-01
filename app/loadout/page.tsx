@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType, CHARACTERS } from "../lib/gameData";
 import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../lib/archetypes";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 
@@ -583,7 +584,7 @@ export default function Loadout() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* Background */}
-        <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_MAIN} alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* ── Top Bar ── */}
         <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
@@ -631,9 +632,11 @@ export default function Loadout() {
                 border: `1.5px solid ${selectedCharacter.color}55`,
                 boxShadow: `0 0 24px ${selectedCharacter.color}20`,
               }}>
-                <img
+                <MiniPayImage
                   src={selectedCharacter.standingArt}
                   alt={selectedCharacter.name}
+                  minipayWidth={760}
+                  minipayQuality={58}
                   style={{
                     position: "absolute", width: "100%", height: "100%",
                     objectFit: "cover", objectPosition: "top center",
@@ -832,7 +835,7 @@ export default function Loadout() {
                         zIndex: isHovered ? 50 : "auto",
                       }}
                     >
-                      <img src={card.image} alt={card.name} style={{
+                      <MiniPayImage src={card.image} alt={card.name} minipayWidth={320} minipayQuality={52} style={{
                         position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                       }} />
                       {/* Hover shine overlay */}
@@ -952,7 +955,7 @@ export default function Loadout() {
                       zIndex: spHovered ? 50 : "auto",
                     }}
                   >
-                    <img src={specialCard.image} alt={specialCard.name} style={{
+                    <MiniPayImage src={specialCard.image} alt={specialCard.name} minipayWidth={360} minipayQuality={52} style={{
                       position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                     }} />
                     {spInOrder && (
@@ -1214,7 +1217,7 @@ export default function Loadout() {
                 >
                   {card ? (
                     <>
-                      <img src={card.image} alt={card.name} style={{
+                      <MiniPayImage src={card.image} alt={card.name} minipayWidth={220} minipayQuality={50} style={{
                         position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                       }} />
                       {/* Name gradient background */}

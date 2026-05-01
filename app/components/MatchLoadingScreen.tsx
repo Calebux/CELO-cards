@@ -1,5 +1,7 @@
 "use client";
 
+import { MiniPayImage } from "./MiniPayImage";
+
 interface MatchLoadingScreenProps {
   playerName: string;
   opponentName: string;
@@ -83,7 +85,7 @@ export function MatchLoadingScreen({
               border: `2px solid ${playerColor}`,
               boxShadow: `0 0 30px ${playerColor}60`,
             }}>
-              <img src={playerPortrait} alt={playerName}
+              <MiniPayImage src={playerPortrait} alt={playerName} minipayWidth={280} minipayQuality={54}
                 style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
             </div>
           )}
@@ -122,7 +124,7 @@ export function MatchLoadingScreen({
               border: `2px solid ${opponentColor}`,
               boxShadow: `0 0 30px ${opponentColor}60`,
             }}>
-              <img src={opponentPortrait} alt={opponentName}
+              <MiniPayImage src={opponentPortrait} alt={opponentName} minipayWidth={280} minipayQuality={54}
                 style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
             </div>
           )}

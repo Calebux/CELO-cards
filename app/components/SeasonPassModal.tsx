@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { isMiniPay } from "../lib/minipay";
 import { useAccount, useSendTransaction, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+
+const DESIGN_W = 1440;
+const DESIGN_H = 823;
 
 type Currency = "celo" | "gdollar";
 
@@ -64,12 +68,40 @@ async function fetchSeasonPass(address: string) {
 
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address } = useAccount();
+  const isMp = isMiniPay();
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
   const [currency, setCurrency] = useState<Currency>("celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
   const [existingPlan, setExistingPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isMp) return;
+    const scale = () => {
+      if (!wrapRef.current) return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
+    };
+    scale();
+    window.addEventListener("resize", scale);
+    return () => window.removeEventListener("resize", scale);
+  }, [isMp]);
 
   // Check for an existing active pass when the modal opens
   useEffect(() => {
@@ -170,9 +202,17 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999,
-      display: "flex", alignItems: "center", justifyContent: "center",
       backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
+      overflow: "hidden",
     }}>
+      <div ref={wrapRef} style={isMp ? {
+        width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0,
+        transformOrigin: "top left",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      } : {
+        width: "100%", height: "100%",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
       <div style={{
         width: 520, borderRadius: 14,
         backgroundColor: "#080e1a",
@@ -194,7 +234,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               Play Ranked. No Fees.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: 4 }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? "24px" : "4px", minWidth: isMp ? 92 : undefined, minHeight: isMp ? 92 : undefined, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
         {step === "checking" ? (
@@ -272,7 +312,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => { setStep("idle"); setExistingPlan(null); }}
                 style={{
-                  padding: "9px 32px", borderRadius: 7,
+                  padding: isMp ? "36px 32px" : "9px 32px", borderRadius: 7,
                   background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.35)",
                   cursor: "pointer", fontSize: 11, fontWeight: 800, letterSpacing: 1.5,
                   textTransform: "uppercase", color: "#fbbf24", fontFamily: "inherit",
@@ -283,7 +323,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => { onActivated?.(); onClose(); }}
                 style={{
-                  padding: "12px 32px", borderRadius: 7,
+                  padding: isMp ? "38px 32px" : "12px 32px", borderRadius: 7,
                   background: "linear-gradient(135deg, #22c55e, #16a34a)",
                   border: "none", cursor: "pointer",
                   fontSize: 14, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase",
@@ -304,7 +344,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                   key={c}
                   onClick={() => setCurrency(c)}
                   style={{
-                    flex: 1, padding: "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                    flex: 1, padding: isMp ? "38px 8px" : "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
                     border: `1.5px solid ${currency === c ? (c === "gdollar" ? "#00C58E" : "#56a4cb") : "rgba(86,164,203,0.15)"}`,
                     background: currency === c ? (c === "gdollar" ? "rgba(0,197,142,0.1)" : "rgba(86,164,203,0.1)") : "rgba(255,255,255,0.02)",
                     fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
@@ -328,7 +368,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                     key={p.id}
                     onClick={() => setSelectedPlan(p.id)}
                     style={{
-                      flex: 1, padding: "14px 10px", borderRadius: 8, cursor: "pointer",
+                      flex: 1, padding: isMp ? "36px 10px" : "14px 10px", borderRadius: 8, cursor: "pointer",
                       border: `1.5px solid ${selectedPlan === p.id ? p.color : "rgba(86,164,203,0.15)"}`,
                       backgroundColor: selectedPlan === p.id ? `${p.color}12` : "rgba(255,255,255,0.02)",
                       boxShadow: selectedPlan === p.id ? `0 0 16px ${p.color}30` : "none",
@@ -394,7 +434,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 disabled={!address || step === "waiting-tx" || step === "confirming" || step === "registering"}
                 onClick={handlePurchase}
                 style={{
-                  width: "100%", padding: "14px", borderRadius: 8, cursor: "pointer",
+                  width: "100%", padding: isMp ? "36px" : "14px", borderRadius: 8, cursor: "pointer",
                   background: `linear-gradient(135deg, ${plan.color}22, ${plan.color}44)`,
                   border: `1.5px solid ${plan.color}`,
                   boxShadow: `0 0 20px ${plan.color}30`,
@@ -421,6 +461,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   );

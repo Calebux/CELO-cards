@@ -9,6 +9,7 @@ import { CHARACTERS } from './lib/gameData';
 import { WalletSection } from './components/WalletSection';
 import { HowToPlayModal } from './components/HowToPlayModal';
 import { SeasonPassModal } from './components/SeasonPassModal';
+import { MiniPayImage } from './components/MiniPayImage';
 import { useAccount } from 'wagmi';
 
 const DESIGN_W = 1440;
@@ -237,7 +238,7 @@ export default function ActionOrderLandingPage() {
           <div className="ko-land-page">
 
             {/* Background */}
-            <img className="ko-bg-image" src="/new-assets/landing-hero.png" alt="background" />
+            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.png" alt="background" minipayWidth={1280} minipayQuality={58} priority />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, rgba(5,8,18,0.82) 0%, rgba(5,8,18,0.22) 22%, rgba(5,8,18,0.22) 78%, rgba(5,8,18,0.82) 100%)", zIndex:1, pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 
@@ -432,7 +433,7 @@ export default function ActionOrderLandingPage() {
 
             {/* News card 1 */}
             <div className="ko-news-card" style={{ position:"absolute", left:1130, top:232, width:237, zIndex:15 }}>
-              <img className="ko-card-img" src="/new-assets/fighters-energy.jpeg" alt="Season 1" />
+              <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy.jpeg" alt="Season 1" minipayWidth={420} minipayQuality={58} />
               <div className="ko-card-title">
                 <p style={{ color:"#56a4cb", fontSize:10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>LATEST</p>
                 <p>SEASON 1: ORDER ASCENSION</p>
