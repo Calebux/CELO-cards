@@ -33,6 +33,11 @@ const config = createConfig({
 });
 
 const queryClient = new QueryClient();
+const AUTH_MODE_STORAGE_KEY = "ao-auth-mode";
+const APP_ACCENT = "#56a4cb";
+const APP_TEXT_ON_ACCENT = "#020202";
+const APP_SURFACE = "#0b1220";
+const APP_SURFACE_ALT = "#111c2d";
 
 const web3AuthClientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
 const web3AuthEnabled = Boolean(web3AuthClientId);
@@ -59,10 +64,20 @@ const web3AuthConfig: Web3AuthContextConfig | null = web3AuthEnabled
         chains: [toWeb3AuthChain(celo), toWeb3AuthChain(celoAlfajores)],
         uiConfig: {
           appName: "Action Order",
+          appUrl: "https://actionorder.app",
+          logoLight: "/logo.png",
+          logoDark: "/logo.png",
           mode: "dark",
           primaryButton: "socialLogin",
           loginMethodsOrder: ["google", "discord", "twitter", "apple", "github", "email_passwordless"],
           hideSuccessScreen: true,
+          useLogoLoader: false,
+          theme: {
+            primary: APP_ACCENT,
+            onPrimary: APP_TEXT_ON_ACCENT,
+          },
+          tncLink: "/terms",
+          privacyPolicy: "/privacy",
         },
         modalConfig: {
           connectors: {
@@ -98,36 +113,61 @@ function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [authMode, setAuthMode] = useState<AuthMode>(web3AuthEnabled ? "web3auth" : "wagmi");
+  const [authMode, setAuthMode] = useState<AuthMode>("wagmi");
+  const [socialLoginRequested, setSocialLoginRequested] = useState(false);
 
   useEffect(() => {
-    if (!web3AuthEnabled) return;
-    if (isMiniPay()) setAuthMode("wagmi");
-  }, []);
-
-  const content = useMemo(() => {
-    if (authMode === "web3auth" && web3AuthConfig) {
-      return (
-        <Web3AuthProvider config={web3AuthConfig}>
-          <Web3AuthWagmiProvider>
-            <AppShell>{children}</AppShell>
-          </Web3AuthWagmiProvider>
-        </Web3AuthProvider>
-      );
+    if (!web3AuthEnabled || isMiniPay()) {
+      setAuthMode("wagmi");
+      setSocialLoginRequested(false);
+      return;
     }
 
-    return (
-      <WagmiProvider config={config}>
-        <RainbowKitProvider>
-          <AppShell>{children}</AppShell>
-        </RainbowKitProvider>
-      </WagmiProvider>
-    );
-  }, [authMode, children]);
+    const savedMode = window.localStorage.getItem(AUTH_MODE_STORAGE_KEY);
+    if (savedMode === "web3auth") {
+      setAuthMode("web3auth");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!web3AuthEnabled || isMiniPay()) return;
+    window.localStorage.setItem(AUTH_MODE_STORAGE_KEY, authMode);
+  }, [authMode]);
+
+  const authModeValue = useMemo(() => ({
+    mode: authMode,
+    setMode: (mode: AuthMode) => {
+      setAuthMode(mode);
+      if (mode === "wagmi") {
+        setSocialLoginRequested(false);
+      }
+    },
+    web3AuthEnabled,
+    socialLoginRequested,
+    requestSocialLogin: () => {
+      setAuthMode("web3auth");
+      setSocialLoginRequested(true);
+    },
+    clearSocialLoginRequest: () => setSocialLoginRequested(false),
+  }), [authMode, socialLoginRequested]);
 
   return (
-    <AuthModeProvider mode={authMode}>
-      <QueryClientProvider client={queryClient}>{content}</QueryClientProvider>
+    <AuthModeProvider value={authModeValue}>
+      <QueryClientProvider client={queryClient}>
+        {authMode === "web3auth" && web3AuthConfig && !isMiniPay() ? (
+          <Web3AuthProvider config={web3AuthConfig}>
+            <Web3AuthWagmiProvider>
+              <AppShell>{children}</AppShell>
+            </Web3AuthWagmiProvider>
+          </Web3AuthProvider>
+        ) : (
+          <WagmiProvider config={config}>
+            <RainbowKitProvider>
+              <AppShell>{children}</AppShell>
+            </RainbowKitProvider>
+          </WagmiProvider>
+        )}
+      </QueryClientProvider>
     </AuthModeProvider>
   );
 }

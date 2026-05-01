@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, useReadContract } from "wagmi";
-import { useWeb3AuthConnect, useWeb3AuthDisconnect } from "@web3auth/modal/react";
+import { useWeb3Auth, useWeb3AuthConnect, useWeb3AuthDisconnect } from "@web3auth/modal/react";
+import { celo } from "wagmi/chains";
 import { isMiniPay, formatAddress } from "../lib/minipay";
 import { useAuthMode } from "../lib/authMode";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
@@ -30,16 +31,22 @@ function BalanceChip({ label, value, color }: { label: string; value: string; co
 }
 
 function Balances({ address }: { address: `0x${string}` }) {
-  const { data: celo } = useBalance({ address });
+  const { data: celoBalance } = useBalance({
+    address,
+    chainId: celo.id,
+    query: { enabled: !!address },
+  });
   const { data: gd } = useReadContract({
     address: GDOLLAR_CONTRACT,
     abi: GDOLLAR_ABI,
     functionName: "balanceOf",
     args: [address],
+    chainId: celo.id,
+    query: { enabled: !!address },
   });
 
-  const celoVal = celo ? parseFloat(formatUnits(celo.value, 18)).toFixed(3) : "—";
-  const gdVal   = gd   ? parseFloat(formatUnits(gd, 18)).toFixed(2) : "—";
+  const celoVal = celoBalance ? parseFloat(formatUnits(celoBalance.value, 18)).toFixed(3) : "—";
+  const gdVal   = gd          ? parseFloat(formatUnits(gd, 18)).toFixed(2) : "—";
 
   return (
     <>
@@ -87,8 +94,44 @@ function MuteButton() {
 function Web3AuthWalletButton({ base, address, playerName }: { base: React.CSSProperties; address?: `0x${string}`; playerName: string }) {
   const { connect, loading: connecting } = useWeb3AuthConnect();
   const { disconnect, loading: disconnecting } = useWeb3AuthDisconnect();
+  const { isConnected: web3AuthConnected, isInitializing } = useWeb3Auth();
+  const { setMode, socialLoginRequested, clearSocialLoginRequest } = useAuthMode();
   const connected = Boolean(address);
-  const busy = connecting || disconnecting;
+  const syncingWallet = web3AuthConnected && !address;
+  const busy = connecting || disconnecting || isInitializing || syncingWallet;
+
+  useEffect(() => {
+    if (!socialLoginRequested || web3AuthConnected || connecting || disconnecting || isInitializing) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      await connect();
+      if (!cancelled) clearSocialLoginRequest();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    clearSocialLoginRequest,
+    connect,
+    connecting,
+    disconnecting,
+    isInitializing,
+    socialLoginRequested,
+    web3AuthConnected,
+  ]);
+
+  const statusText = isInitializing
+    ? "INITIALIZING..."
+    : syncingWallet
+      ? "SYNCING..."
+      : busy
+        ? "LOADING..."
+        : connected
+          ? (playerName || formatAddress(address!))
+          : "SIGN IN";
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -121,9 +164,31 @@ function Web3AuthWalletButton({ base, address, playerName }: { base: React.CSSPr
             {connected ? "SOCIAL WALLET" : "SOCIAL LOGIN"}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
-            {busy ? "LOADING..." : connected ? (playerName || formatAddress(address!)) : "SIGN IN"}
+            {statusText}
           </div>
         </div>
+      </button>
+      <button
+        onClick={() => {
+          clearSocialLoginRequest();
+          setMode("wagmi");
+        }}
+        disabled={busy}
+        style={{
+          background: "rgba(86,164,203,0.08)",
+          border: "1px solid rgba(86,164,203,0.25)",
+          borderRadius: 6,
+          cursor: busy ? "default" : "pointer",
+          padding: "8px 12px",
+          color: "#56a4cb",
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 1.2,
+          opacity: busy ? 0.65 : 1,
+        }}
+        title="Use wallet connect instead"
+      >
+        USE WALLET
       </button>
     </div>
   );
@@ -132,7 +197,7 @@ function Web3AuthWalletButton({ base, address, playerName }: { base: React.CSSPr
 export function WalletSection() {
   const { address, isConnected } = useAccount();
   const { playerName } = useGameStore();
-  const authMode = useAuthMode();
+  const { mode, web3AuthEnabled, requestSocialLogin } = useAuthMode();
 
   const base: React.CSSProperties = {
     display: "flex",
@@ -147,7 +212,7 @@ export function WalletSection() {
     fontFamily: "var(--font-space-grotesk), sans-serif",
   };
 
-  if (authMode === "web3auth" && !isMiniPay()) {
+  if (mode === "web3auth" && !isMiniPay()) {
     return <Web3AuthWalletButton base={base} address={address} playerName={playerName} />;
   }
 
@@ -200,6 +265,26 @@ export function WalletSection() {
                 </div>
               </div>
             </button>
+            {web3AuthEnabled && !isMiniPay() && (
+              <button
+                onClick={requestSocialLogin}
+                style={{
+                  background: "rgba(86,164,203,0.08)",
+                  border: "1px solid rgba(86,164,203,0.25)",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  padding: "8px 12px",
+                  color: "#56a4cb",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 1.2,
+                  whiteSpace: "nowrap",
+                }}
+                title="Sign in with social login"
+              >
+                SOCIAL LOGIN
+              </button>
+            )}
           </div>
         );
       }}
