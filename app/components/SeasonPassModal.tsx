@@ -385,7 +385,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           <>
             {/* Currency toggle */}
             <div style={{ padding: "16px 24px 0", display: "flex", gap: 8 }}>
-              {(isMp ? ["usdt", "gdollar"] : ["celo", "gdollar"] as Currency[]).map((c) => {
+              {(isMp ? ["usdt", "celo", "gdollar"] : ["celo", "gdollar"] as Currency[]).map((c) => {
                 const activeColor = c === "gdollar" ? "#00C58E" : c === "usdt" ? "#26a17b" : "#56a4cb";
                 const label = c === "celo" ? "Pay with CELO" : c === "usdt" ? "Pay with USDT" : "Pay with G$";
                 return (

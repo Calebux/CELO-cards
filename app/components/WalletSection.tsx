@@ -5,7 +5,8 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
 import { getMiniPayConnector, isMiniPay, formatAddress } from "../lib/minipay";
-import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
+const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+const USDT_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
 import { formatUnits } from "viem";
 import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
@@ -34,9 +35,9 @@ function Balances({ address }: { address: `0x${string}` }) {
     chainId: celo.id,
     query: { enabled: !!address },
   });
-  const { data: gd } = useReadContract({
-    address: GDOLLAR_CONTRACT,
-    abi: GDOLLAR_ABI,
+  const { data: usdt } = useReadContract({
+    address: USDT_CONTRACT,
+    abi: USDT_ABI,
     functionName: "balanceOf",
     args: [address],
     chainId: celo.id,
@@ -44,12 +45,12 @@ function Balances({ address }: { address: `0x${string}` }) {
   });
 
   const celoVal = celoBalance ? parseFloat(formatUnits(celoBalance.value, 18)).toFixed(3) : "—";
-  const gdVal = gd ? parseFloat(formatUnits(gd, 18)).toFixed(2) : "—";
+  const usdtVal = usdt ? parseFloat(formatUnits(usdt, 6)).toFixed(2) : "—";
 
   return (
     <>
       <BalanceChip label="CELO" value={celoVal} color="#FBCC5C" />
-      <BalanceChip label="G$" value={gdVal} color="#00C58E" />
+      <BalanceChip label="USDT" value={usdtVal} color="#26a17b" />
     </>
   );
 }
