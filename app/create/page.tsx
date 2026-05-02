@@ -9,6 +9,7 @@ import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
+import { isMiniPay } from "../lib/minipay";
 import { useAccount } from "wagmi";
 
 const DESIGN_W = 1440;
@@ -76,6 +77,7 @@ const MATCH_TYPES: {
 ];
 
 export default function CreateMatch() {
+  const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("ranked");
   const [showWager, setShowWager] = useState(false);
@@ -128,8 +130,8 @@ export default function CreateMatch() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      setIsShortLandscape(vw > vh && vh < 760);
-      setIsCompactPhone(Math.min(vw, vh) <= 430);
+      setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
+      setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -148,7 +150,7 @@ export default function CreateMatch() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
-  }, []);
+  }, [isMp]);
 
   useEffect(() => {
     const mode = new URLSearchParams(window.location.search).get("mode");
