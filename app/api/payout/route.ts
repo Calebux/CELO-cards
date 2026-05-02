@@ -16,6 +16,10 @@ import {
   STREAM_FLOW_RATE,
 } from "../../lib/gooddollar";
 import { ServerMatch } from "../../lib/serverMatch";
+import {
+  buildPayoutClaimAuthMessage,
+  verifyTreasuryActionSignature,
+} from "../../lib/treasuryAuth";
 
 interface MatchWagerInfo {
   bothWagered: boolean;
@@ -35,6 +39,7 @@ function getMatchWagerInfo(match: ServerMatch): MatchWagerInfo {
 }
 
 const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
+const PAYOUT_LOCK_TTL_SECONDS = 120;
 
 // POST /api/payout
 // Body: { matchId: string, currency?: string }
@@ -47,10 +52,14 @@ export async function POST(req: NextRequest) {
 
   let matchId: string;
   let currency: "cusd" | "celo" | "gdollar" = "cusd";
+  let claimantAddress: string;
+  let signature: string;
   try {
-    const body = await req.json() as { matchId: string; currency?: string };
-    if (!body.matchId) throw new Error("missing fields");
+    const body = await req.json() as { matchId: string; currency?: string; address?: string; signature?: string };
+    if (!body.matchId || !body.address) throw new Error("missing fields");
     matchId = body.matchId;
+    claimantAddress = body.address;
+    signature = body.signature ?? "";
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
   } catch {
@@ -64,22 +73,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ txHash: existingPayout, cached: true });
   }
 
-  const match = await getMatch<ServerMatch>(matchId);
-  if (!match) {
-    return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  const lockKey = `payout-lock:${matchId}`;
+  const payoutLock = await redis.set(lockKey, Date.now().toString(), { nx: true, ex: PAYOUT_LOCK_TTL_SECONDS });
+  if (!payoutLock) {
+    return NextResponse.json({ error: "Payout already in progress" }, { status: 409 });
   }
-  if (match.mode !== "wager") {
-    return NextResponse.json({ error: "Payouts are only available for wager matches" }, { status: 409 });
-  }
-  if (!match.completedAt || !match.winnerAddress) {
-    return NextResponse.json({ error: "Match is not ready for payout" }, { status: 409 });
-  }
-  const winner = match.winnerAddress as `0x${string}`;
-
-  // Check if both players wagered and get the actual payout amount from their stakes
-  const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(match);
 
   try {
+    const match = await getMatch<ServerMatch>(matchId);
+    if (!match) {
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+    if (match.mode !== "wager") {
+      return NextResponse.json({ error: "Payouts are only available for wager matches" }, { status: 409 });
+    }
+    if (!match.completedAt || !match.winnerAddress) {
+      return NextResponse.json({ error: "Match is not ready for payout" }, { status: 409 });
+    }
+    const winner = match.winnerAddress as `0x${string}`;
+    if (winner.toLowerCase() !== claimantAddress.toLowerCase()) {
+      return NextResponse.json({ error: "Only the match winner can claim payout" }, { status: 403 });
+    }
+    const isValidSignature = await verifyTreasuryActionSignature(
+      claimantAddress,
+      signature,
+      buildPayoutClaimAuthMessage(claimantAddress, matchId, currency),
+    );
+    if (!isValidSignature) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    // Check if both players wagered and get the actual payout amount from their stakes
+    const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(match);
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);
 
     const publicClient = createPublicClient({
@@ -161,5 +186,7 @@ export async function POST(req: NextRequest) {
     const msg = e instanceof Error ? e.message : "Payout failed";
     console.error("Payout error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    await redis.del(lockKey).catch(() => {});
   }
 }

@@ -1,25 +1,46 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
+import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
 import { CHARACTERS } from './lib/gameData';
 import { WalletSection } from './components/WalletSection';
 import { HowToPlayModal } from './components/HowToPlayModal';
 import { SeasonPassModal } from './components/SeasonPassModal';
+import { MiniPayImage } from './components/MiniPayImage';
+import { useAccount } from 'wagmi';
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 export default function ActionOrderLandingPage() {
-  const { playerPoints, winStreak } = useGameStore();
+  const { playerPoints, winStreak, matchPhase, matchId, playerRole, selectedCharacter, vsBot } = useGameStore();
   const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const { address } = useAccount();
+  const serverResumeMatch = useActiveMatchResume(address);
+
+  const resumeRoute = useMemo(() => {
+    if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
+    if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
+    if (matchPhase === "loadout") return "/loadout";
+    if (matchPhase === "lobby") return "/select-character";
+    if (matchPhase === "waiting-for-opponent" && matchId) return "/select-character";
+    return null;
+  }, [matchId, matchPhase, selectedCharacter]);
+
+  const effectiveResumeRoute = resumeRoute ?? serverResumeMatch?.route ?? null;
+
+  const handleResume = () => {
+    if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
+    if (effectiveResumeRoute) router.push(effectiveResumeRoute);
+  };
 
 
 
@@ -217,7 +238,7 @@ export default function ActionOrderLandingPage() {
           <div className="ko-land-page">
 
             {/* Background */}
-            <img className="ko-bg-image" src="/new-assets/landing-hero.png" alt="background" />
+            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.png" alt="background" minipayWidth={1280} minipayQuality={58} priority />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, rgba(5,8,18,0.82) 0%, rgba(5,8,18,0.22) 22%, rgba(5,8,18,0.22) 78%, rgba(5,8,18,0.82) 100%)", zIndex:1, pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 
@@ -278,6 +299,25 @@ export default function ActionOrderLandingPage() {
                 <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
               </div>
             </Link>
+
+            {/* ── Match Resume Banner ──────────────────────────────── */}
+            {effectiveResumeRoute && (
+              <button
+                onClick={handleResume}
+                style={{
+                position: "absolute", left: "50%", transform: "translateX(-50%)", top: 118, zIndex: 16,
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
+                background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
+                border: "1px solid rgba(6,168,249,0.45)", borderRadius: 6, textDecoration: "none",
+                boxShadow: "0 0 14px rgba(6,168,249,0.28)",
+                fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Tap to Resume</span>
+              </button>
+            )}
 
             {/* ── Left Nav ─────────────────────────────────────────── */}
             <Link className="ko-nav-btn ko-btn-create" href="/create">
@@ -393,7 +433,7 @@ export default function ActionOrderLandingPage() {
 
             {/* News card 1 */}
             <div className="ko-news-card" style={{ position:"absolute", left:1130, top:232, width:237, zIndex:15 }}>
-              <img className="ko-card-img" src="/new-assets/fighters-energy.jpeg" alt="Season 1" />
+              <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy.jpeg" alt="Season 1" minipayWidth={420} minipayQuality={58} />
               <div className="ko-card-title">
                 <p style={{ color:"#56a4cb", fontSize:10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>LATEST</p>
                 <p>SEASON 1: ORDER ASCENSION</p>

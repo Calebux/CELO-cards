@@ -4,13 +4,25 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
-import { getMatch, setMatch, deleteMatch, addToOpenMatches, removeFromOpenMatches } from "../../../lib/redis";
+import {
+  getMatch,
+  setMatch,
+  deleteMatch,
+  addToOpenMatches,
+  removeFromOpenMatches,
+  setActiveMatchForAddress,
+  clearActiveMatchForAddress,
+} from "../../../lib/redis";
+import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 import { MultiplayerMode, isPaidMultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
+import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
 import { ServerMatch, newServerMatch, matchNeedsPayment } from "../../../lib/serverMatch";
+import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 
 const INACTIVITY_TIMEOUT      = 5  * 60 * 1000; // 5 minutes (free matches)
 const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes (paid matches)
+const ROUND_GRACE_MS = 30 * 1000; // grace when one player has submitted and the other is reconnecting
 
 function isTimedOut(match: ServerMatch): boolean {
   const bothJoined = match.host.charId && match.joiner.charId;
@@ -88,12 +100,21 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const slots = rawSlots
     ? role === "joiner" ? flipPerspective(rawSlots) : rawSlots
     : null;
+  const oneSubmittedThisRound =
+    (match.host.orderRound === match.round && !!match.host.cardIds) !==
+    (match.joiner.orderRound === match.round && !!match.joiner.cardIds);
+  const submitStartedAt = match.roundSubmitStartedAt ?? null;
+  const graceRemainingMs = oneSubmittedThisRound && submitStartedAt
+    ? Math.max(0, ROUND_GRACE_MS - (Date.now() - submitStartedAt))
+    : 0;
+  const opponentReconnecting = oneSubmittedThisRound && graceRemainingMs > 0;
 
   return NextResponse.json({
     round: match.round,
     opponentCharId,
     opponentName: other.playerName,
     selfCharId: self.charId,
+    selfCardIds: self.orderRound === match.round ? self.cardIds : null,
     phase,
     slots,
     hostWins:        role === "host" ? match.hostWins   : match.joinerWins,
@@ -104,6 +125,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     abortedBy:       match.abortedBy ?? null,
     mode:            match.mode,
     paymentRequired: modeNeedsEntryTx(match.mode),
+    opponentReconnecting,
+    graceRemainingMs,
   });
 }
 
@@ -153,8 +176,27 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   // Track open/closed state in the lobby list
   if (role === "host") {
     await addToOpenMatches(matchId).catch(() => {});
+    // Backup alert path: if keepalive was skipped, notify on first host character registration.
+    const notifyKey = `notify:new-match:${matchId}`;
+    const shouldNotify = await redis
+      .set(notifyKey, "1", { nx: true, ex: 7200 })
+      .then((v) => !!v)
+      .catch(() => true);
+    if (shouldNotify && match) {
+      await sendTelegramNewMatchAlert({
+        matchId,
+        mode: match.mode,
+        hostName: match.host.playerName,
+        hostAddress: match.host.address,
+      }).catch(() => false);
+    }
   } else if (role === "joiner") {
     await removeFromOpenMatches(matchId).catch(() => {});
+  }
+
+  const activeAddress = role === "host" ? match?.host.address : match?.joiner.address;
+  if (activeAddress) {
+    await setActiveMatchForAddress(activeAddress, matchId).catch(() => {});
   }
 
   return NextResponse.json({ ok: true });
@@ -192,17 +234,37 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "wager");
     }
     match.lastActivity = Date.now();
-    // Store player name and address if host provides them before character selection
-    if (validRole(role) && role === "host") {
-      if (typeof patchPlayerName === "string" && patchPlayerName && !match.host.playerName) {
-        match.host.playerName = patchPlayerName;
-      }
-      if (typeof patchAddress === "string" && patchAddress && !match.host.address) {
-        match.host.address = patchAddress;
-      }
+    // Store player name and address if either side reconnects before character selection.
+    const playerSlot = role === "host" ? match.host : match.joiner;
+    if (typeof patchPlayerName === "string" && patchPlayerName && !playerSlot.playerName) {
+      playerSlot.playerName = patchPlayerName;
+    }
+    if (typeof patchAddress === "string" && patchAddress && !playerSlot.address) {
+      playerSlot.address = patchAddress;
     }
     if (validMode(requestedMode)) match.mode = requestedMode;
     await setMatch(matchId, match).catch(() => {});
+    const activeAddress = role === "host" ? match.host.address : match.joiner.address;
+    if (activeAddress) {
+      await setActiveMatchForAddress(activeAddress, matchId).catch(() => {});
+    }
+    if (role === "host") {
+      // Robust one-time alert per match id, even if the match was created before keepalive.
+      const notifyKey = `notify:new-match:${matchId}`;
+      const shouldNotify = await redis
+        .set(notifyKey, "1", { nx: true, ex: 7200 })
+        .then((v) => !!v)
+        // Fail open: if Redis lock is unavailable, still send alert.
+        .catch(() => true);
+      if (shouldNotify) {
+        await sendTelegramNewMatchAlert({
+          matchId,
+          mode: match.mode,
+          hostName: match.host.playerName,
+          hostAddress: match.host.address,
+        }).catch(() => false);
+      }
+    }
     // Keep the match visible in open matches while waiting for a joiner
     if (validRole(role) && role === "host" && !match.joiner.charId) {
       await addToOpenMatches(matchId).catch(() => {});
@@ -237,6 +299,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Quit match ──────────────────────────────────────────────────────────
   if (action === "quit") {
+    let abortedMatch: ServerMatch | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);
       if (!match) return NextResponse.json({ ok: true });
@@ -244,12 +307,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match.lastActivity = Date.now();
       try {
         await setMatch(matchId, match);
+        abortedMatch = match;
         break;
       } catch {
         await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
       }
     }
     await removeFromOpenMatches(matchId).catch(() => {});
+    if (abortedMatch?.host.address) {
+      await clearActiveMatchForAddress(abortedMatch.host.address, matchId).catch(() => {});
+    }
+    if (abortedMatch?.joiner.address) {
+      await clearActiveMatchForAddress(abortedMatch.joiner.address, matchId).catch(() => {});
+    }
     return NextResponse.json({ ok: true });
   }
 
@@ -269,6 +339,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   let saved = false;
   // Captured after match state is saved — fired once outside the retry loop
   let matchEndSnapshot: { hostWon: boolean; m: ServerMatch } | null = null;
+  let roundTelemetrySnapshot: {
+    hostCharId: string;
+    joinerCharId: string;
+    hostCardIds: string[];
+    joinerCardIds: string[];
+    hostWonRound: boolean | null;
+    roundDurationMs: number;
+    round: number;
+  } | null = null;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     match = await getMatch<ServerMatch>(matchId);
@@ -284,11 +363,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       match.joiner.cardIds = null;
       match.joiner.orderRound = 0;
       match.resolvedSlots = null;
+      match.roundSubmitStartedAt = null;
     }
 
     const slot = role === "host" ? match.host : match.joiner;
     slot.cardIds = cardIds;
     slot.orderRound = round;
+    if (!match.roundSubmitStartedAt) {
+      match.roundSubmitStartedAt = Date.now();
+    }
 
     const m = match;
     // Check if both players have submitted for the current round
@@ -312,8 +395,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         .map((id) => CARDS.find((c) => c.id === id))
         .filter(Boolean) as typeof CARDS;
 
+      const roundDurationMs = match.roundSubmitStartedAt ? Math.max(0, Date.now() - match.roundSubmitStartedAt) : 0;
       const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar);
       m.resolvedSlots = result.slots;
+      m.roundSubmitStartedAt = null;
+      roundTelemetrySnapshot = {
+        hostCharId: hostChar.id,
+        joinerCharId: joinerChar.id,
+        hostCardIds: m.host.cardIds,
+        joinerCardIds: m.joiner.cardIds,
+        hostWonRound: result.roundWinner === "player" ? true : result.roundWinner === "opponent" ? false : null,
+        roundDurationMs,
+        round: m.round,
+      };
 
       if (result.roundWinner === "player") m.hostWins++;
       else if (result.roundWinner === "opponent") m.joinerWins++;
@@ -333,6 +427,30 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       matchEndSnapshot = null; // reset — will be re-computed on next attempt
       // Small random delay before retry
       await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+    }
+  }
+
+  if (
+    saved &&
+    roundTelemetrySnapshot &&
+    match &&
+    isRankedMultiplayerMode(match.mode) &&
+    match.host.address &&
+    match.joiner.address
+  ) {
+    try {
+      await recordRankedRoundTelemetry({
+        matchId,
+        round: roundTelemetrySnapshot.round,
+        hostCharId: roundTelemetrySnapshot.hostCharId,
+        joinerCharId: roundTelemetrySnapshot.joinerCharId,
+        hostCardIds: roundTelemetrySnapshot.hostCardIds,
+        joinerCardIds: roundTelemetrySnapshot.joinerCardIds,
+        hostWonRound: roundTelemetrySnapshot.hostWonRound,
+        roundDurationMs: roundTelemetrySnapshot.roundDurationMs,
+      });
+    } catch {
+      // Best-effort only.
     }
   }
 
@@ -384,8 +502,33 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
           opponentRoundsWon: m.hostWins,
         });
       }
+      if (
+        m.host.address &&
+        m.joiner.address &&
+        m.host.charId &&
+        m.joiner.charId &&
+        m.completedAt &&
+        isRankedMultiplayerMode(m.mode)
+      ) {
+        await recordRankedMatchTelemetry({
+          matchId,
+          hostAddress: m.host.address,
+          joinerAddress: m.joiner.address,
+          hostCharId: m.host.charId,
+          joinerCharId: m.joiner.charId,
+          hostWonMatch: hostWon,
+          createdAt: m.createdAt,
+          completedAt: m.completedAt,
+        });
+      }
     } catch {
       // Best-effort — leaderboard failure must not break the card submission
+    }
+    if (m.host.address) {
+      await clearActiveMatchForAddress(m.host.address, matchId).catch(() => {});
+    }
+    if (m.joiner.address) {
+      await clearActiveMatchForAddress(m.joiner.address, matchId).catch(() => {});
     }
   }
 
@@ -398,6 +541,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 // DELETE — clean up a finished or abandoned match
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
+  const match = await getMatch<ServerMatch>(matchId);
   await deleteMatch(matchId);
+  await removeFromOpenMatches(matchId).catch(() => {});
+  if (match?.host.address) {
+    await clearActiveMatchForAddress(match.host.address, matchId).catch(() => {});
+  }
+  if (match?.joiner.address) {
+    await clearActiveMatchForAddress(match.joiner.address, matchId).catch(() => {});
+  }
   return NextResponse.json({ ok: true });
 }

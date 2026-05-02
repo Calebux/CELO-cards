@@ -1,7 +1,9 @@
 "use client";
 
+import { MiniPayImage } from "../components/MiniPayImage";
 import { Card, CardType } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
+import { isMiniPay } from "../lib/minipay";
 
 export function getTypeColor(type: CardType): string {
   switch (type) {
@@ -127,6 +129,7 @@ interface ClashCinematicProps {
 }
 
 export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground }: ClashCinematicProps) {
+  const isMp = isMiniPay();
   const winnerColor = result.winner === "player" ? "#06a8f9"
     : result.winner === "opponent" ? opponentColor
       : "#fbbf24";
@@ -147,10 +150,10 @@ export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground
       animation: fadeOut ? "cinematicOut 0.4s ease forwards" : "cinematicIn 0.25s ease forwards",
     }}>
       {arenaBackground && (
-        <img src={arenaBackground} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        <MiniPayImage src={arenaBackground} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       )}
-      {actionVideo && (
-        <video src={actionVideo} autoPlay muted playsInline tabIndex={-1}
+      {actionVideo && !isMp && (
+        <video src={actionVideo} autoPlay muted playsInline preload="metadata" tabIndex={-1}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85, pointerEvents: "none" }}
         />
       )}
@@ -165,7 +168,7 @@ export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground
           animation: "slideInLeft 0.55s cubic-bezier(0.22,1,0.36,1) forwards, cardShake 0.35s 0.55s ease",
           flexShrink: 0,
         }}>
-          <img src={result.playerCard.image} alt={result.playerCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <MiniPayImage src={result.playerCard.image} alt={result.playerCard.name} minipayWidth={320} minipayQuality={52} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 10px 8px", background: "linear-gradient(transparent, rgba(0,0,0,0.9))" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 1 }}>{result.playerCard.name}</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#06a8f9" }}>+{result.playerKnock} KNC</div>
@@ -201,7 +204,7 @@ export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground
           animation: "slideInRight 0.55s cubic-bezier(0.22,1,0.36,1) forwards, cardShake 0.35s 0.55s ease",
           flexShrink: 0,
         }}>
-          <img src={result.opponentCard.image} alt={result.opponentCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <MiniPayImage src={result.opponentCard.image} alt={result.opponentCard.name} minipayWidth={320} minipayQuality={52} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 10px 8px", background: "linear-gradient(transparent, rgba(0,0,0,0.9))" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 1 }}>{result.opponentCard.name}</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: opponentColor }}>+{result.opponentKnock} KNC</div>

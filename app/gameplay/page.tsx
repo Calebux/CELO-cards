@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
@@ -12,7 +12,11 @@ import { PAYOUT_AMOUNT, DUAL_WAGER_PAYOUT, DUAL_WAGER_PAYOUT_CELO } from "../lib
 import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
+import { MiniPayImage } from "../components/MiniPayImage";
+import { OnboardingCoach } from "../components/OnboardingCoach";
 import { ShareCard } from "../components/ShareCard";
+import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
+import { isMiniPay } from "../lib/minipay";
 
 const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
@@ -23,6 +27,7 @@ const DESIGN_H = 823;
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMp = isMiniPay();
 
   const {
     selectedCharacter,
@@ -55,6 +60,7 @@ export default function Gameplay() {
     matchesPlayed,
     maxWinStreak,
     matchesLost,
+    playerAddress,
     playerName,
     opponentName,
     startMatch,
@@ -63,8 +69,16 @@ export default function Gameplay() {
     setVsBot,
     setWager,
     setMatchMode,
+    markOnboardingStep,
+    syncMultiplayerRoundState,
+    setSelectedCharacterFromServer,
+    setOpponentCharacterFromServer,
+    setCurrentOrderFromIds,
+    setPrecomputedFromServer,
+    setOpponentName,
   } = useGameStore();
   const { address } = useAccount();
+  const { signMessageAsync } = useSignMessage();
 
   const isMatchEnd = matchPhase === "match-end";
 
@@ -96,6 +110,27 @@ export default function Gameplay() {
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
   const payoutFiredRef = useRef(false);
+  const showResultRef = useRef(false);
+  const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
+  const [quitArmed, setQuitArmed] = useState(false);
+  const [resumeChecked, setResumeChecked] = useState(false);
+  const quitArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
+  const calloutWidth = isCompactPhone ? 420 : 560;
+  const combatMessage = slotResults.length > 0 ? slotResults[slotResults.length - 1] : null;
+
+  useEffect(() => {
+    if (!vsBot || playerAddress) return;
+    resetMatch();
+    setVsBot(false);
+    setMatchMode("vshouse");
+    router.replace("/create");
+  }, [playerAddress, resetMatch, router, setMatchMode, setVsBot, vsBot]);
+
+  // Keep showResultRef current so async polling callbacks read the live value.
+  useEffect(() => { showResultRef.current = showResult; }, [showResult]);
 
   // Stuck-game detection: if combat hasn't progressed in 90s, show recovery overlay
   useEffect(() => {
@@ -121,11 +156,43 @@ export default function Gameplay() {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { abortedBy?: string | null };
+        const data = await res.json() as {
+          abortedBy?: string | null;
+          phase?: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          round?: number;
+          hostWins?: number;
+          opponentWins?: number;
+          slots?: Parameters<typeof setPrecomputedFromServer>[0] | null;
+          selfCardIds?: string[] | null;
+        };
         const opponentRole = playerRole === "host" ? "joiner" : "host";
         if (data.abortedBy === opponentRole) {
           setOpponentLeft(true);
           clearInterval(interval);
+        }
+        if (
+          typeof data.round === "number" &&
+          typeof data.hostWins === "number" &&
+          typeof data.opponentWins === "number"
+        ) {
+          // Read live state after the async fetch — the closure values of
+          // matchPhase/showResult may be stale if finishRound() ran while
+          // the fetch was in-flight, which would wrongly reset currentRoundResult.
+          const liveMatchPhase = useGameStore.getState().matchPhase;
+          const shouldRestoreCombat =
+            data.phase === "resolved" &&
+            liveMatchPhase !== "round-result" &&
+            liveMatchPhase !== "match-end" &&
+            !showResultRef.current;
+          syncMultiplayerRoundState({
+            roundNumber: data.round,
+            selfWins: data.hostWins,
+            opponentWins: data.opponentWins,
+            resolvedSlots: shouldRestoreCombat ? data.slots ?? null : null,
+          });
+        }
+        if (typeof data.round === "number" && data.round >= roundNumber && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
         }
       } catch (e) {
         // ignore polling errors
@@ -133,7 +200,7 @@ export default function Gameplay() {
     }, 4000);
     
     return () => clearInterval(interval);
-  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft]);
+  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft, matchPhase, showResult, setCurrentOrderFromIds, setPrecomputedFromServer, syncMultiplayerRoundState]);
 
   // Start background music on mount
   useEffect(() => {
@@ -142,17 +209,106 @@ export default function Gameplay() {
   }, []);
 
   useEffect(() => {
+    if (vsBot || !matchId || !playerRole) {
+      setResumeChecked(true);
+      return;
+    }
+
+    let cancelled = false;
+    const recover = async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        if (!res.ok) return;
+        const data = await res.json() as {
+          phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          round: number;
+          hostWins: number;
+          opponentWins: number;
+          selfCharId?: string | null;
+          opponentCharId?: string | null;
+          opponentName?: string | null;
+          selfCardIds?: string[] | null;
+          slots?: Parameters<typeof setPrecomputedFromServer>[0] | null;
+        };
+        if (cancelled) return;
+
+        if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
+        if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
+        if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        const livePhase = useGameStore.getState().matchPhase;
+        const shouldRestoreCombat =
+          data.phase === "resolved" &&
+          livePhase !== "round-result" &&
+          livePhase !== "match-end" &&
+          !showResultRef.current;
+        syncMultiplayerRoundState({
+          roundNumber: data.round,
+          selfWins: data.hostWins,
+          opponentWins: data.opponentWins,
+          resolvedSlots: shouldRestoreCombat ? data.slots ?? null : null,
+        });
+        if (data.round >= roundNumber && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
+        }
+        if (data.phase === "resolved" && data.slots) {
+        } else if (data.phase !== "resolved" && matchPhase !== "match-end") {
+          router.replace("/loadout");
+        }
+      } catch {
+        // Best-effort only. Existing local state remains the fallback.
+      } finally {
+        if (!cancelled) setResumeChecked(true);
+      }
+    };
+
+    void recover();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    matchId,
+    matchPhase,
+    playerRole,
+    router,
+    setCurrentOrderFromIds,
+    setOpponentCharacterFromServer,
+    setOpponentName,
+    setPrecomputedFromServer,
+    setSelectedCharacterFromServer,
+    showResult,
+    syncMultiplayerRoundState,
+    vsBot,
+  ]);
+
+  useEffect(() => {
     if (!selectedCharacter || !opponentCharacter) {
+      if (!resumeChecked && !vsBot && matchId && playerRole) return;
       console.warn("Gameplay rendered without player/opponent state. Redirecting...");
       const t = setTimeout(() => router.push("/select-character"), 1500);
       return () => clearTimeout(t);
     }
-  }, [selectedCharacter, opponentCharacter, router]);
+  }, [selectedCharacter, opponentCharacter, router, resumeChecked, vsBot, matchId, playerRole]);
+
+  useEffect(() => {
+    if (matchPhase === "match-end") {
+      markOnboardingStep("finish_match");
+    }
+  }, [matchPhase, markOnboardingStep]);
+
+  useEffect(() => {
+    if (matchPhase !== "match-end" || typeof window === "undefined") return;
+    const navEntry = window.performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (navEntry?.type !== "reload") return;
+    resetMatch();
+    router.replace("/");
+  }, [matchPhase, resetMatch, router]);
 
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    setIsShortLandscape(vw > vh && vh < 760);
+    setIsCompactPhone(Math.min(vw, vh) <= 430);
     const isPortrait = vh > vw;
     let transform: string;
     if (isPortrait) {
@@ -174,6 +330,11 @@ export default function Gameplay() {
     window.addEventListener("resize", applyScale);
     return () => window.removeEventListener("resize", applyScale);
   }, [applyScale]);
+
+  // Prefetch next screen so round transitions are less sensitive to poor network.
+  useEffect(() => {
+    void router.prefetch("/loadout");
+  }, [router]);
 
   // wrapRef only mounts after matchLoading → false, so re-apply scale then
   useEffect(() => {
@@ -289,16 +450,25 @@ export default function Gameplay() {
     setComboBanner(null);
     nextRound();
     router.push("/loadout");
+    // Fallback: if app-router navigation stalls due poor connection, force route.
+    setTimeout(() => {
+      if (window.location.pathname.includes("/gameplay")) {
+        window.location.replace("/loadout");
+      }
+    }, 450);
   };
 
   const handleClaimPayout = async () => {
     if (!address || !matchId || payoutState !== "idle" || matchMode !== "wager") return;
     setPayoutState("loading");
     try {
+      const signature = await signMessageAsync({
+        message: buildPayoutClaimAuthMessage(address, matchId, wagerCurrency),
+      });
       const res = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, currency: wagerCurrency }),
+        body: JSON.stringify({ matchId, currency: wagerCurrency, address, signature }),
       });
       const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");
@@ -397,8 +567,25 @@ export default function Gameplay() {
 
     resetMatch();
     stopBgMusic();
-    router.push("/");
+    // Hard navigation guarantees we always land on home from any gameplay state.
+    window.location.href = "/";
   };
+
+  const handleQuitClick = () => {
+    if (quitArmed) {
+      if (quitArmTimerRef.current) clearTimeout(quitArmTimerRef.current);
+      setQuitArmed(false);
+      handleBackToMenu();
+      return;
+    }
+    setQuitArmed(true);
+    if (quitArmTimerRef.current) clearTimeout(quitArmTimerRef.current);
+    quitArmTimerRef.current = setTimeout(() => setQuitArmed(false), 2500);
+  };
+
+  useEffect(() => () => {
+    if (quitArmTimerRef.current) clearTimeout(quitArmTimerRef.current);
+  }, []);
 
   const handleNextOpponent = useCallback(() => {
     playSound("click");
@@ -454,6 +641,11 @@ export default function Gameplay() {
       : PAYOUT_AMOUNT;
   const payoutAmountDisplay = `${formatUnits(effectivePayoutAmt, 18)} ${payoutTokenSymbol}`;
   const isGDollar = wagerCurrency === "gdollar";
+  const payoutSteps = [
+    { key: "submitted", label: "Submitted", done: payoutState === "loading" || payoutState === "done" },
+    { key: "confirmed", label: "Confirmed", done: payoutState === "done" },
+    { key: "streamed", label: isGDollar ? "Streamed" : "Settled", done: payoutState === "done" },
+  ];
   const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 
   if (!selectedCharacter || !opponentCharacter) {
@@ -480,6 +672,7 @@ export default function Gameplay() {
           <MatchLoadingScreen
             playerName={playerName || selectedCharacter.name}
             opponentName={opponentName || opponentCharacter.name}
+            matchId={matchId}
             playerColor={selectedCharacter.color}
             opponentColor={opponentCharacter.color}
             playerPortrait={selectedCharacter.standingArt}
@@ -489,7 +682,7 @@ export default function Gameplay() {
         )}
 
         {/* Background */}
-        <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_MAIN} alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
 
         {/* Flash Effect */}
@@ -501,65 +694,146 @@ export default function Gameplay() {
           }} />
         )}
 
-        {/* Critical hit banner */}
-        {critBanner && (
+        {/* Centered combat callouts */}
+        {(critBanner || comboBanner || (isLastStand && !isMatchEnd) || combatMessage) && (
           <div style={{
-            position: "absolute", top: "30%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 80, pointerEvents: "none",
-            padding: "12px 28px",
-            background: critBanner === "player" ? "rgba(249,115,22,0.95)" : "rgba(239,68,68,0.95)",
-            border: `2px solid ${critBanner === "player" ? "#f97316" : "#ef4444"}`,
-            borderRadius: 6,
-            boxShadow: `0 0 40px ${critBanner === "player" ? "#f97316" : "#ef4444"}`,
-            animation: "critPop 0.3s ease-out",
+            position: "absolute",
+            top: isCompactPhone ? "35%" : "33%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: calloutWidth,
+            zIndex: 80,
+            pointerEvents: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
           }}>
-            <span style={{ fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: 2, textTransform: "uppercase" }}>
-              {critBanner === "player" ? "⚡ CRITICAL HIT!" : "💥 OPPONENT CRITS!"}
-            </span>
-          </div>
-        )}
-
-        {/* Combo banner */}
-        {comboBanner && (
-          <div style={{
-            position: "absolute", top: "38%", left: "50%", transform: "translateX(-50%)",
-            zIndex: 79, pointerEvents: "none",
-            padding: "10px 24px",
-            background: comboBanner === "player" ? "rgba(251,191,36,0.95)" : "rgba(167,139,250,0.95)",
-            borderRadius: 6,
-            boxShadow: `0 0 30px ${comboBanner === "player" ? "#fbbf24" : "#a78bfa"}`,
-            animation: "critPop 0.3s ease-out",
-          }}>
-            <span style={{ fontSize: 18, fontWeight: 900, color: "#000", letterSpacing: 2 }}>
-              {comboBanner === "player" ? "🔥 COMBO STREAK! +3" : "🔥 OPPONENT COMBO! +3"}
-            </span>
-          </div>
-        )}
-
-        {/* Last Stand banner */}
-        {isLastStand && !isMatchEnd && (
-          <div style={{
-            position: "absolute", bottom: 120, left: "50%", transform: "translateX(-50%)",
-            zIndex: 60, pointerEvents: "none",
-            padding: "8px 20px",
-            background: "rgba(239,68,68,0.15)",
-            border: "1px solid rgba(239,68,68,0.5)",
-            borderRadius: 6,
-            animation: "pulse 1.5s ease-in-out infinite",
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: "#ef4444", letterSpacing: 2, textTransform: "uppercase" }}>
-              🛡️ LAST STAND — +20% KNOCK
-            </span>
+            {critBanner && (
+              <div style={{
+                width: "100%",
+                padding: isCompactPhone ? "12px 18px" : "14px 24px",
+                background: critBanner === "player"
+                  ? "linear-gradient(135deg, rgba(249,115,22,0.24), rgba(15,25,40,0.94))"
+                  : "linear-gradient(135deg, rgba(239,68,68,0.22), rgba(15,25,40,0.94))",
+                border: `1.5px solid ${critBanner === "player" ? "rgba(249,115,22,0.7)" : "rgba(239,68,68,0.7)"}`,
+                borderRadius: 10,
+                boxShadow: `0 0 26px ${critBanner === "player" ? "rgba(249,115,22,0.22)" : "rgba(239,68,68,0.22)"}`,
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+                animation: "critPop 0.3s ease-out",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: critBanner === "player" ? "#fdba74" : "#fca5a5", letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 4 }}>
+                  Impact Window
+                </div>
+                <div style={{ fontSize: isCompactPhone ? 20 : 24, fontWeight: 900, color: "#fff", letterSpacing: 1.4, textTransform: "uppercase", textShadow: `0 0 14px ${critBanner === "player" ? "rgba(249,115,22,0.55)" : "rgba(239,68,68,0.55)"}` }}>
+                  {critBanner === "player" ? "Critical Hit" : "Opponent Critical"}
+                </div>
+              </div>
+            )}
+            {comboBanner && (
+              <div style={{
+                width: "100%",
+                padding: isCompactPhone ? "10px 18px" : "12px 22px",
+                background: comboBanner === "player"
+                  ? "linear-gradient(135deg, rgba(251,191,36,0.2), rgba(15,25,40,0.92))"
+                  : "linear-gradient(135deg, rgba(167,139,250,0.2), rgba(15,25,40,0.92))",
+                border: `1.5px solid ${comboBanner === "player" ? "rgba(251,191,36,0.55)" : "rgba(167,139,250,0.55)"}`,
+                borderRadius: 10,
+                boxShadow: `0 0 22px ${comboBanner === "player" ? "rgba(251,191,36,0.18)" : "rgba(167,139,250,0.18)"}`,
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+                animation: "critPop 0.3s ease-out",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: comboBanner === "player" ? "#fde68a" : "#ddd6fe", letterSpacing: 2.2, textTransform: "uppercase", marginBottom: 3 }}>
+                  Sequence Pressure
+                </div>
+                <div style={{ fontSize: isCompactPhone ? 16 : 18, fontWeight: 900, color: "#fff", letterSpacing: 1.3, textTransform: "uppercase" }}>
+                  {comboBanner === "player" ? "Combo Streak +3" : "Opponent Combo +3"}
+                </div>
+              </div>
+            )}
+            {isLastStand && !isMatchEnd && (
+              <div style={{
+                width: "100%",
+                padding: isCompactPhone ? "9px 16px" : "10px 18px",
+                background: "linear-gradient(135deg, rgba(239,68,68,0.18), rgba(15,25,40,0.9))",
+                border: "1.5px solid rgba(239,68,68,0.45)",
+                borderRadius: 10,
+                boxShadow: "0 0 18px rgba(239,68,68,0.14)",
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+                animation: "pulse 1.5s ease-in-out infinite",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#fca5a5", letterSpacing: 2.2, textTransform: "uppercase", marginBottom: 3 }}>
+                  Last Chance
+                </div>
+                <div style={{ fontSize: isCompactPhone ? 14 : 15, fontWeight: 900, color: "#fff", letterSpacing: 1.2, textTransform: "uppercase" }}>
+                  +20% Knock Boost Active
+                </div>
+              </div>
+            )}
+            {combatMessage && (
+              <div key={slotResults.length} style={{
+                width: "100%",
+                padding: isCompactPhone ? "12px 18px" : "14px 24px",
+                borderRadius: 10,
+                backgroundColor: "rgba(15,25,40,0.92)",
+                border: `1.5px solid ${
+                  combatMessage.winner === "player"
+                    ? "rgba(6,168,249,0.5)"
+                    : combatMessage.winner === "opponent"
+                      ? `${opponent?.color || "#f906a8"}80`
+                      : "rgba(251,191,36,0.5)"
+                }`,
+                boxShadow: `0 0 24px ${
+                  combatMessage.winner === "player"
+                    ? "rgba(6,168,249,0.16)"
+                    : combatMessage.winner === "opponent"
+                      ? `${opponent?.color || "#f906a8"}22`
+                      : "rgba(251,191,36,0.16)"
+                }`,
+                backdropFilter: "blur(14px)",
+                textAlign: "center",
+              }}>
+                <div style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: 2.2,
+                  color: combatMessage.winner === "player" ? "#7dd3fc" : combatMessage.winner === "opponent" ? "#f9a8d4" : "#fcd34d",
+                  textTransform: "uppercase",
+                  marginBottom: 4,
+                }}>
+                  Slot Resolution
+                </div>
+                <div style={{
+                  fontSize: isCompactPhone ? 15 : 18,
+                  fontWeight: 800,
+                  color: "#fff",
+                  letterSpacing: 0.35,
+                  lineHeight: 1.45,
+                  textShadow: `0 0 10px ${
+                    combatMessage.winner === "player"
+                      ? "rgba(6,168,249,0.3)"
+                      : combatMessage.winner === "opponent"
+                        ? `${opponent?.color || "#f906a8"}55`
+                        : "rgba(251,191,36,0.28)"
+                  }`,
+                }}>
+                  {combatMessage.description}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Momentum bar */}
-        <div style={{ position: "absolute", bottom: 88, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
+        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 106 : 88}px)`, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: isCompactPhone ? 4 : 6 }}>
+          <span style={{ fontSize: isCompactPhone ? 8 : 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
           <div style={{ display: "flex", gap: 3 }}>
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} style={{
-                width: 18, height: 8, borderRadius: 2,
+                width: isCompactPhone ? 15 : 18, height: 8, borderRadius: 2,
                 background: i < momentum ? "#4ade80" : "rgba(255,255,255,0.1)",
                 boxShadow: i < momentum ? "0 0 6px #4ade80" : "none",
                 transition: "all 0.3s ease",
@@ -569,31 +843,32 @@ export default function Gameplay() {
         </div>
 
         {/* Bottom Left Controls */}
-        <div style={{ position: "absolute", bottom: 16, left: 32, zIndex: 20, display: "flex", gap: 12 }}>
+        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, left: isCompactPhone ? 20 : 32, zIndex: 20, display: "flex", gap: 12 }}>
           {!isMatchEnd && (
             <button
-              onClick={() => {
-                if (window.confirm("Are you sure you want to quit? This will abandon the match.")) {
-                  handleBackToMenu();
-                }
-              }}
+              onClick={handleQuitClick}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 14px",
-                background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)",
+                padding: isCompactPhone ? "9px 14px" : "6px 14px",
+                background: quitArmed ? "rgba(239,68,68,0.2)" : "rgba(0,0,0,0.6)",
+                border: quitArmed ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
                 backdropFilter: "blur(6px)",
                 transition: "all 0.2s ease",
               }}
             >
-              <span className="material-icons" style={{ fontSize: 14, color: "#6b7280" }}>arrow_back</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>QUIT</span>
+              <span className="material-icons" style={{ fontSize: isCompactPhone ? 18 : 14, color: quitArmed ? "#fca5a5" : "#6b7280" }}>arrow_back</span>
+              <span style={{ fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, color: quitArmed ? "#fca5a5" : "#6b7280", letterSpacing: 1, textTransform: "uppercase" }}>
+                {quitArmed ? "PRESS AGAIN TO QUIT" : "QUIT"}
+              </span>
             </button>
           )}
         </div>
 
+        {!isMatchEnd && <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 90px)`, right: 20, zIndex: 18 }} accent="#4ade80" />}
+
         {/* ── HUD ──────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 16, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 16px)`, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>
 
           {/* P1 block */}
           <div style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: "1px solid rgba(6,168,249,0.15)", borderRadius: 4, padding: "10px 14px" }}>
@@ -651,7 +926,7 @@ export default function Gameplay() {
         </div>
 
         {/* ── Total Points Panel ───────────────────────────── */}
-        <div style={{ position: "absolute", top: 96, left: 32, zIndex: 10, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 4, padding: "8px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 96px)`, left: 32, zIndex: 10, backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 4, padding: "8px 16px", display: "flex", alignItems: "center", gap: 12 }}>
           <span className="material-icons" style={{ color: "#fbbf24", fontSize: 22, textShadow: "0 0 10px rgba(251,191,36,0.6)" }}>stars</span>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: 9, letterSpacing: 1, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", fontWeight: 700 }}>Total Score</span>
@@ -663,7 +938,7 @@ export default function Gameplay() {
 
         {/* ── Ultimate Ability Button ──────────────────────── */}
         {player?.ultimate && !ultimateUsed && (
-          <div style={{ position: "absolute", top: 96, right: 32, zIndex: 10 }}>
+          <div style={{ position: "absolute", top: `calc(${safeTop} + 96px)`, right: 32, zIndex: 10 }}>
             <button
               onClick={() => { if (!ultimateActivated && !isAnimating) { activateUltimate(); playSound("click"); } }}
               disabled={ultimateActivated || isAnimating || revealedSlots > 0}
@@ -709,7 +984,7 @@ export default function Gameplay() {
         )}
 
         {/* ── Combat Resolution Area ────────────────────────── */}
-        <div style={{ position: "absolute", top: 120, left: 0, right: 0, bottom: 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 24, gap: 16, zIndex: 5 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 120px)`, left: 0, right: 0, bottom: isShortLandscape ? 292 : 270, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 24, gap: 16, zIndex: 5 }}>
 
           {/* Knock Totals */}
           <div style={{ display: "flex", gap: 60, alignItems: "center", marginBottom: 8 }}>
@@ -724,81 +999,6 @@ export default function Gameplay() {
             </div>
           </div>
 
-          {/* Current Slot Display */}
-          {slotResults.length > 0 && (
-            <div key={slotResults.length} style={{
-              display: "flex", alignItems: "center", gap: 40,
-              backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)",
-              border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "20px 40px",
-            }}>
-              {/* Last revealed slot result */}
-              {(() => {
-                const last = slotResults[slotResults.length - 1];
-                return (
-                  <>
-                    {/* Player card */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 110, height: 153, borderRadius: 6, position: "relative", overflow: "hidden", border: `2px solid ${last.winner === "player" ? "#4ade80" : last.winner === "draw" ? "yellow" : "#ef4444"}`, boxShadow: last.winner === "player" ? "0 0 20px rgba(74,222,128,0.4)" : "none" }}>
-                        <img src={last.playerCard.image} alt={last.playerCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
-                        {last.winner === "player" && <div style={{ position: "absolute", inset: 0, border: "3px solid #4ade80", borderRadius: 4, pointerEvents: "none" }} />}
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "white" }}>{last.playerCard.name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#06a8f9" }}>+{last.playerKnock} KNC</span>
-                    </div>
-
-                    {/* VS */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 24, fontWeight: 700, color: "rgba(255,255,255,0.3)" }}>VS</span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, padding: "4px 10px", borderRadius: 4,
-                        backgroundColor: last.winner === "player" ? "rgba(6,168,249,0.2)" : last.winner === "opponent" ? "rgba(249,6,168,0.2)" : "rgba(255,255,0,0.2)",
-                        color: last.winner === "player" ? "#06a8f9" : last.winner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24",
-                      }}>
-                        {last.winner === "player" ? "WIN" : last.winner === "opponent" ? "LOSE" : "DRAW"}
-                      </span>
-                    </div>
-
-                    {/* Opponent card */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 110, height: 153, borderRadius: 6, position: "relative", overflow: "hidden", border: `2px solid ${last.winner === "opponent" ? "#4ade80" : last.winner === "draw" ? "yellow" : "#ef4444"}`, boxShadow: last.winner === "opponent" ? "0 0 20px rgba(74,222,128,0.4)" : "none" }}>
-                        <img src={last.opponentCard.image} alt={last.opponentCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
-                        {last.winner === "opponent" && <div style={{ position: "absolute", inset: 0, border: "3px solid #4ade80", borderRadius: 4, pointerEvents: "none" }} />}
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "white" }}>{last.opponentCard.name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: opponent?.color || "#f906a8" }}>+{last.opponentKnock} KNC</span>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* Combat message callout */}
-          {slotResults.length > 0 && (() => {
-            const last = slotResults[slotResults.length - 1];
-            const msgColor = last.winner === "player" ? "#06a8f9" : last.winner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24";
-            return (
-              <div key={slotResults.length} style={{
-                maxWidth: 620,
-                textAlign: "center",
-                padding: "14px 28px",
-                borderRadius: 8,
-                backgroundColor: `${msgColor}12`,
-                border: `1.5px solid ${msgColor}50`,
-                boxShadow: `0 0 20px ${msgColor}20`,
-              }}>
-                <div style={{
-                  fontSize: 18, fontWeight: 800,
-                  color: "#fff",
-                  letterSpacing: 0.5,
-                  lineHeight: 1.5,
-                  textShadow: `0 0 12px ${msgColor}80`,
-                }}>
-                  {last.description}
-                </div>
-              </div>
-            );
-          })()}
         </div>
 
         {/* ── Slot Timeline — raised, loadout-style panel ────── */}
@@ -806,8 +1006,8 @@ export default function Gameplay() {
         {/* Panel — matches loadout bottom deck panel exactly */}
         <div style={{
           position: "absolute",
-          left: 100, top: 565,
-          width: 1240, height: 215,
+          left: 100, top: isShortLandscape ? 542 : 565,
+          width: 1240, height: isShortLandscape ? 198 : 215,
           backgroundColor: "rgba(15, 25, 40, 0.92)",
           border: "2px solid rgba(90, 191, 230, 0.4)",
           borderRadius: 10,
@@ -876,7 +1076,7 @@ export default function Gameplay() {
                       transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                     }}>
                       {revealed && pCard ? (
-                        <img src={pCard.image} alt={pCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                        <MiniPayImage src={pCard.image} alt={pCard.name} minipayWidth={160} minipayQuality={50} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         <div style={{ position: "relative" }}>
                           <span className="material-icons" style={{ fontSize: 14, color: "rgba(90,191,230,0.15)" }}>help_outline</span>
@@ -894,7 +1094,7 @@ export default function Gameplay() {
                       transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                     }}>
                       {revealed && oCard ? (
-                        <img src={oCard.image} alt={oCard.name} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                        <MiniPayImage src={oCard.image} alt={oCard.name} minipayWidth={160} minipayQuality={50} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         <div style={{ position: "relative" }}>
                           <span className="material-icons" style={{ fontSize: 14, color: "rgba(90,191,230,0.15)" }}>help_outline</span>
@@ -930,21 +1130,21 @@ export default function Gameplay() {
                   onClick={!isAnimating ? revealNextSlot : undefined}
                   className="ko-btn ko-btn-primary"
                   style={{
-                    padding: "9px 28px",
+                    padding: isCompactPhone ? "12px 34px" : "9px 28px",
                     cursor: isAnimating ? "wait" : "pointer",
                     opacity: isAnimating ? 0.5 : 1,
                   }}
                 >
-                  <span className="ko-btn-text" style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 3, color: "#fff" }}>REVEAL SLOT</span>
-                  <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "#fff" }}>play_arrow</span>
+                  <span className="ko-btn-text" style={{ fontSize: isCompactPhone ? 15 : 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 3, color: "#fff" }}>REVEAL SLOT</span>
+                  <span className="material-icons ko-btn-icon" style={{ fontSize: isCompactPhone ? 20 : 16, color: "#fff" }}>play_arrow</span>
                 </button>
                 <button
                   onClick={autoReveal}
                   className="ko-btn ko-btn-secondary"
-                  style={{ padding: "9px 24px" }}
+                  style={{ padding: isCompactPhone ? "12px 28px" : "9px 24px" }}
                 >
-                  <span className="ko-btn-text" style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "rgba(255,255,255,0.9)" }}>AUTO REVEAL</span>
-                  <span className="material-icons ko-btn-icon" style={{ fontSize: 15, color: "rgba(255,255,255,0.9)" }}>double_arrow</span>
+                  <span className="ko-btn-text" style={{ fontSize: isCompactPhone ? 14 : 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "rgba(255,255,255,0.9)" }}>AUTO REVEAL</span>
+                  <span className="material-icons ko-btn-icon" style={{ fontSize: isCompactPhone ? 18 : 15, color: "rgba(255,255,255,0.9)" }}>double_arrow</span>
                 </button>
               </>
             )}
@@ -959,7 +1159,7 @@ export default function Gameplay() {
           return (
             <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
-              <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
+              <MiniPayImage src={BG_MAIN} alt="" minipayWidth={1280} minipayQuality={56} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, zIndex: -1, pointerEvents: "none" }} />
 
               <div style={{ position: "relative", width: 540 }}>
                 {/* Corner accents */}
@@ -995,7 +1195,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 16px ${won ? "rgba(74,222,128,0.4)" : "rgba(239,68,68,0.3)"}`,
                         opacity: won ? 1 : 0.55,
                       }}>
-                        <img src={player?.standingArt} alt={player?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={player?.standingArt} alt={player?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#06a8f9", textTransform: "uppercase" }}>{player?.name}</span>
                     </div>
@@ -1019,7 +1219,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 16px ${roundWinner === "opponent" ? "rgba(74,222,128,0.4)" : "rgba(239,68,68,0.3)"}`,
                         opacity: roundWinner === "opponent" ? 1 : 0.55,
                       }}>
-                        <img src={opponent?.standingArt} alt={opponent?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={opponent?.standingArt} alt={opponent?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: opponent?.color ?? "#f906a8", textTransform: "uppercase" }}>{opponent?.name}</span>
                     </div>
@@ -1071,10 +1271,10 @@ export default function Gameplay() {
                   <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 20 }}>
                     <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
                     <button
-                      onClick={handleBackToMenu}
+                      onClick={handleQuitClick}
                       style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
                     >
-                      Quit Match
+                      {quitArmed ? "Press Again to Quit" : "Quit Match"}
                     </button>
                     <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
                   </div>
@@ -1096,10 +1296,10 @@ export default function Gameplay() {
               {/* Background */}
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -1 }} />
               {/* Winner finisher video */}
-              <video key={finisherVideo} autoPlay loop muted playsInline
+              {!isMp && <video key={finisherVideo} autoPlay loop muted playsInline preload="metadata"
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.28, zIndex: -1, pointerEvents: "none" }}>
                 <source src={finisherVideo} type="video/webm" />
-              </video>
+              </video>}
 
               {/* Centered layout — matches join page exactly */}
               <div style={{ position: "relative", width: 540 }}>
@@ -1137,7 +1337,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 20px ${won ? "rgba(74,222,128,0.5)" : "rgba(239,68,68,0.3)"}`,
                         opacity: won ? 1 : 0.45,
                       }}>
-                        <img src={player?.standingArt} alt={player?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={player?.standingArt} alt={player?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#06a8f9", textTransform: "uppercase" }}>{player?.name}</span>
                     </div>
@@ -1163,7 +1363,7 @@ export default function Gameplay() {
                         boxShadow: `0 0 20px ${!won ? "rgba(74,222,128,0.5)" : "rgba(239,68,68,0.3)"}`,
                         opacity: !won ? 1 : 0.45,
                       }}>
-                        <img src={opponent?.standingArt} alt={opponent?.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
+                        <MiniPayImage src={opponent?.standingArt} alt={opponent?.name} minipayWidth={240} minipayQuality={54} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: opponent?.color ?? "#f906a8", textTransform: "uppercase" }}>{opponent?.name}</span>
                     </div>
@@ -1212,50 +1412,49 @@ export default function Gameplay() {
                   {/* Payout — wager matches only. */}
                   {matchMode === "wager" && wagerActive && won && (
                     <div style={{ marginBottom: 20 }}>
-                      {(payoutState === "idle" || payoutState === "loading") && (
-                        <div style={{ textAlign: "center", padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                          <span style={{ fontSize: 12, animation: "ml-pulse 1.2s ease-in-out infinite", color: isGDollar ? "#00C58E" : "#b9e7f4" }}>●</span>
-                          <span style={{ fontSize: 13, color: isGDollar ? "#00C58E" : "#b9e7f4", letterSpacing: 1 }}>
-                            {isGDollar ? "Starting G$ stream via Superfluid…" : "Sending winnings…"}
+                      <div style={{ padding: "12px 14px", background: isGDollar ? "rgba(0,197,142,0.08)" : "rgba(86,164,203,0.08)", border: `1px solid ${isGDollar ? "rgba(0,197,142,0.35)" : "rgba(86,164,203,0.35)"}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: isGDollar ? "#00C58E" : "#56a4cb", textTransform: "uppercase" }}>
+                            Payout Timeline
                           </span>
+                          {payoutTxHash && (
+                            <a
+                              href={`https://celoscan.io/tx/${payoutTxHash}`}
+                              target="_blank" rel="noopener noreferrer"
+                              style={{ fontSize: 10, fontWeight: 700, color: isGDollar ? "#00C58E" : "#56a4cb", textDecoration: "underline", letterSpacing: 0.4 }}
+                            >
+                              View on Celoscan ↗
+                            </a>
+                          )}
                         </div>
-                      )}
-                      {payoutState === "done" && !isGDollar && (
-                        <div style={{ textAlign: "center", padding: "14px 0" }}>
-                          <span style={{ fontSize: 13, color: "#4ade80", letterSpacing: 0.5 }}>
-                            ✓ {payoutAmountDisplay} sent!{" "}
-                            {payoutTxHash && (
-                              <a
-                                href={`https://celoscan.io/tx/${payoutTxHash}`}
-                                target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize: 11, color: "#56a4cb", textDecoration: "underline" }}
-                              >
-                                View on Celoscan ↗
-                              </a>
-                            )}
-                          </span>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr", alignItems: "center", gap: 6 }}>
+                          {payoutSteps.map((step, idx) => (
+                            <div key={step.key} style={{ display: "contents" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <div style={{
+                                  width: 9, height: 9, borderRadius: "50%",
+                                  background: step.done ? (isGDollar ? "#00C58E" : "#56a4cb") : "rgba(100,116,139,0.45)",
+                                  boxShadow: step.done ? `0 0 8px ${isGDollar ? "#00C58E" : "#56a4cb"}` : "none",
+                                  animation: payoutState === "loading" && step.key === "submitted" ? "pulse 1.2s ease-in-out infinite" : "none",
+                                }} />
+                                <span style={{ fontSize: 10, color: step.done ? "#e2e8f0" : "#64748b", fontWeight: 600 }}>{step.label}</span>
+                              </div>
+                              {idx < payoutSteps.length - 1 && (
+                                <div style={{ width: 16, height: 1, background: "rgba(100,116,139,0.5)" }} />
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      )}
-                      {payoutState === "done" && isGDollar && (
-                        <div style={{ padding: "14px 16px", background: "rgba(0,197,142,0.08)", border: "1px solid rgba(0,197,142,0.35)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00C58E", boxShadow: "0 0 8px #00C58E", animation: "pulse 1.5s ease-in-out infinite" }} />
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "#00C58E", letterSpacing: 0.5 }}>G$ streaming to your wallet</span>
-                          </div>
-                          <span style={{ fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
-                            {payoutAmountDisplay} flowing over 24h via Superfluid.{" "}
-                            {payoutTxHash && (
-                              <a
-                                href={`https://celoscan.io/tx/${payoutTxHash}`}
-                                target="_blank" rel="noopener noreferrer"
-                                style={{ color: "#00C58E", textDecoration: "underline" }}
-                              >
-                                View stream ↗
-                              </a>
-                            )}
-                          </span>
-                        </div>
-                      )}
+                        <span style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.45 }}>
+                          {payoutState === "done"
+                            ? (isGDollar
+                              ? `${payoutAmountDisplay} is flowing via Superfluid stream.`
+                              : `${payoutAmountDisplay} settled to your wallet.`)
+                            : (isGDollar
+                              ? "Submitting payout and opening stream..."
+                              : "Submitting payout transaction...")}
+                        </span>
+                      </div>
                       {payoutState === "error" && (
                         <div style={{ textAlign: "center", padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 12, color: "#f87171" }}>Payout failed — please try again.</span>
@@ -1301,7 +1500,7 @@ export default function Gameplay() {
                                 border: `1.5px solid ${s.winner === "player" ? "#4ade80" : "#334155"}`,
                                 boxShadow: s.winner === "player" ? "0 0 6px rgba(74,222,128,0.4)" : "none",
                               }}>
-                                <img src={s.playerCard.image} alt={s.playerCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <MiniPayImage src={s.playerCard.image} alt={s.playerCard.name} minipayWidth={120} minipayQuality={48} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               </div>
                               <span style={{ fontSize: 8, fontWeight: 600, color: s.winner === "player" ? "#b9e7f4" : "#475569", lineHeight: 1.2, wordBreak: "break-word" }}>{s.playerCard.name}</span>
                             </div>
@@ -1317,7 +1516,7 @@ export default function Gameplay() {
                                 border: `1.5px solid ${s.winner === "opponent" ? "#f87171" : "#334155"}`,
                                 boxShadow: s.winner === "opponent" ? "0 0 6px rgba(248,113,113,0.4)" : "none",
                               }}>
-                                <img src={s.opponentCard.image} alt={s.opponentCard.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <MiniPayImage src={s.opponentCard.image} alt={s.opponentCard.name} minipayWidth={120} minipayQuality={48} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               </div>
                             </div>
                             {/* KNK score */}
@@ -1344,7 +1543,7 @@ export default function Gameplay() {
                   )}
 
                   {/* Action buttons */}
-                  <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
+                  <div style={{ display: "flex", gap: isCompactPhone ? 12 : 10, marginBottom: 0 }}>
                     {/* Rematch — ranked goes to character select, others go to loadout */}
                     <button
                       onClick={() => {
@@ -1356,14 +1555,14 @@ export default function Gameplay() {
                           router.push("/loadout");
                         }
                       }}
-                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
+                      style={{ flex: 2, height: isCompactPhone ? 60 : 52, background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "1.5px solid #fbbf24", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: isCompactPhone ? 15 : 14, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)", boxShadow: "0 0 18px rgba(251,191,36,0.2)" }}
                     >
                       🔄 REMATCH
                     </button>
                     {/* Play Again — new character */}
                     <button
                       onClick={() => { resetMatch(); router.push("/select-character"); }}
-                      style={{ flex: 2, height: 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 12, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" }}
+                      style={{ flex: 2, height: isCompactPhone ? 60 : 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: isCompactPhone ? 13 : 12, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" }}
                     >
                       NEW MATCH
                     </button>
@@ -1372,11 +1571,11 @@ export default function Gameplay() {
                       <button
                         onClick={handleNextOpponent}
                         style={{
-                          flex: 2, height: 52,
+                          flex: 2, height: isCompactPhone ? 60 : 52,
                           background: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
                           border: "1.5px solid #4ade80",
                           borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-                          fontWeight: 800, fontSize: 12, letterSpacing: 1.5,
+                          fontWeight: 800, fontSize: isCompactPhone ? 13 : 12, letterSpacing: 1.5,
                           color: "#4ade80", textTransform: "uppercase",
                         }}
                       >
@@ -1386,13 +1585,13 @@ export default function Gameplay() {
                     {/* Share card */}
                     <button
                       onClick={() => setShowShareCard(true)}
-                      style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      style={{ width: isCompactPhone ? 60 : 52, height: isCompactPhone ? 60 : 52, flexShrink: 0, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                       title="Share result card"
                     >
-                      <span className="material-icons" style={{ fontSize: 20, color: "#e2e8f0" }}>share</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 24 : 20, color: "#e2e8f0" }}>share</span>
                     </button>
                     {/* Return to Menu — secondary */}
-                    <button onClick={handleBackToMenu} style={{ width: 52, height: 52, flexShrink: 0, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 11, letterSpacing: 1, color: "#6b7280", textTransform: "uppercase" }}>
+                    <button onClick={handleBackToMenu} style={{ width: isCompactPhone ? 60 : 52, height: isCompactPhone ? 60 : 52, flexShrink: 0, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: isCompactPhone ? 12 : 11, letterSpacing: 1, color: "#6b7280", textTransform: "uppercase" }}>
                       MENU
                     </button>
                   </div>

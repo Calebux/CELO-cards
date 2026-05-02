@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { celo } from "wagmi/chains";
 import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { formatUnits } from "viem";
 
@@ -13,6 +14,7 @@ export function ClaimGDollar() {
     abi: IDENTITY_ABI,
     functionName: "isWhitelisted",
     args: address ? [address] : undefined,
+    chainId: celo.id,
     query: { enabled: !!address },
   });
 
@@ -21,6 +23,7 @@ export function ClaimGDollar() {
     abi: UBISCHEME_ABI,
     functionName: "checkEntitlement",
     args: address ? [address] : undefined,
+    chainId: celo.id,
     query: { enabled: !!address && isWhitelisted === true },
   });
 
@@ -40,7 +43,7 @@ export function ClaimGDollar() {
 
   function handleClaim() {
     reset();
-    writeContract({ address: UBISCHEME_CONTRACT, abi: UBISCHEME_ABI, functionName: "claim" });
+    writeContract({ address: UBISCHEME_CONTRACT, abi: UBISCHEME_ABI, functionName: "claim", chainId: celo.id });
   }
 
   return (

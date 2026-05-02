@@ -14,6 +14,13 @@ const BG_IMAGE = "/new addition/gameplay landing page.webp";
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
+async function fetchSeasonPass(address: string) {
+  const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
+    cache: "no-store",
+  });
+  return res.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>;
+}
+
 type Achievement = {
   id: string;
   icon: string;
@@ -41,6 +48,9 @@ export default function ProfilePage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address } = useAccount();
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
 
   const {
     playerPoints,
@@ -67,9 +77,11 @@ export default function ProfilePage() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
 
   useEffect(() => {
-    if (!address) return;
-    fetch(`/api/season-pass?address=${address}`)
-      .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
+    if (!address) {
+      setPassInfo(null);
+      return;
+    }
+    fetchSeasonPass(address)
       .then(setPassInfo)
       .catch(() => {});
   }, [address]);
@@ -145,6 +157,7 @@ export default function ProfilePage() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -214,7 +227,7 @@ export default function ProfilePage() {
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.78)" }} />
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: isCompactPhone ? "0 28px" : "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
@@ -226,7 +239,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Main layout — 3 columns, pinned below nav, no scroll */}
-        <div style={{ position: "absolute", left: "50%", top: 80, transform: "translateX(-50%)", width: 1300, display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ position: "absolute", left: "50%", top: `calc(${safeTop} + 80px)`, bottom: `calc(${safeBottom} + 12px)`, transform: "translateX(-50%)", width: isCompactPhone ? 1330 : 1300, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", paddingRight: 8 }}>
 
           {/* ── Col 1: Identity + G$ + Stats ── */}
           <div style={{ width: 230, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -345,7 +358,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* ── Col 2: Achievements ── */}
+          {/* ── Col 2: Achievements + Owned Cards ── */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1.5px solid #b9e7f4", borderRadius: 8, backdropFilter: "blur(6px)", padding: "22px 22px 18px", boxShadow: "0 0 20px rgba(185,231,244,0.15)", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1.5, backgroundColor: "#56a4cb" }} />
@@ -399,9 +412,58 @@ export default function ProfilePage() {
                 <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
               </div>
             </div>
+
+            {/* Owned cards — full width under achievements */}
+            <div style={{ marginTop: 14, backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: "16px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#f87171", textTransform: "uppercase" }}>
+                  Black Market Cards
+                </div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>{ownedCards.length} owned</div>
+              </div>
+
+              {ownedCards.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "18px 0" }}>
+                  <div style={{ fontSize: 22, marginBottom: 7 }}>🃏</div>
+                  <div style={{ fontSize: 10, color: "#334155", lineHeight: "15px" }}>No premium cards yet</div>
+                  <button
+                    onClick={() => router.push("/black-market")}
+                    style={{ marginTop: 9, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 5, padding: "6px 12px", color: "#f87171", fontSize: 10, fontWeight: 800, cursor: "pointer", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
+                  >
+                    Visit Market
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(4, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: isCompactPhone ? 12 : 8, justifyItems: "center" }}>
+                  {ownedCards.map((card) => (
+                    <div
+                      key={card.id}
+                      title={card.name}
+                      style={{
+                        width: isCompactPhone ? 98 : 82,
+                        borderRadius: 6,
+                        overflow: "hidden",
+                        border: `1.5px solid ${card.color}`,
+                        position: "relative",
+                        background: "rgba(2,6,23,0.7)",
+                        aspectRatio: "170 / 236",
+                      }}
+                    >
+                      <img src={card.image} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))", padding: "10px 6px 5px", textAlign: "center" }}>
+                        <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.35, lineHeight: 1.2 }}>{card.name}</div>
+                      </div>
+                      <div style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.72)", borderRadius: "50%", width: 17, height: 17, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: 8, fontWeight: 800, color: card.color }}>{card.knock}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* ── Col 3: Main + Top Rival + My Cards ── */}
+          {/* ── Col 3: Main + Top Rival ── */}
           <div style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
             {(favouriteChar || topRival) ? (
               <>
@@ -439,42 +501,6 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* My Cards */}
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: "14px 12px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#f87171", textTransform: "uppercase" }}>
-                  Black Market
-                </div>
-                <div style={{ fontSize: 9, color: "#475569" }}>{ownedCards.length} owned</div>
-              </div>
-
-              {ownedCards.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "14px 0" }}>
-                  <div style={{ fontSize: 20, marginBottom: 6 }}>🃏</div>
-                  <div style={{ fontSize: 9, color: "#334155", lineHeight: "13px" }}>No premium cards yet</div>
-                  <button
-                    onClick={() => router.push("/black-market")}
-                    style={{ marginTop: 8, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 5, padding: "5px 12px", color: "#f87171", fontSize: 9, fontWeight: 800, cursor: "pointer", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}
-                  >
-                    VISIT MARKET
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {ownedCards.map((card) => (
-                    <div key={card.id} title={card.name} style={{ width: 78, borderRadius: 6, overflow: "hidden", border: `1.5px solid ${card.color}`, position: "relative" }}>
-                      <img src={card.image} alt={card.name} style={{ width: "100%", height: 100, objectFit: "cover", display: "block" }} />
-                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))", padding: "8px 4px 4px", textAlign: "center" }}>
-                        <div style={{ fontSize: 7, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.3, lineHeight: 1.2 }}>{card.name}</div>
-                      </div>
-                      <div style={{ position: "absolute", top: 3, right: 3, background: "rgba(0,0,0,0.7)", borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: card.color }}>{card.knock}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
         </div>
@@ -495,8 +521,7 @@ export default function ProfilePage() {
             setShowSeasonPassModal(false);
             // Refresh pass info after purchase/renewal
             if (address) {
-              fetch(`/api/season-pass?address=${address}`)
-                .then(r => r.json() as Promise<{ active: boolean; expiry: number | null; plan: string | null }>)
+              fetchSeasonPass(address)
                 .then(setPassInfo)
                 .catch(() => {});
             }

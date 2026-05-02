@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
 import { MultiplayerMode } from "./matchmaking";
+import { createEmptyOnboardingProgress, isOnboardingComplete, OnboardingProgress, OnboardingStepId } from "./onboarding";
 import {
     generateAIOrder,
     AIRoundContext,
@@ -125,6 +126,8 @@ interface GameState {
     playerName: string;
     opponentName: string | null;
     hasSeenTutorial: boolean;
+    onboardingProgress: OnboardingProgress;
+    onboardingCoachHidden: boolean;
 
     // Deck presets
     deckPresets: DeckPreset[];
@@ -143,6 +146,17 @@ interface GameState {
     setPlayerName: (name: string) => void;
     setOpponentName: (name: string | null) => void;
     setHasSeenTutorial: (v: boolean) => void;
+    markOnboardingStep: (step: OnboardingStepId) => void;
+    resetOnboardingProgress: () => void;
+    setOnboardingCoachHidden: (hidden: boolean) => void;
+    syncMultiplayerRoundState: (payload: {
+        roundNumber: number;
+        selfWins: number;
+        opponentWins: number;
+        resolvedSlots?: SlotResult[] | null;
+    }) => void;
+    setSelectedCharacterFromServer: (charId: string) => void;
+    setCurrentOrderFromIds: (cardIds: string[]) => void;
     savePreset: (name: string) => void;
     loadPreset: (index: number) => void;
     deletePreset: (index: number) => void;
@@ -214,6 +228,8 @@ export const useGameStore = create<GameState>()(
     playerName: "",
     opponentName: null,
     hasSeenTutorial: false,
+    onboardingProgress: createEmptyOnboardingProgress(),
+    onboardingCoachHidden: false,
     deckPresets: [],
     ultimateActivated: false,
     ultimateUsed: false,
@@ -241,6 +257,66 @@ export const useGameStore = create<GameState>()(
     setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
     setOpponentName: (name) => set({ opponentName: name ? name.slice(0, 20) : null }),
     setHasSeenTutorial: (v) => set({ hasSeenTutorial: v }),
+    markOnboardingStep: (step) => set((state) => {
+        if (state.onboardingProgress[step]) return state;
+        const nextProgress = { ...state.onboardingProgress, [step]: true };
+        if (isOnboardingComplete(nextProgress) && !nextProgress.completedAt) {
+            nextProgress.completedAt = Date.now();
+        }
+        return { onboardingProgress: nextProgress };
+    }),
+    resetOnboardingProgress: () => set({ onboardingProgress: createEmptyOnboardingProgress(), onboardingCoachHidden: false }),
+    setOnboardingCoachHidden: (hidden) => set({ onboardingCoachHidden: hidden }),
+    syncMultiplayerRoundState: ({ roundNumber, selfWins, opponentWins, resolvedSlots }) => {
+        set((state) => {
+            // Never let an older server snapshot pull the client back into a previous round.
+            if (roundNumber < state.roundNumber) {
+                return state;
+            }
+
+            let baseSelfWins = selfWins;
+            let baseOpponentWins = opponentWins;
+
+            if (resolvedSlots) {
+                const totalPlayerKnock = resolvedSlots.reduce((sum, slot) => sum + slot.playerKnock, 0);
+                const totalOpponentKnock = resolvedSlots.reduce((sum, slot) => sum + slot.opponentKnock, 0);
+                if (totalPlayerKnock > totalOpponentKnock) {
+                    baseSelfWins = Math.max(0, selfWins - 1);
+                } else if (totalOpponentKnock > totalPlayerKnock) {
+                    baseOpponentWins = Math.max(0, opponentWins - 1);
+                }
+            }
+
+            return {
+                roundNumber,
+                playerRoundsWon: baseSelfWins,
+                opponentRoundsWon: baseOpponentWins,
+                ...(resolvedSlots
+                    ? {
+                        precomputedRound: resolvedSlots,
+                        opponentOrder: resolvedSlots.map((slot) => slot.opponentCard),
+                        matchPhase: "combat" as MatchPhase,
+                        revealedSlots: 0,
+                        currentRoundResult: null,
+                    }
+                    : {}),
+            };
+        });
+    },
+    setSelectedCharacterFromServer: (charId) => {
+        const char = CHARACTERS.find((c) => c.id === charId);
+        if (char) set({ selectedCharacter: char, maxEnergy: calcEnergyPool(char) });
+    },
+    setCurrentOrderFromIds: (cardIds) => {
+        const nextOrder: (Card | null)[] = [null, null, null, null, null];
+        cardIds
+            .slice(0, 5)
+            .forEach((id, index) => {
+                const card = CARDS.find((c) => c.id === id) ?? null;
+                nextOrder[index] = card;
+            });
+        set({ currentOrder: nextOrder });
+    },
 
     savePreset: (name) => {
         const { currentOrder, deckPresets } = get();
@@ -251,18 +327,25 @@ export const useGameStore = create<GameState>()(
     },
 
     loadPreset: (index) => {
-        const { deckPresets, playerDeck, maxEnergy } = get();
+        const { deckPresets, maxEnergy } = get();
         const preset = deckPresets[index];
         if (!preset) return;
         const allCards = [...CARDS];
         const cards = preset.cardIds
             .map((id) => allCards.find((c) => c.id === id))
             .filter((c): c is Card => !!c);
-        // Validate energy budget
-        const totalCost = cards.reduce((s, c) => s + c.energyCost, 0);
-        if (totalCost > maxEnergy) return; // preset no longer valid for this character
+        // If preset exceeds energy for current character, apply a best-fit subset
+        // instead of silently failing so the user always gets a loaded result.
+        const fitted: Card[] = [];
+        let spent = 0;
+        for (const c of cards) {
+            if (fitted.length >= 5) break;
+            if (spent + c.energyCost > maxEnergy) continue;
+            fitted.push(c);
+            spent += c.energyCost;
+        }
         const newOrder: (Card | null)[] = [null, null, null, null, null];
-        cards.slice(0, 5).forEach((c, i) => { newOrder[i] = c; });
+        fitted.forEach((c, i) => { newOrder[i] = c; });
         set({ currentOrder: newOrder });
     },
 
@@ -690,6 +773,11 @@ export const useGameStore = create<GameState>()(
         matchPhase: state.matchPhase,
         vsBot: state.vsBot,
         aiDifficulty: state.aiDifficulty,
+        currentOrder: state.currentOrder,
+        opponentOrder: state.opponentOrder,
+        currentRoundResult: state.currentRoundResult,
+        precomputedRound: state.precomputedRound,
+        revealedSlots: state.revealedSlots,
         wagerActive: state.wagerActive,
         wagerTxHash: state.wagerTxHash,
         wagerCurrency: state.wagerCurrency,
@@ -710,6 +798,8 @@ export const useGameStore = create<GameState>()(
         matchHistory: state.matchHistory,
         playerName: state.playerName,
         hasSeenTutorial: state.hasSeenTutorial,
+        onboardingProgress: state.onboardingProgress,
+        onboardingCoachHidden: state.onboardingCoachHidden,
         deckPresets: state.deckPresets,
         unlockedPremiumCards: state.unlockedPremiumCards,
       }),

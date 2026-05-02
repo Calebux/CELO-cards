@@ -6,11 +6,11 @@ import { celo, celoAlfajores } from "wagmi/chains";
 import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { WalletSync } from "./lib/wallet";
+import { miniPayConnector } from "./lib/minipay";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
 import { UsernameModal } from "./components/UsernameModal";
 import { TutorialModal } from "./components/TutorialModal";
-
 
 const { connectors } = getDefaultWallets({
   appName: "Action Order",
@@ -23,7 +23,7 @@ const config = createConfig({
     [celo.id]: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
     [celoAlfajores.id]: http(),
   },
-  connectors,
+  connectors: [miniPayConnector, ...connectors],
 });
 
 const queryClient = new QueryClient();
@@ -44,4 +44,3 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </WagmiProvider>
   );
 }
-

@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { useGameStore } from "../lib/gameStore";
-import { CARDS, Card, CardType } from "../lib/gameData";
+import { CARDS, Card, CardType, CHARACTERS } from "../lib/gameData";
+import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../lib/archetypes";
+import { MiniPayImage } from "../components/MiniPayImage";
+import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
@@ -30,27 +34,72 @@ const TYPE_COLORS: Record<string, string> = {
 // Special cards shown separately below
 const SPECIAL_STRIKE_ID = "phantom_break";
 const SPECIAL_DEFENSE_ID = "reversal_edge";
+const LOADOUT_GUIDE_KEY = "ao-loadout-guide-seen";
 
-function CardTooltip({ card }: { card: Card }) {
+function compactText(text?: string): string {
+  if (!text) return "—";
+  const firstSentence = text.split(".")[0]?.trim() ?? text.trim();
+  return firstSentence.length > 64 ? `${firstSentence.slice(0, 61)}...` : `${firstSentence}${firstSentence.endsWith(".") ? "" : "."}`;
+}
+
+function compactPresetWhy(text?: string): string {
+  if (!text) return "";
+  return text.length > 58 ? `${text.slice(0, 55).trimEnd()}...` : text;
+}
+
+type TooltipAnchor = { left: number; top: number; width: number; height: number };
+
+function CardTooltip({ card, anchor, mobileSheet = false }: { card: Card; anchor: TooltipAnchor; mobileSheet?: boolean }) {
   const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
   const col = typeColors[card.type] ?? "#56a4cb";
-  return (
+  const intel = CARD_INTEL[card.id];
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+  const tooltipWidth = mobileSheet ? Math.min(320, Math.max(260, viewportWidth - 24)) : 210;
+  const tooltipHeight = mobileSheet ? (intel ? 248 : 190) : (intel ? 210 : 160);
+  const preferLeft = anchor.left + anchor.width / 2 + tooltipWidth > viewportWidth - 16;
+  const left = mobileSheet
+    ? Math.max(12, (viewportWidth - tooltipWidth) / 2)
+    : preferLeft
+      ? Math.max(12, anchor.left + anchor.width / 2 - tooltipWidth)
+      : Math.min(viewportWidth - tooltipWidth - 12, anchor.left + anchor.width / 2);
+  const top = mobileSheet
+    ? Math.max(12, viewportHeight - tooltipHeight - 20)
+    : Math.min(
+        Math.max(12, anchor.top + anchor.height / 2 - tooltipHeight / 2),
+        Math.max(12, viewportHeight - tooltipHeight - 12),
+      );
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div style={{
-      position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)",
-      width: 210, zIndex: 200, pointerEvents: "none",
+      position: "fixed",
+      top,
+      left,
+      width: tooltipWidth,
+      zIndex: 600,
+      pointerEvents: "none",
       backgroundColor: "rgba(8, 12, 24, 0.98)",
       border: `1.5px solid ${col}70`,
-      borderRadius: 8,
-      padding: "12px 14px",
-      boxShadow: `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.9)`,
+      borderRadius: mobileSheet ? 12 : 8,
+      padding: mobileSheet ? "14px 16px" : "12px 14px",
+      boxShadow: mobileSheet ? `0 0 24px ${col}26, 0 16px 36px rgba(0,0,0,0.9)` : `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.9)`,
     }}>
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, backgroundColor: col, borderRadius: "10px 10px 0 0" }} />
-      <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
+      <div style={{ fontSize: mobileSheet ? 14 : 13, fontWeight: 800, color: "#fff", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
       <div style={{ display: "flex", gap: 6, marginBottom: 9 }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: col, backgroundColor: `${col}20`, padding: "2px 7px", borderRadius: 3, textTransform: "uppercase" }}>{card.type}</span>
-        <span style={{ fontSize: 9, color: "#94a3b8", padding: "2px 7px", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 3 }}>⚡{card.energyCost}</span>
+        <span style={{ fontSize: mobileSheet ? 10 : 9, fontWeight: 700, color: col, backgroundColor: `${col}20`, padding: mobileSheet ? "3px 8px" : "2px 7px", borderRadius: 3, textTransform: "uppercase" }}>{card.type}</span>
+        <span style={{ fontSize: mobileSheet ? 10 : 9, color: "#94a3b8", padding: mobileSheet ? "3px 8px" : "2px 7px", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 3 }}>⚡{card.energyCost}</span>
       </div>
-      <p style={{ fontSize: 11, color: "#94a3b8", lineHeight: "15px", margin: 0, marginBottom: 11 }}>{card.effect}</p>
+      <p style={{ fontSize: mobileSheet ? 12 : 11, color: "#94a3b8", lineHeight: mobileSheet ? "17px" : "15px", margin: 0, marginBottom: 11 }}>{card.effect}</p>
+      {intel && (
+        <div style={{ marginBottom: 10, padding: "7px 8px", borderRadius: 6, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.18)" }}>
+          <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#56a4cb", letterSpacing: 1.1, textTransform: "uppercase", fontWeight: 700 }}>Role: {intel.role}</div>
+          <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#93c5fd", marginTop: 3 }}>Strong vs {intel.strongVs}</div>
+          <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#fca5a5", marginTop: 2 }}>Weak vs {intel.weakVs}</div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 14, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 9 }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{card.knock}</div>
@@ -65,18 +114,37 @@ function CardTooltip({ card }: { card: Card }) {
           <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Energy</div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 export default function Loadout() {
+  const storePersist = (useGameStore as typeof useGameStore & {
+    persist?: {
+      hasHydrated?: () => boolean;
+      onHydrate?: (fn: () => void) => () => void;
+      onFinishHydration?: (fn: () => void) => () => void;
+    };
+  }).persist;
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [activeTab, setActiveTab] = useState(0);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ card: Card; anchor: TooltipAnchor } | null>(null);
+  const [pinnedTooltip, setPinnedTooltip] = useState<{ card: Card; anchor: TooltipAnchor } | null>(null);
+  const [isTouchMode, setIsTouchMode] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
+  const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const [storeHydrated, setStoreHydrated] = useState(
+    typeof window !== "undefined" ? (storePersist?.hasHydrated?.() ?? true) : true
+  );
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
 
   const {
     selectedCharacter,
+    selectCharacter,
     currentOrder,
     addCardToSlot,
     removeCardFromSlot,
@@ -92,20 +160,26 @@ export default function Loadout() {
     savePreset,
     loadPreset,
     deletePreset,
-    ultimateActivated,
-    ultimateUsed,
-    activateUltimate,
     unlockedPremiumCards,
+    setSelectedCharacterFromServer,
     setOpponentCharacterFromServer,
+    setCurrentOrderFromIds,
+    syncMultiplayerRoundState,
     setOpponentName,
     resetMatch,
+    markOnboardingStep,
   } = useGameStore();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [pollErrorCount, setPollErrorCount] = useState(0);
+  const [netStatus, setNetStatus] = useState<"online" | "reconnecting" | "offline">("online");
+  const [graceRemainingMs, setGraceRemainingMs] = useState<number>(0);
   const [showPresets, setShowPresets] = useState(false);
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState("");
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [showLoadoutGuide, setShowLoadoutGuide] = useState(false);
+  const [selectedArchetypeKey, setSelectedArchetypeKey] = useState<ArchetypeKey | null>(null);
 
   const currentFilter = TABS[activeTab].filter;
   const accentColor = TYPE_COLORS[currentFilter];
@@ -128,14 +202,99 @@ export default function Loadout() {
   };
 
   const { regular: regularCards, special: specialCard } = getCardsForTab();
+  const starterArchetypes = getStarterArchetypes(selectedCharacter?.id);
+  const selectedArchetype = starterArchetypes.find((preset) => preset.key === selectedArchetypeKey) ?? starterArchetypes[0] ?? null;
   const filledSlots = currentOrder.filter((s) => s !== null).length;
   const isOrderComplete = filledSlots === 5;
+
+  useEffect(() => {
+    if (!storePersist?.onHydrate || !storePersist?.onFinishHydration || !storePersist?.hasHydrated) {
+      setStoreHydrated(true);
+      return;
+    }
+    const unsubStart = storePersist.onHydrate(() => setStoreHydrated(false));
+    const unsubFinish = storePersist.onFinishHydration(() => setStoreHydrated(true));
+    setStoreHydrated(storePersist.hasHydrated());
+    return () => {
+      unsubStart();
+      unsubFinish();
+    };
+  }, [storePersist]);
+
+  useEffect(() => {
+    if (storeHydrated && !selectedCharacter && !(matchId && playerRole)) {
+      const fallback = CHARACTERS.find((c) => !c.isLocked) ?? CHARACTERS[0];
+      if (fallback) selectCharacter(fallback);
+    }
+  }, [selectedCharacter, selectCharacter, storeHydrated, matchId, playerRole]);
+
+  useEffect(() => {
+    if (!storeHydrated || !matchId || !playerRole) return;
+    let cancelled = false;
+
+    const syncFromServer = async () => {
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        if (!res.ok) return;
+        const data = await res.json() as {
+          phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+          round: number;
+          hostWins: number;
+          opponentWins: number;
+          selfCharId?: string | null;
+          opponentCharId?: string | null;
+          opponentName?: string | null;
+          selfCardIds?: string[] | null;
+          slots?: Parameters<typeof setPrecomputedFromServer>[0] | null;
+        };
+        if (cancelled) return;
+
+        if (data.selfCharId) setSelectedCharacterFromServer(data.selfCharId);
+        if (data.opponentCharId) setOpponentCharacterFromServer(data.opponentCharId);
+        if (data.opponentName !== undefined) setOpponentName(data.opponentName);
+        const serverIsCurrentOrNewerRound = data.round >= roundNumber;
+        if (serverIsCurrentOrNewerRound) {
+          syncMultiplayerRoundState({
+            roundNumber: data.round,
+            selfWins: data.hostWins,
+            opponentWins: data.opponentWins,
+            resolvedSlots: data.phase === "resolved" ? data.slots ?? null : null,
+          });
+        }
+        if (serverIsCurrentOrNewerRound && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
+        }
+        if (data.phase === "resolved" && data.slots && serverIsCurrentOrNewerRound) {
+          router.replace("/gameplay");
+        }
+      } catch {
+        // Best-effort recovery only.
+      }
+    };
+
+    void syncFromServer();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    storeHydrated,
+    matchId,
+    playerRole,
+    router,
+    setCurrentOrderFromIds,
+    setOpponentCharacterFromServer,
+    setOpponentName,
+    setPrecomputedFromServer,
+    setSelectedCharacterFromServer,
+  ]);
 
   useEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      setIsShortLandscape(vw > vh && vh < 760);
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -156,13 +315,186 @@ export default function Loadout() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  // Multiplayer polling ref — cleaned up on unmount
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(hover: none), (pointer: coarse)");
+    const syncTouchMode = () => setIsTouchMode(mq.matches);
+    syncTouchMode();
+    mq.addEventListener?.("change", syncTouchMode);
+    return () => mq.removeEventListener?.("change", syncTouchMode);
+  }, []);
+
+  // Multiplayer polling + retry refs
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollDelayRef = useRef(2000);
+  const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number } | null>(null);
+  useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
+  const beginWaitingForResolution = useCallback((pendingKey: string, expectedRound: number) => {
+    if (!matchId || !playerRole) return;
+
+    const submitPending = async () => {
+      if (!pendingSubmitRef.current || !matchId) return;
+      try {
+        await fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pendingSubmitRef.current),
+        });
+      } catch {
+        // keep queued; we'll retry on reconnect/poll
+      }
+    };
+
+    const stopPolling = () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
+    };
+
+    setWaiting(true);
+    setNetStatus(navigator.onLine ? "online" : "offline");
+    pollDelayRef.current = 2000;
+
+    const pollOnce = async () => {
+      if (!matchId || !playerRole) return;
+      try {
+        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        const data = await res.json() as {
+          phase: string;
+          round: number;
+          hostWins: number;
+          opponentWins: number;
+          slots: unknown;
+          selfCardIds?: string[] | null;
+          opponentCharId?: string;
+          opponentName?: string | null;
+          abortedBy?: "host" | "joiner" | null;
+          opponentReconnecting?: boolean;
+          graceRemainingMs?: number;
+        };
+        setPollErrorCount(0);
+        setNetStatus("online");
+        pollDelayRef.current = 2000;
+        setGraceRemainingMs(data.graceRemainingMs ?? 0);
+
+        if (data.opponentCharId) {
+          setOpponentCharacterFromServer(data.opponentCharId);
+        }
+        if (data.opponentName !== undefined) {
+          setOpponentName(data.opponentName);
+        }
+
+        const serverIsCurrentOrNewerRound = data.round >= expectedRound;
+        if (serverIsCurrentOrNewerRound) {
+          syncMultiplayerRoundState({
+            roundNumber: data.round,
+            selfWins: data.hostWins,
+            opponentWins: data.opponentWins,
+            resolvedSlots: data.phase === "resolved"
+              ? data.slots as Parameters<typeof setPrecomputedFromServer>[0]
+              : null,
+          });
+        }
+        if (serverIsCurrentOrNewerRound && Array.isArray(data.selfCardIds) && data.selfCardIds.length === 5) {
+          setCurrentOrderFromIds(data.selfCardIds);
+        }
+
+        const opponentRole = playerRole === "host" ? "joiner" : "host";
+        if (data.phase === "timed-out" || data.abortedBy === opponentRole) {
+          stopPolling();
+          setWaiting(false);
+          alert("Your opponent has left the match.");
+          resetMatch();
+          router.push("/");
+          return;
+        }
+
+        if (data.phase === "resolved" && data.slots && serverIsCurrentOrNewerRound) {
+          stopPolling();
+          setWaiting(false);
+          try { sessionStorage.removeItem(pendingKey); } catch {}
+          pendingSubmitRef.current = null;
+          router.push("/gameplay");
+          return;
+        }
+        if (data.opponentReconnecting) {
+          setNetStatus("reconnecting");
+        }
+      } catch {
+        setPollErrorCount((n) => n + 1);
+        setNetStatus(navigator.onLine ? "reconnecting" : "offline");
+        pollDelayRef.current = Math.min(10_000, Math.round(pollDelayRef.current * 1.5));
+        await submitPending();
+      }
+      pollRef.current = setTimeout(() => { void pollOnce(); }, pollDelayRef.current);
+    };
+
+    void submitPending();
+    void pollOnce();
+  }, [
+    matchId,
+    playerRole,
+    resetMatch,
+    router,
+    setCurrentOrderFromIds,
+    setOpponentCharacterFromServer,
+    setOpponentName,
+    setPrecomputedFromServer,
+    syncMultiplayerRoundState,
+  ]);
+  useEffect(() => {
+    const handleOnline = () => {
+      setNetStatus("online");
+      pollDelayRef.current = 2000;
+      const p = pendingSubmitRef.current;
+      if (p && matchId) {
+        void fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(p),
+        }).catch(() => {});
+      }
+    };
+    const handleOffline = () => setNetStatus("offline");
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [matchId]);
+
+  useEffect(() => {
+    if (!matchId || !playerRole) return;
+    const pendingKey = `pending-submit:${matchId}`;
+    try {
+      const raw = sessionStorage.getItem(pendingKey);
+      if (!raw) return;
+      const restored = JSON.parse(raw) as { role?: "host" | "joiner"; cardIds?: string[]; round?: number };
+      if (
+        restored.role === playerRole &&
+        Array.isArray(restored.cardIds) &&
+        restored.cardIds.length === 5 &&
+        typeof restored.round === "number" &&
+        restored.round === roundNumber
+      ) {
+        pendingSubmitRef.current = {
+          role: restored.role,
+          cardIds: restored.cardIds,
+          round: restored.round,
+        };
+        beginWaitingForResolution(pendingKey, restored.round);
+        return;
+      }
+      sessionStorage.removeItem(pendingKey);
+    } catch {
+      sessionStorage.removeItem(pendingKey);
+    }
+  }, [beginWaitingForResolution, matchId, playerRole, roundNumber]);
 
   const handleLockOrder = useCallback(async () => {
     if (!isOrderComplete) return;
     setLockError(null);
+    markOnboardingStep("lock_sequence");
 
     // Solo path — unchanged
     if (!playerRole || !matchId) {
@@ -176,69 +508,96 @@ export default function Loadout() {
       .filter((c): c is NonNullable<typeof c> => c !== null)
       .map((c) => c.id);
 
-    try {
-      await fetch(`/api/match/${matchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: playerRole, cardIds, round: roundNumber }),
-      });
-    } catch {
-      setLockError("Network error — try again.");
-      return;
-    }
-
-    setWaiting(true);
-
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
-        const data = await res.json() as { phase: string; slots: unknown; opponentCharId?: string; opponentName?: string | null; abortedBy?: "host" | "joiner" | null };
-        setPollErrorCount(0); // successful response
-
-        // Sync opponent character if joined
-        if (data.opponentCharId) {
-          setOpponentCharacterFromServer(data.opponentCharId);
-        }
-        if (data.opponentName !== undefined) {
-          setOpponentName(data.opponentName);
-        }
-
-        // Abort if timed out or opponent quit
-        const opponentRole = playerRole === "host" ? "joiner" : "host";
-        if (data.phase === "timed-out" || data.abortedBy === opponentRole) {
-          if (pollRef.current) clearInterval(pollRef.current);
-          alert("Your opponent has left the match.");
-          resetMatch();
-          router.push("/");
-          return;
-        }
-
-        if (data.phase === "resolved" && data.slots) {
-          if (pollRef.current) clearInterval(pollRef.current);
-          setPrecomputedFromServer(data.slots as Parameters<typeof setPrecomputedFromServer>[0]);
-          router.push("/gameplay");
-        }
-      } catch {
-        setPollErrorCount((n) => n + 1);
-      }
-    }, 2000);
-  }, [isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, setPrecomputedFromServer, router]);
+    const payload = { role: playerRole, cardIds, round: roundNumber } as const;
+    pendingSubmitRef.current = payload;
+    const pendingKey = `pending-submit:${matchId}`;
+    try { sessionStorage.setItem(pendingKey, JSON.stringify(payload)); } catch {}
+    beginWaitingForResolution(pendingKey, roundNumber);
+  }, [beginWaitingForResolution, isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router, markOnboardingStep]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
+  const tutorialSteps = [
+    "Pick 5 cards to build your round loadout. Mix strike, defense, and control.",
+    "Watch your energy meter. Staying balanced gives you more flexible counters.",
+    "Use SAVE to store decks and PRESETS to quickly switch styles before locking in.",
+    "When ready, LOCK SEQUENCE to enter the matchup.",
+  ];
+
+  const updateTooltipAnchor = (card: Card, el: HTMLDivElement) => {
+    const rect = el.getBoundingClientRect();
+    setHoveredTooltip({
+      card,
+      anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    });
+  };
+
+  const applyStarterPreset = (presetKey: ArchetypeKey) => {
+    const preset = starterArchetypes.find((p) => p.key === presetKey);
+    if (!preset) return;
+    setHoveredCardId(null);
+    setHoveredTooltip(null);
+    setPinnedTooltip(null);
+    setSelectedArchetypeKey(presetKey);
+    currentOrder.forEach((slot, idx) => {
+      if (slot) removeCardFromSlot(idx);
+    });
+    preset.cardIds.forEach((id) => {
+      const card = CARDS.find((c) => c.id === id);
+      if (card) addCardToSlot(card);
+    });
+  };
+
+  useEffect(() => {
+    if (!storeHydrated || typeof window === "undefined") return;
+    const seen = window.localStorage.getItem(LOADOUT_GUIDE_KEY) === "1";
+    if (!seen) {
+      setTutorialStep(0);
+      setShowLoadoutGuide(true);
+    }
+  }, [storeHydrated]);
+
+  useEffect(() => {
+    setHoveredCardId(null);
+    setHoveredTooltip(null);
+    setPinnedTooltip(null);
+  }, [activeTab]);
+
+  useEffect(() => {
+    setSelectedArchetypeKey(null);
+  }, [selectedCharacter?.id]);
+
+  useEffect(() => {
+    if (filledSlots === 5) {
+      markOnboardingStep("build_sequence");
+    }
+  }, [filledSlots, markOnboardingStep]);
+
+  const dismissLoadoutGuide = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOADOUT_GUIDE_KEY, "1");
+    }
+    setShowLoadoutGuide(false);
+  };
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* Background */}
-        <img src={BG_MAIN} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_MAIN} alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 4, height: 28, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
-            <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
+          {/* Left: back + logo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
+              <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+              <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 4, height: 28, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+              <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+            </div>
           </div>
 
           {/* Round + score */}
@@ -256,44 +615,84 @@ export default function Loadout() {
           </div>
         </div>
 
-        {/* Left character panel — shows selected character's standing art */}
+        <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 74px)`, right: 18, zIndex: 45 }} />
+
+        {/* Left character panel — compact portrait + ability intel */}
         <div style={{
-          position: "absolute", left: 109, top: 68, width: 326, height: 636,
-          overflow: "hidden", pointerEvents: "none",
-          borderRadius: 6,
-          border: `1.5px solid ${selectedCharacter?.color || "#56a4cb"}40`,
-          boxShadow: `0 0 28px ${selectedCharacter?.color || "#56a4cb"}18`,
+          position: "absolute", left: 164, top: `calc(${safeTop} + 68px)`, width: 306, height: 520,
+          display: "flex", flexDirection: "column", gap: 10,
+          pointerEvents: "none",
         }}>
           {selectedCharacter && (
             <>
-              <img
-                src={selectedCharacter.standingArt}
-                alt={selectedCharacter.name}
-                style={{
-                  position: "absolute", width: "100%", height: "100%",
-                  objectFit: "cover", objectPosition: "top center",
-                }}
-              />
-              {/* Bottom gradient so name reads cleanly */}
               <div style={{
-                position: "absolute", inset: 0,
-                background: "linear-gradient(to top, rgba(5,5,5,0.92) 0%, rgba(5,5,5,0.2) 40%, transparent 65%)",
-              }} />
-              {/* Character label */}
-              <div style={{ position: "absolute", bottom: 20, left: 18, right: 18 }}>
-                <span style={{
-                  display: "block", fontSize: 9, fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: 2.5,
-                  color: selectedCharacter.color, marginBottom: 4,
-                }}>
-                  {selectedCharacter.className}
-                </span>
+                position: "relative", height: 318,
+                overflow: "hidden",
+                borderRadius: 8,
+                border: `1.5px solid ${selectedCharacter.color}55`,
+                boxShadow: `0 0 24px ${selectedCharacter.color}20`,
+              }}>
+                <MiniPayImage
+                  src={selectedCharacter.standingArt}
+                  alt={selectedCharacter.name}
+                  minipayWidth={760}
+                  minipayQuality={58}
+                  style={{
+                    position: "absolute", width: "100%", height: "100%",
+                    objectFit: "cover", objectPosition: "top center",
+                    transform: "scale(0.9)",
+                  }}
+                />
                 <div style={{
-                  fontSize: 28, fontWeight: 800, color: "#fff",
-                  letterSpacing: -1, lineHeight: 1,
-                  textShadow: `0 0 20px ${selectedCharacter.color}70`,
-                }}>
-                  {selectedCharacter.name}
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(to top, rgba(5,5,5,0.92) 0%, rgba(5,5,5,0.25) 42%, transparent 72%)",
+                }} />
+                <div style={{ position: "absolute", bottom: 14, left: 14, right: 14 }}>
+                  <span style={{
+                    display: "block", fontSize: 9, fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: 2.4,
+                    color: selectedCharacter.color, marginBottom: 4,
+                  }}>
+                    {selectedCharacter.className}
+                  </span>
+                  <div style={{
+                    fontSize: 22, fontWeight: 800, color: "#fff",
+                    letterSpacing: -0.7, lineHeight: 1,
+                    textShadow: `0 0 20px ${selectedCharacter.color}66`,
+                  }}>
+                    {selectedCharacter.name}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                height: 192,
+                borderRadius: 8,
+                background: "rgba(10,15,28,0.88)",
+                border: `1.5px solid ${selectedCharacter.color}35`,
+                boxShadow: `inset 0 1px 0 ${selectedCharacter.color}22`,
+                padding: "10px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                overflow: "hidden",
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 2.3, color: selectedCharacter.color, textTransform: "uppercase" }}>
+                  Ability Intel
+                </div>
+                <div style={{ padding: "7px 9px", borderRadius: 6, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(148,163,184,0.2)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#7dd3fc", textTransform: "uppercase", letterSpacing: 1.4 }}>Passive · {selectedCharacter.passive?.name ?? "—"}</div>
+                  <div style={{ marginTop: 3, fontSize: 10, color: "#cbd5e1", lineHeight: 1.28 }}>{compactText(selectedCharacter.passive?.description ?? "No passive available.")}</div>
+                </div>
+                <div style={{ padding: "7px 9px", borderRadius: 6, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(148,163,184,0.2)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 1.4 }}>Ultimate · {selectedCharacter.ultimate?.name ?? "—"}</div>
+                  <div style={{ marginTop: 3, fontSize: 10, color: "#cbd5e1", lineHeight: 1.28 }}>{compactText(selectedCharacter.ultimate?.description ?? "No ultimate available.")}</div>
+                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(148,163,184,0.2)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1.4, marginBottom: 4 }}>Best Move Tip</div>
+                  </div>
+                  <div style={{ fontSize: 9.5, color: "#cbd5e1", lineHeight: 1.28 }}>
+                    • {getPlayTips(selectedCharacter.id)[0]}
+                  </div>
                 </div>
               </div>
             </>
@@ -303,7 +702,7 @@ export default function Loadout() {
         {/* ═══════════════ NEW Card Selection Panel ═══════════════ */}
         <div style={{
           position: "absolute",
-          left: 480, top: 68,
+          left: 480, top: `calc(${safeTop} + 68px)`,
           width: 920, height: 535,
           display: "flex", flexDirection: "column",
         }}>
@@ -380,7 +779,12 @@ export default function Loadout() {
               padding: "20px 24px",
               overflowY: "auto",
               display: "flex", flexDirection: "column", gap: 14,
-            }}>
+            }}
+              onScroll={() => {
+                setHoveredCardId(null);
+                setHoveredTooltip(null);
+              }}
+            >
               {/* Regular cards */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
                 {regularCards.map((card) => {
@@ -398,8 +802,17 @@ export default function Loadout() {
                           addCardToSlot(card);
                         }
                       }}
-                      onMouseEnter={() => setHoveredCardId(card.id)}
-                      onMouseLeave={() => setHoveredCardId(null)}
+                      onMouseEnter={(e) => {
+                        setHoveredCardId(card.id);
+                        updateTooltipAnchor(card, e.currentTarget);
+                      }}
+                      onMouseMove={(e) => {
+                        if (hoveredCardId === card.id) updateTooltipAnchor(card, e.currentTarget);
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredCardId(null);
+                        setHoveredTooltip(null);
+                      }}
                       style={{
                         width: 152, height: 210,
                         position: "relative", flexShrink: 0,
@@ -422,8 +835,7 @@ export default function Loadout() {
                         zIndex: isHovered ? 50 : "auto",
                       }}
                     >
-                      {isHovered && <CardTooltip card={card} />}
-                      <img src={card.image} alt={card.name} style={{
+                      <MiniPayImage src={card.image} alt={card.name} minipayWidth={320} minipayQuality={52} style={{
                         position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                       }} />
                       {/* Hover shine overlay */}
@@ -464,6 +876,33 @@ export default function Loadout() {
                           {card.type}
                         </span>
                       </div>
+                      {isTouchMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHoveredCardId(card.id);
+                            updateTooltipAnchor(card, e.currentTarget.parentElement as HTMLDivElement);
+                            const rect = (e.currentTarget.parentElement as HTMLDivElement).getBoundingClientRect();
+                            setPinnedTooltip({
+                              card,
+                              anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+                            });
+                          }}
+                          style={{
+                            position: "absolute", bottom: 7, right: 7,
+                            width: isCompactPhone ? 28 : 22, height: isCompactPhone ? 28 : 22, borderRadius: "50%",
+                            border: `1px solid ${card.color}55`,
+                            background: "rgba(6,10,20,0.82)",
+                            color: "#dbeafe",
+                            fontSize: isCompactPhone ? 13 : 11,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}
+                        >
+                          i
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -489,8 +928,17 @@ export default function Loadout() {
                         addCardToSlot(specialCard);
                       }
                     }}
-                    onMouseEnter={() => setHoveredCardId(specialCard.id)}
-                    onMouseLeave={() => setHoveredCardId(null)}
+                    onMouseEnter={(e) => {
+                      setHoveredCardId(specialCard.id);
+                      updateTooltipAnchor(specialCard, e.currentTarget);
+                    }}
+                    onMouseMove={(e) => {
+                      if (hoveredCardId === specialCard.id) updateTooltipAnchor(specialCard, e.currentTarget);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredCardId(null);
+                      setHoveredTooltip(null);
+                    }}
                     style={{
                       width: 170, height: 235,
                       position: "relative", overflow: "visible",
@@ -507,8 +955,7 @@ export default function Loadout() {
                       zIndex: spHovered ? 50 : "auto",
                     }}
                   >
-                    {spHovered && <CardTooltip card={specialCard} />}
-                    <img src={specialCard.image} alt={specialCard.name} style={{
+                    <MiniPayImage src={specialCard.image} alt={specialCard.name} minipayWidth={360} minipayQuality={52} style={{
                       position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                     }} />
                     {spInOrder && (
@@ -532,6 +979,33 @@ export default function Loadout() {
                     }}>
                       <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{specialCard.energyCost}</span>
                     </div>
+                    {isTouchMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHoveredCardId(specialCard.id);
+                          updateTooltipAnchor(specialCard, e.currentTarget.parentElement as HTMLDivElement);
+                          const rect = (e.currentTarget.parentElement as HTMLDivElement).getBoundingClientRect();
+                          setPinnedTooltip({
+                            card: specialCard,
+                            anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+                          });
+                        }}
+                        style={{
+                          position: "absolute", top: 10, right: 10,
+                          width: isCompactPhone ? 30 : 24, height: isCompactPhone ? 30 : 24, borderRadius: "50%",
+                          border: `1px solid ${specialCard.color}60`,
+                          background: "rgba(6,10,20,0.82)",
+                          color: "#dbeafe",
+                          fontSize: isCompactPhone ? 13 : 11,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >
+                        i
+                      </button>
+                    )}
                     {/* Name bar */}
                     <div style={{
                       position: "absolute", bottom: 0, left: 0, right: 0,
@@ -557,7 +1031,7 @@ export default function Loadout() {
         {/* Cover the old baked-in deck loadout from BG_MAIN */}
         <div style={{
           position: "absolute",
-          left: 200, top: 600,
+          left: 200, top: isShortLandscape ? 580 : 600,
           width: 1100, height: 230,
           backgroundColor: "#0b0f1a",
           zIndex: 9,
@@ -566,7 +1040,7 @@ export default function Loadout() {
         {/* ═══════════════ Bottom Deck Loadout ═══════════════ */}
         <div style={{
           position: "absolute",
-          left: 250, top: 605,
+          left: 250, top: isShortLandscape ? 585 : 605,
           width: 1000, height: 220,
           backgroundColor: "rgba(15, 25, 40, 0.95)",
           border: "2px solid rgba(90, 191, 230, 0.4)",
@@ -592,30 +1066,77 @@ export default function Loadout() {
             }}>DECK LOADOUT</span>
           </div>
 
-          {/* Energy bar + Preset buttons */}
-          <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Preset controls */}
+          {/* Preset controls */}
+          <div style={{ position: "absolute", left: 20, top: 18, zIndex: 40, maxWidth: isCompactPhone ? 470 : 340 }}>
             <div style={{ position: "relative" }}>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 4, flexWrap: "nowrap", alignItems: "flex-start", maxWidth: isCompactPhone ? 420 : "none" }}>
+                <div style={{ display: "flex", gap: 4, marginRight: 0, flexWrap: "nowrap" }}>
+                  {starterArchetypes.map((preset) => (
+                    <button
+                      key={preset.key}
+                      onClick={() => applyStarterPreset(preset.key)}
+                      style={{
+                        background: selectedArchetypeKey === preset.key ? "rgba(125,211,252,0.22)" : "rgba(125,211,252,0.1)",
+                        border: selectedArchetypeKey === preset.key ? "1px solid rgba(125,211,252,0.55)" : "1px solid rgba(125,211,252,0.3)",
+                        borderRadius: 5,
+                        padding: isCompactPhone ? "8px 12px" : "4px 8px",
+                        color: "#7dd3fc",
+                        fontSize: isCompactPhone ? 11 : 9,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        letterSpacing: 0.8,
+                        boxShadow: selectedArchetypeKey === preset.key ? "0 0 10px rgba(125,211,252,0.18)" : "none",
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "flex-start" }}>
                 {/* Save preset */}
                 {isOrderComplete && !savingPreset && (
                   <button
                     onClick={() => { setSavingPreset(true); setPresetName(""); setShowPresets(false); }}
-                    style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 5, padding: "4px 10px", color: "#4ade80", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                    style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 5, padding: isCompactPhone ? "8px 14px" : "4px 10px", color: "#4ade80", fontSize: isCompactPhone ? 12 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                   >SAVE</button>
                 )}
                 {/* Load presets */}
                 {deckPresets.length > 0 && (
                   <button
                     onClick={() => { setShowPresets((v) => !v); setSavingPreset(false); }}
-                    style={{ background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: "4px 10px", color: "#56a4cb", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
+                    style={{ background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 5, padding: isCompactPhone ? "8px 14px" : "4px 10px", color: "#56a4cb", fontSize: isCompactPhone ? 12 : 10, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}
                   >PRESETS ({deckPresets.length})</button>
                 )}
               </div>
+              {selectedArchetype && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    maxWidth: isCompactPhone ? 205 : 160,
+                    fontSize: isCompactPhone ? 11 : 9,
+                    lineHeight: 1.22,
+                    color: "#94a3b8",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "normal",
+                    minHeight: isCompactPhone ? 42 : 30,
+                  }}
+                >
+                  <span style={{ color: "#7dd3fc", fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
+                    {selectedCharacter?.name ?? "Starter"} {selectedArchetype.label}
+                  </span>
+                  {" "}
+                  {compactPresetWhy(selectedArchetype.why)}
+                </div>
+              )}
 
               {/* Save preset input */}
               {savingPreset && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 100, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px 14px", width: 220, zIndex: 300, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase" }}>Save Preset</div>
                   <input
                     autoFocus
@@ -638,7 +1159,7 @@ export default function Loadout() {
 
               {/* Preset list dropdown */}
               {showPresets && (
-                <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 100, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "rgba(10,15,25,0.97)", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 8, padding: "12px", width: 260, zIndex: 300, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Saved Presets</div>
                   {deckPresets.map((preset, idx) => (
                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -653,7 +1174,10 @@ export default function Loadout() {
                 </div>
               )}
             </div>
+          </div>
 
+          {/* Energy bar — keep clear at top-right */}
+          <div style={{ position: "absolute", top: 14, right: 20, display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 1 }}>
               ⚡ {usedEnergy} / {maxEnergy}
             </span>
@@ -670,7 +1194,7 @@ export default function Loadout() {
           </div>
 
           {/* Slots */}
-          <div style={{ display: "flex", gap: 14, marginTop: 28 }}>
+          <div style={{ display: "flex", gap: isCompactPhone ? 16 : 14, marginTop: 28 }}>
             {[0, 1, 2, 3, 4].map((i) => {
               const card = currentOrder[i];
               return (
@@ -678,7 +1202,7 @@ export default function Loadout() {
                   key={i}
                   onClick={() => card && removeCardFromSlot(i)}
                   style={{
-                    width: 108, height: 140,
+                    width: isCompactPhone ? 116 : 108, height: isCompactPhone ? 150 : 140,
                     borderRadius: 6,
                     cursor: card ? "pointer" : "default",
                     position: "relative", overflow: "hidden",
@@ -693,7 +1217,7 @@ export default function Loadout() {
                 >
                   {card ? (
                     <>
-                      <img src={card.image} alt={card.name} style={{
+                      <MiniPayImage src={card.image} alt={card.name} minipayWidth={220} minipayQuality={50} style={{
                         position: "absolute", width: "100%", height: "100%", objectFit: "cover",
                       }} />
                       {/* Name gradient background */}
@@ -702,18 +1226,18 @@ export default function Loadout() {
                         background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent)",
                         padding: "20px 4px 6px 4px", textAlign: "center"
                       }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.5, textShadow: "0 1px 4px #000" }}>
+                        <span style={{ fontSize: isCompactPhone ? 11 : 10, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.5, textShadow: "0 1px 4px #000" }}>
                           {card.name}
                         </span>
                       </div>
                       <div style={{
                         position: "absolute", top: 4, right: 4,
-                        width: 20, height: 20, borderRadius: "50%",
+                        width: isCompactPhone ? 24 : 20, height: isCompactPhone ? 24 : 20, borderRadius: "50%",
                         backgroundColor: "rgba(239,68,68,0.85)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         boxShadow: "0 0 6px rgba(239,68,68,0.5)",
                       }}>
-                        <span className="material-icons" style={{ fontSize: 13, color: "#fff" }}>close</span>
+                        <span className="material-icons" style={{ fontSize: isCompactPhone ? 15 : 13, color: "#fff" }}>close</span>
                       </div>
                     </>
                   ) : (
@@ -730,62 +1254,19 @@ export default function Loadout() {
           </div>
         </div>
 
-        {/* Ultimate + Taunt buttons */}
-        {selectedCharacter?.ultimate && (
-          <div style={{ position: "absolute", left: 32, bottom: 80, zIndex: 20, display: "flex", gap: 10, alignItems: "center" }}>
-            {/* Ultimate button */}
-            <button
-              onClick={activateUltimate}
-              disabled={ultimateUsed || ultimateActivated}
-              style={{
-                padding: "10px 18px",
-                background: ultimateActivated
-                  ? `linear-gradient(135deg, ${selectedCharacter.color}40, ${selectedCharacter.color}20)`
-                  : ultimateUsed
-                  ? "rgba(255,255,255,0.04)"
-                  : `linear-gradient(135deg, ${selectedCharacter.color}30, ${selectedCharacter.color}15)`,
-                border: ultimateActivated
-                  ? `2px solid ${selectedCharacter.color}`
-                  : ultimateUsed
-                  ? "2px solid rgba(255,255,255,0.08)"
-                  : `2px solid ${selectedCharacter.color}60`,
-                borderRadius: 8,
-                cursor: ultimateUsed ? "default" : "pointer",
-                opacity: ultimateUsed ? 0.45 : 1,
-                boxShadow: ultimateActivated ? `0 0 16px ${selectedCharacter.color}60` : "none",
-                transition: "all 0.2s ease",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="material-icons" style={{ fontSize: 18, color: ultimateUsed ? "#475569" : selectedCharacter.color }}>
-                  {ultimateActivated ? "flash_on" : "bolt"}
-                </span>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 1 }}>
-                    {ultimateUsed ? "USED" : ultimateActivated ? "ACTIVATED" : "ULTIMATE"}
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: ultimateUsed ? "#475569" : "#f1f5f9", letterSpacing: 0.5 }}>
-                    {selectedCharacter.ultimate.name}
-                  </div>
-                </div>
-              </div>
-            </button>
-          </div>
-        )}
-
         {/* Lock Sequence button — appears when order is complete */}
         {isOrderComplete && !waiting && (
-          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 16, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <button
               onClick={() => void handleLockOrder()}
               className="ko-btn ko-btn-primary"
-              style={{ padding: "12px 40px" }}
+              style={{ padding: isCompactPhone ? "14px 46px" : "12px 40px" }}
             >
               <span className="ko-btn-text" style={{
-                fontSize: 18, fontWeight: 800, textTransform: "uppercase",
+                fontSize: isCompactPhone ? 19 : 18, fontWeight: 800, textTransform: "uppercase",
                 letterSpacing: 3, color: "#fff",
               }}>LOCK SEQUENCE</span>
-              <span className="material-icons ko-btn-icon" style={{ fontSize: 22, color: "#fff" }}>double_arrow</span>
+              <span className="material-icons ko-btn-icon" style={{ fontSize: isCompactPhone ? 24 : 22, color: "#fff" }}>double_arrow</span>
             </button>
             {lockError && <span style={{ fontSize: 12, color: "#f87171" }}>{lockError}</span>}
           </div>
@@ -808,28 +1289,103 @@ export default function Loadout() {
             <span style={{ fontSize: 20, fontWeight: 700, color: "#56a4cb", textTransform: "uppercase", letterSpacing: 3 }}>
               Waiting for opponent...
             </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.28)", borderRadius: 6 }}>
+              <span className="material-icons" style={{ color: netStatus === "offline" ? "#f87171" : netStatus === "reconnecting" ? "#fbbf24" : "#4ade80", fontSize: 14 }}>
+                {netStatus === "offline" ? "wifi_off" : netStatus === "reconnecting" ? "sync" : "wifi"}
+              </span>
+              <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>
+                {netStatus === "offline" ? "Offline — queued, will auto-resend" : netStatus === "reconnecting" ? "Reconnecting..." : "Connected"}
+              </span>
+            </div>
+            {graceRemainingMs > 0 && (
+              <div style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600 }}>
+                Opponent reconnect grace: {Math.ceil(graceRemainingMs / 1000)}s
+              </div>
+            )}
             {pollErrorCount >= 3 && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6 }}>
                 <span className="material-icons" style={{ color: "#fbbf24", fontSize: 14 }}>wifi_off</span>
                 <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600 }}>Connection issues — retrying…</span>
+                <button
+                  onClick={async () => {
+                    const p = pendingSubmitRef.current;
+                    if (!p || !matchId) return;
+                    try {
+                      await fetch(`/api/match/${matchId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(p),
+                      });
+                      setPollErrorCount(0);
+                    } catch {}
+                  }}
+                  style={{ marginLeft: 10, background: "rgba(251,191,36,0.2)", border: "1px solid rgba(251,191,36,0.5)", borderRadius: 4, color: "#fbbf24", fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer" }}
+                >
+                  RETRY NOW
+                </button>
               </div>
             )}
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
-        {/* Back button */}
-        <button
-          onClick={() => router.back()}
-          className="ko-btn ko-btn-secondary"
-          style={{
-            position: "absolute", left: 32, bottom: 24,
-            padding: "8px 16px", zIndex: 20,
-          }}
-        >
-          <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
-          <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
-        </button>
+        {pinnedTooltip && !waiting && !showLoadoutGuide && (
+          <>
+            <button
+              onClick={() => {
+                setPinnedTooltip(null);
+                setHoveredCardId(null);
+                setHoveredTooltip(null);
+              }}
+              style={{ position: "fixed", inset: 0, zIndex: 599, background: "transparent", border: "none", padding: 0, cursor: "default" }}
+              aria-label="Close card details"
+            />
+            <CardTooltip card={pinnedTooltip.card} anchor={pinnedTooltip.anchor} mobileSheet={isTouchMode} />
+          </>
+        )}
+
+        {!pinnedTooltip && hoveredTooltip && !waiting && !showLoadoutGuide && !isTouchMode && (
+          <CardTooltip card={hoveredTooltip.card} anchor={hoveredTooltip.anchor} />
+        )}
+
+        {showLoadoutGuide && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 500, background: "rgba(3,6,12,0.82)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 520, borderRadius: 10, border: "1px solid rgba(86,164,203,0.35)", background: "rgba(9,14,26,0.96)", boxShadow: "0 20px 60px rgba(0,0,0,0.65)", padding: "18px 20px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase" }}>Loadout Guide</div>
+              <div style={{ marginTop: 8, fontSize: 18, fontWeight: 800, color: "#e2e8f0" }}>Step {tutorialStep + 1} / {tutorialSteps.length}</div>
+              <p style={{ marginTop: 10, marginBottom: 0, color: "#cbd5e1", fontSize: 13, lineHeight: 1.5 }}>{tutorialSteps[tutorialStep]}</p>
+              <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <button
+                  onClick={dismissLoadoutGuide}
+                  style={{ background: "transparent", border: "none", color: "#64748b", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Skip
+                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => setTutorialStep((s) => Math.max(0, s - 1))}
+                    disabled={tutorialStep === 0}
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 6, padding: "7px 12px", color: tutorialStep === 0 ? "#475569" : "#cbd5e1", fontSize: 12, fontWeight: 700, cursor: tutorialStep === 0 ? "default" : "pointer" }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (tutorialStep === tutorialSteps.length - 1) {
+                        dismissLoadoutGuide();
+                        return;
+                      }
+                      setTutorialStep((s) => s + 1);
+                    }}
+                    style={{ background: "rgba(86,164,203,0.2)", border: "1px solid rgba(86,164,203,0.4)", borderRadius: 6, padding: "7px 14px", color: "#b9e7f4", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    {tutorialStep === tutorialSteps.length - 1 ? "Finish" : "Next"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -7,6 +7,12 @@ html, body {
   width: 100%;
 }
 
+body {
+  background:
+    radial-gradient(circle at top, rgba(86, 164, 203, 0.08), transparent 38%),
+    linear-gradient(160deg, #050810 0%, #0a1428 50%, #060c1e 100%);
+}
+
 @layer components {
     .ko-btn {
         position: relative;

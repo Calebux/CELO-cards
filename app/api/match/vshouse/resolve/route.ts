@@ -6,6 +6,7 @@ import { celo } from "viem/chains";
 import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult } from "../../../../lib/leaderboard";
+import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
 
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
   const addr = playerAddress.toLowerCase();
   const redisKey = `match:vshouse:${addr}`;
   let entryTxHash: string | null = null;
+  const allowTreasuryEntry = process.env.ENABLE_VSHOUSE_TREASURY_ENTRY === "true";
 
   // 1. Get or Initialize Match State
   let state = await redis.get<HouseMatchState>(redisKey);
@@ -97,10 +99,12 @@ export async function POST(req: NextRequest) {
       lastUpdated: Date.now(),
     };
 
-    try {
-      entryTxHash = await ensureHouseEntryTx(matchId);
-    } catch (e) {
-      console.error("House entry tx failed:", e);
+    if (wagered && allowTreasuryEntry) {
+      try {
+        entryTxHash = await ensureHouseEntryTx(matchId);
+      } catch (e) {
+        console.error("House entry tx failed:", e);
+      }
     }
   }
 
@@ -164,6 +168,21 @@ export async function POST(req: NextRequest) {
       pointsEarned,
       leaderboard: "casual",
     });
+
+    await recordHouseMatchActivity({
+      matchId,
+      playerAddress: addr,
+      playerName: playerName?.trim() ? playerName.trim().slice(0, 24) : null,
+      playerCharacterId,
+      opponentCharacterId,
+      difficulty,
+      wagered,
+      outcome: playerWon ? "win" : "loss",
+      pointsEarned,
+      playerRoundsWon: state.playerRoundsWon,
+      opponentRoundsWon: state.opponentRoundsWon,
+      completedAt: Date.now(),
+    }).catch(() => {});
 
     // Clear the match state since it's finished
     await redis.del(redisKey);

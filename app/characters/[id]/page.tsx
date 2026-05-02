@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { CHARACTERS, CARDS } from "../../lib/gameData";
+import { CHARACTERS } from "../../lib/gameData";
+import { getArchetypePreview } from "../../lib/archetypes";
 import { WalletSection } from "../../components/WalletSection";
 import { useGameStore } from "../../lib/gameStore";
 
@@ -37,23 +38,7 @@ export default function CharacterDetailPage() {
   const { selectCharacter, startMatch, playerRole, matchId } = useGameStore();
 
   const char = CHARACTERS.find((c) => c.id === id);
-
-  // Recommend top cards: pick 3 based on character archetype
-  // High knock → strike cards; high priority → control; high drain → mixed
-  const topCards = [...CARDS]
-    .sort((a, b) => {
-      if (!char) return 0;
-      const aScore =
-        (char.knockStat / 100) * (a.type === "strike" ? 2 : 0.5) +
-        (char.priorityStat / 100) * (a.type === "control" ? 2 : 0.5) +
-        (char.drainStat / 100) * (a.type === "defense" ? 1.5 : 0.5);
-      const bScore =
-        (char.knockStat / 100) * (b.type === "strike" ? 2 : 0.5) +
-        (char.priorityStat / 100) * (b.type === "control" ? 2 : 0.5) +
-        (char.drainStat / 100) * (b.type === "defense" ? 1.5 : 0.5);
-      return bScore - aScore;
-    })
-    .slice(0, 4);
+  const planPreview = getArchetypePreview(id);
 
   useEffect(() => {
     const scale = () => {
@@ -211,23 +196,24 @@ export default function CharacterDetailPage() {
               )}
             </div>
 
-            {/* Recommended Cards */}
+            {/* Game Plans */}
             <div>
-              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 3, color: "#475569", textTransform: "uppercase", marginBottom: 14 }}>Recommended Cards</div>
+              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 3, color: "#475569", textTransform: "uppercase", marginBottom: 14 }}>Game Plans</div>
               <div style={{ display: "flex", gap: 12 }}>
-                {topCards.map((card) => (
+                {planPreview.map((plan) => (
                   <div
-                    key={card.id}
-                    style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: `1px solid ${CARD_TYPE_COLOR[card.type]}30`, borderRadius: 8, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 6 }}
+                    key={plan.key}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: `1px solid ${char.color}26`, borderRadius: 8, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}
                   >
-                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: CARD_TYPE_COLOR[card.type], textTransform: "uppercase" }}>{card.type}</div>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: "#e2e8f0", letterSpacing: 0.3 }}>{card.name}</div>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <span style={{ fontSize: 10, color: "#94a3b8" }}>P{card.priority}</span>
-                      <span style={{ fontSize: 10, color: "#94a3b8" }}>K{card.knock}</span>
-                      <span style={{ fontSize: 10, color: "#94a3b8" }}>{card.energyCost}E</span>
+                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: char.color, textTransform: "uppercase" }}>{plan.label}</div>
+                    <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5, minHeight: 48 }}>{plan.why}</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {plan.cards.slice(0, 3).map((card) => (
+                        <div key={card.id} style={{ padding: "4px 8px", borderRadius: 999, background: "rgba(255,255,255,0.05)", border: `1px solid ${CARD_TYPE_COLOR[card.type]}30`, fontSize: 9, color: "#e2e8f0" }}>
+                          {card.name}
+                        </div>
+                      ))}
                     </div>
-                    <div style={{ fontSize: 10, color: "#475569", lineHeight: 1.4, marginTop: 2 }}>{card.effect}</div>
                   </div>
                 ))}
               </div>

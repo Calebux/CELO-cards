@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
+import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
+import { OnboardingCoach } from "../components/OnboardingCoach";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { WagerModal } from "../components/WagerModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
@@ -10,6 +13,13 @@ import { useAccount } from "wagmi";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
+
+async function fetchSeasonPass(address: string) {
+  const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
+    cache: "no-store",
+  });
+  return res.json() as Promise<{ active: boolean }>;
+}
 
 type MatchType = "wager" | "ranked" | "tourney" | "vshouse";
 
@@ -73,15 +83,26 @@ export default function CreateMatch() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [hasSeasonPass, setHasSeasonPass] = useState(false);
   const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
+  const [isShortLandscape, setIsShortLandscape] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(false);
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const markOnboardingStep = useGameStore((s) => s.markOnboardingStep);
+  const matchPhase = useGameStore((s) => s.matchPhase);
+  const matchId = useGameStore((s) => s.matchId);
+  const playerRole = useGameStore((s) => s.playerRole);
+  const selectedCharacter = useGameStore((s) => s.selectedCharacter);
+  const vsBot = useGameStore((s) => s.vsBot);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
+  const serverResumeMatch = useActiveMatchResume(address);
+  const safeTop = "env(safe-area-inset-top)";
+  const safeBottom = "env(safe-area-inset-bottom)";
 
   useEffect(() => {
     const fetchOnline = () => {
@@ -93,9 +114,11 @@ export default function CreateMatch() {
   }, []);
 
   useEffect(() => {
-    if (!address) return;
-    fetch(`/api/season-pass?address=${address}`)
-      .then(r => r.json())
+    if (!address) {
+      setHasSeasonPass(false);
+      return;
+    }
+    fetchSeasonPass(address)
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
       .catch(() => {});
   }, [address]);
@@ -105,6 +128,8 @@ export default function CreateMatch() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      setIsShortLandscape(vw > vh && vh < 760);
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -134,7 +159,20 @@ export default function CreateMatch() {
 
   // FIND PLAYER: create match immediately, verify pass, proceed to character select.
   // No queue wait — match appears in open games so opponents can join.
-  const handleFindMatch = () => {
+  const sendHostKeepalive = async (matchId: string, mode: "ranked" | "wager" | "tournament") => {
+    const playerName = useGameStore.getState().playerName;
+    try {
+      await fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode }),
+      });
+    } catch {
+      // Best-effort: keep UX responsive even if network is flaky.
+    }
+  };
+
+  const handleFindMatch = async () => {
     if (!address) return;
     if (!hasSeasonPass) {
       setShowSeasonPassModal(true);
@@ -144,26 +182,23 @@ export default function CreateMatch() {
     setVsBot(false);
     setMatchMode("ranked");
     setPlayerRole("host");
+    markOnboardingStep("create_match");
 
     const newMatchId = useGameStore.getState().matchId;
     if (!newMatchId) return;
 
-    const playerName = useGameStore.getState().playerName;
-    void fetch(`/api/match/${newMatchId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
-    });
+    await sendHostKeepalive(newMatchId, "ranked");
     router.push("/select-character");
   };
 
-  const handleCreateMatch = () => {
+  const handleCreateMatch = async () => {
     if (!address) return;
     if (matchType === "vshouse") {
       resetMatch();
       setVsBot(true);
       setMatchMode(toStoreMode(matchType));
       setPlayerRole(null);
+      markOnboardingStep("create_match");
       router.push("/select-character");
       return;
     }
@@ -176,20 +211,14 @@ export default function CreateMatch() {
     setVsBot(false);
     setMatchMode(toStoreMode(matchType));
     setPlayerRole("host");
+    markOnboardingStep("create_match");
     if (matchType === "ranked") {
       if (!hasSeasonPass) {
         setShowSeasonPassModal(true);
         return;
       }
       const newMatchId = useGameStore.getState().matchId;
-      if (newMatchId) {
-        const playerName = useGameStore.getState().playerName;
-        void fetch(`/api/match/${newMatchId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode: "ranked" }),
-        });
-      }
+      if (newMatchId) await sendHostKeepalive(newMatchId, "ranked");
       router.push("/ready?ranked=true");
       return;
     }
@@ -203,6 +232,20 @@ export default function CreateMatch() {
   };
 
   const selected = MATCH_TYPES.find((m) => m.key === matchType)!;
+  const resumeRoute = useMemo(() => {
+    if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
+    if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
+    if (matchPhase === "loadout") return "/loadout";
+    if (matchPhase === "lobby") return "/lobby";
+    if (matchPhase === "waiting-for-opponent" && matchId) return "/lobby";
+    return null;
+  }, [matchId, matchPhase, selectedCharacter]);
+  const effectiveResumeRoute = resumeRoute ?? serverResumeMatch?.route ?? null;
+
+  const handleResume = () => {
+    if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
+    if (effectiveResumeRoute) router.push(effectiveResumeRoute);
+  };
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -210,11 +253,11 @@ export default function CreateMatch() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
 
         {/* Background */}
-        <img src="/new addition/gameplay landing page.webp" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
+        <MiniPayImage src="/new addition/gameplay landing page.webp" alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.85) 0%, rgba(5,8,18,0.75) 50%, rgba(5,5,5,0.85) 100%)", pointerEvents: "none" }} />
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: isCompactPhone ? "0 28px" : "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button onClick={() => router.push("/")} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
@@ -233,13 +276,50 @@ export default function CreateMatch() {
           <WalletSection />
         </div>
 
-        {/* No resume banner — waiting state is handled inline in the panel */}
+        <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 76px)`, right: 18, zIndex: 12 }} />
+
+        {/* Match Resume Banner */}
+        {effectiveResumeRoute && (
+          <button
+            onClick={handleResume}
+            style={{
+              position: "absolute",
+              top: `calc(${safeTop} + 76px)`,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 11,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: isCompactPhone ? "7px 12px" : "8px 16px",
+              background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
+              border: "1px solid rgba(6,168,249,0.45)",
+              borderRadius: 6,
+              boxShadow: "0 0 14px rgba(6,168,249,0.28)",
+              fontFamily: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Resume</span>
+          </button>
+        )}
 
         {/* ── Main Layout ───────────────────────────────────────────────── */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 12 }}>
+        <div style={{
+          position: "absolute",
+          top: `calc(${safeTop} + ${effectiveResumeRoute ? 112 : 68}px)`,
+          left: 0,
+          right: 0,
+          bottom: `calc(${safeBottom} + ${isShortLandscape ? 8 : 0}px)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          paddingTop: isShortLandscape ? 2 : 12,
+        }}>
 
           {/* Panel */}
-          <div style={{ position: "relative", width: 560 }}>
+          <div style={{ position: "relative", width: isCompactPhone ? 520 : 560 }}>
 
             {/* Corner accents */}
             {[
@@ -268,7 +348,7 @@ export default function CreateMatch() {
                 </div>
 
                 {/* Match type cards */}
-                <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: isCompactPhone ? 14 : 12, marginBottom: 24 }}>
                   {MATCH_TYPES.map((mt) => {
                     const active = matchType === mt.key;
                     return (
@@ -281,7 +361,7 @@ export default function CreateMatch() {
                         <button
                           onClick={() => setMatchType(mt.key)}
                           style={{
-                            width: "100%", padding: "20px 12px 16px",
+                            width: "100%", minHeight: isCompactPhone ? 132 : 0, padding: isCompactPhone ? "24px 12px 20px" : "20px 12px 16px",
                             background: active ? `${mt.color}1e` : "rgba(255,255,255,0.03)",
                             border: active ? `1.5px solid ${mt.color}` : "1.5px solid rgba(255,255,255,0.08)",
                             borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
@@ -290,11 +370,11 @@ export default function CreateMatch() {
                             boxShadow: active ? `0 0 20px ${mt.color}25` : "none",
                           }}
                         >
-                          <span className="material-icons" style={{ fontSize: 28, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 8 }}>{mt.icon}</span>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{mt.label}</div>
-                          <div style={{ fontSize: 9, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{mt.sub}</div>
+                          <span className="material-icons" style={{ fontSize: isCompactPhone ? 34 : 28, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 8 }}>{mt.icon}</span>
+                          <div style={{ fontSize: isCompactPhone ? 14 : 13, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{mt.label}</div>
+                          <div style={{ fontSize: isCompactPhone ? 10 : 9, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{mt.sub}</div>
                           {mt.subSecondary && (
-                            <div style={{ fontSize: 8, color: active ? `${mt.color}cc` : "#6b7280", fontWeight: 500, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>
+                            <div style={{ fontSize: isCompactPhone ? 9 : 8, color: active ? `${mt.color}cc` : "#6b7280", fontWeight: 500, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>
                               {mt.subSecondary}
                             </div>
                           )}
@@ -306,7 +386,7 @@ export default function CreateMatch() {
 
                 {/* Description of selected type */}
                 <div style={{ marginBottom: matchType === "ranked" ? 10 : matchType === "vshouse" ? 16 : 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
-                  <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
+                  <p style={{ fontSize: isCompactPhone ? 13 : 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
 
                 {/* Season Pass callout — ranked only, hidden if user already has a pass */}
@@ -389,13 +469,13 @@ export default function CreateMatch() {
                     <button
                       disabled
                       style={{
-                        width: "100%", height: 56,
+                        width: "100%", height: isCompactPhone ? 64 : 56,
                         background: "rgba(255,255,255,0.03)",
                         border: "1.5px solid rgba(255,255,255,0.1)",
                         borderRadius: 6,
                         cursor: "not-allowed",
                         fontFamily: "inherit",
-                        fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                        fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 3,
                         color: "#475569",
                         textTransform: "uppercase",
                         clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -403,21 +483,21 @@ export default function CreateMatch() {
                         opacity: 0.6,
                       }}
                     >
-                      <span className="material-icons" style={{ fontSize: 20, color: "#475569" }}>lock</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: "#475569" }}>lock</span>
                       CONNECT WALLET TO PLAY
                     </button>
                   ) : matchType === "ranked" ? (
-                    <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ display: "flex", flexDirection: isCompactPhone ? "column" : "row", gap: 12 }}>
                       <button
                         onClick={() => void handleFindMatch()}
                         style={{
-                          flex: 1, height: 56,
+                          flex: 1, height: isCompactPhone ? 64 : 56,
                           background: "linear-gradient(135deg, #1a3a52, #0f2233)",
                           border: `1.5px solid ${selected.color}`,
                           borderRadius: 6,
                           cursor: "pointer",
                           fontFamily: "inherit",
-                          fontWeight: 900, fontSize: 16, letterSpacing: 1.5,
+                          fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 1.5,
                           color: "#b9e7f4",
                           textTransform: "uppercase",
                           clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -426,20 +506,20 @@ export default function CreateMatch() {
                           transition: "all 0.2s ease"
                         }}
                       >
-                        <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>manage_search</span>
+                        <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: selected.color }}>manage_search</span>
                         FIND PLAYER
                       </button>
                       
                       <button
                         onClick={handleCreateMatch}
                         style={{
-                          flex: 1, height: 56,
+                          flex: 1, height: isCompactPhone ? 64 : 56,
                           background: "rgba(255,255,255,0.03)",
                           border: `1.5px solid rgba(86,164,203,0.4)`,
                           borderRadius: 6,
                           cursor: "pointer",
                           fontFamily: "inherit",
-                          fontWeight: 900, fontSize: 16, letterSpacing: 1.5,
+                          fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 1.5,
                           color: "#56a4cb",
                           textTransform: "uppercase",
                           clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -447,7 +527,7 @@ export default function CreateMatch() {
                           transition: "all 0.2s ease"
                         }}
                       >
-                        <span className="material-icons" style={{ fontSize: 20, color: "#56a4cb" }}>group</span>
+                        <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: "#56a4cb" }}>group</span>
                         WITH FRIEND
                       </button>
                     </div>
@@ -455,13 +535,13 @@ export default function CreateMatch() {
                     <button
                       onClick={handleCreateMatch}
                       style={{
-                        width: "100%", height: 56,
+                        width: "100%", height: isCompactPhone ? 64 : 56,
                         background: "linear-gradient(135deg, #1a3a52, #0f2233)",
                         border: `1.5px solid ${selected.color}`,
                         borderRadius: 6,
                         cursor: "pointer",
                         fontFamily: "inherit",
-                        fontWeight: 900, fontSize: 16, letterSpacing: 3,
+                        fontWeight: 900, fontSize: isCompactPhone ? 17 : 16, letterSpacing: 3,
                         color: "#b9e7f4",
                         textTransform: "uppercase",
                         clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%)",
@@ -470,9 +550,9 @@ export default function CreateMatch() {
                         transition: "all 0.2s ease"
                       }}
                     >
-                      <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>radar</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: selected.color }}>radar</span>
                       CREATE MATCH
-                      <span className="material-icons" style={{ fontSize: 20, color: selected.color }}>arrow_forward_ios</span>
+                      <span className="material-icons" style={{ fontSize: isCompactPhone ? 22 : 20, color: selected.color }}>arrow_forward_ios</span>
                     </button>
                   )
                 )}
@@ -527,7 +607,7 @@ export default function CreateMatch() {
         {/* Season pass upsell — floats below WagerModal */}
         {!hasSeasonPass && (
           <div style={{
-            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
+            position: "fixed", bottom: `calc(${safeBottom} + 18px)`, left: "50%", transform: "translateX(-50%)",
             zIndex: 9999,
             display: "flex", alignItems: "center", gap: 10,
             padding: "10px 20px", borderRadius: 30,

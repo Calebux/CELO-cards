@@ -9,9 +9,13 @@ import {
   useWriteContract,
   useSendTransaction,
   useAccount,
+  useConnect,
+  useSwitchChain,
 } from "wagmi";
+import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { parseUnits } from "viem";
+import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -34,9 +38,9 @@ type BuyCurrency = "celo" | "gdollar";
 export default function BlackMarket() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { address } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
 
-  const { unlockedPremiumCards } = useGameStore();
+  const { unlockedPremiumCards, playerName } = useGameStore();
   const unlockCard = useGameStore((s) => s.purchaseCard);
 
   const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>("celo");
@@ -45,6 +49,8 @@ export default function BlackMarket() {
 
   const { writeContractAsync } = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
+  const { connectAsync } = useConnect();
+  const { switchChainAsync } = useSwitchChain();
 
   const marketCards = CARDS.filter((c) => c.isPremium);
 
@@ -73,23 +79,75 @@ export default function BlackMarket() {
     return () => window.removeEventListener("resize", scale);
   }, []);
 
+  const ensureWalletReady = async () => {
+    let activeAddress = address;
+    let activeChainId = chainId;
+    let connected = isConnected;
+
+    if (!connected && isMiniPay()) {
+      const connector = getMiniPayConnector();
+      const result = await connectAsync({ connector, chainId: celo.id });
+      activeAddress = result.accounts[0] as `0x${string}` | undefined;
+      activeChainId = result.chainId;
+      connected = true;
+    }
+
+    if (!connected || !activeAddress) {
+      throw new Error("Connect your wallet first.");
+    }
+
+    if (activeChainId !== celo.id) {
+      await switchChainAsync({ chainId: celo.id });
+      activeChainId = celo.id;
+    }
+
+    if (activeChainId !== celo.id) {
+      throw new Error("Switch to Celo and try again.");
+    }
+
+    return activeAddress;
+  };
+
   const handleBuy = async (id: string, price: number) => {
-    if (!address) { setBuyError("Connect your wallet first."); return; }
     setBuyingId(id);
     setBuyError("");
     const amt = ptsToOnchain(price);
     try {
+      const activeAddress = await ensureWalletReady();
+      let txHash: string;
       if (buyCurrency === "gdollar") {
-        await writeContractAsync({
+        txHash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
           functionName: "transfer",
           args: [TREASURY, amt],
+          account: activeAddress,
+          chainId: celo.id,
         });
       } else {
         // CELO — native transfer
-        await sendTransactionAsync({ to: TREASURY, value: amt });
+        txHash = isMiniPay()
+          ? await sendMiniPayNativeTransaction({
+              from: activeAddress,
+              to: TREASURY,
+              value: amt,
+              gas: 21000n,
+              data: "0x",
+            })
+          : await sendTransactionAsync({ to: TREASURY, value: amt, account: activeAddress, chainId: celo.id });
       }
+      await fetch("/api/black-market/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address,
+          playerName,
+          cardId: id,
+          currency: buyCurrency,
+          pricePoints: price,
+          txHash,
+        }),
+      }).catch(() => {});
       // Unlock locally (store + localStorage). Pass 0 so points are untouched.
       unlockCard(id, 0);
     } catch (e) {
@@ -224,7 +282,7 @@ export default function BlackMarket() {
                   ) : (
                     <button
                       onClick={() => void handleBuy(c.id, price)}
-                      disabled={isBuying || !address}
+                      disabled={isBuying}
                       style={{
                         width: "100%", padding: "10px",
                         background: isBuying ? `${currColor}20` : `linear-gradient(135deg, ${currColor}28, ${currColor}10)`,
@@ -232,11 +290,11 @@ export default function BlackMarket() {
                         borderRadius: 6,
                         color: "white",
                         fontSize: 11, fontWeight: 800,
-                        cursor: isBuying || !address ? "not-allowed" : "pointer",
+                        cursor: isBuying ? "not-allowed" : "pointer",
                         letterSpacing: 1,
                         transition: "all 0.2s ease",
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        opacity: !address ? 0.5 : 1,
+                        opacity: 1,
                       }}
                     >
                       <span className="material-icons" style={{ fontSize: 13, color: isBuying ? currColor : c.color }}>
