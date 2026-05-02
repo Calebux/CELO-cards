@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveRound, SlotResult } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import {
+  getActiveMatchIdForAddress,
   getMatch,
   setMatch,
   deleteMatch,
@@ -15,21 +16,12 @@ import {
 } from "../../../lib/redis";
 import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
-import { MultiplayerMode, isPaidMultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
+import { MultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
 import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
-import { ServerMatch, newServerMatch, matchNeedsPayment } from "../../../lib/serverMatch";
+import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 
-const INACTIVITY_TIMEOUT      = 5  * 60 * 1000; // 5 minutes (free matches)
-const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000; // 45 minutes (paid matches)
 const ROUND_GRACE_MS = 30 * 1000; // grace when one player has submitted and the other is reconnecting
-
-function isTimedOut(match: ServerMatch): boolean {
-  const bothJoined = match.host.charId && match.joiner.charId;
-  if (bothJoined) return false;
-  const timeout = matchNeedsPayment(match) ? WAGER_INACTIVITY_TIMEOUT : INACTIVITY_TIMEOUT;
-  return Date.now() - match.lastActivity > timeout;
-}
 
 function validRole(role: unknown): role is "host" | "joiner" {
   return role === "host" || role === "joiner";
@@ -68,6 +60,26 @@ function flipPerspective(slots: SlotResult[]): SlotResult[] {
 
 type Ctx = { params: Promise<{ matchId: string }> };
 
+async function closePreviousHostRoom(address: string, currentMatchId: string): Promise<void> {
+  const previousMatchId = await getActiveMatchIdForAddress(address).catch(() => null);
+  if (!previousMatchId || previousMatchId === currentMatchId) return;
+
+  const previousMatch = await getMatch<ServerMatch>(previousMatchId).catch(() => null);
+  if (
+    !previousMatch ||
+    previousMatch.host.address?.toLowerCase() !== address.toLowerCase() ||
+    previousMatch.joiner.charId ||
+    previousMatch.completedAt ||
+    previousMatch.abortedBy
+  ) {
+    return;
+  }
+
+  closeJoinWindow(previousMatch);
+  await setMatch(previousMatchId, previousMatch).catch(() => {});
+  await removeFromOpenMatches(previousMatchId).catch(() => {});
+}
+
 // GET — poll match state
 export async function GET(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
@@ -79,15 +91,20 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
-  if (isTimedOut(match)) {
-    return NextResponse.json({ phase: "timed-out" });
+  const joinInviteExpired =
+    role === "joiner" &&
+    !match.joiner.charId &&
+    !isJoinWindowOpen(match);
+  if (joinInviteExpired) {
+    await removeFromOpenMatches(matchId).catch(() => {});
+    return NextResponse.json({ error: "Match invite is inactive. Ask the host to resume it first." }, { status: 410 });
   }
 
   const self = role === "host" ? match.host : match.joiner;
   const other = role === "host" ? match.joiner : match.host;
   const opponentCharId = other.charId;
 
-  let phase: "waiting-for-opponent" | "resolved" | "lobby" | "timed-out";
+  let phase: "waiting-for-opponent" | "resolved" | "lobby";
   if (match.resolvedSlots !== null) {
     phase = "resolved";
   } else if (!opponentCharId) {
@@ -147,11 +164,23 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid characterId" }, { status: 400 });
   }
 
+  const existingMatch = await getMatch<ServerMatch>(matchId);
+  if (
+    role === "joiner" &&
+    existingMatch &&
+    !existingMatch.joiner.charId &&
+    !isJoinWindowOpen(existingMatch)
+  ) {
+    await removeFromOpenMatches(matchId).catch(() => {});
+    return NextResponse.json({ error: "Match invite is inactive. Ask the host to resume it first." }, { status: 410 });
+  }
+
   let match: ServerMatch | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
-    match = await getMatch<ServerMatch>(matchId) ?? newServerMatch(matchId);
+    match = attempt === 0 ? existingMatch ?? newServerMatch(matchId) : await getMatch<ServerMatch>(matchId) ?? newServerMatch(matchId);
     match.lastActivity = Date.now();
     if (role === "host") {
+      reopenJoinWindow(match);
       match.host.charId = characterId;
       if (typeof playerName === "string") match.host.playerName = playerName;
       if (address) match.host.address = address;
@@ -160,6 +189,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         if (typeof wagerAmount === "string" && !match.hostWagerAmount) match.hostWagerAmount = wagerAmount;
       }
     } else {
+      closeJoinWindow(match);
       match.joiner.charId = characterId;
       if (typeof playerName === "string") match.joiner.playerName = playerName;
       if (address) match.joiner.address = address;
@@ -196,6 +226,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const activeAddress = role === "host" ? match?.host.address : match?.joiner.address;
   if (activeAddress) {
+    if (role === "host") {
+      await closePreviousHostRoom(activeAddress, matchId).catch(() => {});
+    }
     await setActiveMatchForAddress(activeAddress, matchId).catch(() => {});
   }
 
@@ -243,9 +276,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       playerSlot.address = patchAddress;
     }
     if (validMode(requestedMode)) match.mode = requestedMode;
+    if (role === "host" && !match.joiner.charId && !match.completedAt && !match.abortedBy) {
+      reopenJoinWindow(match);
+    }
     await setMatch(matchId, match).catch(() => {});
     const activeAddress = role === "host" ? match.host.address : match.joiner.address;
     if (activeAddress) {
+      if (role === "host") {
+        await closePreviousHostRoom(activeAddress, matchId).catch(() => {});
+      }
       await setActiveMatchForAddress(activeAddress, matchId).catch(() => {});
     }
     if (role === "host") {
@@ -280,6 +319,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       if (match.mode !== "wager") {
         return NextResponse.json({ error: "Wager registration is only valid for wager matches" }, { status: 409 });
       }
+      match.lastActivity = Date.now();
       if (role === "host") {
         match.hostWagerTx = wagerTx ?? null;
         match.hostWagerAmount = wagerAmount ?? null;
@@ -305,6 +345,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       if (!match) return NextResponse.json({ ok: true });
       match.abortedBy = role;
       match.lastActivity = Date.now();
+      closeJoinWindow(match);
       try {
         await setMatch(matchId, match);
         abortedMatch = match;
@@ -354,6 +395,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
     match.lastActivity = Date.now();
+    closeJoinWindow(match);
 
     // Reset slots if moving to a new round
     if (round > match.round) {

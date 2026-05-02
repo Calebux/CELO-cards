@@ -242,7 +242,7 @@ export default function CreateMatch() {
     if (matchPhase === "waiting-for-opponent" && matchId) return "/lobby";
     return null;
   }, [matchId, matchPhase, selectedCharacter]);
-  const effectiveResumeRoute = resumeRoute ?? serverResumeMatch?.route ?? null;
+  const effectiveResumeRoute = serverResumeMatch?.route ?? resumeRoute ?? null;
 
   const handleResume = () => {
     if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);

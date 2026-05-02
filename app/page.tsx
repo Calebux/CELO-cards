@@ -37,7 +37,7 @@ export default function ActionOrderLandingPage() {
     return null;
   }, [matchId, matchPhase, selectedCharacter]);
 
-  const effectiveResumeRoute = resumeRoute ?? serverResumeMatch?.route ?? null;
+  const effectiveResumeRoute = serverResumeMatch?.route ?? resumeRoute ?? null;
 
   const handleResume = () => {
     if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);

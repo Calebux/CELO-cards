@@ -7,6 +7,8 @@ import {
   useAccount,
   useReadContract,
   useSendTransaction,
+  useConnect,
+  useSwitchChain,
 } from "wagmi";
 import { celo } from "wagmi/chains";
 import { CUSD_CONTRACT, ERC20_ABI } from "../lib/cusd";
@@ -14,7 +16,7 @@ import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 import { formatUnits } from "viem";
-import { isMiniPay } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 
 type Props = {
   onConfirmed: () => void;
@@ -39,7 +41,8 @@ const DESIGN_H = 823;
 export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const { address } = useAccount();
+  const pendingAddressRef = useRef<`0x${string}` | null>(null);
+  const { address, isConnected, chainId } = useAccount();
   const setWager            = useGameStore((s) => s.setWager);
   const matchId             = useGameStore((s) => s.matchId);
   const playerRole          = useGameStore((s) => s.playerRole);
@@ -77,7 +80,13 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
 
   const { writeContractAsync }  = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
+  const { connectAsync } = useConnect();
+  const { switchChainAsync } = useSwitchChain();
   const [txHash, setTxHash]     = useState<`0x${string}` | undefined>();
+
+  useEffect(() => {
+    pendingAddressRef.current = address ?? null;
+  }, [address]);
 
   // Check existing cUSD allowance for the arena (only relevant for cUSD path)
   const { data: allowance } = useReadContract({
@@ -110,7 +119,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   };
 
   // Register wager TX + amount with the match server
-  const registerWagerOnServer = (hash: `0x${string}`) => {
+  const registerWagerOnServer = (hash: `0x${string}`, activeAddress: `0x${string}` | null) => {
     if (!matchId || !playerRole) return;
     void fetch(`/api/match/${matchId}`, {
       method: "PATCH",
@@ -118,6 +127,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
       body: JSON.stringify({
         action: "wager",
         role: playerRole,
+        address: activeAddress,
         wagerTx: hash,
         wagerAmount: parsedAmount().toString(),
       }),
@@ -130,7 +140,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
       setStep("done");
       setWager(true, txHash ?? null, currency);
       setWagerAmountInput(amountInput);
-      if (txHash) registerWagerOnServer(txHash);
+      if (txHash) registerWagerOnServer(txHash, pendingAddressRef.current);
       onConfirmed();
     }
   }, [txSuccess, step]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -140,27 +150,64 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
     if (step === "approved") void handleEnterMatch();
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const ensureWalletReady = async () => {
+    let activeAddress = address;
+    let activeChainId = chainId;
+    let connected = isConnected;
+
+    if (!connected && isMiniPay()) {
+      const connector = getMiniPayConnector();
+      const result = await connectAsync({ connector, chainId: celo.id });
+      activeAddress = result.accounts[0] as `0x${string}` | undefined;
+      activeChainId = result.chainId;
+      connected = true;
+    }
+
+    if (!connected || !activeAddress) {
+      throw new Error("Connect your wallet first.");
+    }
+
+    if (activeChainId !== celo.id) {
+      await switchChainAsync({ chainId: celo.id });
+      activeChainId = celo.id;
+    }
+
+    if (activeChainId !== celo.id) {
+      throw new Error("Switch to Celo and try again.");
+    }
+
+    pendingAddressRef.current = activeAddress;
+    return activeAddress;
+  };
+
   const handlePay = async () => {
-    if (!address) { setErrMsg("Wallet not connected."); return; }
     setErrMsg("");
+    let activeAddress: `0x${string}`;
+    try {
+      activeAddress = await ensureWalletReady();
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Wallet not connected.");
+      setStep("error");
+      return;
+    }
 
     if (currency === "gdollar") {
-      await handleGDollarTransfer();
+      await handleGDollarTransfer(activeAddress);
       return;
     }
 
     if (currency === "celo") {
       if (!USE_CONTRACT) {
-        await handleDirectCeloTransfer();
+        await handleDirectCeloTransfer(activeAddress);
       } else {
-        await handleEnterMatchWithCelo();
+        await handleEnterMatchWithCelo(activeAddress);
       }
       return;
     }
 
     // cUSD path
     if (!USE_CONTRACT) {
-      await handleDirectTransfer();
+      await handleDirectTransfer(activeAddress);
       return;
     }
 
@@ -168,12 +215,12 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
     if (alreadyApproved) {
       setStep("approved");
     } else {
-      await handleApprove();
+      await handleApprove(activeAddress);
     }
   };
 
   // ── G$: direct ERC-20 transfer to treasury ────────────────────────────────
-  const handleGDollarTransfer = async () => {
+  const handleGDollarTransfer = async (activeAddress: `0x${string}`) => {
     const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
@@ -184,7 +231,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         abi: GDOLLAR_ABI,
         functionName: "transfer",
         args: [TREASURY, amt],
-        account: address,
+        account: activeAddress,
         chainId: celo.id,
       });
       setTxHash(hash);
@@ -195,7 +242,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   };
 
   // ── cUSD: approve ────────────────────────────────────────────────────────
-  const handleApprove = async () => {
+  const handleApprove = async (activeAddress: `0x${string}`) => {
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("approving");
@@ -205,7 +252,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         abi: APPROVE_ABI,
         functionName: "approve",
         args: [ARENA_ADDRESS, amt],
-        account: address,
+        account: activeAddress,
         chainId: celo.id,
       });
       setTxHash(hash);
@@ -225,7 +272,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         abi: ARENA_ABI,
         functionName: "enterMatch",
         args: [matchIdToBytes32(matchId)],
-        account: address,
+        account: pendingAddressRef.current ?? address,
         chainId: celo.id,
       });
       setTxHash(hash);
@@ -236,7 +283,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   };
 
   // ── CELO: enterMatchWithCelo ──────────────────────────────────────────────
-  const handleEnterMatchWithCelo = async () => {
+  const handleEnterMatchWithCelo = async (activeAddress: `0x${string}`) => {
     if (!matchId) { setErrMsg("No match ID."); setStep("error"); return; }
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
@@ -248,7 +295,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         functionName: "enterMatchWithCelo",
         args: [matchIdToBytes32(matchId)],
         value: amt,
-        account: address,
+        account: activeAddress,
         chainId: celo.id,
       });
       setTxHash(hash);
@@ -259,7 +306,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   };
 
   // ── Fallbacks (no contract deployed) ─────────────────────────────────────
-  const handleDirectTransfer = async () => {
+  const handleDirectTransfer = async (activeAddress: `0x${string}`) => {
     const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
@@ -270,7 +317,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         abi: ERC20_ABI,
         functionName: "transfer",
         args: [TREASURY, amt],
-        account: address,
+        account: activeAddress,
         chainId: celo.id,
       });
       setTxHash(hash);
@@ -280,18 +327,26 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
     }
   };
 
-  const handleDirectCeloTransfer = async () => {
+  const handleDirectCeloTransfer = async (activeAddress: `0x${string}`) => {
     const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
-      const hash = await sendTransactionAsync({
-        to: TREASURY,
-        value: amt,
-        account: address,
-        chainId: celo.id,
-      });
+      const hash = isMiniPay()
+        ? await sendMiniPayNativeTransaction({
+            from: activeAddress,
+            to: TREASURY,
+            value: amt,
+            gas: 21000n,
+            data: "0x",
+          })
+        : await sendTransactionAsync({
+            to: TREASURY,
+            value: amt,
+            account: activeAddress,
+            chainId: celo.id,
+          });
       setTxHash(hash);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");

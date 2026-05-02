@@ -7,7 +7,7 @@ export type ActiveMatchResume = {
   matchId: string;
   role: "host" | "joiner";
   mode: MatchMode;
-  route: "/select-character" | "/lobby" | "/loadout" | "/gameplay";
+  route: string;
   selfCharId: string | null;
   opponentCharId: string | null;
   opponentName: string | null;

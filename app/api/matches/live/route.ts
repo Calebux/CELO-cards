@@ -2,14 +2,35 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { getMatch, getOpenMatchIds, removeFromOpenMatches } from "../../../lib/redis";
-import { isPaidMultiplayerMode } from "../../../lib/matchmaking";
-import { ServerMatch } from "../../../lib/serverMatch";
+import { getActiveMatchIdForAddress, getMatch, getOpenMatchIds, removeFromOpenMatches } from "../../../lib/redis";
+import { ServerMatch, isJoinWindowOpen } from "../../../lib/serverMatch";
 
-export async function GET() {
+type LiveMatchSummary = {
+  id: string;
+  hostName: string | null;
+  hostAddress: string | null;
+  createdAt: number;
+  mode: ServerMatch["mode"];
+  hostCharSelected: boolean;
+};
+
+function toLiveMatchSummary(id: string, match: ServerMatch): LiveMatchSummary {
+  return {
+    id,
+    hostName: match.host.playerName ?? null,
+    hostAddress: match.host.address ?? null,
+    createdAt: match.createdAt,
+    mode: match.mode,
+    hostCharSelected: !!match.host.charId,
+  };
+}
+
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const address = url.searchParams.get("address")?.trim().toLowerCase() ?? null;
     const ids = await getOpenMatchIds();
-    if (!ids.length) return NextResponse.json({ matches: [] });
+    if (!ids.length && !address) return NextResponse.json({ matches: [] });
 
     const results = await Promise.all(
       ids.map(async (id) => {
@@ -18,18 +39,7 @@ export async function GET() {
       })
     );
 
-    const now = Date.now();
-    const STALE_MS        = 10 * 60 * 1000; // 10 min — free matches
-    const WAGER_STALE_MS  = 60 * 60 * 1000; // 60 min — paid matches stay visible longer
-
-    const live: {
-      id: string;
-      hostName: string | null;
-      hostAddress: string | null;
-      createdAt: number;
-      mode: ServerMatch["mode"];
-      hostCharSelected: boolean;
-    }[] = [];
+    const live: LiveMatchSummary[] = [];
 
     for (const { id, match } of results) {
       if (!match) {
@@ -42,25 +52,37 @@ export async function GET() {
         await removeFromOpenMatches(id).catch(() => {});
         continue;
       }
-      // Skip if stale (wager matches get a much longer window)
-      const staleLimit = isPaidMultiplayerMode(match.mode) ? WAGER_STALE_MS : STALE_MS;
-      if (now - match.lastActivity > staleLimit) {
+      // Skip if the host has not explicitly reopened or refreshed the join window
+      if (!isJoinWindowOpen(match)) {
         await removeFromOpenMatches(id).catch(() => {});
         continue;
       }
 
-      live.push({
-        id,
-        hostName: match.host.playerName ?? null,
-        hostAddress: match.host.address ?? null,
-        createdAt: match.createdAt,
-        mode: match.mode,
-        hostCharSelected: !!match.host.charId,
-      });
+      live.push(toLiveMatchSummary(id, match));
     }
 
-    // Sort newest first
-    live.sort((a, b) => b.createdAt - a.createdAt);
+    if (address) {
+      const activeMatchId = await getActiveMatchIdForAddress(address);
+      if (activeMatchId && !live.some((match) => match.id === activeMatchId)) {
+        const activeMatch = await getMatch<ServerMatch>(activeMatchId);
+        const isOwnHostWaitingMatch =
+          !!activeMatch &&
+          !activeMatch.completedAt &&
+          !activeMatch.abortedBy &&
+          activeMatch.host.address?.toLowerCase() === address &&
+          !activeMatch.joiner.charId;
+        if (isOwnHostWaitingMatch && activeMatch) {
+          live.push(toLiveMatchSummary(activeMatchId, activeMatch));
+        }
+      }
+    }
+
+    live.sort((a, b) => {
+      const aOwn = !!(address && a.hostAddress?.toLowerCase() === address);
+      const bOwn = !!(address && b.hostAddress?.toLowerCase() === address);
+      if (aOwn !== bOwn) return aOwn ? -1 : 1;
+      return b.createdAt - a.createdAt;
+    });
 
     return NextResponse.json({ matches: live });
   } catch (e) {

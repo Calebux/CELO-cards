@@ -3,17 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { clearActiveMatchForAddress, getActiveMatchIdForAddress, getMatch } from "../../../lib/redis";
-import { matchNeedsPayment, ServerMatch } from "../../../lib/serverMatch";
-
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
-const WAGER_INACTIVITY_TIMEOUT = 45 * 60 * 1000;
-
-function isTimedOut(match: ServerMatch): boolean {
-  const bothJoined = match.host.charId && match.joiner.charId;
-  if (bothJoined) return false;
-  const timeout = matchNeedsPayment(match) ? WAGER_INACTIVITY_TIMEOUT : INACTIVITY_TIMEOUT;
-  return Date.now() - match.lastActivity > timeout;
-}
+import { ServerMatch } from "../../../lib/serverMatch";
 
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address")?.trim().toLowerCase();
@@ -23,7 +13,7 @@ export async function GET(req: NextRequest) {
   if (!matchId) return NextResponse.json({ match: null });
 
   const match = await getMatch<ServerMatch>(matchId);
-  if (!match || match.completedAt || match.abortedBy || isTimedOut(match)) {
+  if (!match || match.completedAt || match.abortedBy) {
     await clearActiveMatchForAddress(address, matchId).catch(() => {});
     return NextResponse.json({ match: null });
   }
@@ -42,18 +32,17 @@ export async function GET(req: NextRequest) {
 
   const self = role === "host" ? match.host : match.joiner;
   const opponent = role === "host" ? match.joiner : match.host;
-  const phase =
-    match.resolvedSlots !== null
-      ? "resolved"
-      : opponent.charId
-        ? "waiting-for-opponent"
-        : "lobby";
+  const bothCharsSelected = !!self.charId && !!opponent.charId;
   const route =
-    !self.charId
-      ? "/select-character"
-      : phase === "resolved"
-        ? "/gameplay"
-        : phase === "waiting-for-opponent"
+    match.resolvedSlots !== null
+      ? "/gameplay"
+      : !self.charId
+        ? role === "host"
+          ? match.mode === "ranked"
+            ? "/ready?ranked=true"
+            : "/ready"
+          : `/join?id=${matchId}`
+        : bothCharsSelected
           ? "/loadout"
           : "/lobby";
 

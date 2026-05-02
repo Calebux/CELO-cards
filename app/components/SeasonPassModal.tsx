@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
@@ -84,12 +84,17 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
   const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
   const [currency, setCurrency] = useState<Currency>(isMiniPay() ? "usdt" : "celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
   const [existingPlan, setExistingPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    activeAddressRef.current = address ?? null;
+  }, [address]);
 
   useEffect(() => {
     if (!isMp) return;
@@ -174,7 +179,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     return activeAddress;
   }, [address, chainId, connectAsync, isConnected, switchChainAsync]);
 
-  const pollAndRegister = useCallback(async (hash: `0x${string}`) => {
+  const pollAndRegister = useCallback(async (hash: `0x${string}`, activeAddress: `0x${string}`) => {
     setStep("confirming");
     let attempts = 0;
     const poll = setInterval(async () => {
@@ -189,7 +194,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         const res = await fetch(`/api/season-pass`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address, txHash: hash, plan: selectedPlan, currency }),
+          body: JSON.stringify({ address: activeAddress, txHash: hash, plan: selectedPlan, currency }),
         });
         if (res.ok) {
           const data = await res.json() as { success: boolean; expiry: number };
@@ -206,36 +211,51 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         }
       } catch { /* keep polling on network error */ }
     }, 3000);
-  }, [address, selectedPlan, currency]);
+  }, [selectedPlan, currency]);
 
   const handlePurchase = useCallback(async () => {
     setStep("waiting-tx");
     setErrMsg("");
     try {
       const activeAddress = await ensureWalletReady();
+      activeAddressRef.current = activeAddress;
       if (currency === "usdt") {
         const hash = await writeContractAsync({
           address: USDT_CONTRACT,
           abi: USDT_ABI,
           functionName: "transfer",
           args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
+          account: activeAddress,
+          chainId: celo.id,
         });
-        void pollAndRegister(hash);
+        void pollAndRegister(hash, activeAddress);
       } else if (currency === "gdollar") {
         const hash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
           functionName: "transfer",
           args: [TREASURY, plan.priceWeiGdollar],
+          account: activeAddress,
+          chainId: celo.id,
         });
-        void pollAndRegister(hash);
+        void pollAndRegister(hash, activeAddress);
       } else {
-        const hash = await sendTransactionAsync({
-          to: TREASURY,
-          value: plan.priceWeiCelo,
-          data: "0x",
-        });
-        void pollAndRegister(hash);
+        const hash = isMiniPay()
+          ? await sendMiniPayNativeTransaction({
+              from: activeAddress,
+              to: TREASURY,
+              value: plan.priceWeiCelo,
+              gas: 21000n,
+              data: "0x",
+            })
+          : await sendTransactionAsync({
+              to: TREASURY,
+              value: plan.priceWeiCelo,
+              data: "0x",
+              account: activeAddress,
+              chainId: celo.id,
+            });
+        void pollAndRegister(hash, activeAddress);
       }
     } catch (err) {
       setErrMsg(err instanceof Error ? err.message : "Transaction rejected.");

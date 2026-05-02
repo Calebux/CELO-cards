@@ -133,6 +133,8 @@ export default function BlackMarket() {
           abi: USDT_ABI,
           functionName: "transfer",
           args: [TREASURY_MINIPAY, ptsToUsdt(price)],
+          account: activeAddress,
+          chainId: celo.id,
         });
       } else if (buyCurrency === "gdollar") {
         txHash = await writeContractAsync({
@@ -159,7 +161,7 @@ export default function BlackMarket() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address,
+          address: activeAddress,
           playerName,
           cardId: id,
           currency: buyCurrency,

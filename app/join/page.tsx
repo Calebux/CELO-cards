@@ -50,7 +50,8 @@ function JoinMatchContent() {
   // Fetch live matches and refresh every 5s
   useEffect(() => {
     const fetchLive = () => {
-      fetch("/api/matches/live")
+      const qs = address ? `?address=${encodeURIComponent(address)}` : "";
+      fetch(`/api/matches/live${qs}`)
         .then(r => r.json())
         .then((d: { matches: LiveMatch[] }) => setLiveMatches(d.matches ?? []))
         .catch(() => {})
@@ -59,7 +60,7 @@ function JoinMatchContent() {
     fetchLive();
     const id = setInterval(fetchLive, 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [address]);
 
   useEffect(() => {
     const scale = () => {
@@ -116,7 +117,11 @@ function JoinMatchContent() {
     try {
       const res = await fetch(`/api/match/${matchCode}?role=joiner`);
       if (!res.ok) {
-        setError("Match not found or already started.");
+        if (res.status === 410) {
+          setError("That match is inactive. Ask the host to resume it first.");
+        } else {
+          setError("Match not found or already started.");
+        }
         setJoining(false);
         setJoiningId(null);
         return;

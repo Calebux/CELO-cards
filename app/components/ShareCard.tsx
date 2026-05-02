@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { isMiniPay } from "../lib/minipay";
+
+const DESIGN_W = 1440;
+const DESIGN_H = 823;
 
 interface Character {
   name: string;
@@ -22,7 +26,9 @@ const CARD_W = 400;
 const CARD_H = 560;
 
 export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponentRounds, onClose }: ShareCardProps) {
+  const isMp = isMiniPay();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -115,6 +121,32 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     img.src = playerChar.standingArt;
   }, [won, playerChar, opponentChar, playerRounds, opponentRounds]);
 
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const scale = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      el.style.transform = transform;
+    };
+    scale();
+    window.addEventListener("resize", scale);
+    return () => window.removeEventListener("resize", scale);
+  }, []);
+
   const handleDownload = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -159,81 +191,96 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 300,
-        display: "flex", alignItems: "center", justifyContent: "center",
         backgroundColor: "rgba(5, 5, 16, 0.9)",
         backdropFilter: "blur(8px)",
+        overflow: "hidden",
       }}
       onClick={onClose}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
+        ref={wrapRef}
         style={{
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 16,
-          padding: 24,
+          width: DESIGN_W,
+          height: DESIGN_H,
+          position: "absolute",
+          top: 0,
+          left: 0,
+          transformOrigin: "top left",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <canvas
-          ref={canvasRef}
-          width={CARD_W}
-          height={CARD_H}
+        <div
+          onClick={(e) => e.stopPropagation()}
           style={{
-            borderRadius: 12,
-            boxShadow: `0 0 40px ${won ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`,
-            maxWidth: "80vw",
-            maxHeight: "60vh",
-            objectFit: "contain",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: isMp ? 24 : 16,
+            padding: isMp ? 32 : 24,
           }}
-        />
-        <div style={{ display: "flex", gap: 10 }}>
-          <button
-            onClick={() => void handleShare()}
+        >
+          <canvas
+            ref={canvasRef}
+            width={CARD_W}
+            height={CARD_H}
             style={{
-              padding: "11px 24px", borderRadius: 6, cursor: "pointer",
-              background: "rgba(86,164,203,0.15)", border: "1.5px solid #56a4cb",
-              color: "#b9e7f4", fontSize: 13, fontWeight: 700,
-              letterSpacing: 2, textTransform: "uppercase", fontFamily: "inherit",
-              display: "flex", alignItems: "center", gap: 8,
+              borderRadius: 12,
+              boxShadow: `0 0 40px ${won ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`,
+              maxWidth: isMp ? 500 : "80vw",
+              maxHeight: isMp ? 700 : "60vh",
+              objectFit: "contain",
             }}
-          >
-            <span className="material-icons" style={{ fontSize: 16 }}>share</span>
-            SHARE
-          </button>
-          <button
-            onClick={handleDownload}
-            style={{
-              padding: "11px 24px", borderRadius: 6, cursor: "pointer",
-              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)",
-              color: "#94a3b8", fontSize: 13, fontWeight: 700,
-              letterSpacing: 2, textTransform: "uppercase", fontFamily: "inherit",
-              display: "flex", alignItems: "center", gap: 8,
-            }}
-          >
-            <span className="material-icons" style={{ fontSize: 16 }}>download</span>
-            SAVE
-          </button>
-          <button
-            onClick={handleXShare}
-            style={{
-              width: 46, height: 46, borderRadius: 6, cursor: "pointer",
-              background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)",
-              color: "#e2e8f0", fontSize: 17, fontWeight: 900,
-              fontFamily: "serif", display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-            title="Share on X"
-          >
-            𝕏
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              width: 46, height: 46, borderRadius: 6, cursor: "pointer",
-              background: "none", border: "1px solid rgba(255,255,255,0.08)",
-              color: "#6b7280", fontSize: 11, fontWeight: 700,
-              letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit",
-            }}
-          >
-            ✕
-          </button>
+          />
+          <div style={{ display: "flex", gap: isMp ? 14 : 10 }}>
+            <button
+              onClick={() => void handleShare()}
+              style={{
+                padding: isMp ? "15px 30px" : "11px 24px", borderRadius: 6, cursor: "pointer",
+                background: "rgba(86,164,203,0.15)", border: "1.5px solid #56a4cb",
+                color: "#b9e7f4", fontSize: isMp ? 15 : 13, fontWeight: 700,
+                letterSpacing: 2, textTransform: "uppercase", fontFamily: "inherit",
+                display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <span className="material-icons" style={{ fontSize: isMp ? 20 : 16 }}>share</span>
+              SHARE
+            </button>
+            <button
+              onClick={handleDownload}
+              style={{
+                padding: isMp ? "15px 30px" : "11px 24px", borderRadius: 6, cursor: "pointer",
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)",
+                color: "#94a3b8", fontSize: isMp ? 15 : 13, fontWeight: 700,
+                letterSpacing: 2, textTransform: "uppercase", fontFamily: "inherit",
+                display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <span className="material-icons" style={{ fontSize: isMp ? 20 : 16 }}>download</span>
+              SAVE
+            </button>
+            <button
+              onClick={handleXShare}
+              style={{
+                width: isMp ? 58 : 46, height: isMp ? 58 : 46, borderRadius: 6, cursor: "pointer",
+                background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)",
+                color: "#e2e8f0", fontSize: isMp ? 22 : 17, fontWeight: 900,
+                fontFamily: "serif", display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              title="Share on X"
+            >
+              𝕏
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                width: isMp ? 58 : 46, height: isMp ? 58 : 46, borderRadius: 6, cursor: "pointer",
+                background: "none", border: "1px solid rgba(255,255,255,0.08)",
+                color: "#6b7280", fontSize: isMp ? 14 : 11, fontWeight: 700,
+                letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit",
+              }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
       </div>
     </div>

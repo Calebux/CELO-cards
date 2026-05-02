@@ -1,6 +1,9 @@
 import { MultiplayerMode, isPaidMultiplayerMode } from "./matchmaking";
 import { SlotResult } from "./combatEngine";
 
+const FREE_MATCH_STALE_MS = 10 * 60 * 1000;
+const PAID_MATCH_STALE_MS = 60 * 60 * 1000;
+
 export interface PlayerSlot {
   charId: string | null;
   playerName: string | null;
@@ -13,6 +16,7 @@ export interface ServerMatch {
   id: string;
   createdAt: number;
   lastActivity: number;
+  joinWindowExpiresAt: number | null;
   mode: MultiplayerMode;
   host: PlayerSlot;
   joiner: PlayerSlot;
@@ -40,6 +44,7 @@ export function newServerMatch(matchId: string, mode: MultiplayerMode = "wager")
     id: matchId,
     createdAt: now,
     lastActivity: now,
+    joinWindowExpiresAt: now + getOpenMatchStaleLimitMs({ mode }),
     mode,
     host: emptyPlayerSlot(),
     joiner: emptyPlayerSlot(),
@@ -60,4 +65,20 @@ export function newServerMatch(matchId: string, mode: MultiplayerMode = "wager")
 
 export function matchNeedsPayment(match: ServerMatch): boolean {
   return isPaidMultiplayerMode(match.mode);
+}
+
+export function getOpenMatchStaleLimitMs(match: Pick<ServerMatch, "mode">): number {
+  return isPaidMultiplayerMode(match.mode) ? PAID_MATCH_STALE_MS : FREE_MATCH_STALE_MS;
+}
+
+export function reopenJoinWindow(match: ServerMatch, now = Date.now()): void {
+  match.joinWindowExpiresAt = now + getOpenMatchStaleLimitMs(match);
+}
+
+export function closeJoinWindow(match: ServerMatch, now = Date.now()): void {
+  match.joinWindowExpiresAt = now;
+}
+
+export function isJoinWindowOpen(match: Pick<ServerMatch, "joinWindowExpiresAt">, now = Date.now()): boolean {
+  return (match.joinWindowExpiresAt ?? 0) > now;
 }

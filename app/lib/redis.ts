@@ -6,7 +6,7 @@ export const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const MATCH_TTL = 2 * 60 * 60; // 2-hour expiry (matches auto-clean)
+const MATCH_ARCHIVE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days — long owner resume window without permanent garbage
 const OPEN_MATCHES_KEY = "open_matches";
 const ACTIVE_MATCH_BY_ADDRESS_PREFIX = "active_match_by_address:";
 
@@ -19,7 +19,7 @@ export async function getMatch<T>(matchId: string): Promise<T | null> {
 }
 
 export async function setMatch<T>(matchId: string, match: T): Promise<void> {
-  await redis.set(`match:${matchId}`, match, { ex: MATCH_TTL });
+  await redis.set(`match:${matchId}`, match, { ex: MATCH_ARCHIVE_TTL_SECONDS });
 }
 
 export async function deleteMatch(matchId: string): Promise<void> {
@@ -41,7 +41,7 @@ export async function getOpenMatchIds(): Promise<string[]> {
 }
 
 export async function setActiveMatchForAddress(address: string, matchId: string): Promise<void> {
-  await redis.set(activeMatchAddressKey(address), matchId, { ex: MATCH_TTL });
+  await redis.set(activeMatchAddressKey(address), matchId, { ex: MATCH_ARCHIVE_TTL_SECONDS });
 }
 
 export async function getActiveMatchIdForAddress(address: string): Promise<string | null> {
