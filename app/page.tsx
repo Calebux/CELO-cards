@@ -10,12 +10,14 @@ import { WalletSection } from './components/WalletSection';
 import { HowToPlayModal } from './components/HowToPlayModal';
 import { SeasonPassModal } from './components/SeasonPassModal';
 import { MiniPayImage } from './components/MiniPayImage';
+import { isMiniPay } from './lib/minipay';
 import { useAccount } from 'wagmi';
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 export default function ActionOrderLandingPage() {
+  const isMp = isMiniPay();
   const { playerPoints, winStreak, matchPhase, matchId, playerRole, selectedCharacter, vsBot } = useGameStore();
   const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -35,7 +37,7 @@ export default function ActionOrderLandingPage() {
     return null;
   }, [matchId, matchPhase, selectedCharacter]);
 
-  const effectiveResumeRoute = resumeRoute ?? serverResumeMatch?.route ?? null;
+  const effectiveResumeRoute = serverResumeMatch?.route ?? resumeRoute ?? null;
 
   const handleResume = () => {
     if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
@@ -164,6 +166,29 @@ export default function ActionOrderLandingPage() {
         .ko-nav-btn:hover .ko-btn-label { opacity: 1; text-shadow: 0 0 8px rgba(185,231,244,0.4); }
         .ko-nav-btn:hover .ko-btn-icon  { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(86,164,203,0.8)); }
 
+        .ko-land-page-wrapper.ko-minipay .ko-nav-btn {
+          height: 56px;
+          width: 220px;
+          padding: 0 18px;
+          gap: 14px;
+          border-width: 1.5px;
+        }
+        .ko-land-page-wrapper.ko-minipay .ko-nav-btn .ko-btn-icon {
+          width: 20px;
+          height: 20px;
+        }
+        .ko-land-page-wrapper.ko-minipay .ko-nav-btn .ko-btn-label {
+          font-size: 15px;
+          letter-spacing: 1.7px;
+        }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-create { left: 36px; top: 248px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-join { left: 36px; top: 314px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-tournament { left: 36px; top: 380px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-community { left: 36px; top: 446px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-leaderboard { left: 36px; top: 512px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-profile { left: 36px; top: 578px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-challenges { left: 36px; top: 644px; }
+
         /* ── Points badge ─────────────────────────────── */
         .ko-points-badge {
           position: absolute; left: 40px; top: 596px;
@@ -182,6 +207,13 @@ export default function ActionOrderLandingPage() {
           font-size: 15px; font-weight: 800; color: #fff;
           letter-spacing: 1px; line-height: 1.2; text-shadow: 0 0 12px rgba(168,85,247,0.6);
         }
+        .ko-land-page-wrapper.ko-minipay .ko-points-badge {
+          min-width: 220px;
+          height: 54px;
+          padding: 0 18px;
+        }
+        .ko-land-page-wrapper.ko-minipay .ko-points-badge .ko-points-label { font-size: 9px; }
+        .ko-land-page-wrapper.ko-minipay .ko-points-badge .ko-points-value { font-size: 18px; }
 
         /* ── Scrollbar (cosmetic) ─────────────────────── */
         .ko-scrollbar-track {
@@ -202,6 +234,11 @@ export default function ActionOrderLandingPage() {
           margin-top: 8px; font-size: 13px; font-weight: 700;
           color: #fff; line-height: 1.35; letter-spacing: 0.3px;
         }
+        .ko-land-page-wrapper.ko-minipay .ko-news-card .ko-card-title {
+          margin-top: 10px;
+          font-size: 15px;
+          line-height: 1.4;
+        }
 
         /* ── Social buttons ───────────────────────────── */
         .ko-social-btn {
@@ -218,6 +255,15 @@ export default function ActionOrderLandingPage() {
           box-shadow: 0 0 12px rgba(86,164,203,0.2);
         }
         .ko-social-btn svg { width:15px; height:15px; fill:none; stroke:#56a4cb; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+        .ko-land-page-wrapper.ko-minipay .ko-social-btn {
+          padding: 12px 18px;
+          font-size: 14px;
+          gap: 10px;
+        }
+        .ko-land-page-wrapper.ko-minipay .ko-social-btn svg {
+          width: 18px;
+          height: 18px;
+        }
 
         /* ── Tournament CTA pulse ─────────────────────── */
         @keyframes ko-pulse {
@@ -234,7 +280,7 @@ export default function ActionOrderLandingPage() {
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
-        <div ref={wrapRef} className="ko-land-page-wrapper" style={{ position:"absolute", top:0, left:0, transformOrigin:"top left" }}>
+        <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left" }}>
           <div className="ko-land-page">
 
             {/* Background */}
@@ -243,21 +289,21 @@ export default function ActionOrderLandingPage() {
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 
             {/* ── Top Bar ──────────────────────────────────────────── */}
-            <div style={{ position:"absolute", top:0, left:0, width:"100%", height:62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 40px", borderBottom:"1px solid rgba(86,164,203,0.12)", background:"linear-gradient(to bottom, rgba(5,8,18,0.92) 0%, rgba(5,8,18,0) 100%)", zIndex:20 }}>
+            <div style={{ position:"absolute", top:0, left:0, width:"100%", height:isMp ? 74 : 62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:isMp ? "0 34px" : "0 40px", borderBottom:"1px solid rgba(86,164,203,0.12)", background:"linear-gradient(to bottom, rgba(5,8,18,0.92) 0%, rgba(5,8,18,0) 100%)", zIndex:20 }}>
 
               {/* Left: branding */}
-              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:3, height:24, background:"#56a4cb", borderRadius:2, boxShadow:"0 0 8px #56a4cb" }} />
+              <div style={{ display:"flex", alignItems:"center", gap:isMp ? 14 : 12 }}>
+                <div style={{ width:isMp ? 4 : 3, height:isMp ? 30 : 24, background:"#56a4cb", borderRadius:2, boxShadow:"0 0 8px #56a4cb" }} />
                 <div>
-                  <div style={{ fontSize:9, fontWeight:700, letterSpacing:3, color:"#56a4cb", textTransform:"uppercase", lineHeight:1 }}>ACTION ORDER</div>
-                  <div style={{ fontSize:11, fontWeight:500, letterSpacing:1.5, color:"rgba(185,231,244,0.5)", textTransform:"uppercase", lineHeight:1.4 }}>On-Chain Fighting Game</div>
+                  <div style={{ fontSize:isMp ? 10 : 9, fontWeight:700, letterSpacing:isMp ? 3.2 : 3, color:"#56a4cb", textTransform:"uppercase", lineHeight:1 }}>ACTION ORDER</div>
+                  <div style={{ fontSize:isMp ? 12 : 11, fontWeight:500, letterSpacing:1.5, color:"rgba(185,231,244,0.5)", textTransform:"uppercase", lineHeight:1.4 }}>On-Chain Fighting Game</div>
                 </div>
               </div>
 
               {/* Center: live season badge — absolutely centered */}
-              <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", display:"flex", alignItems:"center", gap:8, padding:"6px 18px", border:"1px solid rgba(86,164,203,0.28)", borderRadius:4, background:"rgba(86,164,203,0.07)" }}>
-                <div style={{ width:6, height:6, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 6px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite" }} />
-                <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, color:"#b9e7f4", textTransform:"uppercase" }}>SEASON 1 · ORDER ASCENSION · LIVE</span>
+              <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "8px 22px" : "6px 18px", border:"1px solid rgba(86,164,203,0.28)", borderRadius:4, background:"rgba(86,164,203,0.07)" }}>
+                <div style={{ width:isMp ? 7 : 6, height:isMp ? 7 : 6, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 6px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite" }} />
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:isMp ? 2.2 : 2, color:"#b9e7f4", textTransform:"uppercase" }}>SEASON 1 · ORDER ASCENSION · LIVE</span>
               </div>
 
               {/* Right: wallet */}
@@ -266,37 +312,37 @@ export default function ActionOrderLandingPage() {
 
             {/* ── Tournament Live Banner — centered, blinking ───────── */}
             <a href="/tournament" style={{
-              position:"absolute", left:"50%", transform:"translateX(-50%)", top:200, zIndex:15,
-              display:"flex", alignItems:"center", gap:16, padding:"14px 28px",
+              position:"absolute", left:"50%", transform:"translateX(-50%)", top:isMp ? 186 : 200, zIndex:15,
+              display:"flex", alignItems:"center", gap:isMp ? 18 : 16, padding:isMp ? "16px 32px" : "14px 28px",
               background:"linear-gradient(135deg, rgba(15,12,5,0.92), rgba(40,30,5,0.88))",
               border:"1.5px solid rgba(251,204,92,0.8)", borderRadius:8,
               textDecoration:"none", whiteSpace:"nowrap",
               animation:"ko-tournament-blink 1.4s ease-in-out infinite",
             }}>
-              <span style={{ fontSize:22 }}>🏆</span>
+              <span style={{ fontSize:isMp ? 24 : 22 }}>🏆</span>
               <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                <span style={{ fontSize:10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>TOURNAMENT LIVE</span>
-                <span style={{ fontSize:20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>120,000 G$ <span style={{ color:"#4ade80", fontSize:13, fontWeight:700, letterSpacing:1 }}>PRIZE POOL</span></span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>TOURNAMENT LIVE</span>
+                <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>120,000 G$ <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>PRIZE POOL</span></span>
               </div>
-              <div style={{ width:1, height:32, background:"rgba(251,204,92,0.25)" }} />
-              <span style={{ fontSize:11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
+              <div style={{ width:1, height:isMp ? 36 : 32, background:"rgba(251,204,92,0.25)" }} />
+              <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
             </a>
 
             {/* ── G$ Claim Banner ──────────────────────────────────── */}
             <Link href="/profile" style={{
-              position:"absolute", left:40, top:72, width:180, zIndex:15,
+              position:"absolute", left:36, top:isMp ? 84 : 72, width:isMp ? 220 : 180, zIndex:15,
               display:"flex", alignItems:"center", gap:8,
-              padding:"7px 14px",
+              padding:isMp ? "10px 16px" : "7px 14px",
               background:"linear-gradient(135deg, rgba(0,197,142,0.18), rgba(0,197,142,0.06))",
               border:"1px solid rgba(0,197,142,0.5)",
               borderRadius:6, textDecoration:"none",
               boxShadow:"0 0 12px rgba(0,197,142,0.2)",
               animation:"ko-dot-pulse 2.5s ease-in-out infinite",
             }}>
-              <span style={{ fontSize:14 }}>🌱</span>
+              <span style={{ fontSize:isMp ? 16 : 14 }}>🌱</span>
               <div>
-                <div style={{ fontSize:8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
-                <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
+                <div style={{ fontSize:isMp ? 9 : 8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
+                <div style={{ fontSize:isMp ? 11 : 10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
               </div>
             </Link>
 
@@ -305,8 +351,8 @@ export default function ActionOrderLandingPage() {
               <button
                 onClick={handleResume}
                 style={{
-                position: "absolute", left: "50%", transform: "translateX(-50%)", top: 118, zIndex: 16,
-                display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
+                position: "absolute", left: "50%", transform: "translateX(-50%)", top: isMp ? 126 : 118, zIndex: 16,
+                display: "flex", alignItems: "center", gap: 10, padding: isMp ? "10px 18px" : "8px 16px",
                 background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
                 border: "1px solid rgba(6,168,249,0.45)", borderRadius: 6, textDecoration: "none",
                 boxShadow: "0 0 14px rgba(6,168,249,0.28)",
@@ -314,8 +360,8 @@ export default function ActionOrderLandingPage() {
                 cursor: "pointer",
               }}
               >
-                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Tap to Resume</span>
+                <span style={{ fontSize: isMp ? 12 : 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
+                <span style={{ fontSize: isMp ? 12 : 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Tap to Resume</span>
               </button>
             )}
 
@@ -350,8 +396,8 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
-            <div className="ko-points-badge" style={{ top: 652 }}>
-              <span style={{ fontSize:16, flexShrink:0 }}>⚡</span>
+            <div className="ko-points-badge" style={{ top: isMp ? 722 : 652 }}>
+              <span style={{ fontSize:isMp ? 18 : 16, flexShrink:0 }}>⚡</span>
               <div style={{ display:"flex", flexDirection:"column" }}>
                 <span className="ko-points-label">Total Points</span>
                 <span className="ko-points-value">{playerPoints.toLocaleString()}</span>
@@ -368,28 +414,28 @@ export default function ActionOrderLandingPage() {
             </div>
 
             {/* Live player count — bottom right */}
-            <div style={{ position:"absolute", right:40, bottom:32, zIndex:15, display:"flex", alignItems:"center", gap:10, padding:"10px 18px", background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:8, backdropFilter:"blur(8px)" }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 8px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite", flexShrink:0 }} />
+            <div style={{ position:"absolute", right:isMp ? 34 : 40, bottom:isMp ? 36 : 32, zIndex:15, display:"flex", alignItems:"center", gap:isMp ? 12 : 10, padding:isMp ? "12px 20px" : "10px 18px", background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:8, backdropFilter:"blur(8px)" }}>
+              <div style={{ width:isMp ? 9 : 8, height:isMp ? 9 : 8, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 8px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite", flexShrink:0 }} />
               <div style={{ display:"flex", flexDirection:"column" }}>
-                <span style={{ fontSize:7, fontWeight:700, letterSpacing:2, color:"#4ade80", textTransform:"uppercase", lineHeight:1 }}>Playing Now</span>
-                <span style={{ fontSize:18, fontWeight:900, color:"#4ade80", letterSpacing:-0.5, lineHeight:1.4 }}>
+                <span style={{ fontSize:isMp ? 8 : 7, fontWeight:700, letterSpacing:2, color:"#4ade80", textTransform:"uppercase", lineHeight:1 }}>Playing Now</span>
+                <span style={{ fontSize:isMp ? 20 : 18, fontWeight:900, color:"#4ade80", letterSpacing:-0.5, lineHeight:1.4 }}>
                   {onlineCount !== null ? onlineCount.toLocaleString() : "—"}
                 </span>
               </div>
             </div>
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
-            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 14px", background:"rgba(86,164,203,0.1)", border:"1px solid rgba(86,164,203,0.3)", borderRadius:3 }}>
-                <div style={{ width:5, height:5, borderRadius:"50%", background:"#4ade80", animation:"ko-dot-pulse 1.5s ease-in-out infinite" }} />
-                <span style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>16-PLAYER BRACKET · WIN TO EARN G$</span>
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isMp ? 662 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isMp ? 12 : 10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, padding:isMp ? "7px 16px" : "5px 14px", background:"rgba(86,164,203,0.1)", border:"1px solid rgba(86,164,203,0.3)", borderRadius:3 }}>
+                <div style={{ width:isMp ? 6 : 5, height:isMp ? 6 : 5, borderRadius:"50%", background:"#4ade80", animation:"ko-dot-pulse 1.5s ease-in-out infinite" }} />
+                <span style={{ fontSize:isMp ? 10 : 9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>16-PLAYER BRACKET · WIN TO EARN G$</span>
               </div>
-              <div style={{ display:"flex", gap:12 }}>
+              <div style={{ display:"flex", gap:isMp ? 14 : 12 }}>
                 <Link href="/black-market" style={{
-                  display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
+                  display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "12px 26px" : "10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
                   border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",
-                  color:"#fff", fontSize:13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                  color:"#fff", fontSize:isMp ? 15 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
                   boxShadow:"0 0 20px rgba(239,68,68,0.35)", animation:"ko-pulse 2.5s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                 }}>
@@ -397,10 +443,10 @@ export default function ActionOrderLandingPage() {
                   BLACK MARKET
                 </Link>
                 <button onClick={() => setShowSeasonPassModal(true)} style={{
-                  display:"flex", alignItems:"center", gap:8, padding:"10px 24px",
+                  display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "12px 26px" : "10px 24px",
                   background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
                   border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
-                  color:"#fbbf24", fontSize:13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                  color:"#fbbf24", fontSize:isMp ? 15 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
                   animation:"ko-tournament-blink 1.4s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                   cursor:"pointer", fontFamily:"inherit",
@@ -408,10 +454,10 @@ export default function ActionOrderLandingPage() {
                   ⚡ SEASON PASS
                 </button>
                 <button onClick={() => setShowHowToPlay(true)} style={{
-                  display:"flex", alignItems:"center", gap:8, padding:"10px 20px",
+                  display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "12px 22px" : "10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
                   borderRadius:6, cursor:"pointer", fontFamily:"inherit",
-                  color:"#b9e7f4", fontSize:13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
+                  color:"#b9e7f4", fontSize:isMp ? 15 : 13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
                   backdropFilter:"blur(8px)",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                 }}>
@@ -423,43 +469,43 @@ export default function ActionOrderLandingPage() {
 
             {/* ── News Panel ───────────────────────────────────────── */}
             {/* Panel container */}
-            <div style={{ position:"absolute", left:1114, top:181, width:274, height:450, zIndex:10, background:"rgba(10,15,28,0.75)", border:"1px solid rgba(86,164,203,0.2)", borderRadius:6, backdropFilter:"blur(6px)" }} />
+            <div style={{ position:"absolute", left:isMp ? 1068 : 1114, top:isMp ? 172 : 181, width:isMp ? 320 : 274, height:isMp ? 500 : 450, zIndex:10, background:"rgba(10,15,28,0.75)", border:"1px solid rgba(86,164,203,0.2)", borderRadius:6, backdropFilter:"blur(6px)" }} />
 
             {/* Panel heading */}
-            <div style={{ position:"absolute", left:1114, top:181, width:274, height:36, zIndex:12, display:"flex", alignItems:"center", gap:8, padding:"0 16px", borderBottom:"1px solid rgba(86,164,203,0.2)", background:"rgba(86,164,203,0.08)" }}>
+            <div style={{ position:"absolute", left:isMp ? 1068 : 1114, top:isMp ? 172 : 181, width:isMp ? 320 : 274, height:isMp ? 42 : 36, zIndex:12, display:"flex", alignItems:"center", gap:8, padding:isMp ? "0 18px" : "0 16px", borderBottom:"1px solid rgba(86,164,203,0.2)", background:"rgba(86,164,203,0.08)" }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16M4 2h16"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
-              <span style={{ fontSize:11, fontWeight:700, letterSpacing:2.5, color:"#b9e7f4", textTransform:"uppercase" }}>NEWS</span>
+              <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2.5, color:"#b9e7f4", textTransform:"uppercase" }}>NEWS</span>
             </div>
 
             {/* News card 1 */}
-            <div className="ko-news-card" style={{ position:"absolute", left:1130, top:232, width:237, zIndex:15 }}>
+            <div className="ko-news-card" style={{ position:"absolute", left:isMp ? 1088 : 1130, top:isMp ? 228 : 232, width:isMp ? 280 : 237, zIndex:15 }}>
               <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy.jpeg" alt="Season 1" minipayWidth={420} minipayQuality={58} />
               <div className="ko-card-title">
-                <p style={{ color:"#56a4cb", fontSize:10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>LATEST</p>
+                <p style={{ color:"#56a4cb", fontSize:isMp ? 11 : 10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>LATEST</p>
                 <p>SEASON 1: ORDER ASCENSION</p>
-                <p style={{ color:"#4ade80", fontSize:11 }}>NOW LIVE!</p>
+                <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11 }}>NOW LIVE!</p>
               </div>
             </div>
 
-            <div style={{ position:"absolute", left:1129, top:419, width:238, height:1, background:"rgba(86,164,203,0.25)", zIndex:16 }} />
+            <div style={{ position:"absolute", left:isMp ? 1088 : 1129, top:isMp ? 444 : 419, width:isMp ? 280 : 238, height:1, background:"rgba(86,164,203,0.25)", zIndex:16 }} />
 
             {/* News card 2 */}
-            <div style={{ position:"absolute", left:1130, top:435, width:237, zIndex:15,
+            <div style={{ position:"absolute", left:isMp ? 1088 : 1130, top:isMp ? 460 : 435, width:isMp ? 280 : 237, zIndex:15,
               background:"linear-gradient(135deg, rgba(40,28,5,0.7), rgba(5,20,10,0.7))",
-              border:"1px solid rgba(251,204,92,0.3)", borderRadius:6, padding:"16px 14px" }}>
-              <p style={{ color:"#fbbf24", fontSize:9, fontWeight:800, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>🏆 TOURNAMENT LIVE</p>
-              <p style={{ color:"#fff", fontSize:16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>120,000 G$<br/><span style={{ fontSize:11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>PRIZE POOL</span></p>
+              border:"1px solid rgba(251,204,92,0.3)", borderRadius:6, padding:isMp ? "18px 16px" : "16px 14px" }}>
+              <p style={{ color:"#fbbf24", fontSize:isMp ? 10 : 9, fontWeight:800, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>🏆 TOURNAMENT LIVE</p>
+              <p style={{ color:"#fff", fontSize:isMp ? 18 : 16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>120,000 G$<br/><span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>PRIZE POOL</span></p>
               <div style={{ height:1, background:"rgba(251,204,92,0.2)", margin:"8px 0" }} />
-              <p style={{ color:"#9ca3af", fontSize:11, lineHeight:1.5, marginBottom:6 }}>Top 4 finishers win a G$ stream direct to their wallet — no claim needed.</p>
-              <p style={{ color:"#4ade80", fontSize:11, fontWeight:700, letterSpacing:0.5 }}>Register on the tournament page →</p>
+              <p style={{ color:"#9ca3af", fontSize:isMp ? 12 : 11, lineHeight:1.5, marginBottom:6 }}>Top 4 finishers win a G$ stream direct to their wallet — no claim needed.</p>
+              <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:0.5 }}>Register on the tournament page →</p>
             </div>
 
             <div className="ko-scrollbar-track" />
             <div className="ko-scrollbar-thumb" />
 
             {/* ── Social + Fullscreen ──────────────────────────────── */}
-            <div style={{ position:"absolute", left:40, top:710, zIndex:15 }}>
-              <p style={{ fontSize:9, fontWeight:700, letterSpacing:2.5, color:"rgba(185,231,244,0.5)", textTransform:"uppercase", marginBottom:10 }}>FOLLOW US</p>
+            <div style={{ position:"absolute", left:36, top:isMp ? 758 : 710, zIndex:15 }}>
+              <p style={{ fontSize:isMp ? 10 : 9, fontWeight:700, letterSpacing:2.5, color:"rgba(185,231,244,0.5)", textTransform:"uppercase", marginBottom:10 }}>FOLLOW US</p>
               <div style={{ display:"flex", gap:10 }}>
                 <a className="ko-social-btn" href="https://t.me/knockorder" target="_blank" rel="noopener noreferrer">
                   <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
@@ -477,13 +523,13 @@ export default function ActionOrderLandingPage() {
                   }}
                   title="Fullscreen"
                   style={{
-                    width: 44, height: 44, borderRadius: "50%",
+                    width: isMp ? 52 : 44, height: isMp ? 52 : 44, borderRadius: "50%",
                     backgroundColor: "rgba(10,18,32,0.85)",
                     border: "2px solid rgba(86,164,203,0.45)",
                     boxShadow: "0 0 14px rgba(86,164,203,0.3)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", backdropFilter: "blur(8px)",
-                    fontSize: 18, color: "#56a4cb", transition: "all 0.2s ease",
+                    fontSize: isMp ? 20 : 18, color: "#56a4cb", transition: "all 0.2s ease",
                     flexShrink: 0,
                   }}
                 >
@@ -495,7 +541,7 @@ export default function ActionOrderLandingPage() {
           </div>
 
           {/* Footer */}
-          <div style={{ marginTop:"20px", padding:"24px 0", borderTop:"1px solid rgba(86,164,203,0.2)", display:"flex", flexWrap:"wrap", justifyContent:"center", gap:"30px", width:"1440px", color:"rgba(185,231,244,0.5)", fontSize:"13px", textTransform:"uppercase", letterSpacing:"1px" }}>
+          <div style={{ marginTop:"20px", padding:isMp ? "26px 0" : "24px 0", borderTop:"1px solid rgba(86,164,203,0.2)", display:"flex", flexWrap:"wrap", justifyContent:"center", gap:isMp ? "34px" : "30px", width:"1440px", color:"rgba(185,231,244,0.5)", fontSize:isMp ? "14px" : "13px", textTransform:"uppercase", letterSpacing:"1px" }}>
             <Link href="/terms"   style={{ textDecoration:"none", color:"inherit" }}>Terms of Service</Link>
             <Link href="/privacy" style={{ textDecoration:"none", color:"inherit" }}>Privacy Policy</Link>
             <a href="https://t.me/knockorder" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", color:"inherit" }}>Support</a>

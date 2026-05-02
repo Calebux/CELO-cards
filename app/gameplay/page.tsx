@@ -307,8 +307,8 @@ export default function Gameplay() {
     if (!wrapRef.current) return;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    setIsShortLandscape(vw > vh && vh < 760);
-    setIsCompactPhone(Math.min(vw, vh) <= 430);
+      setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
+      setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
     const isPortrait = vh > vw;
     let transform: string;
     if (isPortrait) {
@@ -323,7 +323,7 @@ export default function Gameplay() {
       transform = `translate(${tx}px, ${ty}px) scale(${s})`;
     }
     wrapRef.current.style.transform = transform;
-  }, []);
+  }, [isMp]);
 
   useEffect(() => {
     applyScale();

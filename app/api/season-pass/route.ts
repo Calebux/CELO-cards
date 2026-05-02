@@ -5,16 +5,18 @@ import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
 
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+const TREASURY_MINIPAY = "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b" as `0x${string}`;
+const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const publicClient = createPublicClient({ chain: celo, transport: http() });
 
-// G$ has 18 decimals on Celo
+// G$ has 18 decimals; USDT has 6 decimals on Celo
 export const SEASON_PLANS = {
-  weekly:  { days: 7,  priceWei: "500000000000000000",    priceCelo: "0.5",  priceGdollar: "1000000000000000000000",  priceGdollarDisplay: "1000",  label: "7 Days"  },
-  monthly: { days: 30, priceWei: "1500000000000000000",   priceCelo: "1.5",  priceGdollar: "3000000000000000000000",  priceGdollarDisplay: "3000",  label: "30 Days" },
-  season:  { days: 90, priceWei: "3500000000000000000",   priceCelo: "3.5",  priceGdollar: "7000000000000000000000",  priceGdollarDisplay: "7000",  label: "90 Days" },
+  weekly:  { days: 7,  priceWei: "500000000000000000",    priceCelo: "0.5",  priceGdollar: "1000000000000000000000",  priceGdollarDisplay: "1000",  priceUsdt: "40000",    label: "7 Days"  },
+  monthly: { days: 30, priceWei: "1500000000000000000",   priceCelo: "1.5",  priceGdollar: "3000000000000000000000",  priceGdollarDisplay: "3000",  priceUsdt: "130000",   label: "30 Days" },
+  season:  { days: 90, priceWei: "3500000000000000000",   priceCelo: "3.5",  priceGdollar: "7000000000000000000000",  priceGdollarDisplay: "7000",  priceUsdt: "300000",   label: "90 Days" },
 } as const;
 
 export type SeasonPlan = keyof typeof SEASON_PLANS;
@@ -76,7 +78,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json() as { address?: string; txHash?: string; plan?: SeasonPlan; currency?: "celo" | "gdollar" };
+  const body = await req.json() as { address?: string; txHash?: string; plan?: SeasonPlan; currency?: "celo" | "gdollar" | "usdt" };
   const { address, txHash, plan, currency = "celo" } = body;
 
   if (!address || !txHash || !plan || !SEASON_PLANS[plan]) {
@@ -102,12 +104,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Transaction failed on-chain" }, { status: 403 });
   }
 
-  if (currency === "gdollar") {
+  const transferEvent = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
+
+  if (currency === "usdt") {
+    // Verify USDT ERC-20 Transfer event → TREASURY_MINIPAY (Safe contract)
+    if (tx.to?.toLowerCase() !== USDT_CONTRACT.toLowerCase()) {
+      return NextResponse.json({ error: "Invalid transaction recipient" }, { status: 403 });
+    }
+    const logs = await publicClient.getLogs({
+      address: USDT_CONTRACT,
+      event: transferEvent,
+      args: { to: TREASURY_MINIPAY },
+      fromBlock: receipt.blockNumber,
+      toBlock: receipt.blockNumber,
+    }).catch(() => []);
+    const matchingLog = logs.find(
+      (l) => l.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
+             BigInt((l.args as { value?: bigint }).value ?? 0n) >= BigInt(planConfig.priceUsdt)
+    );
+    if (!matchingLog) {
+      return NextResponse.json({ error: "USDT transfer to treasury not found or insufficient" }, { status: 403 });
+    }
+  } else if (currency === "gdollar") {
     // Verify ERC-20 Transfer event: G$ contract → Treasury
     if (tx.to?.toLowerCase() !== GDOLLAR_CONTRACT.toLowerCase()) {
       return NextResponse.json({ error: "Invalid transaction recipient" }, { status: 403 });
     }
-    const transferEvent = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
     const logs = await publicClient.getLogs({
       address: GDOLLAR_CONTRACT,
       event: transferEvent,

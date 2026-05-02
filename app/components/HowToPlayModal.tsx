@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { isMiniPay } from "../lib/minipay";
+
+const DESIGN_W = 1440;
+const DESIGN_H = 823;
 
 const STEPS = [
   {
@@ -58,95 +62,138 @@ interface Props {
 }
 
 export function HowToPlayModal({ onClose }: Props) {
+  const isMp = isMiniPay();
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
   const current = STEPS[step];
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const scale = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      el.style.transform = transform;
+    };
+    scale();
+    window.addEventListener("resize", scale);
+    return () => window.removeEventListener("resize", scale);
+  }, []);
 
   return (
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 9999,
-        display: "flex", alignItems: "center", justifyContent: "center",
         background: "rgba(0,0,0,0.88)",
         backdropFilter: "blur(8px)",
+        overflow: "hidden",
       }}
       onClick={onClose}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
+        ref={wrapRef}
         style={{
-          width: 520, position: "relative",
-          background: "rgba(10,15,28,0.97)",
-          border: `2px solid ${current.color}50`,
-          borderRadius: 12,
-          padding: "40px 44px 36px",
-          boxShadow: `0 0 40px ${current.color}20, 0 20px 60px rgba(0,0,0,0.8)`,
-          fontFamily: "var(--font-space-grotesk), sans-serif",
-          transition: "border-color 0.3s",
+          width: DESIGN_W,
+          height: DESIGN_H,
+          position: "absolute",
+          top: 0,
+          left: 0,
+          transformOrigin: "top left",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        {/* Scanline */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: current.color, borderRadius: "12px 12px 0 0", transition: "background 0.3s" }} />
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: isMp ? 620 : 520, position: "relative",
+            background: "rgba(10,15,28,0.97)",
+            border: `2px solid ${current.color}50`,
+            borderRadius: 12,
+            padding: isMp ? "48px 52px 44px" : "40px 44px 36px",
+            boxShadow: `0 0 40px ${current.color}20, 0 20px 60px rgba(0,0,0,0.8)`,
+            fontFamily: "var(--font-space-grotesk), sans-serif",
+            transition: "border-color 0.3s",
+          }}
+        >
+          {/* Scanline */}
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: current.color, borderRadius: "12px 12px 0 0", transition: "background 0.3s" }} />
 
-        {/* Close */}
-        <button
-          onClick={onClose}
-          style={{ position: "absolute", top: 14, right: 16, background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 18, lineHeight: 1 }}
-        >✕</button>
-
-        {/* Header */}
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: "#475569", textTransform: "uppercase", marginBottom: 24 }}>
-          HOW TO PLAY — {step + 1} / {STEPS.length}
-        </div>
-
-        {/* Step icon + title */}
-        <div style={{ fontSize: 48, lineHeight: 1, marginBottom: 16 }}>{current.icon}</div>
-        <h2 style={{ fontSize: 24, fontWeight: 900, color: "#f1f5f9", letterSpacing: -0.5, margin: "0 0 12px", textTransform: "uppercase" }}>
-          {current.title}
-        </h2>
-        <p style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.75, margin: 0, minHeight: 80 }}>
-          {current.body}
-        </p>
-
-        {/* Step dots */}
-        <div style={{ display: "flex", gap: 6, marginTop: 28, marginBottom: 24 }}>
-          {STEPS.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => setStep(i)}
-              style={{
-                width: i === step ? 24 : 8, height: 8, borderRadius: 4,
-                background: i === step ? current.color : i < step ? `${current.color}50` : "rgba(255,255,255,0.1)",
-                border: "none", cursor: "pointer", padding: 0,
-                transition: "all 0.25s",
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Nav buttons */}
-        <div style={{ display: "flex", gap: 10 }}>
-          {step > 0 && (
-            <button
-              onClick={() => setStep(step - 1)}
-              style={{ flex: 1, height: 46, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 13, letterSpacing: 1.5, color: "#9ca3af", textTransform: "uppercase" }}
-            >
-              ← BACK
-            </button>
-          )}
+          {/* Close */}
           <button
-            onClick={() => step < STEPS.length - 1 ? setStep(step + 1) : onClose()}
-            style={{
-              flex: 2, height: 46,
-              background: `linear-gradient(135deg, ${current.color}25, ${current.color}10)`,
-              border: `1.5px solid ${current.color}`,
-              borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
-              fontWeight: 900, fontSize: 13, letterSpacing: 2,
-              color: current.color, textTransform: "uppercase",
-              transition: "all 0.2s",
-            }}
-          >
-            {step < STEPS.length - 1 ? "NEXT →" : "GOT IT — LET'S PLAY"}
-          </button>
+            onClick={onClose}
+            style={{ position: "absolute", top: 14, right: 16, background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: isMp ? 26 : 18, lineHeight: 1, padding: isMp ? 12 : 0 }}
+          >✕</button>
+
+          {/* Header */}
+          <div style={{ fontSize: isMp ? 11 : 9, fontWeight: 700, letterSpacing: 3, color: "#475569", textTransform: "uppercase", marginBottom: isMp ? 28 : 24 }}>
+            HOW TO PLAY — {step + 1} / {STEPS.length}
+          </div>
+
+          {/* Step icon + title */}
+          <div style={{ fontSize: isMp ? 56 : 48, lineHeight: 1, marginBottom: 16 }}>{current.icon}</div>
+          <h2 style={{ fontSize: isMp ? 28 : 24, fontWeight: 900, color: "#f1f5f9", letterSpacing: -0.5, margin: "0 0 12px", textTransform: "uppercase" }}>
+            {current.title}
+          </h2>
+          <p style={{ fontSize: isMp ? 17 : 14, color: "#94a3b8", lineHeight: 1.75, margin: 0, minHeight: isMp ? 108 : 80 }}>
+            {current.body}
+          </p>
+
+          {/* Step dots */}
+          <div style={{ display: "flex", gap: isMp ? 8 : 6, marginTop: isMp ? 34 : 28, marginBottom: isMp ? 28 : 24 }}>
+            {STEPS.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => setStep(i)}
+                style={{
+                  width: i === step ? (isMp ? 30 : 24) : (isMp ? 10 : 8), height: isMp ? 10 : 8, borderRadius: 4,
+                  background: i === step ? current.color : i < step ? `${current.color}50` : "rgba(255,255,255,0.1)",
+                  border: "none", cursor: "pointer", padding: 0,
+                  transition: "all 0.25s",
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Nav buttons */}
+          <div style={{ display: "flex", gap: 10 }}>
+            {step > 0 && (
+              <button
+                onClick={() => setStep(step - 1)}
+                style={{ flex: 1, height: isMp ? 58 : 46, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: isMp ? 15 : 13, letterSpacing: 1.5, color: "#9ca3af", textTransform: "uppercase" }}
+              >
+                ← BACK
+              </button>
+            )}
+            <button
+              onClick={() => step < STEPS.length - 1 ? setStep(step + 1) : onClose()}
+              style={{
+                flex: 2, height: isMp ? 58 : 46,
+                background: `linear-gradient(135deg, ${current.color}25, ${current.color}10)`,
+                border: `1.5px solid ${current.color}`,
+                borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                fontWeight: 900, fontSize: isMp ? 15 : 13, letterSpacing: 2,
+                color: current.color, textTransform: "uppercase",
+                transition: "all 0.2s",
+              }}
+            >
+              {step < STEPS.length - 1 ? "NEXT →" : "GOT IT — LET'S PLAY"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

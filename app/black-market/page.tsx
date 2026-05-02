@@ -22,18 +22,30 @@ const DESIGN_H = 823;
 
 // Treasury wallet that receives Black Market payments
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+const TREASURY_MINIPAY = "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b" as `0x${string}`;
+const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+const USDT_ABI = [
+  { name: "transfer", type: "function", stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }] },
+] as const;
 
 // Price: pts / 1000 = CELO (e.g. 2000pts→2 CELO, 10000pts→10 CELO)
+// USDT price: ~0.08 USDT per CELO
 function ptsToOnchain(pts: number) {
   return parseUnits((pts / 1000).toFixed(6), 18);
 }
-function ptsDisplay(pts: number, currency: "celo" | "gdollar") {
+function ptsToUsdt(pts: number) {
+  return parseUnits((pts / 1000 * 0.08).toFixed(6), 6);
+}
+function ptsDisplay(pts: number, currency: "celo" | "gdollar" | "usdt") {
   const val = pts / 1000;
   const formatted = val % 1 === 0 ? val.toString() : val.toFixed(1);
+  if (currency === "usdt") return `$${(val * 0.08).toFixed(2)} USDT`;
   return currency === "gdollar" ? `${formatted} G$` : `${formatted} CELO`;
 }
 
-type BuyCurrency = "celo" | "gdollar";
+type BuyCurrency = "celo" | "gdollar" | "usdt";
 
 export default function BlackMarket() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -43,7 +55,7 @@ export default function BlackMarket() {
   const { unlockedPremiumCards, playerName } = useGameStore();
   const unlockCard = useGameStore((s) => s.purchaseCard);
 
-  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>("celo");
+  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(isMiniPay() ? "usdt" : "celo");
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string>("");
 
@@ -115,7 +127,16 @@ export default function BlackMarket() {
     try {
       const activeAddress = await ensureWalletReady();
       let txHash: string;
-      if (buyCurrency === "gdollar") {
+      if (buyCurrency === "usdt") {
+        txHash = await writeContractAsync({
+          address: USDT_CONTRACT,
+          abi: USDT_ABI,
+          functionName: "transfer",
+          args: [TREASURY_MINIPAY, ptsToUsdt(price)],
+          account: activeAddress,
+          chainId: celo.id,
+        });
+      } else if (buyCurrency === "gdollar") {
         txHash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
@@ -140,7 +161,7 @@ export default function BlackMarket() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address,
+          address: activeAddress,
           playerName,
           cardId: id,
           currency: buyCurrency,
@@ -195,17 +216,17 @@ export default function BlackMarket() {
               BLACK MARKET
             </h1>
             <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 10, maxWidth: 560, marginInline: "auto" }}>
-              Acquire rare, devastating cards with CELO or G$. Once unlocked they appear randomly in your deck.
+              Acquire rare, devastating cards. Once unlocked they appear randomly in your deck.
             </p>
           </div>
 
           {/* Currency selector */}
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}>Pay with:</span>
-            {([
-              { key: "celo" as BuyCurrency,    label: "CELO",  color: "#f9c846" },
-              { key: "gdollar" as BuyCurrency, label: "G$",    color: GDOLLAR_COLOR },
-            ]).map(({ key, label, color }) => (
+            {(isMiniPay()
+              ? [{ key: "usdt" as BuyCurrency, label: "USDT", color: "#26a17b" }, { key: "celo" as BuyCurrency, label: "CELO", color: "#f9c846" }]
+              : [{ key: "celo" as BuyCurrency, label: "CELO", color: "#f9c846" }, { key: "gdollar" as BuyCurrency, label: "G$", color: GDOLLAR_COLOR }]
+            ).map(({ key, label, color }) => (
               <button
                 key={key}
                 onClick={() => setBuyCurrency(key)}
@@ -238,7 +259,7 @@ export default function BlackMarket() {
               const isOwned = unlockedPremiumCards.includes(c.id);
               const price = c.price ?? 3000;
               const isBuying = buyingId === c.id;
-              const currColor = buyCurrency === "gdollar" ? GDOLLAR_COLOR : "#f9c846";
+              const currColor = buyCurrency === "gdollar" ? GDOLLAR_COLOR : buyCurrency === "usdt" ? "#26a17b" : "#f9c846";
 
               return (
                 <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
@@ -298,7 +319,7 @@ export default function BlackMarket() {
                       }}
                     >
                       <span className="material-icons" style={{ fontSize: 13, color: isBuying ? currColor : c.color }}>
-                        {isBuying ? "hourglass_empty" : buyCurrency === "gdollar" ? "stream" : "toll"}
+                        {isBuying ? "hourglass_empty" : buyCurrency === "gdollar" ? "stream" : buyCurrency === "usdt" ? "attach_money" : "toll"}
                       </span>
                       {isBuying ? "BUYING…" : ptsDisplay(price, buyCurrency)}
                     </button>

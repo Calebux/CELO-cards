@@ -9,6 +9,7 @@ import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 import { playSound } from "../lib/soundManager";
+import { isMiniPay } from "../lib/minipay";
 
 const BG = "/new-assets/two-fighters-vs.png";
 
@@ -36,6 +37,7 @@ const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
 export default function SelectCharacter() {
+  const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);
@@ -75,7 +77,7 @@ export default function SelectCharacter() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      setIsCompactPhone(Math.min(vw, vh) <= 430);
+      setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -94,7 +96,7 @@ export default function SelectCharacter() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
-  }, []);
+  }, [isMp]);
 
   useEffect(() => {
     if (!vsBot || playerAddress) return;

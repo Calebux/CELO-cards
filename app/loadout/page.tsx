@@ -9,6 +9,7 @@ import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../
 import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
+import { isMiniPay } from "../lib/minipay";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";
@@ -120,6 +121,7 @@ function CardTooltip({ card, anchor, mobileSheet = false }: { card: Card; anchor
 }
 
 export default function Loadout() {
+  const isMp = isMiniPay();
   const storePersist = (useGameStore as typeof useGameStore & {
     persist?: {
       hasHydrated?: () => boolean;
@@ -294,7 +296,7 @@ export default function Loadout() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       setIsShortLandscape(vw > vh && vh < 760);
-      setIsCompactPhone(Math.min(vw, vh) <= 430);
+      setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -313,7 +315,7 @@ export default function Loadout() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
-  }, []);
+  }, [isMp]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
