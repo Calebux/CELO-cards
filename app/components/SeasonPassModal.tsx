@@ -10,7 +10,6 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
 
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
-const USDT_ADAPTER = "0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72" as `0x${string}`;
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -215,7 +214,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           args: [TREASURY, plan.priceWeiUsdt],
         });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hash = await sendTransactionAsync({ to: USDT_CONTRACT, feeCurrency: USDT_ADAPTER, data } as any);
+        const hash = await sendTransactionAsync({ to: USDT_CONTRACT, data } as any);
         void pollAndRegister(hash);
       } else if (currency === "gdollar") {
         const hash = await writeContractAsync({
