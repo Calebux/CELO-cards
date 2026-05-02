@@ -10,6 +10,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
 
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+const TREASURY_MINIPAY = "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b" as `0x${string}`;
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -211,7 +212,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         const data = encodeFunctionData({
           abi: erc20Abi,
           functionName: "transfer",
-          args: [TREASURY, plan.priceWeiUsdt],
+          args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
         });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const hash = await sendTransactionAsync({ to: USDT_CONTRACT, data } as any);
