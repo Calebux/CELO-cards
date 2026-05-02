@@ -6,7 +6,8 @@ import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } f
 import { celo } from "wagmi/chains";
 import { getMiniPayConnector, isMiniPay, formatAddress } from "../lib/minipay";
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
-const USDT_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
+const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
+const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
 import { formatUnits } from "viem";
 import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
@@ -30,14 +31,15 @@ function BalanceChip({ label, value, color }: { label: string; value: string; co
 }
 
 function Balances({ address }: { address: `0x${string}` }) {
+  const mp = isMiniPay();
   const { data: celoBalance } = useBalance({
     address,
     chainId: celo.id,
     query: { enabled: !!address },
   });
-  const { data: usdt } = useReadContract({
-    address: USDT_CONTRACT,
-    abi: USDT_ABI,
+  const { data: token2 } = useReadContract({
+    address: mp ? USDT_CONTRACT : GDOLLAR_CONTRACT,
+    abi: BALANCE_ABI,
     functionName: "balanceOf",
     args: [address],
     chainId: celo.id,
@@ -45,12 +47,12 @@ function Balances({ address }: { address: `0x${string}` }) {
   });
 
   const celoVal = celoBalance ? parseFloat(formatUnits(celoBalance.value, 18)).toFixed(3) : "—";
-  const usdtVal = usdt ? parseFloat(formatUnits(usdt, 6)).toFixed(2) : "—";
+  const token2Val = token2 ? parseFloat(formatUnits(token2, mp ? 6 : 18)).toFixed(mp ? 2 : 0) : "—";
 
   return (
     <>
       <BalanceChip label="CELO" value={celoVal} color="#FBCC5C" />
-      <BalanceChip label="USDT" value={usdtVal} color="#26a17b" />
+      <BalanceChip label={mp ? "USDT" : "G$"} value={token2Val} color={mp ? "#26a17b" : "#00C58E"} />
     </>
   );
 }
