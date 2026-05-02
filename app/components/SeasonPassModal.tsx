@@ -4,13 +4,18 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
-import { parseEther, parseUnits, encodeFunctionData, erc20Abi } from "viem";
+import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
 
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const TREASURY_MINIPAY = "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b" as `0x${string}`;
+const USDT_ABI = [
+  { name: "transfer", type: "function", stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }] },
+] as const;
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -209,13 +214,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     try {
       const activeAddress = await ensureWalletReady();
       if (currency === "usdt") {
-        const data = encodeFunctionData({
-          abi: erc20Abi,
+        const hash = await writeContractAsync({
+          address: USDT_CONTRACT,
+          abi: USDT_ABI,
           functionName: "transfer",
           args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hash = await sendTransactionAsync({ to: USDT_CONTRACT, data } as any);
         void pollAndRegister(hash);
       } else if (currency === "gdollar") {
         const hash = await writeContractAsync({
