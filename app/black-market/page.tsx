@@ -308,12 +308,6 @@ export default function BlackMarket() {
                         <span className="material-icons" style={{ fontSize: 36, color: "#4ade80", opacity: 0.8 }}>check_circle</span>
                       </div>
                     )}
-
-                    <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "8px 10px", textAlign: "center", background: "linear-gradient(to top, rgba(2,6,23,0.88), transparent)" }}>
-                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.8, color: "#cbd5e1", textTransform: "uppercase" }}>
-                        Tap Card To Inspect
-                      </span>
-                    </div>
                   </div>
 
                   <div style={{ width: 170, textAlign: "center", fontSize: 10, color: "#9ca3af", lineHeight: 1.4, height: 44, overflow: "hidden" }}>
