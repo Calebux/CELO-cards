@@ -51,6 +51,8 @@ export function CardPreviewModal({
     bestKnock: 0,
   };
   const clashWinRate = usageStats.timesPlayed > 0 ? Math.round((usageStats.clashWins / usageStats.timesPlayed) * 100) : 0;
+  const panelWidth = isMp ? 1040 : 1060;
+  const panelHeight = isMp ? 610 : 640;
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -132,205 +134,212 @@ export function CardPreviewModal({
         <div
           onClick={(event) => event.stopPropagation()}
           style={{
-            width: isMp ? 1100 : 1020,
-            maxHeight: isMp ? 720 : 690,
+            width: panelWidth,
+            height: panelHeight,
             borderRadius: isMp ? 24 : 22,
             overflow: "hidden",
             border: `1.5px solid ${card.color}70`,
             background: "linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.95))",
             boxShadow: `0 36px 120px rgba(0,0,0,0.55), 0 0 48px ${card.color}22`,
             animation: "cardPreviewPanelIn 0.42s ease forwards",
+            display: "grid",
+            gridTemplateColumns: "minmax(300px, 340px) minmax(0, 1fr)",
           }}
         >
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: isMp ? "1fr" : "minmax(320px, 390px) minmax(420px, 1fr)",
-              gap: isMp ? 0 : 24,
+              position: "relative",
+              minHeight: 0,
+              padding: isMp ? 22 : 24,
+              background: `radial-gradient(circle at 20% 20%, ${card.color}2c 0%, transparent 42%), linear-gradient(180deg, ${card.bgColor}, rgba(2,6,23,0.98))`,
+              borderRight: `1px solid ${card.color}30`,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
             }}
           >
+            <button
+              onClick={onClose}
+              aria-label="Close card preview"
+              style={{
+                position: "absolute",
+                top: 14,
+                right: 14,
+                width: isMp ? 44 : 40,
+                height: isMp ? 44 : 40,
+                borderRadius: "50%",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(2,6,23,0.7)",
+                color: "#e2e8f0",
+                fontSize: isMp ? 24 : 22,
+                cursor: "pointer",
+                zIndex: 2,
+              }}
+            >
+              ×
+            </button>
+
             <div
               style={{
                 position: "relative",
-                minHeight: isMp ? 360 : 560,
-                padding: isMp ? 24 : 28,
-                background: `radial-gradient(circle at 20% 20%, ${card.color}2c 0%, transparent 42%), linear-gradient(180deg, ${card.bgColor}, rgba(2,6,23,0.98))`,
-                borderRight: isMp ? "none" : `1px solid ${card.color}30`,
-                borderBottom: isMp ? `1px solid ${card.color}30` : "none",
+                width: "100%",
+                maxWidth: isMp ? 290 : 300,
+                aspectRatio: "170 / 236",
+                margin: "28px auto 0",
+                borderRadius: 22,
+                overflow: "hidden",
+                border: `2px solid ${card.color}`,
+                boxShadow: `0 24px 60px rgba(0,0,0,0.5), 0 0 26px ${card.color}2f`,
+                transform: "rotate(-4deg)",
+                animation: "cardPreviewPanelIn 0.4s ease forwards, cardPreviewPassFlip 0.7s ease 0.08s, cardPreviewPassGlow 2s ease 0.8s infinite",
+                flexShrink: 0,
               }}
             >
-              <button
-                onClick={onClose}
-                aria-label="Close card preview"
+              <img
+                src={card.image}
+                alt={card.name}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+              <div
                 style={{
                   position: "absolute",
-                  top: 16,
-                  right: 16,
-                  width: isMp ? 48 : 40,
-                  height: isMp ? 48 : 40,
-                  borderRadius: "50%",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(2,6,23,0.7)",
-                  color: "#e2e8f0",
-                  fontSize: isMp ? 26 : 22,
-                  cursor: "pointer",
-                  zIndex: 2,
+                  inset: 0,
+                  background: "linear-gradient(to top, rgba(2,6,23,1) 0%, rgba(2,6,23,0.38) 44%, transparent 100%)",
                 }}
-              >
-                ×
-              </button>
+              />
 
               <div
                 style={{
-                  position: "relative",
-                  width: "100%",
-                  maxWidth: isMp ? 320 : 340,
-                  aspectRatio: "170 / 236",
-                  margin: "34px auto 0",
-                  borderRadius: 22,
-                  overflow: "hidden",
-                  border: `2px solid ${card.color}`,
-                  boxShadow: `0 24px 60px rgba(0,0,0,0.5), 0 0 26px ${card.color}2f`,
-                  transform: "rotate(-4deg)",
-                  animation: "cardPreviewPanelIn 0.4s ease forwards, cardPreviewPassFlip 0.7s ease 0.08s, cardPreviewPassGlow 2s ease 0.8s infinite",
+                  position: "absolute",
+                  top: 16,
+                  left: 16,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  animation: "cardPreviewFadeUp 0.45s ease 0.68s both",
                 }}
               >
-                <img
-                  src={card.image}
-                  alt={card.name}
-                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                />
                 <div
                   style={{
-                    position: "absolute",
-                    inset: 0,
-                    background: "linear-gradient(to top, rgba(2,6,23,1) 0%, rgba(2,6,23,0.38) 44%, transparent 100%)",
-                  }}
-                />
-
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 16,
-                    left: 16,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                    animation: "cardPreviewFadeUp 0.45s ease 0.68s both",
-                  }}
-                >
-                  <div
-                    style={{
-                      minWidth: 54,
-                      padding: "8px 12px",
-                      borderRadius: 999,
-                      background: "rgba(2,6,23,0.78)",
-                      border: `1px solid ${card.color}`,
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: 10, letterSpacing: 1.2, color: "#94a3b8", textTransform: "uppercase" }}>Knock</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: card.color }}>{card.knock}</div>
-                  </div>
-                  <div
-                    style={{
-                      minWidth: 54,
-                      padding: "8px 12px",
-                      borderRadius: 999,
-                      background: "rgba(2,6,23,0.78)",
-                      border: "1px solid rgba(148,163,184,0.45)",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: 10, letterSpacing: 1.2, color: "#94a3b8", textTransform: "uppercase" }}>Prio</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "#e2e8f0" }}>{card.priority}</div>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 18,
-                    right: 18,
-                    bottom: 18,
+                    minWidth: 54,
+                    padding: "8px 12px",
+                    borderRadius: 999,
+                    background: "rgba(2,6,23,0.78)",
+                    border: `1px solid ${card.color}`,
                     textAlign: "center",
-                    animation: "cardPreviewFadeUp 0.42s ease 0.74s both",
                   }}
                 >
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2.2, color: card.color, textTransform: "uppercase" }}>
-                    {typeMeta.label}
-                  </div>
-                  <div style={{ marginTop: 6, fontSize: isMp ? 24 : 22, fontWeight: 900, letterSpacing: -0.8, color: "#fff", textTransform: "uppercase" }}>
-                    {card.name}
-                  </div>
+                  <div style={{ fontSize: 10, letterSpacing: 1.2, color: "#94a3b8", textTransform: "uppercase" }}>Knock</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: card.color }}>{card.knock}</div>
+                </div>
+                <div
+                  style={{
+                    minWidth: 54,
+                    padding: "8px 12px",
+                    borderRadius: 999,
+                    background: "rgba(2,6,23,0.78)",
+                    border: "1px solid rgba(148,163,184,0.45)",
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 10, letterSpacing: 1.2, color: "#94a3b8", textTransform: "uppercase" }}>Prio</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: "#e2e8f0" }}>{card.priority}</div>
                 </div>
               </div>
 
               <div
                 style={{
-                  marginTop: 22,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  justifyContent: "center",
-                  gap: 10,
-                  animation: "cardPreviewFadeUp 0.42s ease 0.82s both",
+                  position: "absolute",
+                  left: 18,
+                  right: 18,
+                  bottom: 18,
+                  textAlign: "center",
+                  animation: "cardPreviewFadeUp 0.42s ease 0.74s both",
                 }}
               >
-                <div
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    border: `1px solid ${isSignature ? "#fbbf24" : card.color}45`,
-                    background: isSignature ? "rgba(251,191,36,0.18)" : `${card.color}14`,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: 1.2,
-                    color: isSignature ? "#fbbf24" : card.color,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {isSignature ? "Signature Card" : owned ? "Owned Card" : "Black Market Card"}
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2.2, color: card.color, textTransform: "uppercase" }}>
+                  {typeMeta.label}
                 </div>
-                <div
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(148,163,184,0.22)",
-                    background: "rgba(255,255,255,0.04)",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: 1.2,
-                    color: "#cbd5e1",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {card.energyCost} Energy Cost
-                </div>
-                <div
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(148,163,184,0.22)",
-                    background: "rgba(255,255,255,0.04)",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: 1.2,
-                    color: "#cbd5e1",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {usageStats.matchWins} Match Wins
+                <div style={{ marginTop: 6, fontSize: isMp ? 22 : 22, fontWeight: 900, letterSpacing: -0.8, color: "#fff", textTransform: "uppercase" }}>
+                  {card.name}
                 </div>
               </div>
             </div>
 
             <div
               style={{
-                padding: isMp ? "22px 22px 26px" : "30px 30px 32px 10px",
+                marginTop: 20,
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: 10,
+                animation: "cardPreviewFadeUp 0.42s ease 0.82s both",
+              }}
+            >
+              <div
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: `1px solid ${isSignature ? "#fbbf24" : card.color}45`,
+                  background: isSignature ? "rgba(251,191,36,0.18)" : `${card.color}14`,
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: 1.2,
+                  color: isSignature ? "#fbbf24" : card.color,
+                  textTransform: "uppercase",
+                }}
+              >
+                {isSignature ? "Signature Card" : owned ? "Owned Card" : "Black Market Card"}
+              </div>
+              <div
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(148,163,184,0.22)",
+                  background: "rgba(255,255,255,0.04)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 1.2,
+                  color: "#cbd5e1",
+                  textTransform: "uppercase",
+                }}
+              >
+                {card.energyCost} Energy Cost
+              </div>
+              <div
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(148,163,184,0.22)",
+                  background: "rgba(255,255,255,0.04)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 1.2,
+                  color: "#cbd5e1",
+                  textTransform: "uppercase",
+                }}
+              >
+                {usageStats.matchWins} Match Wins
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: "auto",
+                padding: isMp ? "22px 22px 14px 18px" : "30px 30px 16px 18px",
                 display: "flex",
                 flexDirection: "column",
                 gap: 18,
-                overflowY: "auto",
               }}
             >
               <div>
@@ -340,7 +349,7 @@ export function CardPreviewModal({
                 <h2
                   style={{
                     margin: "8px 0 0",
-                    fontSize: isMp ? 34 : 38,
+                    fontSize: isMp ? 32 : 38,
                     lineHeight: 1,
                     fontWeight: 900,
                     letterSpacing: -1.5,
@@ -378,7 +387,7 @@ export function CardPreviewModal({
                     <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.8, color: "#64748b", textTransform: "uppercase" }}>
                       {stat.label}
                     </div>
-                    <div style={{ marginTop: 8, fontSize: isMp ? 26 : 24, fontWeight: 900, color: stat.color }}>
+                    <div style={{ marginTop: 8, fontSize: isMp ? 24 : 24, fontWeight: 900, color: stat.color }}>
                       {stat.value}
                     </div>
                   </div>
@@ -388,7 +397,7 @@ export function CardPreviewModal({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: isMp ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
+                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
                   gap: 12,
                   animation: "cardPreviewFadeUp 0.42s ease 0.94s both",
                 }}
@@ -411,7 +420,7 @@ export function CardPreviewModal({
                     <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.7, color: "#64748b", textTransform: "uppercase" }}>
                       {entry.label}
                     </div>
-                    <div style={{ marginTop: 8, fontSize: isMp ? 22 : 20, fontWeight: 900, color: entry.color }}>
+                    <div style={{ marginTop: 8, fontSize: isMp ? 20 : 20, fontWeight: 900, color: entry.color }}>
                       {entry.value}
                     </div>
                   </div>
@@ -430,7 +439,7 @@ export function CardPreviewModal({
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: card.color, textTransform: "uppercase" }}>
                   Power
                 </div>
-                <p style={{ margin: "10px 0 0", fontSize: isMp ? 16 : 15, lineHeight: 1.6, color: "#e2e8f0" }}>
+                <p style={{ margin: "10px 0 0", fontSize: isMp ? 15 : 15, lineHeight: 1.6, color: "#e2e8f0" }}>
                   {card.effect}
                 </p>
               </div>
@@ -447,7 +456,7 @@ export function CardPreviewModal({
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: "#94a3b8", textTransform: "uppercase" }}>
                   Combat Role
                 </div>
-                <p style={{ margin: "10px 0 0", fontSize: isMp ? 15 : 14, lineHeight: 1.6, color: "#cbd5e1" }}>
+                <p style={{ margin: "10px 0 0", fontSize: isMp ? 14 : 14, lineHeight: 1.6, color: "#cbd5e1" }}>
                   {typeMeta.description}
                 </p>
               </div>
@@ -455,7 +464,7 @@ export function CardPreviewModal({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: isMp ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                   gap: 12,
                   animation: "cardPreviewFadeUp 0.42s ease 1.18s both",
                 }}
@@ -500,42 +509,33 @@ export function CardPreviewModal({
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div style={{ display: "flex", flexDirection: isMp ? "column" : "row", justifyContent: isMp ? "stretch" : "space-between", gap: 12, animation: "cardPreviewFadeUp 0.42s ease 1.26s both" }}>
-                {onToggleSignature && (
-                  <button
-                    onClick={onToggleSignature}
-                    style={{
-                      width: isMp ? "100%" : "auto",
-                      minWidth: 210,
-                      padding: isMp ? "16px 22px" : "14px 22px",
-                      borderRadius: 12,
-                      border: `1px solid ${isSignature ? "rgba(251,191,36,0.55)" : "rgba(148,163,184,0.28)"}`,
-                      background: isSignature
-                        ? "linear-gradient(135deg, rgba(251,191,36,0.22), rgba(255,255,255,0.06))"
-                        : "linear-gradient(135deg, rgba(148,163,184,0.12), rgba(255,255,255,0.04))",
-                      color: isSignature ? "#fbbf24" : "#e2e8f0",
-                      fontSize: 12,
-                      fontWeight: 900,
-                      letterSpacing: 1.8,
-                      textTransform: "uppercase",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    {isSignature ? "Unset Signature" : "Make Signature Card"}
-                  </button>
-                )}
+            <div
+              style={{
+                padding: isMp ? "14px 22px 20px 18px" : "14px 30px 24px 18px",
+                borderTop: "1px solid rgba(148,163,184,0.14)",
+                background: "linear-gradient(180deg, rgba(2,6,23,0), rgba(2,6,23,0.92) 25%)",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                gap: 12,
+                animation: "cardPreviewFadeUp 0.42s ease 1.26s both",
+              }}
+            >
+              {onToggleSignature && (
                 <button
-                  onClick={onClose}
+                  onClick={onToggleSignature}
                   style={{
-                    width: isMp ? "100%" : "auto",
-                    minWidth: 180,
-                    padding: isMp ? "16px 22px" : "14px 22px",
+                    flex: 1,
+                    minWidth: 0,
+                    padding: isMp ? "16px 18px" : "14px 22px",
                     borderRadius: 12,
-                    border: `1px solid ${card.color}55`,
-                    background: `linear-gradient(135deg, ${card.color}22, rgba(255,255,255,0.06))`,
-                    color: "#fff",
+                    border: `1px solid ${isSignature ? "rgba(251,191,36,0.55)" : "rgba(148,163,184,0.28)"}`,
+                    background: isSignature
+                      ? "linear-gradient(135deg, rgba(251,191,36,0.22), rgba(255,255,255,0.06))"
+                      : "linear-gradient(135deg, rgba(148,163,184,0.12), rgba(255,255,255,0.04))",
+                    color: isSignature ? "#fbbf24" : "#e2e8f0",
                     fontSize: 12,
                     fontWeight: 900,
                     letterSpacing: 1.8,
@@ -544,9 +544,29 @@ export function CardPreviewModal({
                     fontFamily: "inherit",
                   }}
                 >
-                  Back To Cards
+                  {isSignature ? "Unset Signature" : "Make Signature Card"}
                 </button>
-              </div>
+              )}
+              <button
+                onClick={onClose}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: isMp ? "16px 18px" : "14px 22px",
+                  borderRadius: 12,
+                  border: `1px solid ${card.color}55`,
+                  background: `linear-gradient(135deg, ${card.color}22, rgba(255,255,255,0.06))`,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 900,
+                  letterSpacing: 1.8,
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

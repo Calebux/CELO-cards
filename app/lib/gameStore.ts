@@ -519,7 +519,13 @@ export const useGameStore = create<GameState>()(
 
         // Fallback or Multiplayer path (Multiplayer path is usually handled by page.tsx, 
         // but this keeps the local resolution logic as a fallback for solo if server is down)
-        const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: playerCards };
+        const roundCtx: AIRoundContext = {
+            playerRoundsWon,
+            opponentRoundsWon,
+            playerOrder: playerCards,
+            previousAiOrderIds: get().opponentOrder.map((card) => card.id),
+            roundNumber: get().roundNumber,
+        };
         const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
         const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;
@@ -585,7 +591,13 @@ export const useGameStore = create<GameState>()(
             }
         }
 
-        const roundCtx: AIRoundContext = { playerRoundsWon, opponentRoundsWon, playerOrder: autoOrder };
+        const roundCtx: AIRoundContext = {
+            playerRoundsWon,
+            opponentRoundsWon,
+            playerOrder: autoOrder,
+            previousAiOrderIds: get().opponentOrder.map((card) => card.id),
+            roundNumber: get().roundNumber,
+        };
         const aiOrder = generateAIOrder(opponentCharacter ?? undefined, selectedCharacter ?? undefined, difficulty, roundCtx);
         const playerLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 1;
         const opponentLastStand = opponentRoundsWon === 0 && playerRoundsWon >= 1;

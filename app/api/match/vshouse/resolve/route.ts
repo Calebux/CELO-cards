@@ -21,6 +21,7 @@ interface HouseMatchState {
   lastUpdated: number;
   signatureBoostUsed: boolean;
   usedCardIds: string[];
+  previousAiOrderIds: string[];
 }
 
 async function ensureHouseEntryTx(matchId: string): Promise<string | null> {
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
       lastUpdated: Date.now(),
       signatureBoostUsed: false,
       usedCardIds: [],
+      previousAiOrderIds: [],
     };
 
     if (wagered && allowTreasuryEntry) {
@@ -128,12 +130,15 @@ export async function POST(req: NextRequest) {
     playerRoundsWon: state.playerRoundsWon,
     opponentRoundsWon: state.opponentRoundsWon,
     playerOrder: playerOrder,
+    previousAiOrderIds: state.previousAiOrderIds,
+    roundNumber: state.roundNumber,
   };
   const resolvedRound = state.roundNumber;
   state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 
   // 3. Server-Side Calculations
   const aiOrder = generateAIOrder(opponentChar, playerChar, difficulty as any, roundCtx);
+  state.previousAiOrderIds = aiOrder.map((card) => card.id);
   
   const opts: RoundOptions = {
     playerLastStand: state.playerRoundsWon === 0 && state.opponentRoundsWon >= 1,

@@ -426,6 +426,17 @@ export interface AIRoundContext {
     playerRoundsWon: number;
     opponentRoundsWon: number;
     playerOrder?: Card[]; // player's visible card selection for this round
+    previousAiOrderIds?: string[];
+    roundNumber?: number;
+}
+
+function shuffleCards(cards: Card[]): Card[] {
+    const next = [...cards];
+    for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [next[i], next[j]] = [next[j], next[i]];
+    }
+    return next;
 }
 
 // difficulty: 0=easy (random), 1=normal (adaptive), 2=hard (optimal + counters)
@@ -440,7 +451,7 @@ export function generateAIOrder(
     // Easy mode: random selection with no strategy
     if (difficulty === 0) {
         const valid = CARDS.filter((c) => !c.isWild && c.energyCost <= energyPool);
-        const shuffled = [...valid].sort(() => Math.random() - 0.5);
+        const shuffled = shuffleCards(valid);
         const picks: Card[] = [];
         let usedEnergy = 0;
         for (const card of shuffled) {
@@ -449,7 +460,7 @@ export function generateAIOrder(
             picks.push(card);
             usedEnergy += card.energyCost;
         }
-        return picks.sort(() => Math.random() - 0.5);
+        return shuffleCards(picks);
     }
 
     // ── Analyse player's deck to find counter type ─────────────────────────
@@ -476,6 +487,8 @@ export function generateAIOrder(
     const playerRoundsWon = roundCtx?.playerRoundsWon ?? 0;
     const isLosing = aiRoundsWon < playerRoundsWon;
     const isWinning = aiRoundsWon > playerRoundsWon;
+    const previousAiOrderIds = roundCtx?.previousAiOrderIds ?? [];
+    const previousAiOrderSet = new Set(previousAiOrderIds);
 
     // Score each card
     const scored = CARDS.filter((c) => !c.isWild).map((c) => {
@@ -490,6 +503,9 @@ export function generateAIOrder(
 
         // Counter-type bonus (normal: +2, hard: +4)
         if (c.type === counterType) score += difficulty === 2 ? 4 : 2;
+
+        // Mild anti-repeat bias so house rounds do not keep surfacing the same 5 cards.
+        if (previousAiOrderSet.has(c.id)) score -= difficulty === 2 ? 1.2 : 0.8;
 
         // Aggression adjustment
         if (isLosing)  score += c.knock * 0.3;           // prioritise damage when behind
@@ -536,9 +552,19 @@ export function generateAIOrder(
         picks.push(card);
     }
 
-    // Hard: keep strategic order. Normal: shuffle to mask intent.
-    if (difficulty === 2) return picks;
-    return picks.sort(() => Math.random() - 0.5);
+    const exactRepeat = previousAiOrderIds.length === picks.length && picks.every((card, index) => card.id === previousAiOrderIds[index]);
+
+    // Hard keeps strategic order, but still rotates away from exact repeats.
+    if (difficulty === 2) {
+        if (!exactRepeat) return picks;
+        const shift = ((roundCtx?.roundNumber ?? 1) % picks.length) || 1;
+        return picks.slice(shift).concat(picks.slice(0, shift));
+    }
+
+    const shuffled = shuffleCards(picks);
+    if (!exactRepeat) return shuffled;
+    const shift = ((roundCtx?.roundNumber ?? 1) % shuffled.length) || 1;
+    return shuffled.slice(shift).concat(shuffled.slice(0, shift));
 }
 
 // ── Round resolution ───────────────────────────────────────────────────────
