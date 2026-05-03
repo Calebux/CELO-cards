@@ -471,14 +471,21 @@ export default function ProfilePage() {
                       <div style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.72)", borderRadius: "50%", width: 17, height: 17, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <span style={{ fontSize: 8, fontWeight: 800, color: card.color }}>{card.knock}</span>
                       </div>
-                      {isSignature && (
-                        <div style={{ position: "absolute", top: 4, left: 4, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.45)", background: "rgba(251,191,36,0.18)" }}>
-                          <span style={{ fontSize: 7, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.9, textTransform: "uppercase" }}>Sig</span>
-                        </div>
-                      )}
                       <div style={{ position: "absolute", left: 0, right: 0, top: 4, display: "flex", justifyContent: "center" }}>
-                        <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: 1.1, color: "#cbd5e1", textTransform: "uppercase", background: "rgba(2,6,23,0.72)", borderRadius: 999, padding: "2px 5px" }}>
-                          View
+                        <span
+                          style={{
+                            fontSize: 7,
+                            fontWeight: 800,
+                            letterSpacing: 1.1,
+                            color: isSignature ? "#fbbf24" : "#cbd5e1",
+                            textTransform: "uppercase",
+                            background: isSignature ? "rgba(251,191,36,0.18)" : "rgba(2,6,23,0.72)",
+                            border: isSignature ? "1px solid rgba(251,191,36,0.4)" : "1px solid transparent",
+                            borderRadius: 999,
+                            padding: "2px 5px",
+                          }}
+                        >
+                          {isSignature ? "Signature" : "View"}
                         </span>
                       </div>
                     </div>

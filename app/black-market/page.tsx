@@ -297,12 +297,6 @@ export default function BlackMarket() {
                     <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #94a3b8" }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af" }}>{c.priority}</span>
                     </div>
-                    {isSignature && (
-                      <div style={{ position: "absolute", top: 44, left: 8, padding: "4px 8px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.45)", background: "rgba(251,191,36,0.18)", boxShadow: "0 0 10px rgba(251,191,36,0.18)" }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.2, textTransform: "uppercase" }}>Signature</span>
-                      </div>
-                    )}
-
                     {isOwned && (
                       <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(74,222,128,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <span className="material-icons" style={{ fontSize: 36, color: "#4ade80", opacity: 0.8 }}>check_circle</span>
@@ -315,8 +309,22 @@ export default function BlackMarket() {
                   </div>
 
                   {isOwned ? (
-                    <button disabled style={{ width: "100%", padding: "10px", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, color: "#4ade80", fontSize: 11, fontWeight: 800, cursor: "default", letterSpacing: 2 }}>
-                      OWNED
+                    <button
+                      disabled
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        background: isSignature ? "rgba(251,191,36,0.14)" : "rgba(74,222,128,0.1)",
+                        border: isSignature ? "1px solid rgba(251,191,36,0.36)" : "1px solid rgba(74,222,128,0.3)",
+                        borderRadius: 6,
+                        color: isSignature ? "#fbbf24" : "#4ade80",
+                        fontSize: 11,
+                        fontWeight: 800,
+                        cursor: "default",
+                        letterSpacing: 2,
+                      }}
+                    >
+                      {isSignature ? "SIGNATURE" : "OWNED"}
                     </button>
                   ) : (
                     <button
