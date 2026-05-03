@@ -20,6 +20,7 @@ import { MultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaki
 import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
 import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
+import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 
 const ROUND_GRACE_MS = 30 * 1000; // grace when one player has submitted and the other is reconnecting
 
@@ -53,6 +54,10 @@ function flipPerspective(slots: SlotResult[]): SlotResult[] {
     priorityWinner:
       s.priorityWinner === "player" ? "opponent" :
       s.priorityWinner === "opponent" ? "player" : "tie",
+    playerSignatureBoosted: s.opponentSignatureBoosted,
+    opponentSignatureBoosted: s.playerSignatureBoosted,
+    playerEffectivePriority: s.opponentEffectivePriority,
+    opponentEffectivePriority: s.playerEffectivePriority,
   }));
 }
 
@@ -243,7 +248,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, address: patchAddress, mode: requestedMode } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, signatureCardId } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
@@ -253,6 +258,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     playerName?: string;
     address?: string;
     mode?: MultiplayerMode;
+    signatureCardId?: string | null;
   };
 
   if (!validRole(role)) {
@@ -389,6 +395,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     roundDurationMs: number;
     round: number;
   } | null = null;
+  let roundProgressSnapshot: {
+    round: number;
+    slots: SlotResult[];
+    hostAddress: string | null;
+    joinerAddress: string | null;
+    hostUsedCardIds: string[];
+    joinerUsedCardIds: string[];
+    hostWonMatch: boolean;
+    joinerWonMatch: boolean;
+  } | null = null;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     match = await getMatch<ServerMatch>(matchId);
@@ -410,7 +426,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
     const slot = role === "host" ? match.host : match.joiner;
     slot.cardIds = cardIds;
+    slot.usedCardIdsThisMatch = Array.from(new Set([...(slot.usedCardIdsThisMatch ?? []), ...cardIds]));
     slot.orderRound = round;
+    slot.signatureCardId = typeof signatureCardId === "string" ? signatureCardId : null;
     if (!match.roundSubmitStartedAt) {
       match.roundSubmitStartedAt = Date.now();
     }
@@ -438,9 +456,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         .filter(Boolean) as typeof CARDS;
 
       const roundDurationMs = match.roundSubmitStartedAt ? Math.max(0, Date.now() - match.roundSubmitStartedAt) : 0;
-      const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar);
+      const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar, {
+        playerSignatureCardId: m.host.signatureCardId,
+        opponentSignatureCardId: m.joiner.signatureCardId,
+        playerSignatureBoostAvailable: !m.host.signatureBoostUsed,
+        opponentSignatureBoostAvailable: !m.joiner.signatureBoostUsed,
+      });
       m.resolvedSlots = result.slots;
       m.roundSubmitStartedAt = null;
+      if (result.slots.some((slotResult) => slotResult.playerSignatureBoosted)) {
+        m.host.signatureBoostUsed = true;
+      }
+      if (result.slots.some((slotResult) => slotResult.opponentSignatureBoosted)) {
+        m.joiner.signatureBoostUsed = true;
+      }
       roundTelemetrySnapshot = {
         hostCharId: hostChar.id,
         joinerCharId: joinerChar.id,
@@ -459,6 +488,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         m.winnerAddress = m.hostWins >= 3 ? m.host.address : m.joiner.address;
         matchEndSnapshot = { hostWon: m.hostWins >= 3, m: { ...m, host: { ...m.host }, joiner: { ...m.joiner } } };
       }
+      roundProgressSnapshot = {
+        round: m.round,
+        slots: result.slots,
+        hostAddress: m.host.address,
+        joinerAddress: m.joiner.address,
+        hostUsedCardIds: [...(m.host.usedCardIdsThisMatch ?? [])],
+        joinerUsedCardIds: [...(m.joiner.usedCardIdsThisMatch ?? [])],
+        hostWonMatch: m.hostWins >= 3,
+        joinerWonMatch: m.joinerWins >= 3,
+      };
     }
 
     try {
@@ -491,6 +530,34 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         hostWonRound: roundTelemetrySnapshot.hostWonRound,
         roundDurationMs: roundTelemetrySnapshot.roundDurationMs,
       });
+    } catch {
+      // Best-effort only.
+    }
+  }
+
+  if (saved && roundProgressSnapshot) {
+    try {
+      const claimed = await claimCardProgressRound(matchId, roundProgressSnapshot.round);
+      if (claimed) {
+        if (roundProgressSnapshot.hostAddress) {
+          await recordResolvedCardPerformance({
+            address: roundProgressSnapshot.hostAddress,
+            perspective: "player",
+            slots: roundProgressSnapshot.slots,
+            matchWon: roundProgressSnapshot.hostWonMatch,
+            usedCardIdsForMatchWin: roundProgressSnapshot.hostUsedCardIds,
+          });
+        }
+        if (roundProgressSnapshot.joinerAddress) {
+          await recordResolvedCardPerformance({
+            address: roundProgressSnapshot.joinerAddress,
+            perspective: "opponent",
+            slots: roundProgressSnapshot.slots,
+            matchWon: roundProgressSnapshot.joinerWonMatch,
+            usedCardIdsForMatchWin: roundProgressSnapshot.joinerUsedCardIds,
+          });
+        }
+      }
     } catch {
       // Best-effort only.
     }

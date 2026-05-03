@@ -76,6 +76,7 @@ export default function Gameplay() {
     setCurrentOrderFromIds,
     setPrecomputedFromServer,
     setOpponentName,
+    activeSignatureCardId,
   } = useGameStore();
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -1041,6 +1042,7 @@ export default function Gameplay() {
               const oCard = opponentOrder[i];
               const result = slotResults[i];
               const isActive = i === revealedSlots && !showResult;
+              const playerSignatureHere = !!pCard && activeSignatureCardId === pCard.id;
 
               const slotBorderColor = revealed
                 ? (result?.winner === "player" ? "#4ade80" : result?.winner === "opponent" ? "#ef4444" : "#fbbf24")
@@ -1076,7 +1078,14 @@ export default function Gameplay() {
                       transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                     }}>
                       {revealed && pCard ? (
-                        <MiniPayImage src={pCard.image} alt={pCard.name} minipayWidth={160} minipayQuality={50} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                        <>
+                          <MiniPayImage src={pCard.image} alt={pCard.name} minipayWidth={160} minipayQuality={50} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                          {playerSignatureHere && (
+                            <div style={{ position: "absolute", top: 4, left: 4, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.45)", background: "rgba(251,191,36,0.18)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
+                              <span style={{ fontSize: 7, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>Sig</span>
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={{ position: "relative" }}>
                           <span className="material-icons" style={{ fontSize: 14, color: "rgba(90,191,230,0.15)" }}>help_outline</span>
@@ -1105,15 +1114,22 @@ export default function Gameplay() {
 
                   {/* Result badge */}
                   {revealed && result ? (
-                    <span style={{
-                      fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 4,
-                      backgroundColor: result.winner === "player" ? "rgba(6,168,249,0.2)" : result.winner === "opponent" ? "rgba(249,6,168,0.2)" : "rgba(255,215,0,0.15)",
-                      border: `1px solid ${result.winner === "player" ? "rgba(6,168,249,0.4)" : result.winner === "opponent" ? "rgba(249,6,168,0.4)" : "rgba(255,215,0,0.3)"}`,
-                      color: result.winner === "player" ? "#06a8f9" : result.winner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24",
-                      textTransform: "uppercase", letterSpacing: 1,
-                    }}>
-                      {result.winner === "player" ? `+${result.playerKnock}` : result.winner === "opponent" ? `-${result.opponentKnock}` : "DRAW"}
-                    </span>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      {result.playerSignatureBoosted && (
+                        <span style={{ fontSize: 8, fontWeight: 800, padding: "2px 6px", borderRadius: 999, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.38)", color: "#fbbf24", textTransform: "uppercase", letterSpacing: 1 }}>
+                          Surge
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 4,
+                        backgroundColor: result.winner === "player" ? "rgba(6,168,249,0.2)" : result.winner === "opponent" ? "rgba(249,6,168,0.2)" : "rgba(255,215,0,0.15)",
+                        border: `1px solid ${result.winner === "player" ? "rgba(6,168,249,0.4)" : result.winner === "opponent" ? "rgba(249,6,168,0.4)" : "rgba(255,215,0,0.3)"}`,
+                        color: result.winner === "player" ? "#06a8f9" : result.winner === "opponent" ? (opponent?.color || "#f906a8") : "#fbbf24",
+                        textTransform: "uppercase", letterSpacing: 1,
+                      }}>
+                        {result.winner === "player" ? `+${result.playerKnock}` : result.winner === "opponent" ? `-${result.opponentKnock}` : "DRAW"}
+                      </span>
+                    </div>
                   ) : (
                     <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(90,191,230,0.2)", letterSpacing: 1 }}>—</span>
                   )}

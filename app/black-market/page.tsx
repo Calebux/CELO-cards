@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
+import { CardPreviewModal } from "../components/CardPreviewModal";
 import { CARDS } from "../lib/gameData";
 import {
   useWriteContract,
@@ -16,6 +17,7 @@ import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { parseUnits } from "viem";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { useSignatureCardSync } from "../lib/useSignatureCardSync";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -52,12 +54,14 @@ export default function BlackMarket() {
   const router = useRouter();
   const { address, isConnected, chainId } = useAccount();
 
-  const { unlockedPremiumCards, playerName } = useGameStore();
+  const { unlockedPremiumCards, playerName, signatureCardId, cardPerformance } = useGameStore();
   const unlockCard = useGameStore((s) => s.purchaseCard);
+  const { toggleSignatureCard: syncSignatureCard } = useSignatureCardSync();
 
   const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(isMiniPay() ? "usdt" : "celo");
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string>("");
+  const [previewCardId, setPreviewCardId] = useState<string | null>(null);
 
   const { writeContractAsync } = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
@@ -65,6 +69,7 @@ export default function BlackMarket() {
   const { switchChainAsync } = useSwitchChain();
 
   const marketCards = CARDS.filter((c) => c.isPremium);
+  const previewCard = previewCardId ? marketCards.find((card) => card.id === previewCardId) ?? null : null;
 
   useEffect(() => {
     const scale = () => {
@@ -257,6 +262,7 @@ export default function BlackMarket() {
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 24, maxWidth: 1200, padding: "0 20px", overflowY: "auto", paddingBottom: 60 }}>
             {marketCards.map((c) => {
               const isOwned = unlockedPremiumCards.includes(c.id);
+              const isSignature = signatureCardId === c.id;
               const price = c.price ?? 3000;
               const isBuying = buyingId === c.id;
               const currColor = buyCurrency === "gdollar" ? GDOLLAR_COLOR : buyCurrency === "usdt" ? "#26a17b" : "#f9c846";
@@ -269,9 +275,16 @@ export default function BlackMarket() {
                     opacity: isOwned ? 1 : 0.85,
                     transition: "transform 0.2s ease",
                     transform: isBuying ? "scale(1.05)" : "scale(1)",
+                    cursor: "pointer",
                   }}>
                     <img src={c.image} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 100%)" }} />
+
+                    <button
+                      onClick={() => setPreviewCardId(c.id)}
+                      aria-label={`Preview ${c.name}`}
+                      style={{ position: "absolute", inset: 0, zIndex: 1, background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+                    />
 
                     <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, textAlign: "center" }}>
                       <div style={{ fontSize: 9, fontWeight: 800, color: c.color, letterSpacing: 1.5, textTransform: "uppercase" }}>{c.type}</div>
@@ -284,12 +297,23 @@ export default function BlackMarket() {
                     <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #94a3b8" }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af" }}>{c.priority}</span>
                     </div>
+                    {isSignature && (
+                      <div style={{ position: "absolute", top: 44, left: 8, padding: "4px 8px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.45)", background: "rgba(251,191,36,0.18)", boxShadow: "0 0 10px rgba(251,191,36,0.18)" }}>
+                        <span style={{ fontSize: 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.2, textTransform: "uppercase" }}>Signature</span>
+                      </div>
+                    )}
 
                     {isOwned && (
                       <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(74,222,128,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <span className="material-icons" style={{ fontSize: 36, color: "#4ade80", opacity: 0.8 }}>check_circle</span>
                       </div>
                     )}
+
+                    <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "8px 10px", textAlign: "center", background: "linear-gradient(to top, rgba(2,6,23,0.88), transparent)" }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.8, color: "#cbd5e1", textTransform: "uppercase" }}>
+                        Tap Card To Inspect
+                      </span>
+                    </div>
                   </div>
 
                   <div style={{ width: 170, textAlign: "center", fontSize: 10, color: "#9ca3af", lineHeight: 1.4, height: 44, overflow: "hidden" }}>
@@ -330,6 +354,26 @@ export default function BlackMarket() {
           </div>
 
         </div>
+
+        {previewCard && (
+          <CardPreviewModal
+            card={previewCard}
+            owned={unlockedPremiumCards.includes(previewCard.id)}
+            stats={cardPerformance[previewCard.id] ?? null}
+            isSignature={signatureCardId === previewCard.id}
+            onToggleSignature={
+              unlockedPremiumCards.includes(previewCard.id) && address
+                ? () => {
+                    setBuyError("");
+                    void syncSignatureCard(signatureCardId, previewCard.id).catch((error) => {
+                      setBuyError(error instanceof Error ? error.message : "Failed to update signature card.");
+                    });
+                  }
+                : null
+            }
+            onClose={() => setPreviewCardId(null)}
+          />
+        )}
       </div>
     </div>
   );

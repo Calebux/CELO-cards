@@ -6,8 +6,10 @@ import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { ClaimGDollar } from "../components/ClaimGDollar";
+import { CardPreviewModal } from "../components/CardPreviewModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CHARACTERS, CARDS } from "../lib/gameData";
+import { useSignatureCardSync } from "../lib/useSignatureCardSync";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -63,7 +65,10 @@ export default function ProfilePage() {
     setPlayerName,
     matchHistory,
     unlockedPremiumCards,
+    signatureCardId,
+    cardPerformance,
   } = useGameStore();
+  const { toggleSignatureCard: syncSignatureCard } = useSignatureCardSync();
 
   const ownedCards = CARDS.filter((c) => c.isPremium && unlockedPremiumCards.includes(c.id));
 
@@ -75,6 +80,8 @@ export default function ProfilePage() {
   const [serverStats, setServerStats] = useState<{ points: number; wins: number; losses: number } | null>(null);
   const [passInfo, setPassInfo] = useState<{ active: boolean; expiry: number | null; plan: string | null } | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const [previewCardId, setPreviewCardId] = useState<string | null>(null);
+  const previewCard = previewCardId ? ownedCards.find((card) => card.id === previewCardId) ?? null : null;
 
   useEffect(() => {
     if (!address) {
@@ -435,7 +442,9 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(4, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: isCompactPhone ? 12 : 8, justifyItems: "center" }}>
-                  {ownedCards.map((card) => (
+                  {ownedCards.map((card) => {
+                    const isSignature = signatureCardId === card.id;
+                    return (
                     <div
                       key={card.id}
                       title={card.name}
@@ -447,8 +456,14 @@ export default function ProfilePage() {
                         position: "relative",
                         background: "rgba(2,6,23,0.7)",
                         aspectRatio: "170 / 236",
+                        cursor: "pointer",
                       }}
                     >
+                      <button
+                        onClick={() => setPreviewCardId(card.id)}
+                        aria-label={`Preview ${card.name}`}
+                        style={{ position: "absolute", inset: 0, zIndex: 1, background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+                      />
                       <img src={card.image} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))", padding: "10px 6px 5px", textAlign: "center" }}>
                         <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.35, lineHeight: 1.2 }}>{card.name}</div>
@@ -456,8 +471,19 @@ export default function ProfilePage() {
                       <div style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.72)", borderRadius: "50%", width: 17, height: 17, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <span style={{ fontSize: 8, fontWeight: 800, color: card.color }}>{card.knock}</span>
                       </div>
+                      {isSignature && (
+                        <div style={{ position: "absolute", top: 4, left: 4, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.45)", background: "rgba(251,191,36,0.18)" }}>
+                          <span style={{ fontSize: 7, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.9, textTransform: "uppercase" }}>Sig</span>
+                        </div>
+                      )}
+                      <div style={{ position: "absolute", left: 0, right: 0, top: 4, display: "flex", justifyContent: "center" }}>
+                        <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: 1.1, color: "#cbd5e1", textTransform: "uppercase", background: "rgba(2,6,23,0.72)", borderRadius: 999, padding: "2px 5px" }}>
+                          View
+                        </span>
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -504,6 +530,23 @@ export default function ProfilePage() {
           </div>
 
         </div>
+
+        {previewCard && (
+          <CardPreviewModal
+            card={previewCard}
+            owned
+            stats={cardPerformance[previewCard.id] ?? null}
+            isSignature={signatureCardId === previewCard.id}
+            onToggleSignature={
+              address
+                ? () => {
+                    void syncSignatureCard(signatureCardId, previewCard.id).catch(() => {});
+                  }
+                : null
+            }
+            onClose={() => setPreviewCardId(null)}
+          />
+        )}
 
         {/* Footer */}
         <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 12 }}>
