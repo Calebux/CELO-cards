@@ -38,6 +38,12 @@ const STEPS = [
     color: "#f97316",
   },
   {
+    icon: "⭐",
+    title: "Set A Signature Card",
+    body: "In Loadout, Black Market, or your Profile, mark 1 owned card as your Signature Card. The first time that card appears in a match, it gets a one-time +1 Priority Surge for that match.",
+    color: "#f59e0b",
+  },
+  {
     icon: "⚡",
     title: "Cards Resolve by Priority",
     body: "Each slot's cards clash simultaneously. The card with higher Priority wins the slot and deals Knock damage. Ties go to the higher Knock value. Win more slots to win the round.",
@@ -48,6 +54,12 @@ const STEPS = [
     title: "Win 3 Rounds to Win the Match",
     body: "A match is first to 3 rounds. Win 3 rounds and you win the match. Each round you get a fresh deck to build a new order — adapt to your opponent's patterns.",
     color: "#4ade80",
+  },
+  {
+    icon: "📈",
+    title: "Track Card Performance",
+    body: "Your owned cards now track performance like times played, clash wins, total knock, match wins, and best knock. Open a card preview from Black Market or Profile to see how deadly that card has been in your hands.",
+    color: "#38bdf8",
   },
   {
     icon: "📈",

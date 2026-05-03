@@ -9,6 +9,8 @@ import { celo } from "wagmi/chains";
 import { useAccount, useConnect, useSwitchChain } from "wagmi";
 import { useGameStore } from "./gameStore";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
+import { useRef } from "react";
+import type { CardProgressPayload } from "./cardProgress";
 
 export function WalletSync() {
   const { address, isConnected } = useAccount();
@@ -16,7 +18,10 @@ export function WalletSync() {
   const { switchChainAsync } = useSwitchChain();
   const setPlayerAddress = useGameStore((s) => s.setPlayerAddress);
   const setPlayerName = useGameStore((s) => s.setPlayerName);
+  const hydrateCardProgress = useGameStore((s) => s.hydrateCardProgress);
+  const clearCardProgress = useGameStore((s) => s.clearCardProgress);
   const playerName = useGameStore((s) => s.playerName);
+  const progressAddressRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isMiniPay() || isConnected) return;
@@ -78,6 +83,36 @@ export function WalletSync() {
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, setPlayerName]);
+
+  useEffect(() => {
+    if (!address) {
+      return;
+    }
+
+    const lower = address.toLowerCase();
+    const switchedWallet = progressAddressRef.current !== lower;
+    progressAddressRef.current = lower;
+    if (switchedWallet) {
+      clearCardProgress();
+    }
+
+    let cancelled = false;
+    void fetch(`/api/card-progress?address=${lower}&t=${Date.now()}`, { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: CardProgressPayload | null) => {
+        if (cancelled || !data) return;
+        hydrateCardProgress({
+          signatureCardId: data.signatureCardId,
+          cardPerformance: data.cardPerformance ?? {},
+          updatedAt: data.updatedAt ?? 0,
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, clearCardProgress, hydrateCardProgress]);
 
   return null;
 }

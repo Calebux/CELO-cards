@@ -9,6 +9,7 @@ import { recordMatchResult } from "../../../../lib/leaderboard";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
+import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../../lib/cardProgressServer";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,9 @@ interface HouseMatchState {
   opponentRoundsWon: number;
   roundNumber: number;
   lastUpdated: number;
+  signatureBoostUsed: boolean;
+  usedCardIds: string[];
+  previousAiOrderIds: string[];
 }
 
 async function ensureHouseEntryTx(matchId: string): Promise<string | null> {
@@ -59,6 +63,7 @@ export async function POST(req: NextRequest) {
     difficulty: number;
     wagered: boolean;
     playerUltimateActivated?: boolean;
+    signatureCardId?: string | null;
   };
 
   try {
@@ -77,6 +82,7 @@ export async function POST(req: NextRequest) {
     difficulty = 1,
     wagered = false,
     playerUltimateActivated = false,
+    signatureCardId = null,
   } = body;
 
   if (!playerAddress || !matchId) {
@@ -97,6 +103,9 @@ export async function POST(req: NextRequest) {
       opponentRoundsWon: 0,
       roundNumber: 1,
       lastUpdated: Date.now(),
+      signatureBoostUsed: false,
+      usedCardIds: [],
+      previousAiOrderIds: [],
     };
 
     if (wagered && allowTreasuryEntry) {
@@ -121,10 +130,15 @@ export async function POST(req: NextRequest) {
     playerRoundsWon: state.playerRoundsWon,
     opponentRoundsWon: state.opponentRoundsWon,
     playerOrder: playerOrder,
+    previousAiOrderIds: state.previousAiOrderIds,
+    roundNumber: state.roundNumber,
   };
+  const resolvedRound = state.roundNumber;
+  state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 
   // 3. Server-Side Calculations
   const aiOrder = generateAIOrder(opponentChar, playerChar, difficulty as any, roundCtx);
+  state.previousAiOrderIds = aiOrder.map((card) => card.id);
   
   const opts: RoundOptions = {
     playerLastStand: state.playerRoundsWon === 0 && state.opponentRoundsWon >= 1,
@@ -134,9 +148,14 @@ export async function POST(req: NextRequest) {
     // AI has a 25% chance to use ultimate if it has one
     opponentUltimateEffect: Math.random() < 0.25 ? (opponentChar.ultimate?.effect ?? undefined) : undefined,
     opponentUltimateSlot: Math.floor(Math.random() * 5),
+    playerSignatureCardId: signatureCardId,
+    playerSignatureBoostAvailable: !!signatureCardId && !state.signatureBoostUsed,
   };
 
   const resolution = resolveRound(playerOrder, aiOrder, playerChar, opponentChar, opts);
+  if (resolution.slots.some((slot) => slot.playerSignatureBoosted)) {
+    state.signatureBoostUsed = true;
+  }
 
   // 4. Update State
   if (resolution.roundWinner === "player") state.playerRoundsWon++;
@@ -189,6 +208,21 @@ export async function POST(req: NextRequest) {
   } else {
     // Save updated state for next round
     await redis.set(redisKey, state, { ex: 3600 }); // 1 hour expiry
+  }
+
+  try {
+    const claimed = await claimCardProgressRound(`vshouse:${matchId}:${addr}`, resolvedRound);
+    if (claimed) {
+      await recordResolvedCardPerformance({
+        address: addr,
+        perspective: "player",
+        slots: resolution.slots,
+        matchWon: isMatchOver && state.playerRoundsWon >= 3,
+        usedCardIdsForMatchWin: isMatchOver && state.playerRoundsWon >= 3 ? state.usedCardIds : [],
+      });
+    }
+  } catch {
+    // Best-effort only.
   }
 
   return NextResponse.json({

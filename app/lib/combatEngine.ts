@@ -24,6 +24,8 @@ export interface SlotContext {
     opponentLastStand?: boolean;
     playerUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
     opponentUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
+    playerSignaturePriorityBoost?: number;
+    opponentSignaturePriorityBoost?: number;
 }
 
 export function charToCombat(c: Character): CombatChar {
@@ -82,6 +84,10 @@ export interface SlotResult {
     opponentComboBonus?: number;
     playerComboStreak?: number;   // streak after this slot resolves
     opponentComboStreak?: number;
+    playerSignatureBoosted?: boolean;
+    opponentSignatureBoosted?: boolean;
+    playerEffectivePriority?: number;
+    opponentEffectivePriority?: number;
 }
 
 export function resolveSlot(
@@ -157,8 +163,12 @@ export function resolveSlot(
     if (opponentCard.id === "phantom_break" && playerCard.type === "defense") typeAdv = "lose";
 
     // ── Priority comparison (priorityStat breaks ties) ───────────────────
-    const pPriority = playerCard.priority + c.player.priorityBonus * 0.01;
-    const oPriority = opponentCard.priority + c.opponent.priorityBonus * 0.01;
+    const playerPriorityBoost = c.playerSignaturePriorityBoost ?? 0;
+    const opponentPriorityBoost = c.opponentSignaturePriorityBoost ?? 0;
+    const playerEffectivePriority = playerCard.priority + playerPriorityBoost;
+    const opponentEffectivePriority = opponentCard.priority + opponentPriorityBoost;
+    const pPriority = playerEffectivePriority + c.player.priorityBonus * 0.01;
+    const oPriority = opponentEffectivePriority + c.opponent.priorityBonus * 0.01;
     const priorityWinner: "player" | "opponent" | "tie" =
         pPriority > oPriority ? "player" : oPriority > pPriority ? "opponent" : "tie";
 
@@ -206,11 +216,11 @@ export function resolveSlot(
     }
 
     // ── Guard Stance: blocks attacks with priority ≤ 2 ───────────────────
-    if (playerCard.id === "guard_stance" && opponentCard.priority <= 2 && !opponentMindGame) {
+    if (playerCard.id === "guard_stance" && opponentEffectivePriority <= 2 && !opponentMindGame) {
         opponentKnockBase = 0;
         description = `${playerCard.name} shuts down the slow ${opponentCard.name}!`;
     }
-    if (opponentCard.id === "guard_stance" && playerCard.priority <= 2 && !playerMindGame) {
+    if (opponentCard.id === "guard_stance" && playerEffectivePriority <= 2 && !playerMindGame) {
         playerKnockBase = 0;
     }
 
@@ -371,6 +381,10 @@ export function resolveSlot(
     else if (opponentKnock > playerKnock) winner = "opponent";
     else winner = "draw";
 
+    if (playerPriorityBoost > 0) {
+        description += " [SIGNATURE SURGE!]";
+    }
+
     const effect =
         playerCard.id === "pressure_advance" || opponentCard.id === "pressure_advance"
             ? "pressure"
@@ -392,6 +406,10 @@ export function resolveSlot(
         isOpponentCrit: isOpponentCrit || undefined,
         playerComboBonus: playerComboBonus || undefined,
         opponentComboBonus: opponentComboBonus || undefined,
+        playerSignatureBoosted: playerPriorityBoost > 0 || undefined,
+        opponentSignatureBoosted: opponentPriorityBoost > 0 || undefined,
+        playerEffectivePriority,
+        opponentEffectivePriority,
     };
 }
 
@@ -408,6 +426,17 @@ export interface AIRoundContext {
     playerRoundsWon: number;
     opponentRoundsWon: number;
     playerOrder?: Card[]; // player's visible card selection for this round
+    previousAiOrderIds?: string[];
+    roundNumber?: number;
+}
+
+function shuffleCards(cards: Card[]): Card[] {
+    const next = [...cards];
+    for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [next[i], next[j]] = [next[j], next[i]];
+    }
+    return next;
 }
 
 // difficulty: 0=easy (random), 1=normal (adaptive), 2=hard (optimal + counters)
@@ -422,7 +451,7 @@ export function generateAIOrder(
     // Easy mode: random selection with no strategy
     if (difficulty === 0) {
         const valid = CARDS.filter((c) => !c.isWild && c.energyCost <= energyPool);
-        const shuffled = [...valid].sort(() => Math.random() - 0.5);
+        const shuffled = shuffleCards(valid);
         const picks: Card[] = [];
         let usedEnergy = 0;
         for (const card of shuffled) {
@@ -431,7 +460,7 @@ export function generateAIOrder(
             picks.push(card);
             usedEnergy += card.energyCost;
         }
-        return picks.sort(() => Math.random() - 0.5);
+        return shuffleCards(picks);
     }
 
     // ── Analyse player's deck to find counter type ─────────────────────────
@@ -458,6 +487,8 @@ export function generateAIOrder(
     const playerRoundsWon = roundCtx?.playerRoundsWon ?? 0;
     const isLosing = aiRoundsWon < playerRoundsWon;
     const isWinning = aiRoundsWon > playerRoundsWon;
+    const previousAiOrderIds = roundCtx?.previousAiOrderIds ?? [];
+    const previousAiOrderSet = new Set(previousAiOrderIds);
 
     // Score each card
     const scored = CARDS.filter((c) => !c.isWild).map((c) => {
@@ -472,6 +503,9 @@ export function generateAIOrder(
 
         // Counter-type bonus (normal: +2, hard: +4)
         if (c.type === counterType) score += difficulty === 2 ? 4 : 2;
+
+        // Mild anti-repeat bias so house rounds do not keep surfacing the same 5 cards.
+        if (previousAiOrderSet.has(c.id)) score -= difficulty === 2 ? 1.2 : 0.8;
 
         // Aggression adjustment
         if (isLosing)  score += c.knock * 0.3;           // prioritise damage when behind
@@ -518,9 +552,19 @@ export function generateAIOrder(
         picks.push(card);
     }
 
-    // Hard: keep strategic order. Normal: shuffle to mask intent.
-    if (difficulty === 2) return picks;
-    return picks.sort(() => Math.random() - 0.5);
+    const exactRepeat = previousAiOrderIds.length === picks.length && picks.every((card, index) => card.id === previousAiOrderIds[index]);
+
+    // Hard keeps strategic order, but still rotates away from exact repeats.
+    if (difficulty === 2) {
+        if (!exactRepeat) return picks;
+        const shift = ((roundCtx?.roundNumber ?? 1) % picks.length) || 1;
+        return picks.slice(shift).concat(picks.slice(0, shift));
+    }
+
+    const shuffled = shuffleCards(picks);
+    if (!exactRepeat) return shuffled;
+    const shift = ((roundCtx?.roundNumber ?? 1) % shuffled.length) || 1;
+    return shuffled.slice(shift).concat(shuffled.slice(0, shift));
 }
 
 // ── Round resolution ───────────────────────────────────────────────────────
@@ -539,6 +583,10 @@ export interface RoundOptions {
     opponentUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
     playerUltimateSlot?: number;   // which slot the ultimate fires on (default: 0)
     opponentUltimateSlot?: number;
+    playerSignatureCardId?: string | null;
+    opponentSignatureCardId?: string | null;
+    playerSignatureBoostAvailable?: boolean;
+    opponentSignatureBoostAvailable?: boolean;
 }
 
 export function resolveRound(
@@ -558,10 +606,22 @@ export function resolveRound(
     let nextOpponentKnockDebuff = 0;
     let playerStreak = 0;
     let opponentStreak = 0;
+    let playerSignatureBoostAvailable = opts.playerSignatureBoostAvailable ?? false;
+    let opponentSignatureBoostAvailable = opts.opponentSignatureBoostAvailable ?? false;
 
     for (let i = 0; i < 5; i++) {
         const pUltSlot = opts.playerUltimateSlot ?? 0;
         const oUltSlot = opts.opponentUltimateSlot ?? 0;
+        const playerCard = playerOrder[i];
+        const opponentCard = opponentOrder[i];
+        const playerSignaturePriorityBoost =
+            playerSignatureBoostAvailable && opts.playerSignatureCardId && playerCard.id === opts.playerSignatureCardId
+                ? 1
+                : 0;
+        const opponentSignaturePriorityBoost =
+            opponentSignatureBoostAvailable && opts.opponentSignatureCardId && opponentCard.id === opts.opponentSignatureCardId
+                ? 1
+                : 0;
         const result = resolveSlot(playerOrder[i], opponentOrder[i], {
             player: playerCombat,
             opponent: opponentCombat,
@@ -576,12 +636,16 @@ export function resolveRound(
             opponentLastStand: opts.opponentLastStand,
             playerUltimateEffect: i === pUltSlot ? opts.playerUltimateEffect : undefined,
             opponentUltimateEffect: i === oUltSlot ? opts.opponentUltimateEffect : undefined,
+            playerSignaturePriorityBoost,
+            opponentSignaturePriorityBoost,
         });
         slots.push(result);
         totalPlayerKnock += result.playerKnock;
         totalOpponentKnock += result.opponentKnock;
         nextPlayerKnockDebuff = result.nextPlayerKnockDebuff ?? 0;
         nextOpponentKnockDebuff = result.nextOpponentKnockDebuff ?? 0;
+        if (result.playerSignatureBoosted) playerSignatureBoostAvailable = false;
+        if (result.opponentSignatureBoosted) opponentSignatureBoostAvailable = false;
         if (result.winner === "player") { playerStreak++; opponentStreak = 0; }
         else if (result.winner === "opponent") { opponentStreak++; playerStreak = 0; }
         else { playerStreak = 0; opponentStreak = 0; }

@@ -9,7 +9,10 @@ export interface PlayerSlot {
   playerName: string | null;
   address: string | null;
   cardIds: string[] | null;
+  usedCardIdsThisMatch: string[];
   orderRound: number;
+  signatureCardId: string | null;
+  signatureBoostUsed: boolean;
 }
 
 export interface ServerMatch {
@@ -35,7 +38,16 @@ export interface ServerMatch {
 }
 
 export function emptyPlayerSlot(): PlayerSlot {
-  return { charId: null, playerName: null, address: null, cardIds: null, orderRound: 0 };
+  return {
+    charId: null,
+    playerName: null,
+    address: null,
+    cardIds: null,
+    usedCardIdsThisMatch: [],
+    orderRound: 0,
+    signatureCardId: null,
+    signatureBoostUsed: false,
+  };
 }
 
 export function newServerMatch(matchId: string, mode: MultiplayerMode = "wager"): ServerMatch {

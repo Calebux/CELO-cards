@@ -9,6 +9,7 @@ import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../
 import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
+import { useSignatureCardSync } from "../lib/useSignatureCardSync";
 import { isMiniPay } from "../lib/minipay";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
@@ -170,7 +171,9 @@ export default function Loadout() {
     setOpponentName,
     resetMatch,
     markOnboardingStep,
+    signatureCardId,
   } = useGameStore();
+  const { toggleSignatureCard: syncSignatureCard } = useSignatureCardSync();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [pollErrorCount, setPollErrorCount] = useState(0);
@@ -329,7 +332,7 @@ export default function Loadout() {
   // Multiplayer polling + retry refs
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollDelayRef = useRef(2000);
-  const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number } | null>(null);
+  const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number; signatureCardId: string | null } | null>(null);
   useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
   const beginWaitingForResolution = useCallback((pendingKey: string, expectedRound: number) => {
     if (!matchId || !playerRole) return;
@@ -471,7 +474,7 @@ export default function Loadout() {
     try {
       const raw = sessionStorage.getItem(pendingKey);
       if (!raw) return;
-      const restored = JSON.parse(raw) as { role?: "host" | "joiner"; cardIds?: string[]; round?: number };
+      const restored = JSON.parse(raw) as { role?: "host" | "joiner"; cardIds?: string[]; round?: number; signatureCardId?: string | null };
       if (
         restored.role === playerRole &&
         Array.isArray(restored.cardIds) &&
@@ -483,6 +486,7 @@ export default function Loadout() {
           role: restored.role,
           cardIds: restored.cardIds,
           round: restored.round,
+          signatureCardId: typeof restored.signatureCardId === "string" ? restored.signatureCardId : null,
         };
         beginWaitingForResolution(pendingKey, restored.round);
         return;
@@ -510,14 +514,20 @@ export default function Loadout() {
       .filter((c): c is NonNullable<typeof c> => c !== null)
       .map((c) => c.id);
 
-    const payload = { role: playerRole, cardIds, round: roundNumber } as const;
+    const payload = { role: playerRole, cardIds, round: roundNumber, signatureCardId } as const;
     pendingSubmitRef.current = payload;
     const pendingKey = `pending-submit:${matchId}`;
     try { sessionStorage.setItem(pendingKey, JSON.stringify(payload)); } catch {}
     beginWaitingForResolution(pendingKey, roundNumber);
-  }, [beginWaitingForResolution, isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router, markOnboardingStep]);
+  }, [beginWaitingForResolution, isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router, markOnboardingStep, signatureCardId]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
+  const toggleSignature = (cardId: string) => {
+    setLockError(null);
+    void syncSignatureCard(signatureCardId, cardId).catch((error) => {
+      setLockError(error instanceof Error ? error.message : "Failed to update signature card.");
+    });
+  };
   const tutorialSteps = [
     "Pick 5 cards to build your round loadout. Mix strike, defense, and control.",
     "Watch your energy meter. Staying balanced gives you more flexible counters.",
@@ -793,6 +803,7 @@ export default function Loadout() {
                   const inOrder = isCardInOrder(card);
                   const tooExpensive = !inOrder && card.energyCost > remainingEnergy;
                   const isHovered = hoveredCardId === card.id;
+                  const isSignature = signatureCardId === card.id;
                   return (
                     <div
                       key={card.id}
@@ -878,6 +889,33 @@ export default function Loadout() {
                           {card.type}
                         </span>
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSignature(card.id);
+                        }}
+                        aria-label={isSignature ? `Unset ${card.name} as signature card` : `Set ${card.name} as signature card`}
+                        style={{
+                          position: "absolute", bottom: 7, left: 7,
+                          minWidth: isCompactPhone ? 34 : 28,
+                          height: isCompactPhone ? 24 : 22,
+                          padding: isSignature ? "0 8px" : "0 6px",
+                          borderRadius: 999,
+                          border: `1px solid ${isSignature ? "#fbbf24" : "rgba(148,163,184,0.32)"}`,
+                          background: isSignature ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
+                          color: isSignature ? "#fbbf24" : "#cbd5e1",
+                          fontSize: isSignature ? (isCompactPhone ? 10 : 9) : (isCompactPhone ? 12 : 11),
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          letterSpacing: isSignature ? 0.9 : 0,
+                          textTransform: "uppercase",
+                          zIndex: 2,
+                          boxShadow: isSignature ? "0 0 12px rgba(251,191,36,0.24)" : "none",
+                        }}
+                      >
+                        {isSignature ? "SIG" : "★"}
+                      </button>
                       {isTouchMode && (
                         <button
                           onClick={(e) => {
@@ -920,6 +958,7 @@ export default function Loadout() {
                     const spInOrder = isCardInOrder(specialCard);
                     const spTooExp = !spInOrder && specialCard.energyCost > remainingEnergy;
                     const spHovered = hoveredCardId === specialCard.id;
+                    const isSpecialSignature = signatureCardId === specialCard.id;
                     return (
                   <div
                     onClick={() => {
@@ -981,6 +1020,33 @@ export default function Loadout() {
                     }}>
                       <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{specialCard.energyCost}</span>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSignature(specialCard.id);
+                      }}
+                      aria-label={isSpecialSignature ? `Unset ${specialCard.name} as signature card` : `Set ${specialCard.name} as signature card`}
+                      style={{
+                        position: "absolute", bottom: 10, left: 10,
+                        minWidth: 36,
+                        height: 24,
+                        padding: isSpecialSignature ? "0 9px" : "0 7px",
+                        borderRadius: 999,
+                        border: `1px solid ${isSpecialSignature ? "#fbbf24" : "rgba(148,163,184,0.32)"}`,
+                        background: isSpecialSignature ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
+                        color: isSpecialSignature ? "#fbbf24" : "#cbd5e1",
+                        fontSize: isSpecialSignature ? 10 : 12,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        letterSpacing: isSpecialSignature ? 0.9 : 0,
+                        textTransform: "uppercase",
+                        zIndex: 2,
+                        boxShadow: isSpecialSignature ? "0 0 12px rgba(251,191,36,0.24)" : "none",
+                      }}
+                    >
+                      {isSpecialSignature ? "SIG" : "★"}
+                    </button>
                     {isTouchMode && (
                       <button
                         onClick={(e) => {
@@ -1199,6 +1265,7 @@ export default function Loadout() {
           <div style={{ display: "flex", gap: isCompactPhone ? 16 : 14, marginTop: 28 }}>
             {[0, 1, 2, 3, 4].map((i) => {
               const card = currentOrder[i];
+              const isSignature = !!card && signatureCardId === card.id;
               return (
                 <div
                   key={i}
@@ -1241,6 +1308,20 @@ export default function Loadout() {
                       }}>
                         <span className="material-icons" style={{ fontSize: isCompactPhone ? 15 : 13, color: "#fff" }}>close</span>
                       </div>
+                      {isSignature && (
+                        <div style={{
+                          position: "absolute", top: 6, left: 6,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(251,191,36,0.45)",
+                          background: "rgba(251,191,36,0.18)",
+                          boxShadow: "0 0 10px rgba(251,191,36,0.2)",
+                        }}>
+                          <span style={{ fontSize: isCompactPhone ? 9 : 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 1, textTransform: "uppercase" }}>
+                            Signature
+                          </span>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div style={{
