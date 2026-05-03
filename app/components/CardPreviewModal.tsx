@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Card } from "../lib/gameData";
 import type { CardPerformanceStats } from "../lib/gameStore";
 import { isMiniPay } from "../lib/minipay";
@@ -42,6 +43,7 @@ export function CardPreviewModal({
 }: CardPreviewModalProps) {
   const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
   const typeMeta = TYPE_COPY[card.type];
   const usageStats = stats ?? {
     timesPlayed: 0,
@@ -53,6 +55,11 @@ export function CardPreviewModal({
   const clashWinRate = usageStats.timesPlayed > 0 ? Math.round((usageStats.clashWins / usageStats.timesPlayed) * 100) : 0;
   const panelWidth = isMp ? 1040 : 1060;
   const panelHeight = isMp ? 610 : 640;
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -80,13 +87,15 @@ export function CardPreviewModal({
     return () => window.removeEventListener("resize", scale);
   }, []);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal((
     <div
       onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 320,
+        zIndex: 9999,
         background: "rgba(2, 6, 23, 0.82)",
         backdropFilter: "blur(14px)",
         overflow: "hidden",
@@ -572,5 +581,5 @@ export function CardPreviewModal({
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
