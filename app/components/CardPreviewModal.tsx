@@ -95,10 +95,22 @@ export function CardPreviewModal({
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        @keyframes cardPreviewSpinIn {
-          from { opacity: 0; transform: perspective(1600px) rotateY(-155deg) scale(0.72); }
-          65% { opacity: 1; transform: perspective(1600px) rotateY(12deg) scale(1.03); }
-          to { opacity: 1; transform: perspective(1600px) rotateY(0deg) scale(1); }
+        @keyframes cardPreviewPanelIn {
+          from { opacity: 0; transform: translateY(32px) scale(0.88); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes cardPreviewPassFlip {
+          0% { transform: perspective(700px) rotateY(0deg) rotate(-4deg); }
+          50% { transform: perspective(700px) rotateY(90deg) rotate(-2deg); }
+          100% { transform: perspective(700px) rotateY(0deg) rotate(-4deg); }
+        }
+        @keyframes cardPreviewPassGlow {
+          0%, 100% { box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 26px ${card.color}2f; }
+          50% { box-shadow: 0 28px 70px rgba(0,0,0,0.58), 0 0 40px ${card.color}70, 0 0 70px ${card.color}26; }
+        }
+        @keyframes cardPreviewFadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
@@ -127,7 +139,7 @@ export function CardPreviewModal({
             border: `1.5px solid ${card.color}70`,
             background: "linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.95))",
             boxShadow: `0 36px 120px rgba(0,0,0,0.55), 0 0 48px ${card.color}22`,
-            animation: "cardPreviewSpinIn 420ms cubic-bezier(.19,1,.22,1)",
+            animation: "cardPreviewPanelIn 0.42s ease forwards",
           }}
         >
           <div
@@ -180,6 +192,7 @@ export function CardPreviewModal({
                   border: `2px solid ${card.color}`,
                   boxShadow: `0 24px 60px rgba(0,0,0,0.5), 0 0 26px ${card.color}2f`,
                   transform: "rotate(-4deg)",
+                  animation: "cardPreviewPanelIn 0.4s ease forwards, cardPreviewPassFlip 0.7s ease 0.08s, cardPreviewPassGlow 2s ease 0.8s infinite",
                 }}
               >
                 <img
@@ -203,6 +216,7 @@ export function CardPreviewModal({
                     display: "flex",
                     flexDirection: "column",
                     gap: 8,
+                    animation: "cardPreviewFadeUp 0.45s ease 0.68s both",
                   }}
                 >
                   <div
@@ -240,6 +254,7 @@ export function CardPreviewModal({
                     right: 18,
                     bottom: 18,
                     textAlign: "center",
+                    animation: "cardPreviewFadeUp 0.42s ease 0.74s both",
                   }}
                 >
                   <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2.2, color: card.color, textTransform: "uppercase" }}>
@@ -258,6 +273,7 @@ export function CardPreviewModal({
                   flexWrap: "wrap",
                   justifyContent: "center",
                   gap: 10,
+                  animation: "cardPreviewFadeUp 0.42s ease 0.82s both",
                 }}
               >
                 <div
@@ -318,7 +334,7 @@ export function CardPreviewModal({
               }}
             >
               <div>
-                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 2.6, color: card.color, textTransform: "uppercase" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 2.6, color: card.color, textTransform: "uppercase", animation: "cardPreviewFadeUp 0.38s ease 0.56s both" }}>
                   Capability Breakdown
                 </div>
                 <h2
@@ -330,6 +346,7 @@ export function CardPreviewModal({
                     letterSpacing: -1.5,
                     color: "#fff",
                     textTransform: "uppercase",
+                    animation: "cardPreviewFadeUp 0.42s ease 0.62s both",
                   }}
                 >
                   {card.name}
@@ -341,6 +358,7 @@ export function CardPreviewModal({
                   display: "grid",
                   gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                   gap: 12,
+                  animation: "cardPreviewFadeUp 0.42s ease 0.86s both",
                 }}
               >
                 {[
@@ -372,6 +390,7 @@ export function CardPreviewModal({
                   display: "grid",
                   gridTemplateColumns: isMp ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
                   gap: 12,
+                  animation: "cardPreviewFadeUp 0.42s ease 0.94s both",
                 }}
               >
                 {[
@@ -405,6 +424,7 @@ export function CardPreviewModal({
                   border: `1px solid ${card.color}2e`,
                   background: `${card.color}0f`,
                   padding: isMp ? 18 : 16,
+                  animation: "cardPreviewFadeUp 0.42s ease 1.02s both",
                 }}
               >
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: card.color, textTransform: "uppercase" }}>
@@ -421,6 +441,7 @@ export function CardPreviewModal({
                   border: "1px solid rgba(148,163,184,0.18)",
                   background: "rgba(15,23,42,0.58)",
                   padding: isMp ? 18 : 16,
+                  animation: "cardPreviewFadeUp 0.42s ease 1.1s both",
                 }}
               >
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: "#94a3b8", textTransform: "uppercase" }}>
@@ -436,6 +457,7 @@ export function CardPreviewModal({
                   display: "grid",
                   gridTemplateColumns: isMp ? "1fr" : "repeat(2, minmax(0, 1fr))",
                   gap: 12,
+                  animation: "cardPreviewFadeUp 0.42s ease 1.18s both",
                 }}
               >
                 <div
@@ -479,7 +501,7 @@ export function CardPreviewModal({
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: isMp ? "column" : "row", justifyContent: isMp ? "stretch" : "space-between", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: isMp ? "column" : "row", justifyContent: isMp ? "stretch" : "space-between", gap: 12, animation: "cardPreviewFadeUp 0.42s ease 1.26s both" }}>
                 {onToggleSignature && (
                   <button
                     onClick={onToggleSignature}
