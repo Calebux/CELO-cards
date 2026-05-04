@@ -1,5 +1,7 @@
 import { recoverMessageAddress } from "viem";
 
+export const ATTUNEMENT_LIMIT = 2;
+
 export type CardPerformanceStats = {
   timesPlayed: number;
   clashWins: number;
@@ -9,7 +11,7 @@ export type CardPerformanceStats = {
 };
 
 export type CardProgressPayload = {
-  signatureCardId: string | null;
+  attunedCardIds: string[];
   cardPerformance: Record<string, CardPerformanceStats>;
   updatedAt: number;
 };
@@ -26,18 +28,18 @@ export function emptyCardPerformance(): CardPerformanceStats {
 
 export function emptyCardProgress(): CardProgressPayload {
   return {
-    signatureCardId: null,
+    attunedCardIds: [],
     cardPerformance: {},
     updatedAt: 0,
   };
 }
 
-export function buildCardProgressAuthMessage(address: string, signatureCardId: string | null, nonce: string, issuedAt: string): string {
+export function buildCardProgressAuthMessage(address: string, attunedCardIds: string[], nonce: string, issuedAt: string): string {
   return [
-    "Action Order Signature Card Update",
+    "Action Order Attunement Update",
     "",
     `Address: ${address.toLowerCase()}`,
-    `Signature Card: ${signatureCardId ?? "none"}`,
+    `Attuned Cards: ${attunedCardIds.length ? attunedCardIds.join(",") : "none"}`,
     `Nonce: ${nonce}`,
     `Issued At: ${issuedAt}`,
   ].join("\n");
@@ -45,7 +47,7 @@ export function buildCardProgressAuthMessage(address: string, signatureCardId: s
 
 export async function verifyCardProgressSignature(
   address: string,
-  signatureCardId: string | null,
+  attunedCardIds: string[],
   nonce: string,
   issuedAt: string,
   signature: string
@@ -53,7 +55,7 @@ export async function verifyCardProgressSignature(
   if (!signature?.startsWith("0x")) return false;
   try {
     const recovered = await recoverMessageAddress({
-      message: buildCardProgressAuthMessage(address, signatureCardId, nonce, issuedAt),
+      message: buildCardProgressAuthMessage(address, attunedCardIds, nonce, issuedAt),
       signature: signature as `0x${string}`,
     });
     return recovered.toLowerCase() === address.toLowerCase();

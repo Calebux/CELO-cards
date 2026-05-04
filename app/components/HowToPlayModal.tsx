@@ -39,8 +39,8 @@ const STEPS = [
   },
   {
     icon: "⭐",
-    title: "Set A Signature Card",
-    body: "In Loadout, Black Market, or your Profile, mark 1 owned card as your Signature Card. The first time that card appears in a match, it gets a one-time +1 Priority Surge for that match.",
+    title: "Attune 2 Cards",
+    body: "In Loadout, Black Market, or your Profile, attune up to 2 owned cards. The first attuned card revealed in a match gets a one-time +1 Priority Surge, so attunement lets you specialize without overpowering the whole deck.",
     color: "#f59e0b",
   },
   {
@@ -57,9 +57,15 @@ const STEPS = [
   },
   {
     icon: "📈",
-    title: "Track Card Performance",
-    body: "Your owned cards now track performance like times played, clash wins, total knock, match wins, and best knock. Open a card preview from Black Market or Profile to see how deadly that card has been in your hands.",
+    title: "Grow Card Mastery",
+    body: "Owned cards track performance like times played, clash wins, total knock, match wins, and best knock. That live performance drives mastery tiers, so the better you use a card, the stronger its identity becomes in your collection.",
     color: "#38bdf8",
+  },
+  {
+    icon: "🔥",
+    title: "Watch for Forge Ready",
+    body: "Normal cards now surface their mastery progress in Loadout and the Black Market Forge section. When a card reaches Tier 5, 25 uses, 12 clash wins, and 100 total knock, it lights up as Forge Ready for future paid ascension.",
+    color: "#fbbf24",
   },
   {
     icon: "📈",

@@ -24,8 +24,8 @@ export interface SlotContext {
     opponentLastStand?: boolean;
     playerUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
     opponentUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
-    playerSignaturePriorityBoost?: number;
-    opponentSignaturePriorityBoost?: number;
+    playerAttunementPriorityBoost?: number;
+    opponentAttunementPriorityBoost?: number;
 }
 
 export function charToCombat(c: Character): CombatChar {
@@ -84,8 +84,8 @@ export interface SlotResult {
     opponentComboBonus?: number;
     playerComboStreak?: number;   // streak after this slot resolves
     opponentComboStreak?: number;
-    playerSignatureBoosted?: boolean;
-    opponentSignatureBoosted?: boolean;
+    playerAttunementBoosted?: boolean;
+    opponentAttunementBoosted?: boolean;
     playerEffectivePriority?: number;
     opponentEffectivePriority?: number;
 }
@@ -163,8 +163,8 @@ export function resolveSlot(
     if (opponentCard.id === "phantom_break" && playerCard.type === "defense") typeAdv = "lose";
 
     // ── Priority comparison (priorityStat breaks ties) ───────────────────
-    const playerPriorityBoost = c.playerSignaturePriorityBoost ?? 0;
-    const opponentPriorityBoost = c.opponentSignaturePriorityBoost ?? 0;
+    const playerPriorityBoost = c.playerAttunementPriorityBoost ?? 0;
+    const opponentPriorityBoost = c.opponentAttunementPriorityBoost ?? 0;
     const playerEffectivePriority = playerCard.priority + playerPriorityBoost;
     const opponentEffectivePriority = opponentCard.priority + opponentPriorityBoost;
     const pPriority = playerEffectivePriority + c.player.priorityBonus * 0.01;
@@ -382,7 +382,7 @@ export function resolveSlot(
     else winner = "draw";
 
     if (playerPriorityBoost > 0) {
-        description += " [SIGNATURE SURGE!]";
+        description += " [ATTUNED SURGE!]";
     }
 
     const effect =
@@ -406,8 +406,8 @@ export function resolveSlot(
         isOpponentCrit: isOpponentCrit || undefined,
         playerComboBonus: playerComboBonus || undefined,
         opponentComboBonus: opponentComboBonus || undefined,
-        playerSignatureBoosted: playerPriorityBoost > 0 || undefined,
-        opponentSignatureBoosted: opponentPriorityBoost > 0 || undefined,
+        playerAttunementBoosted: playerPriorityBoost > 0 || undefined,
+        opponentAttunementBoosted: opponentPriorityBoost > 0 || undefined,
         playerEffectivePriority,
         opponentEffectivePriority,
     };
@@ -583,10 +583,10 @@ export interface RoundOptions {
     opponentUltimateEffect?: NonNullable<Character["ultimate"]>["effect"];
     playerUltimateSlot?: number;   // which slot the ultimate fires on (default: 0)
     opponentUltimateSlot?: number;
-    playerSignatureCardId?: string | null;
-    opponentSignatureCardId?: string | null;
-    playerSignatureBoostAvailable?: boolean;
-    opponentSignatureBoostAvailable?: boolean;
+    playerAttunedCardIds?: string[];
+    opponentAttunedCardIds?: string[];
+    playerAttunementBoostAvailable?: boolean;
+    opponentAttunementBoostAvailable?: boolean;
 }
 
 export function resolveRound(
@@ -606,20 +606,20 @@ export function resolveRound(
     let nextOpponentKnockDebuff = 0;
     let playerStreak = 0;
     let opponentStreak = 0;
-    let playerSignatureBoostAvailable = opts.playerSignatureBoostAvailable ?? false;
-    let opponentSignatureBoostAvailable = opts.opponentSignatureBoostAvailable ?? false;
+    let playerAttunementBoostAvailable = opts.playerAttunementBoostAvailable ?? false;
+    let opponentAttunementBoostAvailable = opts.opponentAttunementBoostAvailable ?? false;
 
     for (let i = 0; i < 5; i++) {
         const pUltSlot = opts.playerUltimateSlot ?? 0;
         const oUltSlot = opts.opponentUltimateSlot ?? 0;
         const playerCard = playerOrder[i];
         const opponentCard = opponentOrder[i];
-        const playerSignaturePriorityBoost =
-            playerSignatureBoostAvailable && opts.playerSignatureCardId && playerCard.id === opts.playerSignatureCardId
+        const playerAttunementPriorityBoost =
+            playerAttunementBoostAvailable && !!opts.playerAttunedCardIds?.includes(playerCard.id)
                 ? 1
                 : 0;
-        const opponentSignaturePriorityBoost =
-            opponentSignatureBoostAvailable && opts.opponentSignatureCardId && opponentCard.id === opts.opponentSignatureCardId
+        const opponentAttunementPriorityBoost =
+            opponentAttunementBoostAvailable && !!opts.opponentAttunedCardIds?.includes(opponentCard.id)
                 ? 1
                 : 0;
         const result = resolveSlot(playerOrder[i], opponentOrder[i], {
@@ -636,16 +636,16 @@ export function resolveRound(
             opponentLastStand: opts.opponentLastStand,
             playerUltimateEffect: i === pUltSlot ? opts.playerUltimateEffect : undefined,
             opponentUltimateEffect: i === oUltSlot ? opts.opponentUltimateEffect : undefined,
-            playerSignaturePriorityBoost,
-            opponentSignaturePriorityBoost,
+            playerAttunementPriorityBoost,
+            opponentAttunementPriorityBoost,
         });
         slots.push(result);
         totalPlayerKnock += result.playerKnock;
         totalOpponentKnock += result.opponentKnock;
         nextPlayerKnockDebuff = result.nextPlayerKnockDebuff ?? 0;
         nextOpponentKnockDebuff = result.nextOpponentKnockDebuff ?? 0;
-        if (result.playerSignatureBoosted) playerSignatureBoostAvailable = false;
-        if (result.opponentSignatureBoosted) opponentSignatureBoostAvailable = false;
+        if (result.playerAttunementBoosted) playerAttunementBoostAvailable = false;
+        if (result.opponentAttunementBoosted) opponentAttunementBoostAvailable = false;
         if (result.winner === "player") { playerStreak++; opponentStreak = 0; }
         else if (result.winner === "opponent") { opponentStreak++; playerStreak = 0; }
         else { playerStreak = 0; opponentStreak = 0; }

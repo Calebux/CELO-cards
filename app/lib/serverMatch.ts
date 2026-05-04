@@ -11,8 +11,8 @@ export interface PlayerSlot {
   cardIds: string[] | null;
   usedCardIdsThisMatch: string[];
   orderRound: number;
-  signatureCardId: string | null;
-  signatureBoostUsed: boolean;
+  attunedCardIds: string[];
+  attunementSurgeUsed: boolean;
 }
 
 export interface ServerMatch {
@@ -45,8 +45,8 @@ export function emptyPlayerSlot(): PlayerSlot {
     cardIds: null,
     usedCardIdsThisMatch: [],
     orderRound: 0,
-    signatureCardId: null,
-    signatureBoostUsed: false,
+    attunedCardIds: [],
+    attunementSurgeUsed: false,
   };
 }
 

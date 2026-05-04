@@ -19,7 +19,7 @@ interface HouseMatchState {
   opponentRoundsWon: number;
   roundNumber: number;
   lastUpdated: number;
-  signatureBoostUsed: boolean;
+  attunementSurgeUsed: boolean;
   usedCardIds: string[];
   previousAiOrderIds: string[];
 }
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     difficulty: number;
     wagered: boolean;
     playerUltimateActivated?: boolean;
-    signatureCardId?: string | null;
+    attunedCardIds?: string[];
   };
 
   try {
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     difficulty = 1,
     wagered = false,
     playerUltimateActivated = false,
-    signatureCardId = null,
+    attunedCardIds = [],
   } = body;
 
   if (!playerAddress || !matchId) {
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       opponentRoundsWon: 0,
       roundNumber: 1,
       lastUpdated: Date.now(),
-      signatureBoostUsed: false,
+      attunementSurgeUsed: false,
       usedCardIds: [],
       previousAiOrderIds: [],
     };
@@ -148,13 +148,13 @@ export async function POST(req: NextRequest) {
     // AI has a 25% chance to use ultimate if it has one
     opponentUltimateEffect: Math.random() < 0.25 ? (opponentChar.ultimate?.effect ?? undefined) : undefined,
     opponentUltimateSlot: Math.floor(Math.random() * 5),
-    playerSignatureCardId: signatureCardId,
-    playerSignatureBoostAvailable: !!signatureCardId && !state.signatureBoostUsed,
+    playerAttunedCardIds: Array.isArray(attunedCardIds) ? attunedCardIds : [],
+    playerAttunementBoostAvailable: Array.isArray(attunedCardIds) && attunedCardIds.length > 0 && !state.attunementSurgeUsed,
   };
 
   const resolution = resolveRound(playerOrder, aiOrder, playerChar, opponentChar, opts);
-  if (resolution.slots.some((slot) => slot.playerSignatureBoosted)) {
-    state.signatureBoostUsed = true;
+  if (resolution.slots.some((slot) => slot.playerAttunementBoosted)) {
+    state.attunementSurgeUsed = true;
   }
 
   // 4. Update State

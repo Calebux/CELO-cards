@@ -126,9 +126,18 @@ interface ClashCinematicProps {
   opponentColor: string;
   fadeOut: boolean;
   arenaBackground?: string;
+  playerPortrait?: string;
+  opponentPortrait?: string;
 }
 
-export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground }: ClashCinematicProps) {
+export function ClashCinematic({
+  result,
+  opponentColor,
+  fadeOut,
+  arenaBackground,
+  playerPortrait,
+  opponentPortrait,
+}: ClashCinematicProps) {
   const isMp = isMiniPay();
   const winnerColor = result.winner === "player" ? "#06a8f9"
     : result.winner === "opponent" ? opponentColor
@@ -152,11 +161,62 @@ export function ClashCinematic({ result, opponentColor, fadeOut, arenaBackground
       {arenaBackground && (
         <MiniPayImage src={arenaBackground} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       )}
+      {playerPortrait && (
+        <div style={{
+          position: "absolute",
+          left: -30,
+          bottom: 0,
+          width: "42%",
+          height: "90%",
+          opacity: 0.26,
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "flex-start",
+          pointerEvents: "none",
+        }}>
+          <MiniPayImage
+            src={playerPortrait}
+            alt=""
+            minipayWidth={720}
+            minipayQuality={56}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              objectPosition: "bottom left",
+              transform: "scaleX(-1)",
+            }}
+          />
+        </div>
+      )}
+      {opponentPortrait && (
+        <div style={{
+          position: "absolute",
+          right: -30,
+          bottom: 0,
+          width: "42%",
+          height: "90%",
+          opacity: 0.26,
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "flex-end",
+          pointerEvents: "none",
+        }}>
+          <MiniPayImage
+            src={opponentPortrait}
+            alt=""
+            minipayWidth={720}
+            minipayQuality={56}
+            style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "bottom right" }}
+          />
+        </div>
+      )}
       {actionVideo && !isMp && (
         <video src={actionVideo} autoPlay muted playsInline preload="metadata" tabIndex={-1}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85, pointerEvents: "none" }}
         />
       )}
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(2,6,23,0.58) 0%, rgba(2,6,23,0.2) 40%, rgba(2,6,23,0.82) 100%)" }} />
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.8) 100%)" }} />
 
       <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 60, zIndex: 1 }}>

@@ -1,36 +1,42 @@
 "use client";
 
 import { useAccount, useSignMessage } from "wagmi";
-import { buildCardProgressAuthMessage } from "./cardProgress";
+import { ATTUNEMENT_LIMIT, buildCardProgressAuthMessage } from "./cardProgress";
 import { useGameStore } from "./gameStore";
 
-type SignatureSnapshot = {
-  signatureCardId: string | null;
+type AttunementSnapshot = {
+  attunedCardIds: string[];
   cardPerformance: Record<string, { timesPlayed: number; clashWins: number; totalKnock: number; matchWins: number; bestKnock: number }>;
   updatedAt: number;
 };
 
-export function useSignatureCardSync() {
+export function useAttunementSync() {
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const hydrateCardProgress = useGameStore((state) => state.hydrateCardProgress);
 
-  const toggleSignatureCard = async (currentSignatureCardId: string | null, targetCardId: string) => {
+  const toggleAttunedCard = async (currentAttunedCardIds: string[], targetCardId: string) => {
     if (!address) {
       throw new Error("Connect your wallet first.");
     }
 
     const lower = address.toLowerCase();
-    const nextSignatureCardId = currentSignatureCardId === targetCardId ? null : targetCardId;
+    const alreadyAttuned = currentAttunedCardIds.includes(targetCardId);
+    if (!alreadyAttuned && currentAttunedCardIds.length >= ATTUNEMENT_LIMIT) {
+      throw new Error(`Only ${ATTUNEMENT_LIMIT} cards can be attuned at once.`);
+    }
+    const nextAttunedCardIds = alreadyAttuned
+      ? currentAttunedCardIds.filter((cardId) => cardId !== targetCardId)
+      : [...currentAttunedCardIds, targetCardId];
 
     const authResponse = await fetch(`/api/card-progress/auth?address=${lower}`, { cache: "no-store" });
     const authData = (await authResponse.json().catch(() => null)) as { nonce?: string; issuedAt?: string; error?: string } | null;
     if (!authResponse.ok || !authData?.nonce || !authData.issuedAt) {
-      throw new Error(authData?.error ?? "Failed to prepare signature update.");
+      throw new Error(authData?.error ?? "Failed to prepare attunement update.");
     }
 
     const signature = await signMessageAsync({
-      message: buildCardProgressAuthMessage(lower, nextSignatureCardId, authData.nonce, authData.issuedAt),
+      message: buildCardProgressAuthMessage(lower, nextAttunedCardIds, authData.nonce, authData.issuedAt),
     });
 
     const response = await fetch("/api/card-progress", {
@@ -38,18 +44,20 @@ export function useSignatureCardSync() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         address: lower,
-        signatureCardId: nextSignatureCardId,
+        attunedCardIds: nextAttunedCardIds,
         signature,
       }),
     });
-    const data = (await response.json().catch(() => null)) as { error?: string; snapshot?: SignatureSnapshot } | null;
+    const data = (await response.json().catch(() => null)) as { error?: string; snapshot?: AttunementSnapshot } | null;
     if (!response.ok || !data?.snapshot) {
-      throw new Error(data?.error ?? "Failed to update signature card.");
+      throw new Error(data?.error ?? "Failed to update attuned cards.");
     }
 
     hydrateCardProgress(data.snapshot);
     return data.snapshot;
   };
 
-  return { toggleSignatureCard };
+  return { toggleAttunedCard };
 }
+
+export const useSignatureCardSync = useAttunementSync;

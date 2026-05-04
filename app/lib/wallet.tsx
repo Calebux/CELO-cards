@@ -102,7 +102,7 @@ export function WalletSync() {
       .then((data: CardProgressPayload | null) => {
         if (cancelled || !data) return;
         hydrateCardProgress({
-          signatureCardId: data.signatureCardId,
+          attunedCardIds: data.attunedCardIds ?? [],
           cardPerformance: data.cardPerformance ?? {},
           updatedAt: data.updatedAt ?? 0,
         });

@@ -9,7 +9,7 @@ Players pick a fighter, build a 5-card order, and battle through prediction-driv
 
 1. Pick a fighter.
 2. Build a 5-card order within your energy budget.
-3. Set 1 owned Signature Card for a one-time +1 Priority Surge the first time it appears in a match.
+3. Attune up to 2 owned cards so the first attuned reveal in a match gets a one-time +1 Priority Surge.
 4. Lock in and resolve clashes slot-by-slot.
 5. First to win 3 rounds wins the match.
 
@@ -18,10 +18,12 @@ Cards revolve around:
 - Knock power
 - Type interactions (Strike / Defense / Control)
 
-Signature Cards:
-- Each player can mark 1 owned card as their Signature Card.
-- The first time that card appears in a match, it gets a one-time +1 Priority Surge.
-- Owned cards also track performance stats such as times played, clash wins, total knock, match wins, and best knock.
+Attunement + Mastery:
+- Each player can attune up to 2 owned cards.
+- The first attuned card revealed in a match gets a one-time +1 Priority Surge.
+- Owned cards track performance stats such as times played, clash wins, total knock, match wins, and best knock.
+- Those real match stats drive visible mastery tiers in Loadout, Profile, Black Market, and the card preview modal.
+- Normal cards also expose a Forge path. When a card reaches Tier 5, 25 uses, 12 clash wins, and 100 total knock, it becomes Forge Ready in Loadout and the Black Market Forge section.
 
 ---
 
@@ -40,7 +42,8 @@ Signature Cards:
 - Character selection + loadout flow
 - Ranked and casual leaderboard tracking
 - Black Market premium cards
-- Signature Card system with tracked card performance
+- Black Market forge visibility for normal cards
+- Attunement and card mastery system with tracked card performance
 - Season Pass support
 - Tournament page and standings
 - Wallet integration for Celo ecosystem
