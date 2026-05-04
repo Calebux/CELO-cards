@@ -23,6 +23,7 @@ Attunement + Mastery:
 - The first attuned card revealed in a match gets a one-time +1 Priority Surge.
 - Owned cards track performance stats such as times played, clash wins, total knock, match wins, and best knock.
 - Those real match stats drive visible mastery tiers in Loadout, Profile, Black Market, and the card preview modal.
+- Normal cards also expose a Forge path. When a card reaches Tier 5, 25 uses, 12 clash wins, and 100 total knock, it becomes Forge Ready in Loadout and the Black Market Forge section.
 
 ---
 
@@ -41,6 +42,7 @@ Attunement + Mastery:
 - Character selection + loadout flow
 - Ranked and casual leaderboard tracking
 - Black Market premium cards
+- Black Market forge visibility for normal cards
 - Attunement and card mastery system with tracked card performance
 - Season Pass support
 - Tournament page and standings

@@ -13,6 +13,16 @@ export type CardMasterySnapshot = {
   progressToNext: number;
 };
 
+export type CardForgeProgress = {
+  ready: boolean;
+  requirements: Array<{
+    label: string;
+    current: number;
+    target: number;
+    complete: boolean;
+  }>;
+};
+
 function clampTier(value: number): CardMasteryTier {
   return Math.max(0, Math.min(5, value)) as CardMasteryTier;
 }
@@ -84,4 +94,46 @@ export function getHighestMasteryTier(cardPerformance: Record<string, CardPerfor
     const tier = getCardMasterySnapshot(stats).tier;
     return tier > highest ? tier : highest;
   }, 0);
+}
+
+export function getCardForgeProgress(stats: CardPerformanceStats | null | undefined): CardForgeProgress {
+  const snapshot = getCardMasterySnapshot(stats);
+  const source = stats ?? {
+    timesPlayed: 0,
+    clashWins: 0,
+    totalKnock: 0,
+    matchWins: 0,
+    bestKnock: 0,
+  };
+  const requirements = [
+    {
+      label: "Tier",
+      current: snapshot.tier,
+      target: 5,
+      complete: snapshot.tier >= 5,
+    },
+    {
+      label: "Uses",
+      current: source.timesPlayed,
+      target: 25,
+      complete: source.timesPlayed >= 25,
+    },
+    {
+      label: "Clash Wins",
+      current: source.clashWins,
+      target: 12,
+      complete: source.clashWins >= 12,
+    },
+    {
+      label: "Knock",
+      current: source.totalKnock,
+      target: 100,
+      complete: source.totalKnock >= 100,
+    },
+  ];
+
+  return {
+    ready: requirements.every((requirement) => requirement.complete),
+    requirements,
+  };
 }

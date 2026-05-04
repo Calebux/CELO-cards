@@ -62,6 +62,12 @@ const STEPS = [
     color: "#38bdf8",
   },
   {
+    icon: "🔥",
+    title: "Watch for Forge Ready",
+    body: "Normal cards now surface their mastery progress in Loadout and the Black Market Forge section. When a card reaches Tier 5, 25 uses, 12 clash wins, and 100 total knock, it lights up as Forge Ready for future paid ascension.",
+    color: "#fbbf24",
+  },
+  {
     icon: "📈",
     title: "Earn Points & Climb the Leaderboard",
     body: "Ranked wins earn Points. Win streaks multiply your earnings (3+ wins = 1.5×, 5+ = 2×). Complete daily Challenges for bonus Points and G$ rewards. Top players qualify for the weekly Tournament.",

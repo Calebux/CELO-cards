@@ -9,7 +9,7 @@ import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../
 import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
-import { getCardMasterySnapshot } from "../lib/cardMastery";
+import { getCardForgeProgress, getCardMasteryPerkCopy, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { isMiniPay } from "../lib/minipay";
 
@@ -52,14 +52,28 @@ function compactPresetWhy(text?: string): string {
 
 type TooltipAnchor = { left: number; top: number; width: number; height: number };
 
-function CardTooltip({ card, anchor, mobileSheet = false }: { card: Card; anchor: TooltipAnchor; mobileSheet?: boolean }) {
+function CardTooltip({
+  card,
+  anchor,
+  stats,
+  isAttuned,
+  mobileSheet = false,
+}: {
+  card: Card;
+  anchor: TooltipAnchor;
+  stats: Parameters<typeof getCardMasterySnapshot>[0];
+  isAttuned: boolean;
+  mobileSheet?: boolean;
+}) {
   const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
   const col = typeColors[card.type] ?? "#56a4cb";
   const intel = CARD_INTEL[card.id];
+  const mastery = getCardMasterySnapshot(stats);
+  const forge = !card.isPremium ? getCardForgeProgress(stats) : null;
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
-  const tooltipWidth = mobileSheet ? Math.min(320, Math.max(260, viewportWidth - 24)) : 210;
-  const tooltipHeight = mobileSheet ? (intel ? 248 : 190) : (intel ? 210 : 160);
+  const tooltipWidth = mobileSheet ? Math.min(336, Math.max(276, viewportWidth - 24)) : 228;
+  const tooltipHeight = mobileSheet ? 320 : 286;
   const preferLeft = anchor.left + anchor.width / 2 + tooltipWidth > viewportWidth - 16;
   const left = mobileSheet
     ? Math.max(12, (viewportWidth - tooltipWidth) / 2)
@@ -76,26 +90,36 @@ function CardTooltip({ card, anchor, mobileSheet = false }: { card: Card; anchor
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div style={{
-      position: "fixed",
-      top,
-      left,
-      width: tooltipWidth,
-      zIndex: 600,
-      pointerEvents: "none",
-      backgroundColor: "rgba(8, 12, 24, 0.98)",
-      border: `1.5px solid ${col}70`,
-      borderRadius: mobileSheet ? 12 : 8,
-      padding: mobileSheet ? "14px 16px" : "12px 14px",
-      boxShadow: mobileSheet ? `0 0 24px ${col}26, 0 16px 36px rgba(0,0,0,0.9)` : `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.9)`,
-    }}>
+    <div
+      style={{
+        position: "fixed",
+        top,
+        left,
+        width: tooltipWidth,
+        zIndex: 600,
+        pointerEvents: "none",
+        backgroundColor: "rgba(8, 12, 24, 0.98)",
+        border: `1.5px solid ${col}70`,
+        borderRadius: mobileSheet ? 12 : 8,
+        padding: mobileSheet ? "14px 16px" : "12px 14px",
+        boxShadow: mobileSheet ? `0 0 24px ${col}26, 0 16px 36px rgba(0,0,0,0.9)` : `0 0 20px ${col}30, 0 8px 32px rgba(0,0,0,0.9)`,
+      }}
+    >
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, backgroundColor: col, borderRadius: "10px 10px 0 0" }} />
-      <div style={{ fontSize: mobileSheet ? 14 : 13, fontWeight: 800, color: "#fff", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 9 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
+        <div style={{ fontSize: mobileSheet ? 14 : 13, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.5 }}>{card.name}</div>
+        {(isAttuned || mastery.tier > 0 || forge?.ready) && (
+          <div style={{ padding: "2px 7px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.35)", background: "rgba(251,191,36,0.14)", color: "#fbbf24", fontSize: 8, fontWeight: 800, letterSpacing: 0.8, textTransform: "uppercase", flexShrink: 0 }}>
+            {isAttuned ? "Attuned" : forge?.ready ? "Forge Ready" : `T${mastery.tier}`}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 9, flexWrap: "wrap" }}>
         <span style={{ fontSize: mobileSheet ? 10 : 9, fontWeight: 700, color: col, backgroundColor: `${col}20`, padding: mobileSheet ? "3px 8px" : "2px 7px", borderRadius: 3, textTransform: "uppercase" }}>{card.type}</span>
         <span style={{ fontSize: mobileSheet ? 10 : 9, color: "#94a3b8", padding: mobileSheet ? "3px 8px" : "2px 7px", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 3 }}>⚡{card.energyCost}</span>
+        <span style={{ fontSize: mobileSheet ? 10 : 9, color: "#fbbf24", padding: mobileSheet ? "3px 8px" : "2px 7px", backgroundColor: "rgba(251,191,36,0.08)", borderRadius: 3 }}>{mastery.xp} XP</span>
       </div>
-      <p style={{ fontSize: mobileSheet ? 12 : 11, color: "#94a3b8", lineHeight: mobileSheet ? "17px" : "15px", margin: 0, marginBottom: 11 }}>{card.effect}</p>
+      <p style={{ fontSize: mobileSheet ? 12 : 11, color: "#94a3b8", lineHeight: mobileSheet ? "17px" : "15px", margin: 0, marginBottom: 10 }}>{card.effect}</p>
       {intel && (
         <div style={{ marginBottom: 10, padding: "7px 8px", borderRadius: 6, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.18)" }}>
           <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#56a4cb", letterSpacing: 1.1, textTransform: "uppercase", fontWeight: 700 }}>Role: {intel.role}</div>
@@ -103,6 +127,21 @@ function CardTooltip({ card, anchor, mobileSheet = false }: { card: Card; anchor
           <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#fca5a5", marginTop: 2 }}>Weak vs {intel.weakVs}</div>
         </div>
       )}
+      <div style={{ marginBottom: 10, padding: "7px 8px", borderRadius: 6, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.18)" }}>
+        <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#fbbf24", letterSpacing: 1.1, textTransform: "uppercase", fontWeight: 700 }}>
+          Mastery {mastery.tier > 0 ? `T${mastery.tier}` : "Unranked"}
+        </div>
+        <div style={{ fontSize: mobileSheet ? 10 : 9, color: "#f8fafc", marginTop: 4, lineHeight: 1.4 }}>
+          {isAttuned ? getCardMasteryPerkCopy() : "Attune this card to activate its first reveal surge."}
+        </div>
+        {forge && (
+          <div style={{ fontSize: mobileSheet ? 10 : 9, color: forge.ready ? "#fbbf24" : "#cbd5e1", marginTop: 5, lineHeight: 1.35 }}>
+            {forge.ready
+              ? "Forge path complete. This normal card is ready for Black Market ascension."
+              : `Forge progress: ${forge.requirements.filter((requirement) => requirement.complete).length}/${forge.requirements.length} requirements complete.`}
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 14, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 9 }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{card.knock}</div>
@@ -113,8 +152,8 @@ function CardTooltip({ card, anchor, mobileSheet = false }: { card: Card; anchor
           <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Priority</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{card.energyCost}</div>
-          <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Energy</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9" }}>{mastery.tier > 0 ? `T${mastery.tier}` : "T0"}</div>
+          <div style={{ fontSize: 8, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Tier</div>
         </div>
       </div>
     </div>,
@@ -187,6 +226,8 @@ export default function Loadout() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [showLoadoutGuide, setShowLoadoutGuide] = useState(false);
   const [selectedArchetypeKey, setSelectedArchetypeKey] = useState<ArchetypeKey | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressCardTapRef = useRef(false);
 
   const currentFilter = TABS[activeTab].filter;
   const accentColor = TYPE_COLORS[currentFilter];
@@ -545,6 +586,29 @@ export default function Loadout() {
     });
   };
 
+  const beginTouchHoldPreview = (card: Card, el: HTMLDivElement) => {
+    if (!isTouchMode) return;
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    suppressCardTapRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      suppressCardTapRef.current = true;
+      setHoveredCardId(card.id);
+      updateTooltipAnchor(card, el);
+      const rect = el.getBoundingClientRect();
+      setPinnedTooltip({
+        card,
+        anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      });
+    }, 420);
+  };
+
+  const cancelTouchHoldPreview = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
   const applyStarterPreset = (presetKey: ArchetypeKey) => {
     const preset = starterArchetypes.find((p) => p.key === presetKey);
     if (!preset) return;
@@ -788,18 +852,18 @@ export default function Loadout() {
             }} />
 
             {/* Scrollable card grid */}
-            <div style={{
-              position: "absolute", inset: 0,
-              padding: "20px 24px",
-              overflowY: "auto",
-              display: "flex", flexDirection: "column", gap: 14,
-            }}
+            <div
+              style={{
+                position: "absolute", inset: 0,
+                padding: "20px 24px",
+                overflowY: "auto",
+                display: "flex", flexDirection: "column", gap: 14,
+              }}
               onScroll={() => {
                 setHoveredCardId(null);
                 setHoveredTooltip(null);
               }}
             >
-              {/* Regular cards */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
                 {regularCards.map((card) => {
                   const inOrder = isCardInOrder(card);
@@ -808,12 +872,18 @@ export default function Loadout() {
                   const isAttuned = attunedCardIds.includes(card.id);
                   const attunementFull = attunedCardIds.length >= 2 && !isAttuned;
                   const masteryTier = getCardMasterySnapshot(cardPerformance[card.id] ?? null).tier;
+                  const forgeProgress = !card.isPremium ? getCardForgeProgress(cardPerformance[card.id] ?? null) : null;
+                  const progressLabel = forgeProgress?.ready ? "Forge Ready" : masteryTier > 0 ? `T${masteryTier}` : null;
                   return (
                     <div
                       key={card.id}
                       onClick={() => {
+                        if (suppressCardTapRef.current) {
+                          suppressCardTapRef.current = false;
+                          return;
+                        }
                         if (inOrder) {
-                          const slotIdx = currentOrder.findIndex(s => s?.id === card.id);
+                          const slotIdx = currentOrder.findIndex((s) => s?.id === card.id);
                           if (slotIdx !== -1) removeCardFromSlot(slotIdx);
                         } else if (!tooExpensive) {
                           addCardToSlot(card);
@@ -830,6 +900,14 @@ export default function Loadout() {
                         setHoveredCardId(null);
                         setHoveredTooltip(null);
                       }}
+                      onPointerDown={(e) => {
+                        if (e.pointerType !== "mouse") beginTouchHoldPreview(card, e.currentTarget);
+                      }}
+                      onPointerUp={cancelTouchHoldPreview}
+                      onPointerCancel={cancelTouchHoldPreview}
+                      onPointerLeave={() => {
+                        cancelTouchHoldPreview();
+                      }}
                       style={{
                         width: 152, height: 210,
                         position: "relative", flexShrink: 0,
@@ -840,7 +918,7 @@ export default function Loadout() {
                           ? "2px solid rgba(74,222,128,0.7)"
                           : tooExpensive
                           ? "2px solid rgba(239,68,68,0.3)"
-                          : `2px solid ${isHovered ? card.color : card.color + "30"}`,
+                          : `2px solid ${isHovered ? card.color : `${card.color}30`}`,
                         boxShadow: inOrder
                           ? "0 0 16px rgba(74,222,128,0.4)"
                           : isHovered
@@ -852,46 +930,19 @@ export default function Loadout() {
                         zIndex: isHovered ? 50 : "auto",
                       }}
                     >
-                      <MiniPayImage src={card.image} alt={card.name} minipayWidth={320} minipayQuality={52} style={{
-                        position: "absolute", width: "100%", height: "100%", objectFit: "cover",
-                      }} />
-                      {/* Hover shine overlay */}
-                      <div style={{
-                        position: "absolute", inset: 0,
-                        background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%)",
-                        pointerEvents: "none",
-                      }} />
+                      <MiniPayImage src={card.image} alt={card.name} minipayWidth={320} minipayQuality={52} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%)", pointerEvents: "none" }} />
                       {inOrder && (
-                        <div style={{
-                          position: "absolute", inset: 0,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          backgroundColor: "rgba(0,0,0,0.45)",
-                        }}>
+                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" }}>
                           <span className="material-icons" style={{ fontSize: 28, color: "#4ade80" }}>check_circle</span>
                           <span style={{ position: "absolute", bottom: 6, fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>tap to remove</span>
                         </div>
                       )}
-                      {/* Energy cost */}
-                      <div style={{
-                        position: "absolute", top: 7, left: 7,
-                        width: 28, height: 28, borderRadius: "50%",
-                        backgroundColor: "rgba(0,0,0,0.75)",
-                        border: `2px solid ${card.color}80`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        boxShadow: `0 0 8px ${card.color}30`,
-                      }}>
+                      <div style={{ position: "absolute", top: 7, left: 7, width: 28, height: 28, borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.75)", border: `2px solid ${card.color}80`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 8px ${card.color}30` }}>
                         <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>{card.energyCost}</span>
                       </div>
-                      {/* Type indicator */}
-                      <div style={{
-                        position: "absolute", top: 7, right: 7,
-                        padding: "2px 6px", borderRadius: 4,
-                        backgroundColor: `${card.color}25`,
-                        border: `1px solid ${card.color}40`,
-                      }}>
-                        <span style={{ fontSize: 8, fontWeight: 700, color: card.color, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                          {card.type}
-                        </span>
+                      <div style={{ position: "absolute", top: 7, right: 7, padding: "2px 6px", borderRadius: 4, backgroundColor: `${card.color}25`, border: `1px solid ${card.color}40` }}>
+                        <span style={{ fontSize: 8, fontWeight: 700, color: card.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.type}</span>
                       </div>
                       <button
                         onClick={(e) => {
@@ -904,7 +955,7 @@ export default function Loadout() {
                           position: "absolute", bottom: 7, left: 7,
                           minWidth: isCompactPhone ? 54 : 48,
                           height: isCompactPhone ? 26 : 22,
-                          padding: isAttuned ? "0 8px" : "0 8px",
+                          padding: "0 8px",
                           borderRadius: 999,
                           border: `1px solid ${isAttuned ? "#fbbf24" : attunementFull ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.32)"}`,
                           background: isAttuned ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
@@ -922,44 +973,16 @@ export default function Loadout() {
                       >
                         {isAttuned ? "Attuned" : attunementFull ? "Full" : "Attune"}
                       </button>
-                      {masteryTier > 0 && (
-                        <div style={{ position: "absolute", bottom: 7, right: isTouchMode ? 38 : 7, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: "rgba(251,191,36,0.12)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
-                          <span style={{ fontSize: isCompactPhone ? 9 : 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>{`T${masteryTier}`}</span>
+                      {progressLabel && (
+                        <div style={{ position: "absolute", bottom: 7, right: 7, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: forgeProgress?.ready ? "rgba(251,191,36,0.2)" : "rgba(251,191,36,0.12)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
+                          <span style={{ fontSize: forgeProgress?.ready ? 7 : isCompactPhone ? 9 : 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>{progressLabel}</span>
                         </div>
-                      )}
-                      {isTouchMode && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setHoveredCardId(card.id);
-                            updateTooltipAnchor(card, e.currentTarget.parentElement as HTMLDivElement);
-                            const rect = (e.currentTarget.parentElement as HTMLDivElement).getBoundingClientRect();
-                            setPinnedTooltip({
-                              card,
-                              anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-                            });
-                          }}
-                          style={{
-                            position: "absolute", bottom: 7, right: 7,
-                            width: isCompactPhone ? 28 : 22, height: isCompactPhone ? 28 : 22, borderRadius: "50%",
-                            border: `1px solid ${card.color}55`,
-                            background: "rgba(6,10,20,0.82)",
-                            color: "#dbeafe",
-                            fontSize: isCompactPhone ? 13 : 11,
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}
-                        >
-                          i
-                        </button>
                       )}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Special card (Phantom Break / Reversal Edge) */}
               {specialCard && (
                 <div style={{ marginTop: 4 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
@@ -973,141 +996,104 @@ export default function Loadout() {
                     const attunementFull = attunedCardIds.length >= 2 && !isSpecialAttuned;
                     const specialMasteryTier = getCardMasterySnapshot(cardPerformance[specialCard.id] ?? null).tier;
                     return (
-                  <div
-                    onClick={() => {
-                      if (spInOrder) {
-                        const slotIdx = currentOrder.findIndex(s => s?.id === specialCard.id);
-                        if (slotIdx !== -1) removeCardFromSlot(slotIdx);
-                      } else if (!spTooExp) {
-                        addCardToSlot(specialCard);
-                      }
-                    }}
-                    onMouseEnter={(e) => {
-                      setHoveredCardId(specialCard.id);
-                      updateTooltipAnchor(specialCard, e.currentTarget);
-                    }}
-                    onMouseMove={(e) => {
-                      if (hoveredCardId === specialCard.id) updateTooltipAnchor(specialCard, e.currentTarget);
-                    }}
-                    onMouseLeave={() => {
-                      setHoveredCardId(null);
-                      setHoveredTooltip(null);
-                    }}
-                    style={{
-                      width: 170, height: 235,
-                      position: "relative", overflow: "visible",
-                      borderRadius: 10,
-                      cursor: spTooExp ? "default" : "pointer",
-                      opacity: spTooExp ? 0.45 : 1,
-                      border: `3px solid ${specialCard.color}`,
-                      boxShadow: spHovered
-                        ? `0 0 40px ${specialCard.color}80, 0 12px 40px rgba(0,0,0,0.8)`
-                        : `0 0 24px ${specialCard.color}50, 0 8px 32px rgba(0,0,0,0.6)`,
-                      transition: "all 0.18s ease",
-                      filter: spTooExp ? "grayscale(0.6)" : "none",
-                      transform: spHovered && !spTooExp ? "translateY(-4px)" : "none",
-                      zIndex: spHovered ? 50 : "auto",
-                    }}
-                  >
-                    <MiniPayImage src={specialCard.image} alt={specialCard.name} minipayWidth={360} minipayQuality={52} style={{
-                      position: "absolute", width: "100%", height: "100%", objectFit: "cover",
-                    }} />
-                    {spInOrder && (
-                      <div style={{
-                        position: "absolute", inset: 0,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        backgroundColor: "rgba(0,0,0,0.45)",
-                      }}>
-                        <span className="material-icons" style={{ fontSize: 38, color: "#4ade80" }}>check_circle</span>
-                        <span style={{ position: "absolute", bottom: 48, fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>tap to remove</span>
-                      </div>
-                    )}
-                    {/* Cost */}
-                    <div style={{
-                      position: "absolute", top: 9, left: 9,
-                      width: 32, height: 32, borderRadius: "50%",
-                      backgroundColor: "rgba(0,0,0,0.75)",
-                      border: `2px solid ${specialCard.color}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      boxShadow: `0 0 10px ${specialCard.color}40`,
-                    }}>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{specialCard.energyCost}</span>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!attunementFull) toggleAttunement(specialCard.id);
-                      }}
-                      disabled={attunementFull}
-                      aria-label={isSpecialAttuned ? `Unattune ${specialCard.name}` : attunementFull ? `${specialCard.name} attunement full` : `Attune ${specialCard.name}`}
-                      style={{
-                        position: "absolute", bottom: 10, left: 10,
-                        minWidth: 56,
-                        height: 24,
-                        padding: "0 8px",
-                        borderRadius: 999,
-                        border: `1px solid ${isSpecialAttuned ? "#fbbf24" : attunementFull ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.32)"}`,
-                        background: isSpecialAttuned ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
-                        color: isSpecialAttuned ? "#fbbf24" : attunementFull ? "#64748b" : "#cbd5e1",
-                        fontSize: 8,
-                        fontWeight: 800,
-                        cursor: attunementFull ? "not-allowed" : "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        letterSpacing: 0.9,
-                        textTransform: "uppercase",
-                        zIndex: 2,
-                        boxShadow: isSpecialAttuned ? "0 0 12px rgba(251,191,36,0.24)" : "none",
-                        opacity: attunementFull ? 0.75 : 1,
-                      }}
-                    >
-                      {isSpecialAttuned ? "Attuned" : attunementFull ? "Full" : "Attune"}
-                    </button>
-                    {specialMasteryTier > 0 && (
-                      <div style={{ position: "absolute", bottom: 10, right: isTouchMode ? 40 : 10, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: "rgba(251,191,36,0.12)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>{`T${specialMasteryTier}`}</span>
-                      </div>
-                    )}
-                    {isTouchMode && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
+                      <div
+                        onClick={() => {
+                          if (suppressCardTapRef.current) {
+                            suppressCardTapRef.current = false;
+                            return;
+                          }
+                          if (spInOrder) {
+                            const slotIdx = currentOrder.findIndex((s) => s?.id === specialCard.id);
+                            if (slotIdx !== -1) removeCardFromSlot(slotIdx);
+                          } else if (!spTooExp) {
+                            addCardToSlot(specialCard);
+                          }
+                        }}
+                        onMouseEnter={(e) => {
                           setHoveredCardId(specialCard.id);
-                          updateTooltipAnchor(specialCard, e.currentTarget.parentElement as HTMLDivElement);
-                          const rect = (e.currentTarget.parentElement as HTMLDivElement).getBoundingClientRect();
-                          setPinnedTooltip({
-                            card: specialCard,
-                            anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-                          });
+                          updateTooltipAnchor(specialCard, e.currentTarget);
+                        }}
+                        onMouseMove={(e) => {
+                          if (hoveredCardId === specialCard.id) updateTooltipAnchor(specialCard, e.currentTarget);
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredCardId(null);
+                          setHoveredTooltip(null);
+                        }}
+                        onPointerDown={(e) => {
+                          if (e.pointerType !== "mouse") beginTouchHoldPreview(specialCard, e.currentTarget);
+                        }}
+                        onPointerUp={cancelTouchHoldPreview}
+                        onPointerCancel={cancelTouchHoldPreview}
+                        onPointerLeave={() => {
+                          cancelTouchHoldPreview();
                         }}
                         style={{
-                          position: "absolute", top: 10, right: 10,
-                          width: isCompactPhone ? 30 : 24, height: isCompactPhone ? 30 : 24, borderRadius: "50%",
-                          border: `1px solid ${specialCard.color}60`,
-                          background: "rgba(6,10,20,0.82)",
-                          color: "#dbeafe",
-                          fontSize: isCompactPhone ? 13 : 11,
-                          fontWeight: 800,
-                          cursor: "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center",
+                          width: 170, height: 235,
+                          position: "relative", overflow: "visible",
+                          borderRadius: 10,
+                          cursor: spTooExp ? "default" : "pointer",
+                          opacity: spTooExp ? 0.45 : 1,
+                          border: `3px solid ${specialCard.color}`,
+                          boxShadow: spHovered
+                            ? `0 0 40px ${specialCard.color}80, 0 12px 40px rgba(0,0,0,0.8)`
+                            : `0 0 24px ${specialCard.color}50, 0 8px 32px rgba(0,0,0,0.6)`,
+                          transition: "all 0.18s ease",
+                          filter: spTooExp ? "grayscale(0.6)" : "none",
+                          transform: spHovered && !spTooExp ? "translateY(-4px)" : "none",
+                          zIndex: spHovered ? 50 : "auto",
                         }}
                       >
-                        i
-                      </button>
-                    )}
-                    {/* Name bar */}
-                    <div style={{
-                      position: "absolute", bottom: 0, left: 0, right: 0,
-                      padding: "10px 12px",
-                      background: `linear-gradient(transparent, ${specialCard.color}DD)`,
-                    }}>
-                      <span style={{
-                        fontSize: 15, fontWeight: 800, color: "#fff",
-                        textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                      }}>
-                        {specialCard.name}
-                      </span>
-                    </div>
-                  </div>
+                        <MiniPayImage src={specialCard.image} alt={specialCard.name} minipayWidth={360} minipayQuality={52} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
+                        {spInOrder && (
+                          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" }}>
+                            <span className="material-icons" style={{ fontSize: 38, color: "#4ade80" }}>check_circle</span>
+                            <span style={{ position: "absolute", bottom: 48, fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>tap to remove</span>
+                          </div>
+                        )}
+                        <div style={{ position: "absolute", top: 9, left: 9, width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.75)", border: `2px solid ${specialCard.color}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 10px ${specialCard.color}40` }}>
+                          <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{specialCard.energyCost}</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!attunementFull) toggleAttunement(specialCard.id);
+                          }}
+                          disabled={attunementFull}
+                          aria-label={isSpecialAttuned ? `Unattune ${specialCard.name}` : attunementFull ? `${specialCard.name} attunement full` : `Attune ${specialCard.name}`}
+                          style={{
+                            position: "absolute", bottom: 10, left: 10,
+                            minWidth: 56,
+                            height: 24,
+                            padding: "0 8px",
+                            borderRadius: 999,
+                            border: `1px solid ${isSpecialAttuned ? "#fbbf24" : attunementFull ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.32)"}`,
+                            background: isSpecialAttuned ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
+                            color: isSpecialAttuned ? "#fbbf24" : attunementFull ? "#64748b" : "#cbd5e1",
+                            fontSize: 8,
+                            fontWeight: 800,
+                            cursor: attunementFull ? "not-allowed" : "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            letterSpacing: 0.9,
+                            textTransform: "uppercase",
+                            zIndex: 2,
+                            boxShadow: isSpecialAttuned ? "0 0 12px rgba(251,191,36,0.24)" : "none",
+                            opacity: attunementFull ? 0.75 : 1,
+                          }}
+                        >
+                          {isSpecialAttuned ? "Attuned" : attunementFull ? "Full" : "Attune"}
+                        </button>
+                        {specialMasteryTier > 0 && (
+                          <div style={{ position: "absolute", bottom: 10, right: 10, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: "rgba(251,191,36,0.12)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
+                            <span style={{ fontSize: 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>{`T${specialMasteryTier}`}</span>
+                          </div>
+                        )}
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 12px", background: `linear-gradient(transparent, ${specialCard.color}DD)` }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+                            {specialCard.name}
+                          </span>
+                        </div>
+                      </div>
                     );
                   })()}
                 </div>
@@ -1524,16 +1510,28 @@ export default function Loadout() {
                 setPinnedTooltip(null);
                 setHoveredCardId(null);
                 setHoveredTooltip(null);
+                suppressCardTapRef.current = false;
               }}
               style={{ position: "fixed", inset: 0, zIndex: 599, background: "transparent", border: "none", padding: 0, cursor: "default" }}
               aria-label="Close card details"
             />
-            <CardTooltip card={pinnedTooltip.card} anchor={pinnedTooltip.anchor} mobileSheet={isTouchMode} />
+            <CardTooltip
+              card={pinnedTooltip.card}
+              anchor={pinnedTooltip.anchor}
+              stats={cardPerformance[pinnedTooltip.card.id] ?? null}
+              isAttuned={attunedCardIds.includes(pinnedTooltip.card.id)}
+              mobileSheet={isTouchMode}
+            />
           </>
         )}
 
         {!pinnedTooltip && hoveredTooltip && !waiting && !showLoadoutGuide && !isTouchMode && (
-          <CardTooltip card={hoveredTooltip.card} anchor={hoveredTooltip.anchor} />
+          <CardTooltip
+            card={hoveredTooltip.card}
+            anchor={hoveredTooltip.anchor}
+            stats={cardPerformance[hoveredTooltip.card.id] ?? null}
+            isAttuned={attunedCardIds.includes(hoveredTooltip.card.id)}
+          />
         )}
 
         {showLoadoutGuide && (
