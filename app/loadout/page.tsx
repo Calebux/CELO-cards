@@ -9,7 +9,8 @@ import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../
 import { MiniPayImage } from "../components/MiniPayImage";
 import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
-import { useSignatureCardSync } from "../lib/useSignatureCardSync";
+import { getCardMasterySnapshot } from "../lib/cardMastery";
+import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { isMiniPay } from "../lib/minipay";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
@@ -164,6 +165,7 @@ export default function Loadout() {
     loadPreset,
     deletePreset,
     unlockedPremiumCards,
+    cardPerformance,
     setSelectedCharacterFromServer,
     setOpponentCharacterFromServer,
     setCurrentOrderFromIds,
@@ -171,9 +173,9 @@ export default function Loadout() {
     setOpponentName,
     resetMatch,
     markOnboardingStep,
-    signatureCardId,
+    attunedCardIds,
   } = useGameStore();
-  const { toggleSignatureCard: syncSignatureCard } = useSignatureCardSync();
+  const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [pollErrorCount, setPollErrorCount] = useState(0);
@@ -332,7 +334,7 @@ export default function Loadout() {
   // Multiplayer polling + retry refs
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollDelayRef = useRef(2000);
-  const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number; signatureCardId: string | null } | null>(null);
+  const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number; attunedCardIds: string[] } | null>(null);
   useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
   const beginWaitingForResolution = useCallback((pendingKey: string, expectedRound: number) => {
     if (!matchId || !playerRole) return;
@@ -474,7 +476,7 @@ export default function Loadout() {
     try {
       const raw = sessionStorage.getItem(pendingKey);
       if (!raw) return;
-      const restored = JSON.parse(raw) as { role?: "host" | "joiner"; cardIds?: string[]; round?: number; signatureCardId?: string | null };
+      const restored = JSON.parse(raw) as { role?: "host" | "joiner"; cardIds?: string[]; round?: number; attunedCardIds?: string[] };
       if (
         restored.role === playerRole &&
         Array.isArray(restored.cardIds) &&
@@ -486,7 +488,7 @@ export default function Loadout() {
           role: restored.role,
           cardIds: restored.cardIds,
           round: restored.round,
-          signatureCardId: typeof restored.signatureCardId === "string" ? restored.signatureCardId : null,
+          attunedCardIds: Array.isArray(restored.attunedCardIds) ? restored.attunedCardIds.filter((id): id is string => typeof id === "string").slice(0, 2) : [],
         };
         beginWaitingForResolution(pendingKey, restored.round);
         return;
@@ -514,18 +516,18 @@ export default function Loadout() {
       .filter((c): c is NonNullable<typeof c> => c !== null)
       .map((c) => c.id);
 
-    const payload = { role: playerRole, cardIds, round: roundNumber, signatureCardId } as const;
+    const payload = { role: playerRole, cardIds, round: roundNumber, attunedCardIds } as const;
     pendingSubmitRef.current = payload;
     const pendingKey = `pending-submit:${matchId}`;
     try { sessionStorage.setItem(pendingKey, JSON.stringify(payload)); } catch {}
     beginWaitingForResolution(pendingKey, roundNumber);
-  }, [beginWaitingForResolution, isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router, markOnboardingStep, signatureCardId]);
+  }, [beginWaitingForResolution, isOrderComplete, playerRole, matchId, currentOrder, roundNumber, lockOrder, router, markOnboardingStep, attunedCardIds]);
 
   const isCardInOrder = (card: Card) => currentOrder.some((s) => s?.id === card.id);
-  const toggleSignature = (cardId: string) => {
+  const toggleAttunement = (cardId: string) => {
     setLockError(null);
-    void syncSignatureCard(signatureCardId, cardId).catch((error) => {
-      setLockError(error instanceof Error ? error.message : "Failed to update signature card.");
+    void syncAttunedCard(attunedCardIds, cardId).catch((error) => {
+      setLockError(error instanceof Error ? error.message : "Failed to update attunement.");
     });
   };
   const tutorialSteps = [
@@ -803,7 +805,9 @@ export default function Loadout() {
                   const inOrder = isCardInOrder(card);
                   const tooExpensive = !inOrder && card.energyCost > remainingEnergy;
                   const isHovered = hoveredCardId === card.id;
-                  const isSignature = signatureCardId === card.id;
+                  const isAttuned = attunedCardIds.includes(card.id);
+                  const attunementFull = attunedCardIds.length >= 2 && !isAttuned;
+                  const masteryTier = getCardMasterySnapshot(cardPerformance[card.id] ?? null).tier;
                   return (
                     <div
                       key={card.id}
@@ -892,30 +896,37 @@ export default function Loadout() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleSignature(card.id);
+                          if (!attunementFull) toggleAttunement(card.id);
                         }}
-                        aria-label={isSignature ? `Unset ${card.name} as signature card` : `Set ${card.name} as signature card`}
+                        disabled={attunementFull}
+                        aria-label={isAttuned ? `Unattune ${card.name}` : attunementFull ? `${card.name} attunement full` : `Attune ${card.name}`}
                         style={{
                           position: "absolute", bottom: 7, left: 7,
-                          minWidth: isCompactPhone ? 34 : 28,
-                          height: isCompactPhone ? 24 : 22,
-                          padding: isSignature ? "0 8px" : "0 6px",
+                          minWidth: isCompactPhone ? 54 : 48,
+                          height: isCompactPhone ? 26 : 22,
+                          padding: isAttuned ? "0 8px" : "0 8px",
                           borderRadius: 999,
-                          border: `1px solid ${isSignature ? "#fbbf24" : "rgba(148,163,184,0.32)"}`,
-                          background: isSignature ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
-                          color: isSignature ? "#fbbf24" : "#cbd5e1",
-                          fontSize: isSignature ? (isCompactPhone ? 10 : 9) : (isCompactPhone ? 12 : 11),
+                          border: `1px solid ${isAttuned ? "#fbbf24" : attunementFull ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.32)"}`,
+                          background: isAttuned ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
+                          color: isAttuned ? "#fbbf24" : attunementFull ? "#64748b" : "#cbd5e1",
+                          fontSize: isCompactPhone ? 9 : 8,
                           fontWeight: 800,
-                          cursor: "pointer",
+                          cursor: attunementFull ? "not-allowed" : "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          letterSpacing: isSignature ? 0.9 : 0,
+                          letterSpacing: 0.9,
                           textTransform: "uppercase",
                           zIndex: 2,
-                          boxShadow: isSignature ? "0 0 12px rgba(251,191,36,0.24)" : "none",
+                          boxShadow: isAttuned ? "0 0 12px rgba(251,191,36,0.24)" : "none",
+                          opacity: attunementFull ? 0.75 : 1,
                         }}
                       >
-                        {isSignature ? "SIG" : "★"}
+                        {isAttuned ? "Attuned" : attunementFull ? "Full" : "Attune"}
                       </button>
+                      {masteryTier > 0 && (
+                        <div style={{ position: "absolute", bottom: 7, right: isTouchMode ? 38 : 7, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: "rgba(251,191,36,0.12)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
+                          <span style={{ fontSize: isCompactPhone ? 9 : 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>{`T${masteryTier}`}</span>
+                        </div>
+                      )}
                       {isTouchMode && (
                         <button
                           onClick={(e) => {
@@ -958,7 +969,9 @@ export default function Loadout() {
                     const spInOrder = isCardInOrder(specialCard);
                     const spTooExp = !spInOrder && specialCard.energyCost > remainingEnergy;
                     const spHovered = hoveredCardId === specialCard.id;
-                    const isSpecialSignature = signatureCardId === specialCard.id;
+                    const isSpecialAttuned = attunedCardIds.includes(specialCard.id);
+                    const attunementFull = attunedCardIds.length >= 2 && !isSpecialAttuned;
+                    const specialMasteryTier = getCardMasterySnapshot(cardPerformance[specialCard.id] ?? null).tier;
                     return (
                   <div
                     onClick={() => {
@@ -1023,30 +1036,37 @@ export default function Loadout() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleSignature(specialCard.id);
+                        if (!attunementFull) toggleAttunement(specialCard.id);
                       }}
-                      aria-label={isSpecialSignature ? `Unset ${specialCard.name} as signature card` : `Set ${specialCard.name} as signature card`}
+                      disabled={attunementFull}
+                      aria-label={isSpecialAttuned ? `Unattune ${specialCard.name}` : attunementFull ? `${specialCard.name} attunement full` : `Attune ${specialCard.name}`}
                       style={{
                         position: "absolute", bottom: 10, left: 10,
-                        minWidth: 36,
+                        minWidth: 56,
                         height: 24,
-                        padding: isSpecialSignature ? "0 9px" : "0 7px",
+                        padding: "0 8px",
                         borderRadius: 999,
-                        border: `1px solid ${isSpecialSignature ? "#fbbf24" : "rgba(148,163,184,0.32)"}`,
-                        background: isSpecialSignature ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
-                        color: isSpecialSignature ? "#fbbf24" : "#cbd5e1",
-                        fontSize: isSpecialSignature ? 10 : 12,
+                        border: `1px solid ${isSpecialAttuned ? "#fbbf24" : attunementFull ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.32)"}`,
+                        background: isSpecialAttuned ? "rgba(251,191,36,0.2)" : "rgba(6,10,20,0.82)",
+                        color: isSpecialAttuned ? "#fbbf24" : attunementFull ? "#64748b" : "#cbd5e1",
+                        fontSize: 8,
                         fontWeight: 800,
-                        cursor: "pointer",
+                        cursor: attunementFull ? "not-allowed" : "pointer",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        letterSpacing: isSpecialSignature ? 0.9 : 0,
+                        letterSpacing: 0.9,
                         textTransform: "uppercase",
                         zIndex: 2,
-                        boxShadow: isSpecialSignature ? "0 0 12px rgba(251,191,36,0.24)" : "none",
+                        boxShadow: isSpecialAttuned ? "0 0 12px rgba(251,191,36,0.24)" : "none",
+                        opacity: attunementFull ? 0.75 : 1,
                       }}
                     >
-                      {isSpecialSignature ? "SIG" : "★"}
+                      {isSpecialAttuned ? "Attuned" : attunementFull ? "Full" : "Attune"}
                     </button>
+                    {specialMasteryTier > 0 && (
+                      <div style={{ position: "absolute", bottom: 10, right: isTouchMode ? 40 : 10, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: "rgba(251,191,36,0.12)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
+                        <span style={{ fontSize: 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>{`T${specialMasteryTier}`}</span>
+                      </div>
+                    )}
                     {isTouchMode && (
                       <button
                         onClick={(e) => {
@@ -1261,11 +1281,96 @@ export default function Loadout() {
             </div>
           </div>
 
+          <div
+            style={{
+              position: "absolute",
+              right: 20,
+              top: 46,
+              width: isCompactPhone ? 138 : 126,
+              minHeight: isCompactPhone ? 132 : 122,
+              padding: isCompactPhone ? "10px 10px 12px" : "9px 9px 11px",
+              borderRadius: 12,
+              background: "linear-gradient(135deg, rgba(10,16,28,0.96), rgba(15,23,42,0.92))",
+              border: "1px solid rgba(251,191,36,0.24)",
+              boxShadow: "0 0 18px rgba(251,191,36,0.08), inset 0 0 0 1px rgba(255,255,255,0.03)",
+              zIndex: 12,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "stretch",
+              gap: 8,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.6, textTransform: "uppercase" }}>
+                Attunement
+              </div>
+              <div style={{ marginTop: 4, fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.15 }}>
+                {attunedCardIds.length} / 2 active
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
+              {[0, 1].map((slot) => {
+                const cardId = attunedCardIds[slot] ?? null;
+                const attunedCard = cardId ? CARDS.find((card) => card.id === cardId) ?? null : null;
+                return (
+                  <div
+                    key={slot}
+                    style={{
+                      minHeight: isCompactPhone ? 38 : 36,
+                      padding: "7px 8px",
+                      borderRadius: 8,
+                      background: attunedCard ? "rgba(251,191,36,0.14)" : "rgba(255,255,255,0.04)",
+                      border: attunedCard ? "1px solid rgba(251,191,36,0.34)" : "1px solid rgba(148,163,184,0.16)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      gap: 3,
+                    }}
+                  >
+                    <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: 1, color: "#94a3b8", textTransform: "uppercase" }}>
+                      Attuned {slot + 1}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: isCompactPhone ? 9 : 8,
+                        fontWeight: 800,
+                        letterSpacing: 0.35,
+                        color: attunedCard ? "#fbbf24" : "#64748b",
+                        textTransform: "uppercase",
+                        lineHeight: 1.15,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {attunedCard ? attunedCard.name : "Empty Slot"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                padding: "6px 8px",
+                borderRadius: 8,
+                border: "1px solid rgba(251,191,36,0.24)",
+                background: "rgba(251,191,36,0.1)",
+                textAlign: "center",
+              }}
+            >
+              <span style={{ fontSize: 7, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.9, textTransform: "uppercase", lineHeight: 1.1, display: "block" }}>
+                First reveal surge
+              </span>
+            </div>
+          </div>
+
           {/* Slots */}
           <div style={{ display: "flex", gap: isCompactPhone ? 16 : 14, marginTop: 28 }}>
             {[0, 1, 2, 3, 4].map((i) => {
               const card = currentOrder[i];
-              const isSignature = !!card && signatureCardId === card.id;
+              const isAttuned = !!card && attunedCardIds.includes(card.id);
               return (
                 <div
                   key={i}
@@ -1308,7 +1413,7 @@ export default function Loadout() {
                       }}>
                         <span className="material-icons" style={{ fontSize: isCompactPhone ? 15 : 13, color: "#fff" }}>close</span>
                       </div>
-                      {isSignature && (
+                      {isAttuned && (
                         <div style={{
                           position: "absolute", top: 6, left: 6,
                           padding: "2px 8px",
@@ -1318,7 +1423,7 @@ export default function Loadout() {
                           boxShadow: "0 0 10px rgba(251,191,36,0.2)",
                         }}>
                           <span style={{ fontSize: isCompactPhone ? 9 : 8, fontWeight: 800, color: "#fbbf24", letterSpacing: 1, textTransform: "uppercase" }}>
-                            Signature
+                            Attuned
                           </span>
                         </div>
                       )}

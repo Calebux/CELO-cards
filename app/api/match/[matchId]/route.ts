@@ -54,8 +54,8 @@ function flipPerspective(slots: SlotResult[]): SlotResult[] {
     priorityWinner:
       s.priorityWinner === "player" ? "opponent" :
       s.priorityWinner === "opponent" ? "player" : "tie",
-    playerSignatureBoosted: s.opponentSignatureBoosted,
-    opponentSignatureBoosted: s.playerSignatureBoosted,
+    playerAttunementBoosted: s.opponentAttunementBoosted,
+    opponentAttunementBoosted: s.playerAttunementBoosted,
     playerEffectivePriority: s.opponentEffectivePriority,
     opponentEffectivePriority: s.playerEffectivePriority,
   }));
@@ -248,7 +248,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, signatureCardId } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, attunedCardIds } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
@@ -258,7 +258,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     playerName?: string;
     address?: string;
     mode?: MultiplayerMode;
-    signatureCardId?: string | null;
+    attunedCardIds?: string[];
   };
 
   if (!validRole(role)) {
@@ -428,7 +428,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     slot.cardIds = cardIds;
     slot.usedCardIdsThisMatch = Array.from(new Set([...(slot.usedCardIdsThisMatch ?? []), ...cardIds]));
     slot.orderRound = round;
-    slot.signatureCardId = typeof signatureCardId === "string" ? signatureCardId : null;
+    slot.attunedCardIds = Array.isArray(attunedCardIds) ? Array.from(new Set(attunedCardIds.filter((id): id is string => typeof id === "string"))).slice(0, 2) : [];
     if (!match.roundSubmitStartedAt) {
       match.roundSubmitStartedAt = Date.now();
     }
@@ -457,18 +457,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
       const roundDurationMs = match.roundSubmitStartedAt ? Math.max(0, Date.now() - match.roundSubmitStartedAt) : 0;
       const result = resolveRound(hostCards, joinerCards, hostChar, joinerChar, {
-        playerSignatureCardId: m.host.signatureCardId,
-        opponentSignatureCardId: m.joiner.signatureCardId,
-        playerSignatureBoostAvailable: !m.host.signatureBoostUsed,
-        opponentSignatureBoostAvailable: !m.joiner.signatureBoostUsed,
+        playerAttunedCardIds: m.host.attunedCardIds,
+        opponentAttunedCardIds: m.joiner.attunedCardIds,
+        playerAttunementBoostAvailable: m.host.attunedCardIds.length > 0 && !m.host.attunementSurgeUsed,
+        opponentAttunementBoostAvailable: m.joiner.attunedCardIds.length > 0 && !m.joiner.attunementSurgeUsed,
       });
       m.resolvedSlots = result.slots;
       m.roundSubmitStartedAt = null;
-      if (result.slots.some((slotResult) => slotResult.playerSignatureBoosted)) {
-        m.host.signatureBoostUsed = true;
+      if (result.slots.some((slotResult) => slotResult.playerAttunementBoosted)) {
+        m.host.attunementSurgeUsed = true;
       }
-      if (result.slots.some((slotResult) => slotResult.opponentSignatureBoosted)) {
-        m.joiner.signatureBoostUsed = true;
+      if (result.slots.some((slotResult) => slotResult.opponentAttunementBoosted)) {
+        m.joiner.attunementSurgeUsed = true;
       }
       roundTelemetrySnapshot = {
         hostCharId: hostChar.id,

@@ -167,14 +167,14 @@ interface GameState {
 
     // Premium Cards
     unlockedPremiumCards: string[];
-    signatureCardId: string | null;
-    activeSignatureCardId: string | null;
-    signatureBoostUsed: boolean;
+    attunedCardIds: string[];
+    activeAttunedCardIds: string[];
+    attunementSurgeUsed: boolean;
     cardPerformance: Record<string, CardPerformanceStats>;
     cardProgressUpdatedAt: number;
-    setSignatureCard: (cardId: string | null) => void;
+    setAttunedCards: (cardIds: string[]) => void;
     hydrateCardProgress: (payload: {
-        signatureCardId: string | null;
+        attunedCardIds: string[];
         cardPerformance: Record<string, CardPerformanceStats>;
         updatedAt: number;
     }) => void;
@@ -250,9 +250,9 @@ export const useGameStore = create<GameState>()(
     ultimateUsed: false,
     playerTaunt: null,
     unlockedPremiumCards: [],
-    signatureCardId: null,
-    activeSignatureCardId: null,
-    signatureBoostUsed: false,
+    attunedCardIds: [],
+    activeAttunedCardIds: [],
+    attunementSurgeUsed: false,
     cardPerformance: {},
     cardProgressUpdatedAt: 0,
 
@@ -271,29 +271,30 @@ export const useGameStore = create<GameState>()(
         if (ultimateUsed || !selectedCharacter?.ultimate) return;
         set({ ultimateActivated: true });
     },
-    setSignatureCard: (cardId) => set((state) => {
+    setAttunedCards: (cardIds) => set((state) => {
         const activeMatchLocked = state.matchPhase === "combat" || state.matchPhase === "round-result";
+        const uniqueCardIds = Array.from(new Set(cardIds)).slice(0, 2);
         return {
-            signatureCardId: cardId,
-            activeSignatureCardId: activeMatchLocked ? state.activeSignatureCardId : cardId,
+            attunedCardIds: uniqueCardIds,
+            activeAttunedCardIds: activeMatchLocked ? state.activeAttunedCardIds : uniqueCardIds,
         };
     }),
-    hydrateCardProgress: ({ signatureCardId, cardPerformance, updatedAt }) => set((state) => {
+    hydrateCardProgress: ({ attunedCardIds, cardPerformance, updatedAt }) => set((state) => {
         if (updatedAt < state.cardProgressUpdatedAt) return state;
         return {
-            signatureCardId,
-            activeSignatureCardId:
+            attunedCardIds,
+            activeAttunedCardIds:
                 state.matchPhase === "combat" || state.matchPhase === "round-result"
-                    ? state.activeSignatureCardId
-                    : signatureCardId,
+                    ? state.activeAttunedCardIds
+                    : attunedCardIds,
             cardPerformance,
             cardProgressUpdatedAt: updatedAt,
         };
     }),
     clearCardProgress: () => set({
-        signatureCardId: null,
-        activeSignatureCardId: null,
-        signatureBoostUsed: false,
+        attunedCardIds: [],
+        activeAttunedCardIds: [],
+        attunementSurgeUsed: false,
         cardPerformance: {},
         cardProgressUpdatedAt: 0,
     }),
@@ -448,8 +449,8 @@ export const useGameStore = create<GameState>()(
             revealedSlots: 0,
             matchId: `AO-H-${suffix}`, // H for House
             maxEnergy,
-            activeSignatureCardId: get().signatureCardId,
-            signatureBoostUsed: false,
+            activeAttunedCardIds: [...get().attunedCardIds],
+            attunementSurgeUsed: false,
         });
     },
 
@@ -476,7 +477,7 @@ export const useGameStore = create<GameState>()(
     },
 
     lockOrder: async () => {
-        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeSignatureCardId, signatureBoostUsed } = get();
+        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed } = get();
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
         const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
 
@@ -496,7 +497,7 @@ export const useGameStore = create<GameState>()(
                         difficulty,
                         wagered: wagerActive,
                         playerUltimateActivated: ultimateActivated,
-                        signatureCardId: activeSignatureCardId,
+                        attunedCardIds: activeAttunedCardIds,
                     }),
                 });
                 const data = await res.json();
@@ -536,8 +537,8 @@ export const useGameStore = create<GameState>()(
             playerUltimateSlot: 0,
             opponentUltimateEffect: Math.random() < 0.25 ? (opponentCharacter?.ultimate?.effect ?? undefined) : undefined,
             opponentUltimateSlot: Math.floor(Math.random() * 5),
-            playerSignatureCardId: activeSignatureCardId,
-            playerSignatureBoostAvailable: !!activeSignatureCardId && !signatureBoostUsed,
+            playerAttunedCardIds: activeAttunedCardIds,
+            playerAttunementBoostAvailable: activeAttunedCardIds.length > 0 && !attunementSurgeUsed,
         };
         const precomputed = resolveRound(playerCards, aiOrder, selectedCharacter ?? undefined, opponentCharacter ?? undefined, opts);
         set({
@@ -552,7 +553,7 @@ export const useGameStore = create<GameState>()(
     },
 
     autoLockOrder: async () => {
-        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeSignatureCardId, signatureBoostUsed } = get();
+        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed } = get();
         const autoOrder = playerDeck.slice(0, 5);
         const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
 
@@ -571,7 +572,7 @@ export const useGameStore = create<GameState>()(
                         playerOrderCardIds: autoOrder.map(c => c.id),
                         difficulty,
                         wagered: wagerActive,
-                        signatureCardId: activeSignatureCardId,
+                        attunedCardIds: activeAttunedCardIds,
                     }),
                 });
                 const data = await res.json();
@@ -604,8 +605,8 @@ export const useGameStore = create<GameState>()(
         const opts: RoundOptions = {
             playerLastStand,
             opponentLastStand,
-            playerSignatureCardId: activeSignatureCardId,
-            playerSignatureBoostAvailable: !!activeSignatureCardId && !signatureBoostUsed,
+            playerAttunedCardIds: activeAttunedCardIds,
+            playerAttunementBoostAvailable: activeAttunedCardIds.length > 0 && !attunementSurgeUsed,
         };
         const precomputed = resolveRound(autoOrder, aiOrder, selectedCharacter ?? undefined, opponentCharacter ?? undefined, opts);
         set({
@@ -625,7 +626,7 @@ export const useGameStore = create<GameState>()(
     },
 
     finishRound: () => {
-        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, currentMatchRounds, matchId, selectedCharacter, opponentCharacter, cardPerformance, signatureBoostUsed } = get();
+        const { precomputedRound, playerRoundsWon, opponentRoundsWon, playerPoints, matchesPlayed, matchesWon, matchesLost, winStreak, lossStreak, maxWinStreak, matchHistory, currentMatchRounds, matchId, selectedCharacter, opponentCharacter, cardPerformance, attunementSurgeUsed } = get();
         if (!precomputedRound) return;
 
         const totalPlayerKnock = precomputedRound.reduce((s, r) => s + r.playerKnock, 0);
@@ -659,7 +660,7 @@ export const useGameStore = create<GameState>()(
         // Update match history counters and streak when the match concludes
         const matchWon = isMatchEnd && pWon >= 3;
         const matchLost = isMatchEnd && oWon >= 3;
-        const signatureTriggeredThisRound = precomputedRound.some((slot) => slot.playerSignatureBoosted);
+        const attunementTriggeredThisRound = precomputedRound.some((slot) => slot.playerAttunementBoosted);
 
         let newWinStreak = winStreak;
         let newLossStreak = lossStreak;
@@ -736,7 +737,7 @@ export const useGameStore = create<GameState>()(
             matchHistory: newMatchHistory,
             currentMatchRounds: isMatchEnd ? [] : updatedMatchRounds,
             cardPerformance: nextCardPerformance,
-            signatureBoostUsed: signatureTriggeredThisRound ? true : signatureBoostUsed,
+            attunementSurgeUsed: attunementTriggeredThisRound ? true : attunementSurgeUsed,
             ...(isMatchEnd && {
                 matchesPlayed: matchesPlayed + 1,
                 matchesWon: matchWon ? matchesWon + 1 : matchesWon,
@@ -761,7 +762,7 @@ export const useGameStore = create<GameState>()(
             revealedSlots: 0,
             ultimateActivated: false,
             // ultimateUsed persists until match ends
-            activeSignatureCardId: get().activeSignatureCardId ?? get().signatureCardId,
+            activeAttunedCardIds: get().activeAttunedCardIds.length ? [...get().activeAttunedCardIds] : [...get().attunedCardIds],
         }));
     },
 
@@ -796,8 +797,8 @@ export const useGameStore = create<GameState>()(
             ultimateUsed: false,
             playerTaunt: null,
             currentMatchRounds: [],
-            activeSignatureCardId: null,
-            signatureBoostUsed: false,
+            activeAttunedCardIds: [],
+            attunementSurgeUsed: false,
         }));
     },
 
@@ -821,8 +822,8 @@ export const useGameStore = create<GameState>()(
             maxEnergy,
             ultimateActivated: false,
             ultimateUsed: false,
-            activeSignatureCardId: get().signatureCardId,
-            signatureBoostUsed: false,
+            activeAttunedCardIds: [...get().attunedCardIds],
+            attunementSurgeUsed: false,
         });
     },
 
@@ -853,13 +854,44 @@ export const useGameStore = create<GameState>()(
             ultimateUsed: false,
             playerTaunt: null,
             currentMatchRounds: [],
-            activeSignatureCardId: get().signatureCardId,
-            signatureBoostUsed: false,
+            activeAttunedCardIds: [...get().attunedCardIds],
+            attunementSurgeUsed: false,
         });
     },
     }),
     {
       name: "action-order-store",
+      version: 2,
+      migrate: (persistedState: unknown, version) => {
+        if (!persistedState || typeof persistedState !== "object") return persistedState;
+        const state = persistedState as Record<string, unknown>;
+        if (version >= 2) return state;
+
+        const legacySignatureCardId =
+          typeof state.signatureCardId === "string" ? state.signatureCardId : null;
+        const legacyActiveSignatureCardId =
+          typeof state.activeSignatureCardId === "string" ? state.activeSignatureCardId : null;
+
+        return {
+          ...state,
+          attunedCardIds: Array.isArray(state.attunedCardIds)
+            ? state.attunedCardIds
+            : legacySignatureCardId
+              ? [legacySignatureCardId]
+              : [],
+          activeAttunedCardIds: Array.isArray(state.activeAttunedCardIds)
+            ? state.activeAttunedCardIds
+            : legacyActiveSignatureCardId
+              ? [legacyActiveSignatureCardId]
+              : legacySignatureCardId
+                ? [legacySignatureCardId]
+                : [],
+          attunementSurgeUsed:
+            typeof state.attunementSurgeUsed === "boolean"
+              ? state.attunementSurgeUsed
+              : Boolean(state.signatureBoostUsed),
+        };
+      },
       partialize: (state) => ({
         // Game flow state — survives reloads so you don't lose progress mid-match
         matchId: state.matchId,
@@ -899,9 +931,9 @@ export const useGameStore = create<GameState>()(
         onboardingCoachHidden: state.onboardingCoachHidden,
         deckPresets: state.deckPresets,
         unlockedPremiumCards: state.unlockedPremiumCards,
-        signatureCardId: state.signatureCardId,
-        activeSignatureCardId: state.activeSignatureCardId,
-        signatureBoostUsed: state.signatureBoostUsed,
+        attunedCardIds: state.attunedCardIds,
+        activeAttunedCardIds: state.activeAttunedCardIds,
+        attunementSurgeUsed: state.attunementSurgeUsed,
         cardPerformance: state.cardPerformance,
         cardProgressUpdatedAt: state.cardProgressUpdatedAt,
       }),

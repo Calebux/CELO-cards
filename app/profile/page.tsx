@@ -9,7 +9,8 @@ import { ClaimGDollar } from "../components/ClaimGDollar";
 import { CardPreviewModal } from "../components/CardPreviewModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CHARACTERS, CARDS } from "../lib/gameData";
-import { useSignatureCardSync } from "../lib/useSignatureCardSync";
+import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount } from "../lib/cardMastery";
+import { useAttunementSync } from "../lib/useSignatureCardSync";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -65,10 +66,10 @@ export default function ProfilePage() {
     setPlayerName,
     matchHistory,
     unlockedPremiumCards,
-    signatureCardId,
+    attunedCardIds,
     cardPerformance,
   } = useGameStore();
-  const { toggleSignatureCard: syncSignatureCard } = useSignatureCardSync();
+  const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
 
   const ownedCards = CARDS.filter((c) => c.isPremium && unlockedPremiumCards.includes(c.id));
 
@@ -82,6 +83,8 @@ export default function ProfilePage() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
   const previewCard = previewCardId ? ownedCards.find((card) => card.id === previewCardId) ?? null : null;
+  const highestMasteryTier = getHighestMasteryTier(cardPerformance);
+  const masteredCardCount = getMasteredCardCount(cardPerformance);
 
   useEffect(() => {
     if (!address) {
@@ -420,6 +423,21 @@ export default function ProfilePage() {
               </div>
             </div>
 
+            <div style={{ marginTop: 14, backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(251,191,36,0.22)", borderRadius: 8, padding: "14px 16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(3, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+                {[
+                  { label: "Attuned", value: `${attunedCardIds.length}/2`, color: "#fbbf24" },
+                  { label: "Highest Tier", value: highestMasteryTier > 0 ? `T${highestMasteryTier}` : "—", color: "#56a4cb" },
+                  { label: "Mastered Cards", value: String(masteredCardCount), color: "#e2e8f0" },
+                ].map((entry) => (
+                  <div key={entry.label} style={{ borderRadius: 8, border: "1px solid rgba(148,163,184,0.16)", background: "rgba(2,6,23,0.46)", padding: "10px 12px" }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.8, color: "#64748b", textTransform: "uppercase" }}>{entry.label}</div>
+                    <div style={{ marginTop: 6, fontSize: isCompactPhone ? 17 : 18, fontWeight: 900, color: entry.color }}>{entry.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Owned cards — full width under achievements */}
             <div style={{ marginTop: 14, backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: "16px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -443,7 +461,8 @@ export default function ProfilePage() {
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(4, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: isCompactPhone ? 12 : 8, justifyItems: "center" }}>
                   {ownedCards.map((card) => {
-                    const isSignature = signatureCardId === card.id;
+                    const isAttuned = attunedCardIds.includes(card.id);
+                    const masteryTier = getCardMasterySnapshot(cardPerformance[card.id] ?? null).tier;
                     return (
                     <div
                       key={card.id}
@@ -477,15 +496,15 @@ export default function ProfilePage() {
                             fontSize: 7,
                             fontWeight: 800,
                             letterSpacing: 1.1,
-                            color: isSignature ? "#fbbf24" : "#cbd5e1",
+                            color: isAttuned || masteryTier > 0 ? "#fbbf24" : "#cbd5e1",
                             textTransform: "uppercase",
-                            background: isSignature ? "rgba(251,191,36,0.18)" : "rgba(2,6,23,0.72)",
-                            border: isSignature ? "1px solid rgba(251,191,36,0.4)" : "1px solid transparent",
+                            background: isAttuned || masteryTier > 0 ? "rgba(251,191,36,0.18)" : "rgba(2,6,23,0.72)",
+                            border: isAttuned || masteryTier > 0 ? "1px solid rgba(251,191,36,0.4)" : "1px solid transparent",
                             borderRadius: 999,
                             padding: "2px 5px",
                           }}
                         >
-                          {isSignature ? "Signature" : "View"}
+                          {isAttuned ? "Attuned" : masteryTier > 0 ? `T${masteryTier}` : "Owned"}
                         </span>
                       </div>
                     </div>
@@ -543,11 +562,12 @@ export default function ProfilePage() {
             card={previewCard}
             owned
             stats={cardPerformance[previewCard.id] ?? null}
-            isSignature={signatureCardId === previewCard.id}
-            onToggleSignature={
+            isAttuned={attunedCardIds.includes(previewCard.id)}
+            canAttune={attunedCardIds.includes(previewCard.id) || attunedCardIds.length < 2}
+            onToggleAttunement={
               address
                 ? () => {
-                    void syncSignatureCard(signatureCardId, previewCard.id).catch(() => {});
+                    void syncAttunedCard(attunedCardIds, previewCard.id).catch(() => {});
                   }
                 : null
             }

@@ -76,7 +76,7 @@ export default function Gameplay() {
     setCurrentOrderFromIds,
     setPrecomputedFromServer,
     setOpponentName,
-    activeSignatureCardId,
+    activeAttunedCardIds,
   } = useGameStore();
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -1042,7 +1042,7 @@ export default function Gameplay() {
               const oCard = opponentOrder[i];
               const result = slotResults[i];
               const isActive = i === revealedSlots && !showResult;
-              const playerSignatureHere = !!pCard && activeSignatureCardId === pCard.id;
+              const playerAttunedHere = !!pCard && activeAttunedCardIds.includes(pCard.id);
 
               const slotBorderColor = revealed
                 ? (result?.winner === "player" ? "#4ade80" : result?.winner === "opponent" ? "#ef4444" : "#fbbf24")
@@ -1080,9 +1080,9 @@ export default function Gameplay() {
                       {revealed && pCard ? (
                         <>
                           <MiniPayImage src={pCard.image} alt={pCard.name} minipayWidth={160} minipayQuality={50} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }} />
-                          {playerSignatureHere && (
+                          {playerAttunedHere && (
                             <div style={{ position: "absolute", top: 4, left: 4, padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.45)", background: "rgba(251,191,36,0.18)", boxShadow: "0 0 10px rgba(251,191,36,0.16)" }}>
-                              <span style={{ fontSize: 7, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>Sig</span>
+                              <span style={{ fontSize: 7, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.8, textTransform: "uppercase" }}>Attuned</span>
                             </div>
                           )}
                         </>
@@ -1115,9 +1115,9 @@ export default function Gameplay() {
                   {/* Result badge */}
                   {revealed && result ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                      {result.playerSignatureBoosted && (
+                      {result.playerAttunementBoosted && (
                         <span style={{ fontSize: 8, fontWeight: 800, padding: "2px 6px", borderRadius: 999, background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.38)", color: "#fbbf24", textTransform: "uppercase", letterSpacing: 1 }}>
-                          Surge
+                          Attuned Surge
                         </span>
                       )}
                       <span style={{

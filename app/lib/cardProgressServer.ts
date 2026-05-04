@@ -1,7 +1,7 @@
 import { CARDS } from "./gameData";
 import { redis } from "./redis";
 import type { SlotResult } from "./combatEngine";
-import { emptyCardPerformance, emptyCardProgress } from "./cardProgress";
+import { ATTUNEMENT_LIMIT, emptyCardPerformance, emptyCardProgress } from "./cardProgress";
 import type { CardProgressPayload, CardPerformanceStats } from "./cardProgress";
 
 const CARD_PROGRESS_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -18,8 +18,8 @@ export function cardProgressNonceKey(address: string): string {
   return `card-progress:nonce:${address.toLowerCase()}`;
 }
 
-function cardProgressSignatureKey(address: string): string {
-  return `card-progress:signature:${address.toLowerCase()}`;
+function cardProgressAttunementKey(address: string): string {
+  return `card-progress:attunement:${address.toLowerCase()}`;
 }
 
 function cardProgressPerformanceKey(address: string): string {
@@ -52,23 +52,53 @@ function sanitizeCardPerformance(input: unknown): Record<string, CardPerformance
   return next;
 }
 
-function sanitizeSignatureCardId(cardId: unknown): string | null {
-  return typeof cardId === "string" && VALID_CARD_IDS.has(cardId) ? cardId : null;
+function sanitizeAttunedCardIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const cardId of input) {
+    if (typeof cardId !== "string" || !VALID_CARD_IDS.has(cardId) || seen.has(cardId)) continue;
+    seen.add(cardId);
+    next.push(cardId);
+    if (next.length >= ATTUNEMENT_LIMIT) break;
+  }
+  return next;
 }
 
 export function sanitizeCardProgressPayload(input: unknown): CardProgressPayload {
   const body = input && typeof input === "object" ? (input as Partial<CardProgressPayload>) : {};
+  const legacySignatureCardId =
+    "signatureCardId" in (body as Record<string, unknown>) &&
+    typeof (body as Record<string, unknown>).signatureCardId === "string" &&
+    VALID_CARD_IDS.has((body as Record<string, unknown>).signatureCardId as string)
+      ? ((body as Record<string, unknown>).signatureCardId as string)
+      : null;
   return {
-    signatureCardId: sanitizeSignatureCardId(body.signatureCardId),
+    attunedCardIds:
+      "attunedCardIds" in (body as Record<string, unknown>)
+        ? sanitizeAttunedCardIds(body.attunedCardIds)
+        : legacySignatureCardId
+          ? [legacySignatureCardId]
+          : [],
     cardPerformance: sanitizeCardPerformance(body.cardPerformance),
     updatedAt: normalizeStatValue(body.updatedAt),
   };
 }
 
-function sanitizeSignatureSnapshot(input: unknown): { signatureCardId: string | null; updatedAt: number } {
-  const body = input && typeof input === "object" ? (input as { signatureCardId?: unknown; updatedAt?: unknown }) : {};
+function sanitizeAttunementSnapshot(input: unknown): { attunedCardIds: string[]; updatedAt: number } {
+  const body =
+    input && typeof input === "object"
+      ? (input as { attunedCardIds?: unknown; signatureCardId?: unknown; updatedAt?: unknown })
+      : {};
+  const legacySignatureCardId =
+    typeof body.signatureCardId === "string" && VALID_CARD_IDS.has(body.signatureCardId) ? body.signatureCardId : null;
   return {
-    signatureCardId: sanitizeSignatureCardId(body.signatureCardId),
+    attunedCardIds:
+      "attunedCardIds" in body
+        ? sanitizeAttunedCardIds(body.attunedCardIds)
+        : legacySignatureCardId
+          ? [legacySignatureCardId]
+          : [],
     updatedAt: normalizeStatValue(body.updatedAt),
   };
 }
@@ -82,24 +112,24 @@ function sanitizePerformanceSnapshot(input: unknown): { cardPerformance: Record<
 }
 
 export async function getCardProgress(address: string): Promise<CardProgressPayload> {
-  const [legacyRaw, signatureRaw, performanceRaw] = await Promise.all([
+  const [legacyRaw, attunementRaw, performanceRaw] = await Promise.all([
     redis.get<CardProgressPayload>(legacyCardProgressKey(address)),
-    redis.get(cardProgressSignatureKey(address)),
+    redis.get(cardProgressAttunementKey(address)),
     redis.get(cardProgressPerformanceKey(address)),
   ]);
 
   const legacy = sanitizeCardProgressPayload(legacyRaw ?? emptyCardProgress());
-  const signature = sanitizeSignatureSnapshot(
-    signatureRaw ?? { signatureCardId: legacy.signatureCardId, updatedAt: legacy.updatedAt }
+  const attunement = sanitizeAttunementSnapshot(
+    attunementRaw ?? { attunedCardIds: legacy.attunedCardIds, updatedAt: legacy.updatedAt }
   );
   const performance = sanitizePerformanceSnapshot(
     performanceRaw ?? { cardPerformance: legacy.cardPerformance, updatedAt: legacy.updatedAt }
   );
 
   return {
-    signatureCardId: signature.signatureCardId,
+    attunedCardIds: attunement.attunedCardIds,
     cardPerformance: performance.cardPerformance,
-    updatedAt: Math.max(legacy.updatedAt, signature.updatedAt, performance.updatedAt),
+    updatedAt: Math.max(legacy.updatedAt, attunement.updatedAt, performance.updatedAt),
   };
 }
 
@@ -107,9 +137,9 @@ export async function saveCardProgress(address: string, payload: CardProgressPay
   const normalized = sanitizeCardProgressPayload(payload);
   await Promise.all([
     redis.set(
-      cardProgressSignatureKey(address),
+      cardProgressAttunementKey(address),
       {
-        signatureCardId: normalized.signatureCardId,
+        attunedCardIds: normalized.attunedCardIds,
         updatedAt: normalized.updatedAt,
       },
       { ex: CARD_PROGRESS_TTL_SECONDS }
@@ -126,20 +156,20 @@ export async function saveCardProgress(address: string, payload: CardProgressPay
   return normalized;
 }
 
-export async function updateSignatureCardProgress(address: string, signatureCardId: string | null): Promise<CardProgressPayload> {
+export async function updateAttunedCardProgress(address: string, attunedCardIds: string[]): Promise<CardProgressPayload> {
   const existing = await getCardProgress(address);
   const updatedAt = Date.now();
   await redis.set(
-    cardProgressSignatureKey(address),
+    cardProgressAttunementKey(address),
     {
-      signatureCardId: sanitizeSignatureCardId(signatureCardId),
+      attunedCardIds: sanitizeAttunedCardIds(attunedCardIds),
       updatedAt,
     },
     { ex: CARD_PROGRESS_TTL_SECONDS }
   );
   return {
     ...existing,
-    signatureCardId: sanitizeSignatureCardId(signatureCardId),
+    attunedCardIds: sanitizeAttunedCardIds(attunedCardIds),
     updatedAt: Math.max(existing.updatedAt, updatedAt),
   };
 }
@@ -204,7 +234,7 @@ export async function recordResolvedCardPerformance(params: {
   );
 
   return {
-    signatureCardId: progress.signatureCardId,
+    attunedCardIds: progress.attunedCardIds,
     cardPerformance: nextCardPerformance,
     updatedAt: Math.max(progress.updatedAt, updatedAt),
   };

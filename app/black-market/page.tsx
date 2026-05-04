@@ -17,7 +17,8 @@ import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { parseUnits } from "viem";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
-import { useSignatureCardSync } from "../lib/useSignatureCardSync";
+import { getCardMasterySnapshot } from "../lib/cardMastery";
+import { useAttunementSync } from "../lib/useSignatureCardSync";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
@@ -54,9 +55,9 @@ export default function BlackMarket() {
   const router = useRouter();
   const { address, isConnected, chainId } = useAccount();
 
-  const { unlockedPremiumCards, playerName, signatureCardId, cardPerformance } = useGameStore();
+  const { unlockedPremiumCards, playerName, attunedCardIds, cardPerformance } = useGameStore();
   const unlockCard = useGameStore((s) => s.purchaseCard);
-  const { toggleSignatureCard: syncSignatureCard } = useSignatureCardSync();
+  const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
 
   const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(isMiniPay() ? "usdt" : "celo");
   const [buyingId, setBuyingId] = useState<string | null>(null);
@@ -262,7 +263,8 @@ export default function BlackMarket() {
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 24, maxWidth: 1200, padding: "0 20px", overflowY: "auto", paddingBottom: 60 }}>
             {marketCards.map((c) => {
               const isOwned = unlockedPremiumCards.includes(c.id);
-              const isSignature = signatureCardId === c.id;
+              const isAttuned = attunedCardIds.includes(c.id);
+              const masteryTier = getCardMasterySnapshot(cardPerformance[c.id] ?? null).tier;
               const price = c.price ?? 3000;
               const isBuying = buyingId === c.id;
               const currColor = buyCurrency === "gdollar" ? GDOLLAR_COLOR : buyCurrency === "usdt" ? "#26a17b" : "#f9c846";
@@ -314,17 +316,17 @@ export default function BlackMarket() {
                       style={{
                         width: "100%",
                         padding: "10px",
-                        background: isSignature ? "rgba(251,191,36,0.14)" : "rgba(74,222,128,0.1)",
-                        border: isSignature ? "1px solid rgba(251,191,36,0.36)" : "1px solid rgba(74,222,128,0.3)",
+                        background: isAttuned || masteryTier > 0 ? "rgba(251,191,36,0.14)" : "rgba(74,222,128,0.1)",
+                        border: isAttuned || masteryTier > 0 ? "1px solid rgba(251,191,36,0.36)" : "1px solid rgba(74,222,128,0.3)",
                         borderRadius: 6,
-                        color: isSignature ? "#fbbf24" : "#4ade80",
+                        color: isAttuned || masteryTier > 0 ? "#fbbf24" : "#4ade80",
                         fontSize: 11,
                         fontWeight: 800,
                         cursor: "default",
                         letterSpacing: 2,
                       }}
                     >
-                      {isSignature ? "SIGNATURE" : "OWNED"}
+                      {isAttuned ? "ATTUNED" : masteryTier > 0 ? `TIER ${masteryTier}` : "OWNED"}
                     </button>
                   ) : (
                     <button
@@ -362,13 +364,14 @@ export default function BlackMarket() {
             card={previewCard}
             owned={unlockedPremiumCards.includes(previewCard.id)}
             stats={cardPerformance[previewCard.id] ?? null}
-            isSignature={signatureCardId === previewCard.id}
-            onToggleSignature={
+            isAttuned={attunedCardIds.includes(previewCard.id)}
+            canAttune={attunedCardIds.includes(previewCard.id) || attunedCardIds.length < 2}
+            onToggleAttunement={
               unlockedPremiumCards.includes(previewCard.id) && address
                 ? () => {
                     setBuyError("");
-                    void syncSignatureCard(signatureCardId, previewCard.id).catch((error) => {
-                      setBuyError(error instanceof Error ? error.message : "Failed to update signature card.");
+                    void syncAttunedCard(attunedCardIds, previewCard.id).catch((error) => {
+                      setBuyError(error instanceof Error ? error.message : "Failed to update attunement.");
                     });
                   }
                 : null

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Card } from "../lib/gameData";
-import type { CardPerformanceStats } from "../lib/gameStore";
+import type { CardPerformanceStats } from "../lib/cardProgress";
+import { getCardMasteryPerkCopy, getCardMasterySnapshot, getNextUnlockCopy } from "../lib/cardMastery";
 import { isMiniPay } from "../lib/minipay";
 
 const DESIGN_W = 1440;
@@ -13,8 +14,9 @@ interface CardPreviewModalProps {
   card: Card;
   owned?: boolean;
   stats?: CardPerformanceStats | null;
-  isSignature?: boolean;
-  onToggleSignature?: (() => void) | null;
+  isAttuned?: boolean;
+  canAttune?: boolean;
+  onToggleAttunement?: (() => void) | null;
   onClose: () => void;
 }
 
@@ -61,8 +63,9 @@ function CardPreviewContent({
   card,
   owned,
   stats,
-  isSignature,
-  onToggleSignature,
+  isAttuned,
+  canAttune,
+  onToggleAttunement,
   onClose,
   compact,
 }: CardPreviewModalProps & { compact: boolean }) {
@@ -75,6 +78,9 @@ function CardPreviewContent({
     bestKnock: 0,
   };
   const clashWinRate = usageStats.timesPlayed > 0 ? Math.round((usageStats.clashWins / usageStats.timesPlayed) * 100) : 0;
+  const mastery = getCardMasterySnapshot(usageStats);
+  const statusAccent = isAttuned || mastery.tier > 0 ? "#fbbf24" : owned ? card.color : "#94a3b8";
+  const statusLabel = isAttuned ? "ATTUNED" : mastery.tier > 0 ? `T${mastery.tier}` : owned ? "OWNED" : "BLACK MARKET";
 
   return (
     <>
@@ -250,16 +256,16 @@ function CardPreviewContent({
               style={{
                 padding: "8px 12px",
                 borderRadius: 999,
-                border: `1px solid ${isSignature ? "#fbbf24" : card.color}45`,
-                background: isSignature ? "rgba(251,191,36,0.18)" : `${card.color}14`,
+                border: `1px solid ${statusAccent}55`,
+                background: isAttuned ? "rgba(251,191,36,0.18)" : mastery.tier > 0 ? "rgba(251,191,36,0.12)" : `${card.color}14`,
                 fontSize: 11,
                 fontWeight: 800,
                 letterSpacing: 1.2,
-                color: isSignature ? "#fbbf24" : card.color,
+                color: statusAccent,
                 textTransform: "uppercase",
               }}
             >
-              {isSignature ? "Signature Card" : owned ? "Owned Card" : "Black Market Card"}
+              {statusLabel}
             </div>
             <div
               style={{
@@ -289,7 +295,7 @@ function CardPreviewContent({
                 textTransform: "uppercase",
               }}
             >
-              {usageStats.matchWins} Match Wins
+              {mastery.xp} Mastery XP
             </div>
           </div>
         </div>
@@ -314,7 +320,7 @@ function CardPreviewContent({
           >
             <div>
               <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 2.6, color: card.color, textTransform: "uppercase", animation: "cardPreviewFadeUp 0.38s ease 0.56s both" }}>
-                Capability Breakdown
+                Mastery Breakdown
               </div>
               <h2
                 style={{
@@ -330,6 +336,91 @@ function CardPreviewContent({
               >
                 {card.name}
               </h2>
+            </div>
+
+            <div
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(251,191,36,0.26)",
+                background: "linear-gradient(135deg, rgba(251,191,36,0.14), rgba(15,23,42,0.9))",
+                padding: compact ? "14px 14px 12px" : "16px 16px 14px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                animation: "cardPreviewFadeUp 0.42s ease 0.78s both",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase" }}>
+                    Mastery Tier
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: compact ? 24 : 28, fontWeight: 900, color: "#fff", letterSpacing: -0.8 }}>
+                    {mastery.tier > 0 ? `Tier ${mastery.tier}` : "Unranked"}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>
+                    Progress
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13, fontWeight: 800, color: "#e2e8f0", letterSpacing: 0.4 }}>
+                    {mastery.nextTierXp == null ? `${mastery.xp} XP` : `${mastery.xp} / ${mastery.nextTierXp} XP`}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  height: 10,
+                  borderRadius: 999,
+                  background: "rgba(15,23,42,0.8)",
+                  border: "1px solid rgba(148,163,184,0.18)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${mastery.progressToNext * 100}%`,
+                    height: "100%",
+                    background: "linear-gradient(90deg, rgba(251,191,36,0.72), rgba(251,191,36,1))",
+                    boxShadow: "0 0 16px rgba(251,191,36,0.45)",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                <div
+                  style={{
+                    borderRadius: 14,
+                    border: "1px solid rgba(148,163,184,0.16)",
+                    background: "rgba(2,6,23,0.46)",
+                    padding: "12px 14px",
+                  }}
+                >
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.8, color: "#fbbf24", textTransform: "uppercase" }}>
+                    Active Perk
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.55, color: "#f8fafc" }}>
+                    {isAttuned ? getCardMasteryPerkCopy() : "Attune this card to activate its live combat perk."}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    borderRadius: 14,
+                    border: "1px solid rgba(148,163,184,0.16)",
+                    background: "rgba(2,6,23,0.46)",
+                    padding: "12px 14px",
+                  }}
+                >
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.8, color: "#94a3b8", textTransform: "uppercase" }}>
+                    Next Unlock
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.55, color: "#e2e8f0" }}>
+                    {mastery.nextTier ? `T${mastery.nextTier}` : "MAX"}: {getNextUnlockCopy(mastery.nextTier)}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div
@@ -367,7 +458,7 @@ function CardPreviewContent({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                 gap: 12,
                 animation: "cardPreviewFadeUp 0.42s ease 0.94s both",
               }}
@@ -377,6 +468,8 @@ function CardPreviewContent({
                 { label: "Clash Wins", value: usageStats.clashWins, color: card.color },
                 { label: "Knock Dealt", value: usageStats.totalKnock, color: "#f97316" },
                 { label: "Win Rate", value: usageStats.timesPlayed > 0 ? `${clashWinRate}%` : "—", color: "#56a4cb" },
+                { label: "Match Wins", value: usageStats.matchWins, color: "#fbbf24" },
+                { label: "Best Knock", value: usageStats.bestKnock, color: "#fb7185" },
               ].map((entry) => (
                 <div
                   key={entry.label}
@@ -492,28 +585,30 @@ function CardPreviewContent({
               animation: "cardPreviewFadeUp 0.42s ease 1.26s both",
             }}
           >
-            {onToggleSignature && (
+            {onToggleAttunement && (
               <button
-                onClick={onToggleSignature}
+                onClick={onToggleAttunement}
+                disabled={!isAttuned && canAttune === false}
                 style={{
                   flex: 1,
                   minWidth: 0,
                   padding: compact ? "15px 16px" : "14px 22px",
                   borderRadius: 12,
-                  border: `1px solid ${isSignature ? "rgba(251,191,36,0.55)" : "rgba(148,163,184,0.28)"}`,
-                  background: isSignature
+                  border: `1px solid ${isAttuned ? "rgba(251,191,36,0.55)" : "rgba(148,163,184,0.28)"}`,
+                  background: isAttuned
                     ? "linear-gradient(135deg, rgba(251,191,36,0.22), rgba(255,255,255,0.06))"
                     : "linear-gradient(135deg, rgba(148,163,184,0.12), rgba(255,255,255,0.04))",
-                  color: isSignature ? "#fbbf24" : "#e2e8f0",
+                  color: isAttuned ? "#fbbf24" : "#e2e8f0",
                   fontSize: 12,
                   fontWeight: 900,
                   letterSpacing: 1.8,
                   textTransform: "uppercase",
-                  cursor: "pointer",
+                  cursor: !isAttuned && canAttune === false ? "not-allowed" : "pointer",
+                  opacity: !isAttuned && canAttune === false ? 0.55 : 1,
                   fontFamily: "inherit",
                 }}
               >
-                {isSignature ? "Unset Signature" : "Make Signature Card"}
+                {isAttuned ? "Unattune Card" : canAttune === false ? "Attunement Full" : "Attune Card"}
               </button>
             )}
             <button
