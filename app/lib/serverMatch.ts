@@ -15,6 +15,8 @@ export interface PlayerSlot {
   attunementSurgeUsed: boolean;
 }
 
+export type WagerCurrency = "cusd" | "celo" | "gdollar";
+
 export interface ServerMatch {
   id: string;
   createdAt: number;
@@ -32,6 +34,8 @@ export interface ServerMatch {
   joinerWagerTx: string | null;
   hostWagerAmount: string | null;
   joinerWagerAmount: string | null;
+  hostWagerCurrency: WagerCurrency | null;
+  joinerWagerCurrency: WagerCurrency | null;
   winnerAddress: string | null;
   completedAt: number | null;
   abortedBy: "host" | "joiner" | null;
@@ -69,6 +73,8 @@ export function newServerMatch(matchId: string, mode: MultiplayerMode = "wager")
     joinerWagerTx: null,
     hostWagerAmount: null,
     joinerWagerAmount: null,
+    hostWagerCurrency: null,
+    joinerWagerCurrency: null,
     winnerAddress: null,
     completedAt: null,
     abortedBy: null,

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WagerModal } from "../components/WagerModal";
+import { formatUnits } from "viem";
 
 const OPPONENT_WARN_MS  = 60_000;
 const OPPONENT_ABORT_MS = 90_000;
@@ -35,6 +36,8 @@ export default function Lobby() {
   const [opponentAbandoned, setOpponentAbandoned] = useState(false);
   const [payWaitMs, setPayWaitMs] = useState(0);
   const [rankedEntryError, setRankedEntryError] = useState<string | null>(null);
+  const [requiredWagerCurrency, setRequiredWagerCurrency] = useState<"cusd" | "celo" | "gdollar" | null>(null);
+  const [requiredWagerAmountRaw, setRequiredWagerAmountRaw] = useState<string | null>(null);
   const payWaitStartRef = useRef<number | null>(null);
 
   // Refs so the polling interval always reads current values (avoids stale closures)
@@ -67,6 +70,8 @@ export default function Lobby() {
           selfWagered?:     boolean;
           paymentRequired?: boolean;
           abortedBy?:       "host" | "joiner" | null;
+          requiredWagerCurrency?: "cusd" | "celo" | "gdollar" | null;
+          requiredWagerAmount?: string | null;
         };
         setNetErrorCount(0);
         setFirstPollDone(true);
@@ -81,7 +86,13 @@ export default function Lobby() {
         // Payment gate — use refs to avoid stale closure values
         if (data.paymentRequired != null) {
           setPaymentRequired(data.paymentRequired);
-          if (data.paymentRequired && !data.selfWagered && !selfPaidRef.current) {
+          setRequiredWagerCurrency(data.requiredWagerCurrency ?? null);
+          setRequiredWagerAmountRaw(data.requiredWagerAmount ?? null);
+          const wagerTermsReady =
+            matchMode !== "wager" ||
+            playerRole !== "joiner" ||
+            (!!data.requiredWagerCurrency && !!data.requiredWagerAmount);
+          if (data.paymentRequired && wagerTermsReady && !data.selfWagered && !selfPaidRef.current) {
             setShowPayModal(true);
           }
           if (data.selfWagered) {
@@ -289,8 +300,13 @@ export default function Lobby() {
             borderRadius: 20,
           }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: 1, textTransform: "uppercase" }}>
-              ⚡ {wagerCurrency?.toUpperCase() ?? "CELO"}
+              ⚡ {(requiredWagerCurrency ?? wagerCurrency)?.toUpperCase() ?? "CELO"}
             </span>
+            {requiredWagerAmountRaw && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(251,191,36,0.7)", letterSpacing: 0.8 }}>
+                · {formatUnits(BigInt(requiredWagerAmountRaw), 18)}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -616,6 +632,8 @@ export default function Lobby() {
             setSelfPaid(true);
             setShowPayModal(false);
           }}
+          lockedAmountRaw={requiredWagerAmountRaw ?? undefined}
+          lockedCurrency={requiredWagerCurrency ?? undefined}
           onSkip={() => {
             if (matchId && playerRole) {
               void fetch(`/api/match/${matchId}`, {
