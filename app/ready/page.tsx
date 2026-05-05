@@ -32,6 +32,7 @@ function ReadyYourDeck() {
   const playerName     = useGameStore((s) => s.playerName);
   const playerAddress  = useGameStore((s) => s.playerAddress);
   const matchMode      = useGameStore((s) => s.matchMode);
+  const selectedCharacter = useGameStore((s) => s.selectedCharacter);
 
   useEffect(() => {
     const scale = () => {
@@ -84,13 +85,13 @@ function ReadyYourDeck() {
         if (data.opponentCharId) {
           clearInterval(poll);
           setOpponentFound(true);
-          router.push("/select-character");
+          router.push(selectedCharacter ? "/lobby" : "/select-character");
         }
       } catch { /* ignore transient errors */ }
     }, 2000);
     return () => clearInterval(poll);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeMatchId, playerRole, wagerActive, opponentFound]);
+  }, [storeMatchId, playerRole, selectedCharacter, wagerActive, opponentFound]);
 
   const matchId = storeMatchId ?? "AO-????-X";
 
