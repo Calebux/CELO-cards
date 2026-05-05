@@ -418,7 +418,11 @@ export const useGameStore = create<GameState>()(
     },
 
     selectCharacter: (character) => {
-        set({ selectedCharacter: character });
+        set({
+            selectedCharacter: character,
+            opponentCharacter: null,
+            opponentName: null,
+        });
     },
 
     startMatch: () => {

@@ -380,25 +380,42 @@ export default function Loadout() {
   const beginWaitingForResolution = useCallback((pendingKey: string, expectedRound: number) => {
     if (!matchId || !playerRole) return;
 
-    const submitPending = async () => {
-      if (!pendingSubmitRef.current || !matchId) return;
-      try {
-        await fetch(`/api/match/${matchId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pendingSubmitRef.current),
-        });
-      } catch {
-        // keep queued; we'll retry on reconnect/poll
-      }
-    };
-
     const stopPolling = () => {
       if (pollRef.current) clearTimeout(pollRef.current);
       pollRef.current = null;
     };
 
+    const failWaiting = (message: string) => {
+      stopPolling();
+      setWaiting(false);
+      setLockError(message);
+      try { sessionStorage.removeItem(pendingKey); } catch {}
+      pendingSubmitRef.current = null;
+    };
+
+    const submitPending = async () => {
+      if (!pendingSubmitRef.current || !matchId) return;
+      const res = await fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pendingSubmitRef.current),
+      });
+      if (!res.ok) {
+        let errorMessage = "Failed to submit your card order.";
+        try {
+          const data = await res.json() as { error?: string };
+          if (data.error) errorMessage = data.error;
+        } catch {
+          // ignore parse failure
+        }
+        const error = new Error(errorMessage) as Error & { status?: number };
+        error.status = res.status;
+        throw error;
+      }
+    };
+
     setWaiting(true);
+    setLockError(null);
     setNetStatus(navigator.onLine ? "online" : "offline");
     pollDelayRef.current = 2000;
 
@@ -406,6 +423,17 @@ export default function Loadout() {
       if (!matchId || !playerRole) return;
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        if (!res.ok) {
+          let errorMessage = "Failed to sync match state.";
+          try {
+            const errorData = await res.json() as { error?: string };
+            if (errorData.error) errorMessage = errorData.error;
+          } catch {
+            // ignore parse failure
+          }
+          failWaiting(errorMessage);
+          return;
+        }
         const data = await res.json() as {
           phase: string;
           round: number;
@@ -467,16 +495,37 @@ export default function Loadout() {
         if (data.opponentReconnecting) {
           setNetStatus("reconnecting");
         }
-      } catch {
+      } catch (error) {
+        const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: number }).status) : null;
+        if (status && status >= 400 && status < 500) {
+          failWaiting(error instanceof Error ? error.message : "Match sync failed.");
+          return;
+        }
         setPollErrorCount((n) => n + 1);
         setNetStatus(navigator.onLine ? "reconnecting" : "offline");
         pollDelayRef.current = Math.min(10_000, Math.round(pollDelayRef.current * 1.5));
-        await submitPending();
+        try {
+          await submitPending();
+        } catch (submitError) {
+          const submitStatus =
+            typeof submitError === "object" && submitError && "status" in submitError
+              ? Number((submitError as { status?: number }).status)
+              : null;
+          if (submitStatus && submitStatus >= 400 && submitStatus < 500) {
+            failWaiting(submitError instanceof Error ? submitError.message : "Failed to submit your card order.");
+            return;
+          }
+        }
       }
       pollRef.current = setTimeout(() => { void pollOnce(); }, pollDelayRef.current);
     };
 
-    void submitPending();
+    void submitPending().catch((error) => {
+      const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: number }).status) : null;
+      if (status && status >= 400 && status < 500) {
+        failWaiting(error instanceof Error ? error.message : "Failed to submit your card order.");
+      }
+    });
     void pollOnce();
   }, [
     matchId,
@@ -490,6 +539,19 @@ export default function Loadout() {
     syncMultiplayerRoundState,
   ]);
   useEffect(() => {
+    const stopPolling = () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
+    };
+
+    const clearPendingState = () => {
+      const currentMatchId = matchId;
+      if (currentMatchId) {
+        try { sessionStorage.removeItem(`pending-submit:${currentMatchId}`); } catch {}
+      }
+      pendingSubmitRef.current = null;
+    };
+
     const handleOnline = () => {
       setNetStatus("online");
       pollDelayRef.current = 2000;
@@ -499,7 +561,22 @@ export default function Loadout() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(p),
-        }).catch(() => {});
+        })
+          .then(async (res) => {
+            if (res.ok) return;
+            let errorMessage = "Failed to resubmit your card order.";
+            try {
+              const data = await res.json() as { error?: string };
+              if (data.error) errorMessage = data.error;
+            } catch {
+              // ignore parse failure
+            }
+            stopPolling();
+            setWaiting(false);
+            setLockError(errorMessage);
+            clearPendingState();
+          })
+          .catch(() => {});
       }
     };
     const handleOffline = () => setNetStatus("offline");

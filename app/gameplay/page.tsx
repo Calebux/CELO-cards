@@ -18,7 +18,6 @@ import { ShareCard } from "../components/ShareCard";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
 import { isMiniPay } from "../lib/minipay";
 
-const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
 
 const DESIGN_W = 1440;
@@ -49,13 +48,23 @@ function FightBackdrop({
 
   return (
     <>
-      <MiniPayImage
-        src={DEFAULT_BG}
-        alt=""
-        minipayWidth={1280}
-        minipayQuality={56}
-        priority={!dimmed}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 50% 24%, rgba(148,163,184,0.22) 0%, rgba(15,23,42,0.12) 28%, rgba(2,6,23,0) 56%), linear-gradient(180deg, #0f172a 0%, #111827 38%, #030712 100%)",
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(90deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0) 12%, rgba(255,255,255,0) 88%, rgba(255,255,255,0.025) 100%)",
+          pointerEvents: "none",
+        }}
       />
 
       {player?.standingArt && (
@@ -709,7 +718,7 @@ export default function Gameplay() {
   const player = selectedCharacter;
   const opponent = opponentCharacter;
 
-  const BG_MAIN = DEFAULT_BG;
+  const BG_MAIN = undefined;
 
   // Calculate HP bars based on knock
   const maxHP = 40;
@@ -1648,12 +1657,12 @@ export default function Gameplay() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: isCompactPhone ? 12 : 10, marginBottom: 0 }}>
-                    {/* Rematch — ranked goes to character select, others go to loadout */}
+                    {/* Rematch — ranked/tournament restart in their create flow, solo goes straight to loadout */}
                     <button
                       onClick={() => {
                         if (matchMode === "ranked" || matchMode === "tournament") {
                           resetMatch();
-                          router.push("/create");
+                          router.push(matchMode === "ranked" ? "/create?mode=ranked" : "/create?mode=tourney");
                         } else {
                           rematch();
                           router.push("/loadout");
