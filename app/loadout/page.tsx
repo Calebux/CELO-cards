@@ -217,6 +217,7 @@ export default function Loadout() {
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const [exitingWaitState, setExitingWaitState] = useState(false);
   const [pollErrorCount, setPollErrorCount] = useState(0);
   const [netStatus, setNetStatus] = useState<"online" | "reconnecting" | "offline">("online");
   const [graceRemainingMs, setGraceRemainingMs] = useState<number>(0);
@@ -588,6 +589,32 @@ export default function Loadout() {
     };
   }, [matchId]);
 
+  const exitMatchFromWaitState = useCallback(async () => {
+    if (exitingWaitState) return;
+    setExitingWaitState(true);
+    try {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
+      if (matchId) {
+        try { sessionStorage.removeItem(`pending-submit:${matchId}`); } catch {}
+      }
+      pendingSubmitRef.current = null;
+      if (matchId && playerRole) {
+        await fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "quit", role: playerRole }),
+        }).catch(() => {});
+      }
+    } finally {
+      setWaiting(false);
+      setLockError(null);
+      setGraceRemainingMs(0);
+      resetMatch();
+      router.replace("/");
+    }
+  }, [exitingWaitState, matchId, playerRole, resetMatch, router]);
+
   useEffect(() => {
     if (!matchId || !playerRole) return;
     const pendingKey = `pending-submit:${matchId}`;
@@ -745,7 +772,17 @@ export default function Loadout() {
         <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
           {/* Left: back + logo */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
+            <button
+              onClick={() => {
+                if (waiting) {
+                  void exitMatchFromWaitState();
+                  return;
+                }
+                router.back();
+              }}
+              className="ko-btn ko-btn-secondary"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}
+            >
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
               <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
             </button>
@@ -1576,6 +1613,28 @@ export default function Loadout() {
                 </button>
               </div>
             )}
+            <button
+              onClick={() => void exitMatchFromWaitState()}
+              disabled={exitingWaitState}
+              style={{
+                height: 42,
+                minWidth: 168,
+                marginTop: 4,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 6,
+                color: "#cbd5e1",
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                cursor: exitingWaitState ? "default" : "pointer",
+                opacity: exitingWaitState ? 0.7 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              {exitingWaitState ? "Exiting..." : "Exit Match"}
+            </button>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
