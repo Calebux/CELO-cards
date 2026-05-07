@@ -7,6 +7,7 @@ import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { WalletSync } from "./lib/wallet";
 import { miniPayConnector } from "./lib/minipay";
+import { createWeb3AuthConnector } from "./lib/web3auth";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DailyReward } from "./components/DailyReward";
 import { UsernameModal } from "./components/UsernameModal";
@@ -23,7 +24,7 @@ const config = createConfig({
     [celo.id]: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
     [celoAlfajores.id]: http(),
   },
-  connectors: [miniPayConnector, ...connectors],
+  connectors: [miniPayConnector, createWeb3AuthConnector(), ...connectors],
 });
 
 const queryClient = new QueryClient();
