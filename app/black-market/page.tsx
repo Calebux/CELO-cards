@@ -33,19 +33,27 @@ const USDT_ABI = [
     outputs: [{ name: "", type: "bool" }] },
 ] as const;
 
-// Price: pts / 1000 = CELO (e.g. 2000pts→2 CELO, 10000pts→10 CELO)
+// Price: pts / 1000 = CELO (e.g. 10000pts→10 CELO)
 // USDT price: ~0.08 USDT per CELO
+// G$ price: USD equivalent (1 G$ ≈ $0.001, so USDT price × 1000 = G$ price)
 function ptsToOnchain(pts: number) {
   return parseUnits((pts / 1000).toFixed(6), 18);
 }
 function ptsToUsdt(pts: number) {
   return parseUnits((pts / 1000 * 0.08).toFixed(6), 6);
 }
+function ptsToGdollar(pts: number) {
+  // G$ equivalent of the USD price: (pts/1000 * 0.08) * 1000 = pts * 0.08
+  return parseUnits((pts * 0.08).toFixed(6), 18);
+}
 function ptsDisplay(pts: number, currency: "celo" | "gdollar" | "usdt") {
-  const val = pts / 1000;
-  const formatted = val % 1 === 0 ? val.toString() : val.toFixed(1);
-  if (currency === "usdt") return `$${(val * 0.08).toFixed(2)} USDT`;
-  return currency === "gdollar" ? `${formatted} G$` : `${formatted} CELO`;
+  const celo = pts / 1000;
+  const usd = celo * 0.08;
+  const gdollar = pts * 0.08;
+  if (currency === "usdt") return `$${usd.toFixed(2)} USDT`;
+  if (currency === "gdollar") return `${gdollar % 1 === 0 ? gdollar.toString() : gdollar.toFixed(1)} G$`;
+  const formatted = celo % 1 === 0 ? celo.toString() : celo.toFixed(1);
+  return `${formatted} CELO`;
 }
 
 type BuyCurrency = "celo" | "gdollar" | "usdt";
@@ -162,7 +170,7 @@ export default function BlackMarket() {
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
           functionName: "transfer",
-          args: [TREASURY, amt],
+          args: [TREASURY, ptsToGdollar(price)],
           account: activeAddress,
           chainId: celo.id,
         });

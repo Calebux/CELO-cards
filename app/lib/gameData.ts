@@ -403,71 +403,71 @@ export const CARDS: Card[] = [
     // Black Market Cards
     {
         id: "rko", name: "RKO", type: "strike", priority: 9, knock: 14, energyCost: 4,
-        effect: "Out of nowhere! Devastating strike with massive priority.", color: "#ef4444", bgColor: "#450a0a", image: "/cards/market/RKO.png", isPremium: true, price: 7500
+        effect: "Out of nowhere! Devastating strike with massive priority.", color: "#ef4444", bgColor: "#450a0a", image: "/cards/market/RKO.png", isPremium: true, price: 37500
     },
     {
         id: "go_to_hell", name: "Go To Hell", type: "strike", priority: 3, knock: 20, energyCost: 6,
-        effect: "Ultimate destructive move. Requires high energy but annihilates opposition.", color: "#f97316", bgColor: "#431407", image: "/cards/market/GO TO HELL.png", isPremium: true, price: 10000
+        effect: "Ultimate destructive move. Requires high energy but annihilates opposition.", color: "#f97316", bgColor: "#431407", image: "/cards/market/GO TO HELL.png", isPremium: true, price: 50000
     },
     {
         id: "headbutt", name: "Headbutt", type: "strike", priority: 8, knock: 7, energyCost: 2,
-        effect: "A quick, brutal intercept to stagger the opponent.", color: "#d946ef", bgColor: "#701a75", image: "/cards/market/Headbutt.png", isPremium: true, price: 4000
+        effect: "A quick, brutal intercept to stagger the opponent.", color: "#d946ef", bgColor: "#701a75", image: "/cards/market/Headbutt.png", isPremium: true, price: 20000
     },
     {
         id: "darkness_repellent", name: "Darkness Repellant 2", type: "defense", priority: 7, knock: 0, energyCost: 3,
-        effect: "A perfect guard against all but the most unyielding strikes.", color: "#8b5cf6", bgColor: "#2e1065", image: "/cards/market/darkness_repellant_2.jpg", isPremium: true, price: 6000
+        effect: "A perfect guard against all but the most unyielding strikes.", color: "#8b5cf6", bgColor: "#2e1065", image: "/cards/market/darkness_repellant_2.jpg", isPremium: true, price: 30000
     },
     {
         id: "no_drain", name: "No Drain 2", type: "control", priority: 5, knock: 4, energyCost: 1,
-        effect: "Disrupts the opponent without burning out your stamina.", color: "#4ade80", bgColor: "#052e16", image: "/cards/market/no_drain_2.jpg", isPremium: true, price: 3000
+        effect: "Disrupts the opponent without burning out your stamina.", color: "#4ade80", bgColor: "#052e16", image: "/cards/market/no_drain_2.jpg", isPremium: true, price: 15000
     },
     {
         id: "bite", name: "Bite", type: "strike", priority: 6, knock: 3, energyCost: 1,
-        effect: "A vicious, desperate attack that sneaks past guards.", color: "#f59e0b", bgColor: "#451a03", image: "/cards/market/bite.png", isPremium: true, price: 2000
+        effect: "A vicious, desperate attack that sneaks past guards.", color: "#f59e0b", bgColor: "#451a03", image: "/cards/market/bite.png", isPremium: true, price: 10000
     },
     {
         id: "cage", name: "Cage", type: "control", priority: 5, knock: 5, energyCost: 3,
-        effect: "Trap the opponent in a tight box and force a losing exchange.", color: "#f43f5e", bgColor: "#4c0519", image: "/bad cards/Cage.png", isPremium: true, price: 4800
+        effect: "Trap the opponent in a tight box and force a losing exchange.", color: "#f43f5e", bgColor: "#4c0519", image: "/bad cards/Cage.png", isPremium: true, price: 24000
     },
     {
         id: "ethereal_form", name: "Ethereal Form", type: "defense", priority: 7, knock: 3, energyCost: 2,
-        effect: "Phase out of danger and negate most incoming pressure this slot.", color: "#a78bfa", bgColor: "#2e1065", image: "/bad cards/ETHEREAL FORM.png", isPremium: true, price: 5200
+        effect: "Phase out of danger and negate most incoming pressure this slot.", color: "#a78bfa", bgColor: "#2e1065", image: "/bad cards/ETHEREAL FORM.png", isPremium: true, price: 26000
     },
     {
         id: "fire", name: "Fire", type: "strike", priority: 4, knock: 9, energyCost: 4,
-        effect: "A scorching burst that burns through weak setups and punishes hesitation.", color: "#f97316", bgColor: "#431407", image: "/bad cards/Fire.png", isPremium: true, price: 6200
+        effect: "A scorching burst that burns through weak setups and punishes hesitation.", color: "#f97316", bgColor: "#431407", image: "/bad cards/Fire.png", isPremium: true, price: 31000
     },
     {
         id: "grab", name: "Grab", type: "control", priority: 6, knock: 4, energyCost: 2,
-        effect: "Interrupt the opponent's rhythm and drag them into your tempo.", color: "#22d3ee", bgColor: "#083344", image: "/bad cards/GRAB.png", isPremium: true, price: 4200
+        effect: "Interrupt the opponent's rhythm and drag them into your tempo.", color: "#22d3ee", bgColor: "#083344", image: "/bad cards/GRAB.png", isPremium: true, price: 21000
     },
     {
         id: "gravity_well", name: "Gravity Well", type: "control", priority: 3, knock: 7, energyCost: 3,
-        effect: "Collapse the arena around your target, crushing escape routes.", color: "#7c3aed", bgColor: "#3b0764", image: "/bad cards/Gavity well.png", isPremium: true, price: 5600
+        effect: "Collapse the arena around your target, crushing escape routes.", color: "#7c3aed", bgColor: "#3b0764", image: "/bad cards/Gavity well.png", isPremium: true, price: 28000
     },
     {
         id: "halo_knee_jab", name: "Halo Knee Jab", type: "strike", priority: 7, knock: 7, energyCost: 3,
-        effect: "Explosive knee-first engage with elite opening speed.", color: "#f59e0b", bgColor: "#451a03", image: "/bad cards/Halo Knee jab.png", isPremium: true, price: 5900
+        effect: "Explosive knee-first engage with elite opening speed.", color: "#f59e0b", bgColor: "#451a03", image: "/bad cards/Halo Knee jab.png", isPremium: true, price: 29500
     },
     {
         id: "halo_shield", name: "Halo Shield", type: "defense", priority: 6, knock: 3, energyCost: 1,
-        effect: "A radiant shield that absorbs impact and steadies your stance.", color: "#38bdf8", bgColor: "#0c2340", image: "/bad cards/Halo shield.png", isPremium: true, price: 3600
+        effect: "A radiant shield that absorbs impact and steadies your stance.", color: "#38bdf8", bgColor: "#0c2340", image: "/bad cards/Halo shield.png", isPremium: true, price: 18000
     },
     {
         id: "jaw_breaker", name: "Jaw Breaker", type: "strike", priority: 4, knock: 10, energyCost: 4,
-        effect: "Heavy close-range smash designed to end rounds instantly.", color: "#ef4444", bgColor: "#450a0a", image: "/bad cards/Jaw breaker.png", isPremium: true, price: 7000
+        effect: "Heavy close-range smash designed to end rounds instantly.", color: "#ef4444", bgColor: "#450a0a", image: "/bad cards/Jaw breaker.png", isPremium: true, price: 35000
     },
     {
         id: "lightning", name: "Lightning", type: "strike", priority: 8, knock: 7, energyCost: 4,
-        effect: "Near-instant electric strike that hits before most counters activate.", color: "#fde047", bgColor: "#422006", image: "/bad cards/LIGHTNING.png", isPremium: true, price: 6800
+        effect: "Near-instant electric strike that hits before most counters activate.", color: "#fde047", bgColor: "#422006", image: "/bad cards/LIGHTNING.png", isPremium: true, price: 34000
     },
     {
         id: "shadow_bind", name: "Shadow Bind", type: "control", priority: 7, knock: 6, energyCost: 3,
-        effect: "Lock the opponent's movement and force a bad follow-up.", color: "#8b5cf6", bgColor: "#2e1065", image: "/bad cards/Shadow bind.png", isPremium: true, price: 5400
+        effect: "Lock the opponent's movement and force a bad follow-up.", color: "#8b5cf6", bgColor: "#2e1065", image: "/bad cards/Shadow bind.png", isPremium: true, price: 27000
     },
     {
         id: "downslide", name: "Downslide", type: "defense", priority: 6, knock: 3, energyCost: 2,
-        effect: "Low evasive slide that avoids high pressure and resets spacing.", color: "#10b981", bgColor: "#052e16", image: "/bad cards/downslide.png", isPremium: true, price: 3900
+        effect: "Low evasive slide that avoids high pressure and resets spacing.", color: "#10b981", bgColor: "#052e16", image: "/bad cards/downslide.png", isPremium: true, price: 19500
     },
 
 ];
