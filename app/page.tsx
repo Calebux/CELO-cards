@@ -22,7 +22,6 @@ export default function ActionOrderLandingPage() {
   const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const { address } = useAccount();
@@ -45,13 +44,6 @@ export default function ActionOrderLandingPage() {
   };
 
 
-
-  useEffect(() => {
-    const fetch_ = () => fetch("/api/online").then(r => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
-    fetch_();
-    const id = setInterval(fetch_, 20_000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     const scale = () => {
@@ -147,22 +139,16 @@ export default function ActionOrderLandingPage() {
         .ko-btn-create .ko-btn-icon  { color: #fff; }
         .ko-btn-join        { left: 40px; top: 316px; }
         .ko-btn-tournament  { left: 40px; top: 372px; }
-        .ko-btn-community   { left: 40px; top: 428px; }
-        .ko-btn-leaderboard { left: 40px; top: 484px; }
-        .ko-btn-profile     { left: 40px; top: 540px; }
-        .ko-btn-challenges  { left: 40px; top: 596px; }
+        .ko-btn-leaderboard { left: 40px; top: 428px; }
+        .ko-btn-profile     { left: 40px; top: 484px; }
         .ko-btn-join .ko-btn-label,
         .ko-btn-tournament .ko-btn-label,
-        .ko-btn-community .ko-btn-label,
         .ko-btn-leaderboard .ko-btn-label,
-        .ko-btn-profile .ko-btn-label,
-        .ko-btn-challenges .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
+        .ko-btn-profile .ko-btn-label { color: #b9e7f4; opacity: 0.8; }
         .ko-btn-join .ko-btn-icon,
         .ko-btn-tournament .ko-btn-icon,
-        .ko-btn-community .ko-btn-icon,
         .ko-btn-leaderboard .ko-btn-icon,
-        .ko-btn-profile .ko-btn-icon,
-        .ko-btn-challenges .ko-btn-icon { color: #56a4cb; }
+        .ko-btn-profile .ko-btn-icon { color: #56a4cb; }
         .ko-nav-btn:hover .ko-btn-label { opacity: 1; text-shadow: 0 0 8px rgba(185,231,244,0.4); }
         .ko-nav-btn:hover .ko-btn-icon  { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(86,164,203,0.8)); }
 
@@ -184,10 +170,8 @@ export default function ActionOrderLandingPage() {
         .ko-land-page-wrapper.ko-minipay .ko-btn-create { left: 36px; top: 248px; }
         .ko-land-page-wrapper.ko-minipay .ko-btn-join { left: 36px; top: 314px; }
         .ko-land-page-wrapper.ko-minipay .ko-btn-tournament { left: 36px; top: 380px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-community { left: 36px; top: 446px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-leaderboard { left: 36px; top: 512px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-profile { left: 36px; top: 578px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-challenges { left: 36px; top: 644px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-leaderboard { left: 36px; top: 446px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-profile { left: 36px; top: 512px; }
 
         /* ── Points badge ─────────────────────────────── */
         .ko-points-badge {
@@ -381,11 +365,6 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">TOURNAMENT</span>
             </a>
 
-            <Link className="ko-nav-btn ko-btn-community" href="/challenges">
-              <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7 21l5-3 5 3-1.5-5.5L21 9.5l-5.5-.5L13 4l-2 5-5.5.5 4.5 2.5z"/></svg>
-              <span className="ko-btn-label">CHALLENGES</span>
-            </Link>
-
             <Link className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
               <span className="ko-btn-label">LEADERBOARD</span>
@@ -396,7 +375,7 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
-            <div className="ko-points-badge" style={{ top: isMp ? 722 : 652 }}>
+            <div className="ko-points-badge" style={{ top: isMp ? 656 : 596 }}>
               <span style={{ fontSize:isMp ? 18 : 16, flexShrink:0 }}>⚡</span>
               <div style={{ display:"flex", flexDirection:"column" }}>
                 <span className="ko-points-label">Total Points</span>
@@ -413,23 +392,8 @@ export default function ActionOrderLandingPage() {
               )}
             </div>
 
-            {/* Live player count — bottom right */}
-            <div style={{ position:"absolute", right:isMp ? 34 : 40, bottom:isMp ? 36 : 32, zIndex:15, display:"flex", alignItems:"center", gap:isMp ? 12 : 10, padding:isMp ? "12px 20px" : "10px 18px", background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:8, backdropFilter:"blur(8px)" }}>
-              <div style={{ width:isMp ? 9 : 8, height:isMp ? 9 : 8, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 8px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite", flexShrink:0 }} />
-              <div style={{ display:"flex", flexDirection:"column" }}>
-                <span style={{ fontSize:isMp ? 8 : 7, fontWeight:700, letterSpacing:2, color:"#4ade80", textTransform:"uppercase", lineHeight:1 }}>Playing Now</span>
-                <span style={{ fontSize:isMp ? 20 : 18, fontWeight:900, color:"#4ade80", letterSpacing:-0.5, lineHeight:1.4 }}>
-                  {onlineCount !== null ? onlineCount.toLocaleString() : "—"}
-                </span>
-              </div>
-            </div>
-
             {/* ── Centre: CTA ───────────────────────────────────────── */}
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isMp ? 662 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isMp ? 12 : 10 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:isMp ? "7px 16px" : "5px 14px", background:"rgba(86,164,203,0.1)", border:"1px solid rgba(86,164,203,0.3)", borderRadius:3 }}>
-                <div style={{ width:isMp ? 6 : 5, height:isMp ? 6 : 5, borderRadius:"50%", background:"#4ade80", animation:"ko-dot-pulse 1.5s ease-in-out infinite" }} />
-                <span style={{ fontSize:isMp ? 10 : 9, fontWeight:700, letterSpacing:2.5, color:"#56a4cb", textTransform:"uppercase" }}>16-PLAYER BRACKET · WIN TO EARN G$</span>
-              </div>
               <div style={{ display:"flex", gap:isMp ? 14 : 12 }}>
                 <Link href="/black-market" style={{
                   display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "12px 26px" : "10px 24px",
@@ -503,40 +467,27 @@ export default function ActionOrderLandingPage() {
             <div className="ko-scrollbar-track" />
             <div className="ko-scrollbar-thumb" />
 
-            {/* ── Social + Fullscreen ──────────────────────────────── */}
-            <div style={{ position:"absolute", left:36, top:isMp ? 758 : 710, zIndex:15 }}>
-              <p style={{ fontSize:isMp ? 10 : 9, fontWeight:700, letterSpacing:2.5, color:"rgba(185,231,244,0.5)", textTransform:"uppercase", marginBottom:10 }}>FOLLOW US</p>
-              <div style={{ display:"flex", gap:10 }}>
-                <a className="ko-social-btn" href="https://t.me/knockorder" target="_blank" rel="noopener noreferrer">
-                  <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-                  Telegram
-                </a>
-                <a className="ko-social-btn" href="https://twitter.com" target="_blank" rel="noopener noreferrer">
-                  <svg viewBox="0 0 24 24"><path d="M4 4l16 16M4 20 20 4"/></svg>
-                  X / Twitter
-                </a>
-                <button
-                  onClick={() => {
-                    void (document.fullscreenElement
-                      ? document.exitFullscreen()
-                      : document.documentElement.requestFullscreen());
-                  }}
-                  title="Fullscreen"
-                  style={{
-                    width: isMp ? 52 : 44, height: isMp ? 52 : 44, borderRadius: "50%",
-                    backgroundColor: "rgba(10,18,32,0.85)",
-                    border: "2px solid rgba(86,164,203,0.45)",
-                    boxShadow: "0 0 14px rgba(86,164,203,0.3)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "pointer", backdropFilter: "blur(8px)",
-                    fontSize: isMp ? 20 : 18, color: "#56a4cb", transition: "all 0.2s ease",
-                    flexShrink: 0,
-                  }}
-                >
-                  ⛶
-                </button>
-              </div>
-            </div>
+            {/* ── Fullscreen ───────────────────────────────────────── */}
+            <button
+              onClick={() => {
+                void (document.fullscreenElement
+                  ? document.exitFullscreen()
+                  : document.documentElement.requestFullscreen());
+              }}
+              title="Fullscreen"
+              style={{
+                position: "absolute", left: 36, bottom: isMp ? 36 : 28, zIndex: 15,
+                width: isMp ? 52 : 44, height: isMp ? 52 : 44, borderRadius: "50%",
+                backgroundColor: "rgba(10,18,32,0.85)",
+                border: "2px solid rgba(86,164,203,0.45)",
+                boxShadow: "0 0 14px rgba(86,164,203,0.3)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", backdropFilter: "blur(8px)",
+                fontSize: isMp ? 20 : 18, color: "#56a4cb", transition: "all 0.2s ease",
+              }}
+            >
+              ⛶
+            </button>
 
           </div>
 

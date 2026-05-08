@@ -72,16 +72,16 @@ export function WalletSync() {
   }, [address, setPlayerAddress]);
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setPlayerName("");
+      return;
+    }
     void fetch(`/api/username?address=${address.toLowerCase()}&t=${Date.now()}`)
       .then((r) => r.json())
       .then((d: { username?: string | null }) => {
-        if (d.username && d.username !== playerName) {
-          setPlayerName(d.username);
-        }
+        setPlayerName(d.username ?? "");
       })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, setPlayerName]);
 
   useEffect(() => {

@@ -188,7 +188,7 @@ export default function OpsPage() {
     );
   }
 
-  const { snapshot, policy, watchlist, activity } = data;
+  const { snapshot, policy, watchlist, activity, audience } = data;
 
   return (
     <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", padding: "40px 32px 64px" }}>
@@ -224,8 +224,11 @@ export default function OpsPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 28 }}>
           {[
             { label: "Ranked Matches", value: snapshot.aggregate.totalMatches.toLocaleString() },
+            { label: "Total Players", value: audience.totalPlayers.toLocaleString() },
+            { label: "Daily Players", value: audience.dailyPlayers.toLocaleString() },
             { label: "Avg Match Length", value: `${snapshot.averageMatchMinutes.toFixed(1)} min` },
             { label: "Avg Round Length", value: `${snapshot.averageRoundSeconds.toFixed(1)} sec` },
+            { label: "Transactions", value: audience.transactions.toLocaleString() },
             { label: "Mirror Match Rate", value: pct(snapshot.mirrorMatchRate) },
             { label: "House Matches", value: activity.house.totalMatches.toLocaleString() },
             { label: "Black Market Buys", value: activity.blackMarket.totalPurchases.toLocaleString() },

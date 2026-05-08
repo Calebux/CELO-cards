@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } from "wagmi";
+import { useAccount, useBalance, useConnect, useConnectors, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
 import { getMiniPayConnector, isMiniPay, formatAddress } from "../lib/minipay";
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -167,17 +167,27 @@ export function WalletSection() {
     );
   }
 
+  const allConnectors = useConnectors();
+  const web3AuthConnector = allConnectors.find((c) => c.id === "web3auth");
+
   return (
     <ConnectButton.Custom>
       {({ account, chain, openConnectModal, openAccountModal, mounted }) => {
         if (!mounted) return null;
         const connected = !!(account && chain);
+        const handleSignIn = () => {
+          if (web3AuthConnector) {
+            void connectAsync({ connector: web3AuthConnector });
+          } else {
+            openConnectModal();
+          }
+        };
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <MuteButton />
             {connected && address && <Balances address={address} />}
             <button
-              onClick={connected ? openAccountModal : openConnectModal}
+              onClick={connected ? openAccountModal : handleSignIn}
               style={{
                 ...base,
                 cursor: "pointer",

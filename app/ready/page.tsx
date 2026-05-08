@@ -24,6 +24,7 @@ function ReadyYourDeck() {
   const [copied, setCopied] = useState(false);
   const [linkShared, setLinkShared] = useState(false);
   const [opponentFound, setOpponentFound] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const searchParams   = useSearchParams();
   const isRanked       = searchParams.get("ranked") === "true";
   const storeMatchId   = useGameStore((s) => s.matchId);
@@ -32,6 +33,8 @@ function ReadyYourDeck() {
   const playerName     = useGameStore((s) => s.playerName);
   const playerAddress  = useGameStore((s) => s.playerAddress);
   const matchMode      = useGameStore((s) => s.matchMode);
+  const selectedCharacter = useGameStore((s) => s.selectedCharacter);
+  const resetMatch     = useGameStore((s) => s.resetMatch);
 
   useEffect(() => {
     const scale = () => {
@@ -60,7 +63,7 @@ function ReadyYourDeck() {
 
   // Keepalive — register match in Redis and keep it alive while host waits
   useEffect(() => {
-    if (!storeMatchId) return;
+    if (!storeMatchId || exiting) return;
     const ping = () => {
       void fetch(`/api/match/${storeMatchId}`, {
         method: "PATCH",
@@ -72,11 +75,11 @@ function ReadyYourDeck() {
     const id = setInterval(ping, 60_000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRanked, matchMode, playerAddress, playerName, storeMatchId]);
+  }, [exiting, isRanked, matchMode, playerAddress, playerName, storeMatchId]);
 
   // Poll for joiner — when found, redirect host to character select (payment happens in lobby)
   useEffect(() => {
-    if (!storeMatchId || playerRole !== "host" || wagerActive || opponentFound) return;
+    if (!storeMatchId || playerRole !== "host" || wagerActive || opponentFound || exiting) return;
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${storeMatchId}?role=host`);
@@ -84,13 +87,13 @@ function ReadyYourDeck() {
         if (data.opponentCharId) {
           clearInterval(poll);
           setOpponentFound(true);
-          router.push("/select-character");
+          router.push(selectedCharacter ? "/lobby" : "/select-character");
         }
       } catch { /* ignore transient errors */ }
     }, 2000);
     return () => clearInterval(poll);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeMatchId, playerRole, wagerActive, opponentFound]);
+  }, [exiting, storeMatchId, playerRole, selectedCharacter, wagerActive, opponentFound]);
 
   const matchId = storeMatchId ?? "AO-????-X";
 
@@ -111,6 +114,23 @@ function ReadyYourDeck() {
     setTimeout(() => setLinkShared(false), 2000);
   };
 
+  const handleExit = async () => {
+    if (exiting) return;
+    setExiting(true);
+    try {
+      if (storeMatchId && playerRole) {
+        await fetch(`/api/match/${storeMatchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "quit", role: playerRole }),
+        }).catch(() => {});
+      }
+    } finally {
+      resetMatch();
+      router.replace("/");
+    }
+  };
+
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
@@ -121,7 +141,7 @@ function ReadyYourDeck() {
 
         {/* ── Top Bar ── */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
-          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
+          <button onClick={() => void handleExit()} style={{ background: "none", border: "none", cursor: exiting ? "default" : "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0, opacity: exiting ? 0.7 : 1 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
           </button>
@@ -246,6 +266,29 @@ function ReadyYourDeck() {
                   Waiting for opponent
                 </span>
               </div>
+
+              <button
+                onClick={() => void handleExit()}
+                disabled={exiting}
+                style={{
+                  width: "100%",
+                  height: 46,
+                  marginTop: 20,
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 6,
+                  cursor: exiting ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: 800,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                  color: "#94a3b8",
+                  textTransform: "uppercase",
+                  opacity: exiting ? 0.7 : 1,
+                }}
+              >
+                {exiting ? "Exiting..." : "Exit Match"}
+              </button>
 
             </div>
           </div>

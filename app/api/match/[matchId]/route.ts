@@ -18,7 +18,7 @@ import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
 import { MultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
 import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
-import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow } from "../../../lib/serverMatch";
+import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow, WagerCurrency } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 
@@ -34,6 +34,10 @@ function validMode(mode: unknown): mode is MultiplayerMode {
 
 function modeNeedsEntryTx(mode: MultiplayerMode): boolean {
   return mode === "wager" || mode === "ranked";
+}
+
+function validWagerCurrency(currency: unknown): currency is WagerCurrency {
+  return currency === "cusd" || currency === "celo" || currency === "gdollar";
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -143,6 +147,10 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     opponentWins:    role === "host" ? match.joinerWins : match.hostWins,
     selfWagered:     role === "host" ? !!match.hostWagerTx   : !!match.joinerWagerTx,
     opponentWagered: role === "host" ? !!match.joinerWagerTx : !!match.hostWagerTx,
+    selfWagerCurrency: role === "host" ? match.hostWagerCurrency : match.joinerWagerCurrency,
+    opponentWagerCurrency: role === "host" ? match.joinerWagerCurrency : match.hostWagerCurrency,
+    requiredWagerCurrency: role === "joiner" ? match.hostWagerCurrency : match.joinerWagerCurrency,
+    requiredWagerAmount: role === "joiner" ? match.hostWagerAmount : match.joinerWagerAmount,
     hostWagerAmount: match.hostWagerAmount,
     abortedBy:       match.abortedBy ?? null,
     mode:            match.mode,
@@ -160,7 +168,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, characterId, playerName, address, wagerTx, wagerAmount } = body as { role: unknown; characterId: unknown; playerName?: string; address?: string; wagerTx?: string; wagerAmount?: string };
+  const { role, characterId, playerName, address, wagerTx, wagerAmount, wagerCurrency } = body as { role: unknown; characterId: unknown; playerName?: string; address?: string; wagerTx?: string; wagerAmount?: string; wagerCurrency?: WagerCurrency };
 
   if (!validRole(role)) {
     return NextResponse.json({ error: "role must be 'host' or 'joiner'" }, { status: 400 });
@@ -192,6 +200,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (match.mode === "wager") {
         if (typeof wagerTx === "string" && !match.hostWagerTx) match.hostWagerTx = wagerTx;
         if (typeof wagerAmount === "string" && !match.hostWagerAmount) match.hostWagerAmount = wagerAmount;
+        if (validWagerCurrency(wagerCurrency) && !match.hostWagerCurrency) match.hostWagerCurrency = wagerCurrency;
       }
     } else {
       closeJoinWindow(match);
@@ -248,13 +257,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, attunedCardIds } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, wagerCurrency, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, attunedCardIds } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
     action?: string;
     wagerTx?: string;
     wagerAmount?: string;
+    wagerCurrency?: WagerCurrency;
     playerName?: string;
     address?: string;
     mode?: MultiplayerMode;
@@ -319,6 +329,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Register wager TX ───────────────────────────────────────────────────
   if (action === "wager") {
+    if (!validWagerCurrency(wagerCurrency)) {
+      return NextResponse.json({ error: "Invalid wager currency" }, { status: 400 });
+    }
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);
       if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
@@ -326,12 +339,24 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         return NextResponse.json({ error: "Wager registration is only valid for wager matches" }, { status: 409 });
       }
       match.lastActivity = Date.now();
+      const opponentCurrency = role === "host" ? match.joinerWagerCurrency : match.hostWagerCurrency;
+      const opponentAmount = role === "host" ? match.joinerWagerAmount : match.hostWagerAmount;
+
+      if (opponentCurrency && opponentCurrency !== wagerCurrency) {
+        return NextResponse.json({ error: "Wager matches require both players to stake the same token." }, { status: 409 });
+      }
+      if (typeof wagerAmount === "string" && opponentAmount && opponentAmount !== wagerAmount) {
+        return NextResponse.json({ error: "Wager matches require both players to stake the same amount." }, { status: 409 });
+      }
+
       if (role === "host") {
         match.hostWagerTx = wagerTx ?? null;
         match.hostWagerAmount = wagerAmount ?? null;
+        match.hostWagerCurrency = wagerCurrency;
       } else {
         match.joinerWagerTx = wagerTx ?? null;
         match.joinerWagerAmount = wagerAmount ?? null;
+        match.joinerWagerCurrency = wagerCurrency;
       }
       try {
         await setMatch(matchId, match);

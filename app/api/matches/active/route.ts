@@ -33,18 +33,21 @@ export async function GET(req: NextRequest) {
   const self = role === "host" ? match.host : match.joiner;
   const opponent = role === "host" ? match.joiner : match.host;
   const bothCharsSelected = !!self.charId && !!opponent.charId;
+  const hostReadyRoute = match.mode === "ranked"
+    ? "/ready?ranked=true"
+    : "/ready";
   const route =
     match.resolvedSlots !== null
       ? "/gameplay"
-      : !self.charId
-        ? role === "host"
-          ? match.mode === "ranked"
-            ? "/ready?ranked=true"
-            : "/ready"
-          : `/join?id=${matchId}`
-        : bothCharsSelected
-          ? "/loadout"
-          : "/lobby";
+      : role === "host" && !opponent.charId
+        ? hostReadyRoute
+        : !self.charId
+          ? role === "host"
+            ? hostReadyRoute
+            : `/join?id=${matchId}`
+          : bothCharsSelected
+            ? "/loadout"
+            : "/lobby";
 
   return NextResponse.json({
     match: {

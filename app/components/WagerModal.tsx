@@ -21,7 +21,8 @@ import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "..
 type Props = {
   onConfirmed: () => void;
   onSkip: () => void;
-  lockedAmount?: string; // pre-filled, read-only (joiner matching host's stake, e.g. "0.01")
+  lockedAmountRaw?: string; // bigint string from server; joiner must match host
+  lockedCurrency?: Currency;
 };
 
 type Step = "idle" | "approving" | "approved" | "entering" | "done" | "error";
@@ -38,7 +39,7 @@ const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
 
-export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
+export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrency }: Props) {
   const isMp = isMiniPay();
   const wrapRef = useRef<HTMLDivElement>(null);
   const pendingAddressRef = useRef<`0x${string}` | null>(null);
@@ -48,10 +49,19 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   const playerRole          = useGameStore((s) => s.playerRole);
   const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
 
+  const formatLockedAmount = (raw?: string) => {
+    if (!raw) return null;
+    try {
+      return formatUnits(BigInt(raw), 18);
+    } catch {
+      return null;
+    }
+  };
+
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>("celo");
-  const [amountInput, setAmountInput] = useState(lockedAmount ?? "0.01");
+  const [currency, setCurrency] = useState<Currency>(lockedCurrency ?? "celo");
+  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw) ?? "0.01");
 
   useEffect(() => {
     const scale = () => {
@@ -88,6 +98,12 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
     pendingAddressRef.current = address ?? null;
   }, [address]);
 
+  useEffect(() => {
+    if (lockedCurrency) setCurrency(lockedCurrency);
+    const formatted = formatLockedAmount(lockedAmountRaw);
+    if (formatted) setAmountInput(formatted);
+  }, [lockedAmountRaw, lockedCurrency]);
+
   // Check existing cUSD allowance for the arena (only relevant for cUSD path)
   const { data: allowance } = useReadContract({
     address: CUSD_CONTRACT,
@@ -119,9 +135,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
   };
 
   // Register wager TX + amount with the match server
-  const registerWagerOnServer = (hash: `0x${string}`, activeAddress: `0x${string}` | null) => {
-    if (!matchId || !playerRole) return;
-    void fetch(`/api/match/${matchId}`, {
+  const registerWagerOnServer = async (hash: `0x${string}`, activeAddress: `0x${string}` | null) => {
+    if (!matchId || !playerRole) return null;
+    const res = await fetch(`/api/match/${matchId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -130,20 +146,39 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         address: activeAddress,
         wagerTx: hash,
         wagerAmount: parsedAmount().toString(),
+        wagerCurrency: currency,
       }),
     });
+    if (res.ok) return null;
+    try {
+      const data = await res.json() as { error?: string };
+      return data.error ?? "Failed to register wager on the match server.";
+    } catch {
+      return "Failed to register wager on the match server.";
+    }
   };
 
   // After enterMatch confirms → done
   useEffect(() => {
-    if (txSuccess && step === "entering") {
+    if (!(txSuccess && step === "entering" && txHash)) return;
+    let cancelled = false;
+    void (async () => {
+      const error = await registerWagerOnServer(txHash, pendingAddressRef.current);
+      if (cancelled) return;
+      if (error) {
+        setErrMsg(error);
+        setStep("error");
+        return;
+      }
       setStep("done");
-      setWager(true, txHash ?? null, currency);
+      setWager(true, txHash, currency);
       setWagerAmountInput(amountInput);
-      if (txHash) registerWagerOnServer(txHash, pendingAddressRef.current);
       onConfirmed();
-    }
-  }, [txSuccess, step]); // eslint-disable-line react-hooks/exhaustive-deps
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [amountInput, currency, onConfirmed, setWager, setWagerAmountInput, step, txHash, txSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When cUSD approved → automatically call enterMatch
   useEffect(() => {
@@ -413,18 +448,20 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           {(["cusd", "celo", "gdollar"] as Currency[]).map((c) => {
             const cc = CURRENCY_CONFIG[c];
+            const disabledByLock = !!lockedCurrency && lockedCurrency !== c;
             return (
               <button
                 key={c}
-                onClick={() => { if (!busy) { setCurrency(c); setErrMsg(""); setStep("idle"); } }}
-                disabled={busy}
+                onClick={() => { if (!busy && !disabledByLock) { setCurrency(c); setErrMsg(""); setStep("idle"); } }}
+                disabled={busy || disabledByLock}
                 style={{
                   flex: 1, padding: isMp ? "40px 0" : "8px 0",
                   background: currency === c ? `${cc.color}26` : "rgba(255,255,255,0.03)",
                   border: `1.5px solid ${currency === c ? cc.color : "#334155"}`,
-                  borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
+                  borderRadius: 6, cursor: busy || disabledByLock ? "not-allowed" : "pointer",
                   fontSize: 12, fontWeight: 700,
-                  color: currency === c ? cc.color : "#6b7280",
+                  color: currency === c ? cc.color : disabledByLock ? "rgba(107,114,128,0.35)" : "#6b7280",
+                  opacity: disabledByLock ? 0.45 : 1,
                   letterSpacing: 1.5, textTransform: "uppercase",
                   fontFamily: "inherit",
                   transition: "all 0.15s",
@@ -454,21 +491,21 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
         {/* Stake amount input */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>
-            {lockedAmount ? "Host's Stake (must match)" : "Your Stake Amount"}
+            {lockedAmountRaw ? "Host's Stake (must match)" : "Your Stake Amount"}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 0, border: `1.5px solid ${lockedAmount ? "#334155" : cfg.color}`, borderRadius: 6, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 0, border: `1.5px solid ${lockedAmountRaw ? "#334155" : cfg.color}`, borderRadius: 6, overflow: "hidden" }}>
             <input
               type="number"
               min="0"
               step="0.001"
               value={amountInput}
-              onChange={(e) => { if (!busy && !lockedAmount) setAmountInput(e.target.value); }}
-              disabled={busy || !!lockedAmount}
+              onChange={(e) => { if (!busy && !lockedAmountRaw) setAmountInput(e.target.value); }}
+              disabled={busy || !!lockedAmountRaw}
               style={{
                 flex: 1, padding: isMp ? "28px 14px" : "10px 14px",
                 background: "rgba(0,0,0,0.4)",
                 border: "none", outline: "none",
-                fontSize: 18, fontWeight: 700, color: lockedAmount ? "#6b7280" : "#f1f5f9",
+                fontSize: 18, fontWeight: 700, color: lockedAmountRaw ? "#6b7280" : "#f1f5f9",
                 fontFamily: "inherit",
               }}
             />
@@ -476,9 +513,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmount }: Props) {
               {cfg.symbol}
             </div>
           </div>
-          {lockedAmount && (
+          {lockedAmountRaw && (
             <p style={{ fontSize: 11, color: "#6b7280", margin: "6px 0 0", letterSpacing: 0.3 }}>
-              Amount set by the match host.
+              Amount and token are set by the match host.
             </p>
           )}
         </div>

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, type CSSProperties } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-import { Card, CardType, Character } from "../lib/gameData";
+import { Card, CardType, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic } from "../lib/soundManager";
 import { formatUnits } from "viem";
@@ -18,97 +18,10 @@ import { ShareCard } from "../components/ShareCard";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
 import { isMiniPay } from "../lib/minipay";
 
-const DEFAULT_BG = "/new addition/gameplay777.webp";
 const MENU_BG = "/new addition/gameplay landing page.webp";
 
 const DESIGN_W = 1440;
 const DESIGN_H = 823;
-
-function FightBackdrop({
-  player,
-  opponent,
-  dimmed = false,
-}: {
-  player: Character | null;
-  opponent: Character | null;
-  dimmed?: boolean;
-}) {
-  const fighterOpacity = dimmed ? 0.2 : 0.38;
-  const fighterSaturation = dimmed ? "saturate(0.85)" : "saturate(1.02)";
-  const fighterBaseStyle: CSSProperties = {
-    position: "absolute",
-    bottom: 0,
-    width: "44%",
-    height: "92%",
-    display: "flex",
-    alignItems: "flex-end",
-    pointerEvents: "none",
-    opacity: fighterOpacity,
-    filter: fighterSaturation,
-  };
-
-  return (
-    <>
-      <MiniPayImage
-        src={DEFAULT_BG}
-        alt=""
-        minipayWidth={1280}
-        minipayQuality={56}
-        priority={!dimmed}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
-      />
-
-      {player?.standingArt && (
-        <div style={{ ...fighterBaseStyle, left: -34, justifyContent: "flex-start" }}>
-          <MiniPayImage
-            src={player.standingArt}
-            alt={player.name}
-            minipayWidth={760}
-            minipayQuality={58}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              objectPosition: "bottom left",
-              transform: "scaleX(-1)",
-            }}
-          />
-        </div>
-      )}
-
-      {opponent?.standingArt && (
-        <div style={{ ...fighterBaseStyle, right: -34, justifyContent: "flex-end" }}>
-          <MiniPayImage
-            src={opponent.standingArt}
-            alt={opponent.name}
-            minipayWidth={760}
-            minipayQuality={58}
-            style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "bottom right" }}
-          />
-        </div>
-      )}
-
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: dimmed
-            ? "linear-gradient(180deg, rgba(2,6,23,0.76) 0%, rgba(2,6,23,0.45) 45%, rgba(2,6,23,0.86) 100%)"
-            : "linear-gradient(180deg, rgba(2,6,23,0.64) 0%, rgba(2,6,23,0.24) 38%, rgba(2,6,23,0.82) 100%)",
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: "radial-gradient(circle at center, rgba(6,168,249,0.08) 0%, rgba(2,6,23,0) 55%)",
-          pointerEvents: "none",
-        }}
-      />
-    </>
-  );
-}
 
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -709,8 +622,6 @@ export default function Gameplay() {
   const player = selectedCharacter;
   const opponent = opponentCharacter;
 
-  const BG_MAIN = DEFAULT_BG;
-
   // Calculate HP bars based on knock
   const maxHP = 40;
   const playerHP = Math.max(0, maxHP - totalOpponentKnock);
@@ -738,6 +649,8 @@ export default function Gameplay() {
   if (!selectedCharacter || !opponentCharacter) {
     return <MatchLoadingScreen playerName="—" opponentName="—" />;
   }
+
+  const BG_MAIN = getArenaBackground(selectedCharacter.id, opponentCharacter.id);
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -769,7 +682,24 @@ export default function Gameplay() {
         )}
 
         {/* Background */}
-        <FightBackdrop player={player} opponent={opponent} />
+        <div style={{ position: "absolute", inset: 0 }}>
+          <MiniPayImage
+            src={BG_MAIN}
+            alt=""
+            minipayWidth={1280}
+            minipayQuality={58}
+            priority
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(180deg, rgba(2,6,23,0.44) 0%, rgba(2,6,23,0.14) 40%, rgba(2,6,23,0.72) 100%)",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
 
 
         {/* Flash Effect */}
@@ -1262,7 +1192,15 @@ export default function Gameplay() {
             <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ position: "absolute", inset: 0, backgroundColor: "#050510", zIndex: -3 }} />
               <div style={{ position: "absolute", inset: 0, zIndex: -2 }}>
-                <FightBackdrop player={player} opponent={opponent} dimmed />
+                <MiniPayImage
+                  src={BG_MAIN}
+                  alt=""
+                  minipayWidth={1280}
+                  minipayQuality={56}
+                  priority
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.82) brightness(0.52)" }}
+                />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(2,6,23,0.76) 0%, rgba(2,6,23,0.45) 45%, rgba(2,6,23,0.86) 100%)" }} />
               </div>
 
               <div style={{ position: "relative", width: 540 }}>
@@ -1648,12 +1586,12 @@ export default function Gameplay() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: isCompactPhone ? 12 : 10, marginBottom: 0 }}>
-                    {/* Rematch — ranked goes to character select, others go to loadout */}
+                    {/* Rematch — ranked/tournament restart in their create flow, solo goes straight to loadout */}
                     <button
                       onClick={() => {
                         if (matchMode === "ranked" || matchMode === "tournament") {
                           resetMatch();
-                          router.push("/create");
+                          router.push(matchMode === "ranked" ? "/create?mode=ranked" : "/create?mode=tourney");
                         } else {
                           rematch();
                           router.push("/loadout");
@@ -1723,8 +1661,6 @@ export default function Gameplay() {
             opponentColor={opponent?.color || "#f906a8"}
             fadeOut={clashAnim.fadeOut}
             arenaBackground={BG_MAIN}
-            playerPortrait={player?.standingArt}
-            opponentPortrait={opponent?.standingArt}
           />
         )}
         {/* Game stuck recovery overlay */}

@@ -217,6 +217,7 @@ export default function Loadout() {
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const [exitingWaitState, setExitingWaitState] = useState(false);
   const [pollErrorCount, setPollErrorCount] = useState(0);
   const [netStatus, setNetStatus] = useState<"online" | "reconnecting" | "offline">("online");
   const [graceRemainingMs, setGraceRemainingMs] = useState<number>(0);
@@ -380,25 +381,42 @@ export default function Loadout() {
   const beginWaitingForResolution = useCallback((pendingKey: string, expectedRound: number) => {
     if (!matchId || !playerRole) return;
 
-    const submitPending = async () => {
-      if (!pendingSubmitRef.current || !matchId) return;
-      try {
-        await fetch(`/api/match/${matchId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pendingSubmitRef.current),
-        });
-      } catch {
-        // keep queued; we'll retry on reconnect/poll
-      }
-    };
-
     const stopPolling = () => {
       if (pollRef.current) clearTimeout(pollRef.current);
       pollRef.current = null;
     };
 
+    const failWaiting = (message: string) => {
+      stopPolling();
+      setWaiting(false);
+      setLockError(message);
+      try { sessionStorage.removeItem(pendingKey); } catch {}
+      pendingSubmitRef.current = null;
+    };
+
+    const submitPending = async () => {
+      if (!pendingSubmitRef.current || !matchId) return;
+      const res = await fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pendingSubmitRef.current),
+      });
+      if (!res.ok) {
+        let errorMessage = "Failed to submit your card order.";
+        try {
+          const data = await res.json() as { error?: string };
+          if (data.error) errorMessage = data.error;
+        } catch {
+          // ignore parse failure
+        }
+        const error = new Error(errorMessage) as Error & { status?: number };
+        error.status = res.status;
+        throw error;
+      }
+    };
+
     setWaiting(true);
+    setLockError(null);
     setNetStatus(navigator.onLine ? "online" : "offline");
     pollDelayRef.current = 2000;
 
@@ -406,6 +424,17 @@ export default function Loadout() {
       if (!matchId || !playerRole) return;
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
+        if (!res.ok) {
+          let errorMessage = "Failed to sync match state.";
+          try {
+            const errorData = await res.json() as { error?: string };
+            if (errorData.error) errorMessage = errorData.error;
+          } catch {
+            // ignore parse failure
+          }
+          failWaiting(errorMessage);
+          return;
+        }
         const data = await res.json() as {
           phase: string;
           round: number;
@@ -467,16 +496,37 @@ export default function Loadout() {
         if (data.opponentReconnecting) {
           setNetStatus("reconnecting");
         }
-      } catch {
+      } catch (error) {
+        const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: number }).status) : null;
+        if (status && status >= 400 && status < 500) {
+          failWaiting(error instanceof Error ? error.message : "Match sync failed.");
+          return;
+        }
         setPollErrorCount((n) => n + 1);
         setNetStatus(navigator.onLine ? "reconnecting" : "offline");
         pollDelayRef.current = Math.min(10_000, Math.round(pollDelayRef.current * 1.5));
-        await submitPending();
+        try {
+          await submitPending();
+        } catch (submitError) {
+          const submitStatus =
+            typeof submitError === "object" && submitError && "status" in submitError
+              ? Number((submitError as { status?: number }).status)
+              : null;
+          if (submitStatus && submitStatus >= 400 && submitStatus < 500) {
+            failWaiting(submitError instanceof Error ? submitError.message : "Failed to submit your card order.");
+            return;
+          }
+        }
       }
       pollRef.current = setTimeout(() => { void pollOnce(); }, pollDelayRef.current);
     };
 
-    void submitPending();
+    void submitPending().catch((error) => {
+      const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: number }).status) : null;
+      if (status && status >= 400 && status < 500) {
+        failWaiting(error instanceof Error ? error.message : "Failed to submit your card order.");
+      }
+    });
     void pollOnce();
   }, [
     matchId,
@@ -490,6 +540,19 @@ export default function Loadout() {
     syncMultiplayerRoundState,
   ]);
   useEffect(() => {
+    const stopPolling = () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
+    };
+
+    const clearPendingState = () => {
+      const currentMatchId = matchId;
+      if (currentMatchId) {
+        try { sessionStorage.removeItem(`pending-submit:${currentMatchId}`); } catch {}
+      }
+      pendingSubmitRef.current = null;
+    };
+
     const handleOnline = () => {
       setNetStatus("online");
       pollDelayRef.current = 2000;
@@ -499,7 +562,22 @@ export default function Loadout() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(p),
-        }).catch(() => {});
+        })
+          .then(async (res) => {
+            if (res.ok) return;
+            let errorMessage = "Failed to resubmit your card order.";
+            try {
+              const data = await res.json() as { error?: string };
+              if (data.error) errorMessage = data.error;
+            } catch {
+              // ignore parse failure
+            }
+            stopPolling();
+            setWaiting(false);
+            setLockError(errorMessage);
+            clearPendingState();
+          })
+          .catch(() => {});
       }
     };
     const handleOffline = () => setNetStatus("offline");
@@ -510,6 +588,32 @@ export default function Loadout() {
       window.removeEventListener("offline", handleOffline);
     };
   }, [matchId]);
+
+  const exitMatchFromWaitState = useCallback(async () => {
+    if (exitingWaitState) return;
+    setExitingWaitState(true);
+    try {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
+      if (matchId) {
+        try { sessionStorage.removeItem(`pending-submit:${matchId}`); } catch {}
+      }
+      pendingSubmitRef.current = null;
+      if (matchId && playerRole) {
+        await fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "quit", role: playerRole }),
+        }).catch(() => {});
+      }
+    } finally {
+      setWaiting(false);
+      setLockError(null);
+      setGraceRemainingMs(0);
+      resetMatch();
+      router.replace("/");
+    }
+  }, [exitingWaitState, matchId, playerRole, resetMatch, router]);
 
   useEffect(() => {
     if (!matchId || !playerRole) return;
@@ -668,7 +772,17 @@ export default function Loadout() {
         <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.75)", zIndex: 10 }}>
           {/* Left: back + logo */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
+            <button
+              onClick={() => {
+                if (waiting) {
+                  void exitMatchFromWaitState();
+                  return;
+                }
+                router.back();
+              }}
+              className="ko-btn ko-btn-secondary"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}
+            >
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
               <span className="ko-btn-text" style={{ fontSize: 13, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
             </button>
@@ -1499,6 +1613,28 @@ export default function Loadout() {
                 </button>
               </div>
             )}
+            <button
+              onClick={() => void exitMatchFromWaitState()}
+              disabled={exitingWaitState}
+              style={{
+                height: 42,
+                minWidth: 168,
+                marginTop: 4,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 6,
+                color: "#cbd5e1",
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                cursor: exitingWaitState ? "default" : "pointer",
+                opacity: exitingWaitState ? 0.7 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              {exitingWaitState ? "Exiting..." : "Exit Match"}
+            </button>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
