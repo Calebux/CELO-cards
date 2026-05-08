@@ -46,6 +46,14 @@ function JoinMatchContent() {
   const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
   const [loadingLive, setLoadingLive] = useState(true);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetch_ = () => fetch("/api/online").then(r => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
+    fetch_();
+    const id = setInterval(fetch_, 20_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Fetch live matches and refresh every 5s
   useEffect(() => {
@@ -189,7 +197,7 @@ function JoinMatchContent() {
           boxShadow: "0 0 40px rgba(0,0,0,0.6)",
         }}>
           {/* Sidebar header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: "#fbbf24", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", animation: "livePulse 2s infinite" }} />
               OPEN MATCHES
@@ -199,6 +207,13 @@ function JoinMatchContent() {
                 {liveMatches.length}
               </div>
             )}
+          </div>
+          {/* Playing now */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, padding: "6px 10px", background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", animation: "livePulse 2s infinite", flexShrink: 0 }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: 1, textTransform: "uppercase" }}>
+              {onlineCount !== null ? onlineCount.toLocaleString() : "—"} playing now
+            </span>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
