@@ -17,6 +17,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar"
 import { useGameStore } from "../lib/gameStore";
 import { formatUnits } from "viem";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 type Props = {
   onConfirmed: () => void;
@@ -35,9 +36,6 @@ const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: 
   celo:    { label: "CELO",    color: "#f9c846",     symbol: "CELO" },
   gdollar: { label: "G$",      color: GDOLLAR_COLOR, symbol: "G$" },
 };
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrency }: Props) {
   const isMp = isMiniPay();

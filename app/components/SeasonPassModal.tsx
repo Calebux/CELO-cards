@@ -7,6 +7,7 @@ import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 const TREASURY = TREASURY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -16,9 +17,6 @@ const USDT_ABI = [
     inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
     outputs: [{ name: "", type: "bool" }] },
 ] as const;
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 type Currency = "celo" | "gdollar" | "usdt";
 
