@@ -11,7 +11,7 @@ import {
   useSwitchChain,
 } from "wagmi";
 import { celo } from "wagmi/chains";
-import { CUSD_CONTRACT, ERC20_ABI } from "../lib/cusd";
+import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
@@ -256,7 +256,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   // ── G$: direct ERC-20 transfer to treasury ────────────────────────────────
   const handleGDollarTransfer = async (activeAddress: `0x${string}`) => {
-    const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+    const TREASURY = TREASURY_ADDRESS;
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
@@ -342,7 +342,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   // ── Fallbacks (no contract deployed) ─────────────────────────────────────
   const handleDirectTransfer = async (activeAddress: `0x${string}`) => {
-    const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+    const TREASURY = TREASURY_ADDRESS;
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
@@ -363,7 +363,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   };
 
   const handleDirectCeloTransfer = async (activeAddress: `0x${string}`) => {
-    const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+    const TREASURY = TREASURY_ADDRESS;
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
