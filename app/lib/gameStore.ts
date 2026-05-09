@@ -517,8 +517,8 @@ export const useGameStore = create<GameState>()(
                     });
                     return;
                 }
-            } catch (e) {
-                console.error("Server-side resolution failed", e);
+            } catch {
+                // server resolution failed — fall through to local fallback
             }
         }
 
@@ -591,8 +591,8 @@ export const useGameStore = create<GameState>()(
                     });
                     return;
                 }
-            } catch (e) {
-                console.error("Server-side resolution failed", e);
+            } catch {
+                // server resolution failed — fall through to local fallback
             }
         }
 
