@@ -20,9 +20,7 @@ import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "..
 import { getCardForgeProgress, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 // Treasury wallet that receives Black Market payments
 const TREASURY = TREASURY_ADDRESS;
