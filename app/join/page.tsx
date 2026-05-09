@@ -7,11 +7,9 @@ import { WalletSection } from "../components/WalletSection";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { MultiplayerMode } from "../lib/matchmaking";
 import { useAccount } from "wagmi";
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 async function fetchSeasonPass(address: string) {
   const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {

@@ -4,11 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { WalletSection } from "../components/WalletSection";
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 type Tab = "casual" | "ranked";
 
