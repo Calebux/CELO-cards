@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
   state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 
   // 3. Server-Side Calculations
-  const aiOrder = generateAIOrder(opponentChar, playerChar, difficulty as any, roundCtx);
+  const aiOrder = generateAIOrder(opponentChar, playerChar, difficulty, roundCtx);
   state.previousAiOrderIds = aiOrder.map((card) => card.id);
   
   const opts: RoundOptions = {
