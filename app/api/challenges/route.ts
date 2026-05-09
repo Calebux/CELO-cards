@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
+import type { PlayerEntry, LeaderboardData } from "../../lib/leaderboard";
 
 const CHALLENGES_KEY = "challenges:data";
 const LEADERBOARD_KEY = "leaderboard:data";
@@ -10,20 +11,6 @@ type ChallengesData = {
   date: string; // YYYY-MM-DD UTC
   claims: Record<string, string[]>; // address → list of claimed challenge IDs today
   dailyStats: Record<string, DailyStats>; // address → today's match stats
-};
-
-type PlayerEntry = {
-  address: string;
-  name?: string;
-  wins: number;
-  losses: number;
-  points: number;
-  lastSeen: number;
-};
-
-type LeaderboardData = {
-  casual: Record<string, PlayerEntry>;
-  ranked: Record<string, PlayerEntry>;
 };
 
 function getTodayUTC() {
