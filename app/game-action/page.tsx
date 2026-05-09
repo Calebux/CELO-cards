@@ -4,9 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { useGameStore } from "../lib/gameStore";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 export default function GameAction() {
   const wrapRef = useRef<HTMLDivElement>(null);

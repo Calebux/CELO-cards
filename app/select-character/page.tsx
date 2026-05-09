@@ -33,8 +33,7 @@ const STAT_META = [
   { key: "drainStat" as const, icon: "bolt", label: "Drain", color: "#4ade80" },
 ];
 
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 export default function SelectCharacter() {
   const isMp = isMiniPay();
