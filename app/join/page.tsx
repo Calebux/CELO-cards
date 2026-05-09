@@ -7,7 +7,7 @@ import { WalletSection } from "../components/WalletSection";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { MultiplayerMode } from "../lib/matchmaking";
 import { useAccount } from "wagmi";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 

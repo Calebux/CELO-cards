@@ -6,7 +6,7 @@ import { CHARACTERS } from "../../lib/gameData";
 import { getArchetypePreview } from "../../lib/archetypes";
 import { WalletSection } from "../../components/WalletSection";
 import { useGameStore } from "../../lib/gameStore";
-import { DESIGN_W, DESIGN_H } from "../../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 
 const STAT_META = [
   { key: "knockStat" as const, label: "Knock", color: "#f87171", icon: "gavel", desc: "Raw damage output per winning slot" },

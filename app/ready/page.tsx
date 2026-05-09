@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { WalletSection } from "../components/WalletSection";
 import { useGameStore } from "../lib/gameStore";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BOUNTY_EXTENSION_DAYS = 5;
 

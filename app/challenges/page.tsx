@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { WalletSection } from "../components/WalletSection";
 import { GDOLLAR_COLOR } from "../lib/gooddollar";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 type Challenge = {
   id: string;

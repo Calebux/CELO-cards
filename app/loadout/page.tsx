@@ -12,7 +12,7 @@ import { WalletSection } from "../components/WalletSection";
 import { getCardForgeProgress, getCardMasteryPerkCopy, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { isMiniPay } from "../lib/minipay";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";

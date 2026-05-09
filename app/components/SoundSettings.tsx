@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getVolume, isMuted, playSound, setMuted, setVolume } from "../lib/soundManager";
 import { isMiniPay } from "../lib/minipay";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 interface SoundSettingsProps {
   /** Called when the modal closes */

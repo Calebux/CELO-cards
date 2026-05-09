@@ -11,7 +11,7 @@ import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CHARACTERS, CARDS } from "../lib/gameData";
 import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 

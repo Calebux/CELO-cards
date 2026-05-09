@@ -20,7 +20,7 @@ import { OnboardingCoach } from "../components/OnboardingCoach";
 import { ShareCard } from "../components/ShareCard";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
 import { isMiniPay } from "../lib/minipay";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const MENU_BG = "/new addition/gameplay landing page.webp";
 

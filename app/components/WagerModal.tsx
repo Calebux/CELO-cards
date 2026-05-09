@@ -17,7 +17,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar"
 import { useGameStore } from "../lib/gameStore";
 import { formatUnits } from "viem";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 type Props = {
   onConfirmed: () => void;

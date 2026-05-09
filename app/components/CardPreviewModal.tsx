@@ -6,7 +6,7 @@ import { Card } from "../lib/gameData";
 import type { CardPerformanceStats } from "../lib/cardProgress";
 import { getCardMasteryPerkCopy, getCardMasterySnapshot, getNextUnlockCopy } from "../lib/cardMastery";
 import { isMiniPay } from "../lib/minipay";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 interface CardPreviewModalProps {
   card: Card;

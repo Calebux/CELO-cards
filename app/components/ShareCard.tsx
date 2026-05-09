@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { isMiniPay } from "../lib/minipay";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 interface Character {
   name: string;

@@ -7,7 +7,7 @@ import { useGameStore } from "../lib/gameStore";
 import { WalletSection } from "../components/WalletSection";
 import { CHARACTERS, CARDS } from "../lib/gameData";
 import type { MatchRecord } from "../lib/gameStore";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 

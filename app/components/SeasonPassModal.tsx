@@ -7,7 +7,7 @@ import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
-import { DESIGN_W, DESIGN_H } from "../lib/layout";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const TREASURY = TREASURY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
