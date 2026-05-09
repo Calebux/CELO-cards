@@ -9,7 +9,6 @@ const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const publicClient = createPublicClient({ chain: celo, transport: http() });
 
