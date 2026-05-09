@@ -12,9 +12,7 @@ import { SeasonPassModal } from './components/SeasonPassModal';
 import { MiniPayImage } from './components/MiniPayImage';
 import { isMiniPay } from './lib/minipay';
 import { useAccount } from 'wagmi';
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from './lib/layout';
 
 export default function ActionOrderLandingPage() {
   const isMp = isMiniPay();
