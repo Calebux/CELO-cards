@@ -111,8 +111,8 @@ export async function POST(req: NextRequest) {
     if (wagered && allowTreasuryEntry) {
       try {
         entryTxHash = await ensureHouseEntryTx(matchId);
-      } catch (e) {
-        console.error("House entry tx failed:", e);
+      } catch {
+        // best-effort — match proceeds without on-chain entry
       }
     }
   }
