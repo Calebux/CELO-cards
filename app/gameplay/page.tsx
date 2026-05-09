@@ -283,7 +283,6 @@ export default function Gameplay() {
   useEffect(() => {
     if (!selectedCharacter || !opponentCharacter) {
       if (!resumeChecked && !vsBot && matchId && playerRole) return;
-      console.warn("Gameplay rendered without player/opponent state. Redirecting...");
       const t = setTimeout(() => router.push("/select-character"), 1500);
       return () => clearTimeout(t);
     }
@@ -474,8 +473,7 @@ export default function Gameplay() {
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");
       setPayoutTxHash(data.txHash ?? null);
       setPayoutState("done");
-    } catch (e) {
-      console.error(e);
+    } catch {
       setPayoutState("error");
     }
   };
