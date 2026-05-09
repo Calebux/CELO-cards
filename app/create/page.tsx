@@ -11,9 +11,7 @@ import { WagerModal } from "../components/WagerModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { isMiniPay } from "../lib/minipay";
 import { useAccount } from "wagmi";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 async function fetchSeasonPass(address: string) {
   const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
