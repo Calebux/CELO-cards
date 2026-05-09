@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { isMiniPay } from "../lib/minipay";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from "../lib/layout";
 
 const STEPS = [
   {
