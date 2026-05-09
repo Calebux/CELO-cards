@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { WalletSection } from "../components/WalletSection";
 import { isMuted, setMuted, getVolume, setVolume } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 export default function SettingsPage() {
   const wrapRef = useRef<HTMLDivElement>(null);

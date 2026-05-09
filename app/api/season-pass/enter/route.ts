@@ -100,7 +100,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ txHash });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Ranked entry failed";
-    console.error("Season pass ranked entry error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
@@ -123,5 +122,4 @@ async function registerEntryOnMatch(matchId: string, role: "host" | "joiner", tx
       await new Promise((resolve) => setTimeout(resolve, 50 + Math.random() * 100));
     }
   }
-  console.error(`registerEntryOnMatch failed for ${matchId} [${role}]`);
 }

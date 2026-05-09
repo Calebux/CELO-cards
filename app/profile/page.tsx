@@ -11,11 +11,9 @@ import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CHARACTERS, CARDS } from "../lib/gameData";
 import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 async function fetchSeasonPass(address: string) {
   const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {

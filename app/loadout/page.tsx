@@ -12,12 +12,10 @@ import { WalletSection } from "../components/WalletSection";
 import { getCardForgeProgress, getCardMasteryPerkCopy, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { isMiniPay } from "../lib/minipay";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 const TABS: { label: string; filter: CardType | "all" }[] = [
   { label: "ALL CARDS", filter: "all" },
@@ -65,8 +63,7 @@ function CardTooltip({
   isAttuned: boolean;
   mobileSheet?: boolean;
 }) {
-  const typeColors: Record<string, string> = { strike: "#f97316", defense: "#3b82f6", control: "#a855f7" };
-  const col = typeColors[card.type] ?? "#56a4cb";
+  const col = TYPE_COLORS[card.type] ?? "#56a4cb";
   const intel = CARD_INTEL[card.id];
   const mastery = getCardMasterySnapshot(stats);
   const forge = !card.isPremium ? getCardForgeProgress(stats) : null;

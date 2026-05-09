@@ -1,5 +1,9 @@
 // cUSD (Celo Dollar) ERC-20 contract config
 
+// Platform treasury addresses
+export const TREASURY_ADDRESS = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
+export const TREASURY_MINIPAY_ADDRESS = "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b" as `0x${string}`;
+
 export const CUSD_ADDRESS = {
   alfajores: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1" as `0x${string}`,
   mainnet:   "0x765DE816845861e75A25fCA122bb6898B8B1282a" as `0x${string}`,

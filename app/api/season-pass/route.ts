@@ -3,12 +3,12 @@ import { createPublicClient, http, parseAbiItem } from "viem";
 import { celo } from "viem/chains";
 import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
+import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../../lib/cusd";
 
-const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
-const TREASURY_MINIPAY = "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b" as `0x${string}`;
+const TREASURY = TREASURY_ADDRESS;
+const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const publicClient = createPublicClient({ chain: celo, transport: http() });
 

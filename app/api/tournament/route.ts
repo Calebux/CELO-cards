@@ -153,7 +153,7 @@ async function streamPrize(treasuryKey: string, winner: `0x${string}`, flowRate:
       args: [GDOLLAR_CONTRACT, account.address, winner, "0x"],
       account,
       chain: celo,
-    }).catch((e) => console.error("Stream deletion failed:", e));
+    }).catch(() => {});
   })();
 
   return txHash;
@@ -377,9 +377,7 @@ export async function POST(req: NextRequest) {
         try {
           const txHash = await streamPrize(treasuryKey, addr, BigInt(item.flowRate));
           txHashes[addr] = txHash;
-          console.log(`Tournament payout ${i + 1}/${preview.length}: ${formatShare(PRIZE_SPLIT[i])} G$ → ${addr} @ ${item.flowRate} wei/s — ${txHash}`);
         } catch (e) {
-          console.error(`Payout failed for ${addr}:`, e);
           return NextResponse.json({ error: `Payout failed for ${addr}: ${e instanceof Error ? e.message : e}` }, { status: 500 });
         }
       }

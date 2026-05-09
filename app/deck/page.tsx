@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WalletSection } from "../components/WalletSection";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -20,9 +21,6 @@ const D1 = "/cards/guard_stance.webp";
 const D2 = "/cards/stability.webp";
 const D3 = "/cards/reversal_edge.webp";
 
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 type Tab = "STRIKE" | "CONTROL" | "DEFENSE";
 

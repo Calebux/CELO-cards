@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { WalletSection } from "../components/WalletSection";
 import { useGameStore } from "../lib/gameStore";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 const BOUNTY_EXTENSION_DAYS = 5;
 
 type LeaderboardPlayer = {

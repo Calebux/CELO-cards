@@ -85,8 +85,7 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ matches: live });
-  } catch (e) {
-    console.error("Live matches error:", e);
+  } catch {
     return NextResponse.json({ matches: [] });
   }
 }

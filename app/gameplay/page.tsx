@@ -1,10 +1,13 @@
 "use client";
 
+const STUCK_GAME_TIMEOUT_MS = 90_000;
+const MATCH_LOADING_DURATION_MS = 2200;
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-import { Card, CardType, getArenaBackground } from "../lib/gameData";
+import { Card, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic } from "../lib/soundManager";
 import { formatUnits } from "viem";
@@ -17,11 +20,9 @@ import { OnboardingCoach } from "../components/OnboardingCoach";
 import { ShareCard } from "../components/ShareCard";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
 import { isMiniPay } from "../lib/minipay";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const MENU_BG = "/new addition/gameplay landing page.webp";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
 
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -139,13 +140,13 @@ export default function Gameplay() {
       setGameStuck(false);
       return;
     }
-    stuckTimerRef.current = setTimeout(() => setGameStuck(true), 90_000);
+    stuckTimerRef.current = setTimeout(() => setGameStuck(true), STUCK_GAME_TIMEOUT_MS);
     return () => { if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current); };
   }, [revealedSlots, isAnimating, showResult, matchPhase]);
 
   // Brief cinematic loading screen before match starts
   useEffect(() => {
-    const t = setTimeout(() => setMatchLoading(false), 2200);
+    const t = setTimeout(() => setMatchLoading(false), MATCH_LOADING_DURATION_MS);
     return () => clearTimeout(t);
   }, []);
 
@@ -283,7 +284,6 @@ export default function Gameplay() {
   useEffect(() => {
     if (!selectedCharacter || !opponentCharacter) {
       if (!resumeChecked && !vsBot && matchId && playerRole) return;
-      console.warn("Gameplay rendered without player/opponent state. Redirecting...");
       const t = setTimeout(() => router.push("/select-character"), 1500);
       return () => clearTimeout(t);
     }
@@ -474,8 +474,7 @@ export default function Gameplay() {
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");
       setPayoutTxHash(data.txHash ?? null);
       setPayoutState("done");
-    } catch (e) {
-      console.error(e);
+    } catch {
       setPayoutState("error");
     }
   };

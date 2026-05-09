@@ -1,21 +1,8 @@
 import { NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
+import type { LeaderboardData } from "../../lib/leaderboard";
 
 const LEADERBOARD_KEY = "leaderboard:data";
-
-type PlayerEntry = {
-  address: string;
-  name?: string;
-  wins: number;
-  losses: number;
-  points: number;
-  lastSeen: number;
-};
-
-type LeaderboardData = {
-  casual: Record<string, PlayerEntry>;
-  ranked: Record<string, PlayerEntry>;
-};
 
 // Returns a live-ish player count:
 //  - real unique players from leaderboard

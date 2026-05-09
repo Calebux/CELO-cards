@@ -3,9 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-
-const DESIGN_W = 1440;
-const DESIGN_H = 823;
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 export function TutorialModal() {
   const { address } = useAccount();

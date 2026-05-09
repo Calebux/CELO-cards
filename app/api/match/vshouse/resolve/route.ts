@@ -111,8 +111,8 @@ export async function POST(req: NextRequest) {
     if (wagered && allowTreasuryEntry) {
       try {
         entryTxHash = await ensureHouseEntryTx(matchId);
-      } catch (e) {
-        console.error("House entry tx failed:", e);
+      } catch {
+        // best-effort — match proceeds without on-chain entry
       }
     }
   }
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
   state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 
   // 3. Server-Side Calculations
-  const aiOrder = generateAIOrder(opponentChar, playerChar, difficulty as any, roundCtx);
+  const aiOrder = generateAIOrder(opponentChar, playerChar, difficulty, roundCtx);
   state.previousAiOrderIds = aiOrder.map((card) => card.id);
   
   const opts: RoundOptions = {
