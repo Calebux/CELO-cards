@@ -1,5 +1,8 @@
 "use client";
 
+const STUCK_GAME_TIMEOUT_MS = 90_000;
+const MATCH_LOADING_DURATION_MS = 2200;
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
@@ -139,13 +142,13 @@ export default function Gameplay() {
       setGameStuck(false);
       return;
     }
-    stuckTimerRef.current = setTimeout(() => setGameStuck(true), 90_000);
+    stuckTimerRef.current = setTimeout(() => setGameStuck(true), STUCK_GAME_TIMEOUT_MS);
     return () => { if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current); };
   }, [revealedSlots, isAnimating, showResult, matchPhase]);
 
   // Brief cinematic loading screen before match starts
   useEffect(() => {
-    const t = setTimeout(() => setMatchLoading(false), 2200);
+    const t = setTimeout(() => setMatchLoading(false), MATCH_LOADING_DURATION_MS);
     return () => clearTimeout(t);
   }, []);
 
