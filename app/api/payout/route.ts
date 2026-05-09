@@ -178,7 +178,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ txHash, bothWagered });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Payout failed";
-    console.error("Payout error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   } finally {
     await redis.del(lockKey).catch(() => {});
