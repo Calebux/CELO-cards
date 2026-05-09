@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-import { Card, CardType, getArenaBackground } from "../lib/gameData";
+import { Card, getArenaBackground } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic } from "../lib/soundManager";
 import { formatUnits } from "viem";
