@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, createWalletClient, http, formatUnits } from "viem";
+import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { redis, getMatch } from "../../lib/redis";
@@ -69,7 +69,6 @@ export async function POST(req: NextRequest) {
   // Idempotency — prevent double payout for the same match
   const existingPayout = await redis.get<string>(`payout:${matchId}`);
   if (existingPayout) {
-    console.log(`Payout ${matchId}: already paid — returning cached tx ${existingPayout}`);
     return NextResponse.json({ txHash: existingPayout, cached: true });
   }
 
@@ -140,8 +139,6 @@ export async function POST(req: NextRequest) {
         ],
       });
       txHash = await walletClient.writeContract(request);
-      const payoutTag = bothWagered ? "dual-wager" : "solo";
-      console.log(`Payout ${matchId} [${payoutTag}]: G$ stream started to ${winner} @ ${baseFlowRate} wei/sec — tx ${txHash}`);
       // Note: stream auto-expires on Superfluid after the token balance is drained;
       // serverless setTimeout cannot be used here (function lifetime too short).
       await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
@@ -158,12 +155,10 @@ export async function POST(req: NextRequest) {
         args: [matchIdToBytes32(matchId), winner],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId}: completeMatch(${winner}) — tx ${txHash}`);
     } else if (currency === "celo") {
       // Native CELO direct transfer
       const celoAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO;
       txHash = await walletClient.sendTransaction({ to: winner, value: celoAmt });
-      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct CELO ${formatUnits(celoAmt, 18)} to ${winner} — tx ${txHash}`);
     } else {
       // cUSD direct transfer
       const cusdAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT;
@@ -175,7 +170,6 @@ export async function POST(req: NextRequest) {
         args: [winner, cusdAmt],
       });
       txHash = await walletClient.writeContract(request);
-      console.log(`Payout ${matchId} [${bothWagered ? "dual" : "solo"}]: direct transfer ${formatUnits(cusdAmt, 18)} cUSD to ${winner} — tx ${txHash}`);
     }
 
     // Record payout so it can't be triggered twice
