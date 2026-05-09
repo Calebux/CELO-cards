@@ -89,11 +89,9 @@ export async function POST(req: NextRequest) {
     claims[key] = today;
     await writeClaims(claims);
 
-    console.log(`Daily reward: G$ stream to ${address} — tx ${txHash}`);
     return NextResponse.json({ txHash, streaming: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed";
-    console.error("Daily reward error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
