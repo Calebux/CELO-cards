@@ -99,6 +99,13 @@ export default function TradePage() {
       const data = await res.json() as { ok?: boolean; error?: string };
       if (data.ok) {
         setActionMsg(`Offer ${action}ed!`);
+        // Immediately grant the card to local store so it shows without a page refresh
+        if (action === "accept") {
+          const acceptedOffer = inbox.find(o => o.id === tradeId);
+          if (acceptedOffer && !unlockedPremiumCards.includes(acceptedOffer.offeredCardId)) {
+            purchaseCard(acceptedOffer.offeredCardId, 0);
+          }
+        }
         void fetchOffers(tab === "outbox" ? "outbox" : "inbox");
       } else {
         setActionMsg(data.error ?? "Action failed.");

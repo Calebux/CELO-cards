@@ -67,6 +67,7 @@ export default function ProfilePage() {
     unlockedPremiumCards,
     attunedCardIds,
     cardPerformance,
+    purchaseCard,
   } = useGameStore();
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
 
@@ -217,6 +218,19 @@ export default function ProfilePage() {
       setReferralSubmitting(false);
     }
   }, [address, referralSubmitting, referralInput]);
+
+  // Apply any pending trade grants (cards received via accepted trades)
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/trade?address=${address.toLowerCase()}&view=grants`)
+      .then(r => r.ok ? r.json() as Promise<{ grants: string[] }> : null)
+      .then(data => {
+        data?.grants?.forEach(cardId => {
+          if (!unlockedPremiumCards.includes(cardId)) purchaseCard(cardId, 0);
+        });
+      })
+      .catch(() => {});
+  }, [address, unlockedPremiumCards, purchaseCard]);
 
   // Fetch minted NFT cards
   useEffect(() => {
@@ -737,18 +751,18 @@ export default function ProfilePage() {
                 {!referralData?.referredBy && (
                   <div>
                     <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Have a code? Enter it for +50 pts</div>
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 6, overflow: "hidden" }}>
                       <input
                         value={referralInput}
                         onChange={e => setReferralInput(e.target.value)}
                         placeholder="Enter code..."
                         maxLength={12}
-                        style={{ flex: 1, background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 8px", fontSize: 10, color: "#e2e8f0", fontFamily: "monospace", outline: "none" }}
+                        style={{ flex: 1, minWidth: 0, background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 8px", fontSize: 10, color: "#e2e8f0", fontFamily: "monospace", outline: "none" }}
                       />
                       <button
                         onClick={() => void submitReferral()}
                         disabled={referralSubmitting || !referralInput.trim()}
-                        style={{ padding: "5px 10px", borderRadius: 4, cursor: referralSubmitting || !referralInput.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", opacity: referralSubmitting || !referralInput.trim() ? 0.5 : 1 }}
+                        style={{ flexShrink: 0, padding: "5px 10px", borderRadius: 4, cursor: referralSubmitting || !referralInput.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", opacity: referralSubmitting || !referralInput.trim() ? 0.5 : 1 }}
                       >
                         {referralSubmitting ? "..." : "Apply"}
                       </button>
