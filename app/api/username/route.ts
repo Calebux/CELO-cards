@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
+import { checkRateLimit } from "../../lib/rateLimit";
 
 // GET /api/username?address=0x...          → { address, username }
 // GET /api/username?addresses=0x1,0x2,...  → { map: Record<address, username> }
@@ -49,6 +50,12 @@ export async function POST(req: NextRequest) {
   const { address, username } = body;
   if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+
+  // Rate limit: 5 username changes per address per hour
+  const allowed = await checkRateLimit(`ratelimit:username:${address.toLowerCase()}`, 5, 3600);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
   }
   if (!username || typeof username !== "string") {
     return NextResponse.json({ error: "Username required" }, { status: 400 });
