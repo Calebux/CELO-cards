@@ -77,6 +77,9 @@ export default function ProfilePage() {
   const [nameError, setNameError] = useState("");
   const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
   const [serverStats, setServerStats] = useState<{ points: number; wins: number; losses: number } | null>(null);
+  const [streak, setStreak] = useState<{ count: number; longestStreak: number } | null>(null);
+  const [streakChecking, setStreakChecking] = useState(false);
+  const [streakMsg, setStreakMsg] = useState<string | null>(null);
   const [passInfo, setPassInfo] = useState<{ active: boolean; expiry: number | null; plan: string | null } | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
@@ -135,6 +138,39 @@ export default function ProfilePage() {
       setNameSaving(false);
     }
   };
+
+  // Fetch streak on load
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/streak?address=${address.toLowerCase()}`)
+      .then(r => r.ok ? r.json() as Promise<{ count: number; longestStreak: number }> : null)
+      .then(data => { if (data) setStreak(data); })
+      .catch(() => {});
+  }, [address]);
+
+  const checkInStreak = useCallback(async () => {
+    if (!address || streakChecking) return;
+    setStreakChecking(true);
+    setStreakMsg(null);
+    try {
+      const res = await fetch("/api/streak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      const data = await res.json() as { streak: { count: number; longestStreak: number }; wasAlreadyCheckedIn: boolean; bonusPoints: number };
+      setStreak(data.streak);
+      if (data.wasAlreadyCheckedIn) {
+        setStreakMsg("Already checked in today!");
+      } else {
+        setStreakMsg(`Day ${data.streak.count} streak! +${data.bonusPoints} pts`);
+      }
+    } catch {
+      setStreakMsg("Check-in failed. Try again.");
+    } finally {
+      setStreakChecking(false);
+    }
+  }, [address, streakChecking]);
 
   // Sync achievements to server and fetch persisted unlocks
   const syncAchievements = useCallback(async (addr: string) => {
