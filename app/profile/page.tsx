@@ -88,6 +88,8 @@ export default function ProfilePage() {
   const [referralSubmitting, setReferralSubmitting] = useState(false);
   const [referralMsg, setReferralMsg] = useState<string | null>(null);
   const [referralCopied, setReferralCopied] = useState(false);
+  const [mintedCardIds, setMintedCardIds] = useState<Set<string>>(new Set());
+  const [mintingCardId, setMintingCardId] = useState<string | null>(null);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
   const previewCard = previewCardId ? ownedCards.find((card) => card.id === previewCardId) ?? null : null;
   const highestMasteryTier = getHighestMasteryTier(cardPerformance);
@@ -215,6 +217,36 @@ export default function ProfilePage() {
       setReferralSubmitting(false);
     }
   }, [address, referralSubmitting, referralInput]);
+
+  // Fetch minted NFT cards
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/nft/mint?address=${address.toLowerCase()}`)
+      .then(r => r.ok ? r.json() as Promise<{ minted: Array<{ cardId: string }> }> : null)
+      .then(data => { if (data?.minted) setMintedCardIds(new Set(data.minted.map(m => m.cardId))); })
+      .catch(() => {});
+  }, [address]);
+
+  const mintCard = useCallback(async (cardId: string) => {
+    if (!address || mintingCardId) return;
+    setMintingCardId(cardId);
+    const stats = cardPerformance[cardId] ?? null;
+    try {
+      const res = await fetch("/api/nft/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, cardId, stats }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; record?: { cardId: string } };
+      if (data.ok) {
+        setMintedCardIds(prev => new Set([...prev, cardId]));
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setMintingCardId(null);
+    }
+  }, [address, mintingCardId, cardPerformance]);
 
   // Sync achievements to server and fetch persisted unlocks
   const syncAchievements = useCallback(async (addr: string) => {
