@@ -84,7 +84,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>(isMiniPay() ? "usdt" : "celo");
+  const [currency, setCurrency] = useState<Currency>("celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
@@ -145,6 +145,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { writeContractAsync } = useWriteContract();
   const { connectAsync } = useConnect();
   const { switchChainAsync } = useSwitchChain();
+  const availableCurrencies: Currency[] = isMp ? ["celo", "usdt"] : ["celo", "gdollar"];
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
 
@@ -403,7 +404,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           <>
             {/* Currency toggle */}
             <div style={{ padding: "16px 24px 0", display: "flex", gap: 8 }}>
-              {(isMp ? ["usdt", "celo", "gdollar"] : ["celo", "gdollar"] as Currency[]).map((c) => {
+              {availableCurrencies.map((c) => {
                 const activeColor = c === "gdollar" ? "#00C58E" : c === "usdt" ? "#26a17b" : "#56a4cb";
                 const label = c === "celo" ? "Pay with CELO" : c === "usdt" ? "Pay with USDT" : "Pay with G$";
                 return (
@@ -423,6 +424,13 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 </button>
                 );
               })}
+            </div>
+            <div style={{ padding: "10px 24px 0", fontSize: 11, lineHeight: 1.45, color: "rgba(148,163,184,0.92)" }}>
+              {isMp ? (
+                <>MiniPay season passes support <span style={{ color: "#56a4cb", fontWeight: 700 }}>CELO</span> or <span style={{ color: "#26a17b", fontWeight: 700 }}>USDT</span>.</>
+              ) : (
+                <>Web season passes support <span style={{ color: "#56a4cb", fontWeight: 700 }}>CELO</span> or <span style={{ color: "#00C58E", fontWeight: 700 }}>G$</span>.</>
+              )}
             </div>
 
             {/* Plan selector */}
