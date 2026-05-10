@@ -9,9 +9,10 @@ import { ClaimGDollar } from "../components/ClaimGDollar";
 import { CardPreviewModal } from "../components/CardPreviewModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CHARACTERS, CARDS } from "../lib/gameData";
-import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount } from "../lib/cardMastery";
+import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount, getCardForgeProgress } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { addressToCode } from "../lib/referral";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -77,8 +78,18 @@ export default function ProfilePage() {
   const [nameError, setNameError] = useState("");
   const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
   const [serverStats, setServerStats] = useState<{ points: number; wins: number; losses: number } | null>(null);
+  const [streak, setStreak] = useState<{ count: number; longestStreak: number } | null>(null);
+  const [streakChecking, setStreakChecking] = useState(false);
+  const [streakMsg, setStreakMsg] = useState<string | null>(null);
   const [passInfo, setPassInfo] = useState<{ active: boolean; expiry: number | null; plan: string | null } | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const [referralData, setReferralData] = useState<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number } | null>(null);
+  const [referralInput, setReferralInput] = useState("");
+  const [referralSubmitting, setReferralSubmitting] = useState(false);
+  const [referralMsg, setReferralMsg] = useState<string | null>(null);
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [mintedCardIds, setMintedCardIds] = useState<Set<string>>(new Set());
+  const [mintingCardId, setMintingCardId] = useState<string | null>(null);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
   const previewCard = previewCardId ? ownedCards.find((card) => card.id === previewCardId) ?? null : null;
   const highestMasteryTier = getHighestMasteryTier(cardPerformance);
@@ -135,6 +146,107 @@ export default function ProfilePage() {
       setNameSaving(false);
     }
   };
+
+  // Fetch streak on load
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/streak?address=${address.toLowerCase()}`)
+      .then(r => r.ok ? r.json() as Promise<{ count: number; longestStreak: number }> : null)
+      .then(data => { if (data) setStreak(data); })
+      .catch(() => {});
+  }, [address]);
+
+  const checkInStreak = useCallback(async () => {
+    if (!address || streakChecking) return;
+    setStreakChecking(true);
+    setStreakMsg(null);
+    try {
+      const res = await fetch("/api/streak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      const data = await res.json() as { streak: { count: number; longestStreak: number }; wasAlreadyCheckedIn: boolean; bonusPoints: number };
+      setStreak(data.streak);
+      if (data.wasAlreadyCheckedIn) {
+        setStreakMsg("Already checked in today!");
+      } else {
+        setStreakMsg(`Day ${data.streak.count} streak! +${data.bonusPoints} pts`);
+      }
+    } catch {
+      setStreakMsg("Check-in failed. Try again.");
+    } finally {
+      setStreakChecking(false);
+    }
+  }, [address, streakChecking]);
+
+  // Fetch referral data on load
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/referral?address=${address.toLowerCase()}`)
+      .then(r => r.ok ? r.json() as Promise<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
+      .then(data => { if (data) setReferralData(data); })
+      .catch(() => {});
+  }, [address]);
+
+  const submitReferral = useCallback(async () => {
+    if (!address || referralSubmitting || !referralInput.trim()) return;
+    setReferralSubmitting(true);
+    setReferralMsg(null);
+    try {
+      const res = await fetch("/api/referral", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, code: referralInput.trim() }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; refereeBonus?: number };
+      if (data.ok) {
+        setReferralMsg(`Referral applied! +${data.refereeBonus ?? 50} pts bonus`);
+        setReferralInput("");
+        // Refresh referral data
+        fetch(`/api/referral?address=${address.toLowerCase()}`)
+          .then(r => r.ok ? r.json() as Promise<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
+          .then(d => { if (d) setReferralData(d); })
+          .catch(() => {});
+      } else {
+        setReferralMsg(data.error ?? "Failed to apply code.");
+      }
+    } catch {
+      setReferralMsg("Request failed. Try again.");
+    } finally {
+      setReferralSubmitting(false);
+    }
+  }, [address, referralSubmitting, referralInput]);
+
+  // Fetch minted NFT cards
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/nft/mint?address=${address.toLowerCase()}`)
+      .then(r => r.ok ? r.json() as Promise<{ minted: Array<{ cardId: string }> }> : null)
+      .then(data => { if (data?.minted) setMintedCardIds(new Set(data.minted.map(m => m.cardId))); })
+      .catch(() => {});
+  }, [address]);
+
+  const mintCard = useCallback(async (cardId: string) => {
+    if (!address || mintingCardId) return;
+    setMintingCardId(cardId);
+    const stats = cardPerformance[cardId] ?? null;
+    try {
+      const res = await fetch("/api/nft/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, cardId, stats }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; record?: { cardId: string } };
+      if (data.ok) {
+        setMintedCardIds(prev => new Set([...prev, cardId]));
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setMintingCardId(null);
+    }
+  }, [address, mintingCardId, cardPerformance]);
 
   // Sync achievements to server and fetch persisted unlocks
   const syncAchievements = useCallback(async (addr: string) => {
@@ -290,6 +402,14 @@ export default function ProfilePage() {
               <div style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>
                 {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "NOT CONNECTED"}
               </div>
+              {address && (
+                <button
+                  onClick={() => router.push(`/profile/${address}`)}
+                  style={{ marginTop: 8, padding: "4px 12px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.25)", fontSize: 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}
+                >
+                  🔗 Public Profile
+                </button>
+              )}
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ fontSize: 24, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>
                   {displayPoints.toLocaleString()}
@@ -346,6 +466,49 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {/* Daily Streak */}
+            {address && (
+              <div style={{
+                backgroundColor: "rgba(15,23,42,0.55)",
+                border: streak && streak.count >= 3 ? "1px solid rgba(249,115,22,0.35)" : "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 8, padding: "14px 16px",
+                boxShadow: streak && streak.count >= 3 ? "0 0 12px rgba(249,115,22,0.08)" : "none",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#f97316", textTransform: "uppercase" }}>🔥 Daily Streak</div>
+                  {streak && streak.count > 0 && (
+                    <div style={{ fontSize: 11, fontWeight: 800, color: streak.count >= 7 ? "#fbbf24" : "#f97316" }}>
+                      Day {streak.count}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: "#6b7280" }}>
+                    Best: <span style={{ color: "#94a3b8", fontWeight: 700 }}>{streak?.longestStreak ?? 0} days</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: "#6b7280" }}>
+                    {streak && streak.count >= 7 ? "🏆 On fire!" : streak && streak.count >= 3 ? "⚡ Keep it up!" : "Check in daily for bonus pts"}
+                  </div>
+                </div>
+                {streakMsg && (
+                  <div style={{ fontSize: 9, color: "#4ade80", marginBottom: 8, textAlign: "center", fontWeight: 600 }}>{streakMsg}</div>
+                )}
+                <button
+                  onClick={() => void checkInStreak()}
+                  disabled={streakChecking}
+                  style={{
+                    width: "100%", padding: "6px 0", borderRadius: 5, cursor: streakChecking ? "not-allowed" : "pointer",
+                    background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.35)",
+                    fontSize: 9, fontWeight: 800, color: "#f97316",
+                    letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit",
+                    opacity: streakChecking ? 0.6 : 1,
+                  }}
+                >
+                  {streakChecking ? "Checking..." : "Check In Today →"}
+                </button>
+              </div>
+            )}
+
             {/* Stats */}
             <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
@@ -364,6 +527,83 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
+
+            {/* Referral */}
+            {address && (
+              <div style={{
+                backgroundColor: "rgba(15,23,42,0.55)",
+                border: "1px solid rgba(86,164,203,0.25)",
+                borderRadius: 8, padding: "14px 16px",
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>🔗 Referrals</div>
+                {/* Your referral code */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Your referral code</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ flex: 1, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, padding: "5px 8px", fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 2, fontFamily: "monospace" }}>
+                      {referralData?.code ?? addressToCode(address)}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const code = referralData?.code ?? addressToCode(address);
+                        void navigator.clipboard.writeText(code).then(() => {
+                          setReferralCopied(true);
+                          setTimeout(() => setReferralCopied(false), 2000);
+                        });
+                      }}
+                      style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit" }}
+                    >
+                      {referralCopied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 8, color: "#475569", marginTop: 3 }}>
+                    Earn +100 pts for each friend who joins using your code
+                  </div>
+                </div>
+                {/* Stats row */}
+                {referralData && (
+                  <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#56a4cb" }}>{referralData.referrals.length}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Referred</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}>+{referralData.totalBonusEarned}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Pts Earned</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: referralData.referredBy ? "#4ade80" : "#475569" }}>{referralData.referredBy ? "Yes" : "No"}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Referred By</div>
+                    </div>
+                  </div>
+                )}
+                {/* Apply code (only if not already referred) */}
+                {!referralData?.referredBy && (
+                  <div>
+                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Have a code? Enter it for +50 pts</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        value={referralInput}
+                        onChange={e => setReferralInput(e.target.value)}
+                        placeholder="Enter code..."
+                        maxLength={12}
+                        style={{ flex: 1, background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 8px", fontSize: 10, color: "#e2e8f0", fontFamily: "monospace", outline: "none" }}
+                      />
+                      <button
+                        onClick={() => void submitReferral()}
+                        disabled={referralSubmitting || !referralInput.trim()}
+                        style={{ padding: "5px 10px", borderRadius: 4, cursor: referralSubmitting || !referralInput.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", opacity: referralSubmitting || !referralInput.trim() ? 0.5 : 1 }}
+                      >
+                        {referralSubmitting ? "..." : "Apply"}
+                      </button>
+                    </div>
+                    {referralMsg && (
+                      <div style={{ fontSize: 9, color: referralMsg.includes("applied") ? "#4ade80" : "#f87171", marginTop: 5 }}>{referralMsg}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Col 2: Achievements + Owned Cards ── */}
@@ -442,7 +682,10 @@ export default function ProfilePage() {
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#f87171", textTransform: "uppercase" }}>
                   Black Market Cards
                 </div>
-                <div style={{ fontSize: 10, color: "#64748b" }}>{ownedCards.length} owned</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 10, color: "#64748b" }}>{ownedCards.length} owned</div>
+                  <button onClick={() => router.push("/trade")} style={{ background: "none", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontSize: 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}>TRADE →</button>
+                </div>
               </div>
 
               {ownedCards.length === 0 ? (
@@ -461,6 +704,9 @@ export default function ProfilePage() {
                   {ownedCards.map((card) => {
                     const isAttuned = attunedCardIds.includes(card.id);
                     const masteryTier = getCardMasterySnapshot(cardPerformance[card.id] ?? null).tier;
+                    const forgeReady = getCardForgeProgress(cardPerformance[card.id] ?? null).ready;
+                    const isMinted = mintedCardIds.has(card.id);
+                    const isMinting = mintingCardId === card.id;
                     return (
                     <div
                       key={card.id}
@@ -505,6 +751,22 @@ export default function ProfilePage() {
                           {isAttuned ? "Attuned" : masteryTier > 0 ? `T${masteryTier}` : "Owned"}
                         </span>
                       </div>
+                      {/* NFT mint button for forge-ready cards */}
+                      {forgeReady && (
+                        <div style={{ position: "absolute", bottom: 22, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 2 }}>
+                          {isMinted ? (
+                            <span style={{ fontSize: 6, fontWeight: 800, background: "rgba(74,222,128,0.9)", color: "#000", borderRadius: 3, padding: "2px 5px", letterSpacing: 1 }}>NFT ✓</span>
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); void mintCard(card.id); }}
+                              disabled={!!mintingCardId}
+                              style={{ fontSize: 6, fontWeight: 800, background: "rgba(86,164,203,0.9)", color: "#000", border: "none", borderRadius: 3, padding: "2px 5px", cursor: mintingCardId ? "not-allowed" : "pointer", letterSpacing: 1, fontFamily: "inherit" }}
+                            >
+                              {isMinting ? "..." : "MINT"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     );
                   })}

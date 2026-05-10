@@ -20,6 +20,7 @@ import {
   buildPayoutClaimAuthMessage,
   verifyTreasuryActionSignature,
 } from "../../lib/treasuryAuth";
+import { checkRateLimit } from "../../lib/rateLimit";
 
 interface MatchWagerInfo {
   bothWagered: boolean;
@@ -64,6 +65,12 @@ export async function POST(req: NextRequest) {
     if (body.currency === "gdollar") currency = "gdollar";
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  // Rate limit: 5 payout attempts per address per minute
+  const allowed = await checkRateLimit(`ratelimit:payout:${claimantAddress.toLowerCase()}`, 5, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
   }
 
   // Idempotency — prevent double payout for the same match

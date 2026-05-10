@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
 import type { PlayerEntry, LeaderboardData } from "../../lib/leaderboard";
+import { checkRateLimit } from "../../lib/rateLimit";
 
 const CHALLENGES_KEY = "challenges:data";
 const LEADERBOARD_KEY = "leaderboard:data";
@@ -107,8 +108,15 @@ export async function POST(req: NextRequest) {
   const challenge = DAILY_CHALLENGES.find((c) => c.id === challengeId);
   if (!challenge) return NextResponse.json({ error: "Unknown challenge" }, { status: 400 });
 
-  const data = await readData();
   const addr = address.toLowerCase();
+
+  // Rate limit: 10 claim attempts per address per minute
+  const allowed = await checkRateLimit(`ratelimit:challenges:${addr}`, 10, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
+  }
+
+  const data = await readData();
   const claimed = data.claims[addr] ?? [];
   if (claimed.includes(challengeId!)) {
     return NextResponse.json({ error: "Already claimed" }, { status: 409 });

@@ -21,6 +21,7 @@ import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../..
 import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow, WagerCurrency } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
+import { sanitizePlayerName } from "../../../lib/rateLimit";
 
 const ROUND_GRACE_MS = 30 * 1000; // grace when one player has submitted and the other is reconnecting
 
@@ -195,7 +196,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     if (role === "host") {
       reopenJoinWindow(match);
       match.host.charId = characterId;
-      if (typeof playerName === "string") match.host.playerName = playerName;
+      const sName = sanitizePlayerName(playerName);
+      if (sName) match.host.playerName = sName;
       if (address) match.host.address = address;
       if (match.mode === "wager") {
         if (typeof wagerTx === "string" && !match.hostWagerTx) match.hostWagerTx = wagerTx;
@@ -205,7 +207,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     } else {
       closeJoinWindow(match);
       match.joiner.charId = characterId;
-      if (typeof playerName === "string") match.joiner.playerName = playerName;
+      const sNameJ = sanitizePlayerName(playerName);
+      if (sNameJ) match.joiner.playerName = sNameJ;
       if (address) match.joiner.address = address;
     }
 
@@ -285,8 +288,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     match.lastActivity = Date.now();
     // Store player name and address if either side reconnects before character selection.
     const playerSlot = role === "host" ? match.host : match.joiner;
-    if (typeof patchPlayerName === "string" && patchPlayerName && !playerSlot.playerName) {
-      playerSlot.playerName = patchPlayerName;
+    const sanitizedPatchName = sanitizePlayerName(patchPlayerName);
+    if (sanitizedPatchName && !playerSlot.playerName) {
+      playerSlot.playerName = sanitizedPatchName;
     }
     if (typeof patchAddress === "string" && patchAddress && !playerSlot.address) {
       playerSlot.address = patchAddress;

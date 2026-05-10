@@ -28,3 +28,6 @@ prd.md
 data/leaderboard.json
 data/daily-claims.json
 data/matches.json
+
+# Local screenshot/download folders
+downloads/

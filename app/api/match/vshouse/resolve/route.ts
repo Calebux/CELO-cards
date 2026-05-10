@@ -10,6 +10,7 @@ import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../../lib/cardProgressServer";
+import { sanitizePlayerName } from "../../../../lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
   }
 
   const addr = playerAddress.toLowerCase();
+  const sanitizedPlayerName = sanitizePlayerName(playerName);
   const redisKey = `match:vshouse:${addr}`;
   let entryTxHash: string | null = null;
   const allowTreasuryEntry = process.env.ENABLE_VSHOUSE_TREASURY_ENTRY === "true";
@@ -182,7 +184,7 @@ export async function POST(req: NextRequest) {
 
     await recordMatchResult({
       playerAddress: addr,
-      playerName,
+      playerName: sanitizedPlayerName ?? undefined,
       won: playerWon,
       pointsEarned,
       leaderboard: "casual",
@@ -191,7 +193,7 @@ export async function POST(req: NextRequest) {
     await recordHouseMatchActivity({
       matchId,
       playerAddress: addr,
-      playerName: playerName?.trim() ? playerName.trim().slice(0, 24) : null,
+      playerName: sanitizedPlayerName,
       playerCharacterId,
       opponentCharacterId,
       difficulty,
