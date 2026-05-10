@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CARDS } from "../../../lib/gameData";
 import { recordBlackMarketPurchaseActivity } from "../../../lib/opsActivity";
+import { sanitizePlayerName } from "../../../lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   await recordBlackMarketPurchaseActivity({
     address,
-    playerName: body.playerName?.trim() ? body.playerName.trim().slice(0, 24) : null,
+    playerName: sanitizePlayerName(body.playerName),
     cardId: card.id,
     cardName: card.name,
     currency: body.currency,
