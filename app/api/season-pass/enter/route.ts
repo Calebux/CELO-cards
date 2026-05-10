@@ -6,6 +6,7 @@ import { redis, getMatch, setMatch } from "../../../lib/redis";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../lib/cusd";
 import { ServerMatch } from "../../../lib/serverMatch";
+import { checkRateLimit } from "../../../lib/rateLimit";
 
 // POST /api/season-pass/enter
 // Called by the lobby when a season pass holder needs an on-chain ranked entry.
@@ -34,6 +35,12 @@ export async function POST(req: NextRequest) {
     role = body.role;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  // Rate limit: 10 entry attempts per address per minute
+  const allowed = await checkRateLimit(`ratelimit:season-enter:${address.toLowerCase()}`, 10, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
   }
 
   const passKey = `season-pass:${address.toLowerCase()}`;
