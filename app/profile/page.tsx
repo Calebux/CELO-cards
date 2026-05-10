@@ -642,7 +642,10 @@ export default function ProfilePage() {
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#f87171", textTransform: "uppercase" }}>
                   Black Market Cards
                 </div>
-                <div style={{ fontSize: 10, color: "#64748b" }}>{ownedCards.length} owned</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 10, color: "#64748b" }}>{ownedCards.length} owned</div>
+                  <button onClick={() => router.push("/trade")} style={{ background: "none", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontSize: 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}>TRADE →</button>
+                </div>
               </div>
 
               {ownedCards.length === 0 ? (
