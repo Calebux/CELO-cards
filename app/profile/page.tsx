@@ -370,6 +370,14 @@ export default function ProfilePage() {
               <div style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>
                 {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "NOT CONNECTED"}
               </div>
+              {address && (
+                <button
+                  onClick={() => router.push(`/profile/${address}`)}
+                  style={{ marginTop: 8, padding: "4px 12px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.25)", fontSize: 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}
+                >
+                  🔗 Public Profile
+                </button>
+              )}
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ fontSize: 24, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>
                   {displayPoints.toLocaleString()}
