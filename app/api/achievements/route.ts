@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
+import { checkRateLimit } from "../../lib/rateLimit";
 
 const ACHIEVEMENTS_KEY = "achievements";
 
@@ -68,6 +69,12 @@ export async function POST(req: NextRequest) {
   const address = body.address?.toLowerCase();
   if (!address || !/^0x[0-9a-f]{40}$/.test(address)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+
+  // Rate limit: 20 sync requests per address per minute
+  const allowed = await checkRateLimit(`ratelimit:achievements:${address}`, 20, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
   }
 
   const incoming = body.stats ?? {};
