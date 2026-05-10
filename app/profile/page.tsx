@@ -9,7 +9,7 @@ import { ClaimGDollar } from "../components/ClaimGDollar";
 import { CardPreviewModal } from "../components/CardPreviewModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CHARACTERS, CARDS } from "../lib/gameData";
-import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount } from "../lib/cardMastery";
+import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount, getCardForgeProgress } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { addressToCode } from "../lib/referral";
@@ -704,6 +704,9 @@ export default function ProfilePage() {
                   {ownedCards.map((card) => {
                     const isAttuned = attunedCardIds.includes(card.id);
                     const masteryTier = getCardMasterySnapshot(cardPerformance[card.id] ?? null).tier;
+                    const forgeReady = getCardForgeProgress(cardPerformance[card.id] ?? null).ready;
+                    const isMinted = mintedCardIds.has(card.id);
+                    const isMinting = mintingCardId === card.id;
                     return (
                     <div
                       key={card.id}
@@ -748,6 +751,22 @@ export default function ProfilePage() {
                           {isAttuned ? "Attuned" : masteryTier > 0 ? `T${masteryTier}` : "Owned"}
                         </span>
                       </div>
+                      {/* NFT mint button for forge-ready cards */}
+                      {forgeReady && (
+                        <div style={{ position: "absolute", bottom: 22, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 2 }}>
+                          {isMinted ? (
+                            <span style={{ fontSize: 6, fontWeight: 800, background: "rgba(74,222,128,0.9)", color: "#000", borderRadius: 3, padding: "2px 5px", letterSpacing: 1 }}>NFT ✓</span>
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); void mintCard(card.id); }}
+                              disabled={!!mintingCardId}
+                              style={{ fontSize: 6, fontWeight: 800, background: "rgba(86,164,203,0.9)", color: "#000", border: "none", borderRadius: 3, padding: "2px 5px", cursor: mintingCardId ? "not-allowed" : "pointer", letterSpacing: 1, fontFamily: "inherit" }}
+                            >
+                              {isMinting ? "..." : "MINT"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     );
                   })}
