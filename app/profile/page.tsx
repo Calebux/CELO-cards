@@ -12,6 +12,7 @@ import { CHARACTERS, CARDS } from "../lib/gameData";
 import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { addressToCode } from "../lib/referral";
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -486,6 +487,83 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
+
+            {/* Referral */}
+            {address && (
+              <div style={{
+                backgroundColor: "rgba(15,23,42,0.55)",
+                border: "1px solid rgba(86,164,203,0.25)",
+                borderRadius: 8, padding: "14px 16px",
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>🔗 Referrals</div>
+                {/* Your referral code */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Your referral code</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ flex: 1, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, padding: "5px 8px", fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 2, fontFamily: "monospace" }}>
+                      {referralData?.code ?? addressToCode(address)}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const code = referralData?.code ?? addressToCode(address);
+                        void navigator.clipboard.writeText(code).then(() => {
+                          setReferralCopied(true);
+                          setTimeout(() => setReferralCopied(false), 2000);
+                        });
+                      }}
+                      style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit" }}
+                    >
+                      {referralCopied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 8, color: "#475569", marginTop: 3 }}>
+                    Earn +100 pts for each friend who joins using your code
+                  </div>
+                </div>
+                {/* Stats row */}
+                {referralData && (
+                  <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#56a4cb" }}>{referralData.referrals.length}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Referred</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}>+{referralData.totalBonusEarned}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Pts Earned</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: referralData.referredBy ? "#4ade80" : "#475569" }}>{referralData.referredBy ? "Yes" : "No"}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Referred By</div>
+                    </div>
+                  </div>
+                )}
+                {/* Apply code (only if not already referred) */}
+                {!referralData?.referredBy && (
+                  <div>
+                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Have a code? Enter it for +50 pts</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        value={referralInput}
+                        onChange={e => setReferralInput(e.target.value)}
+                        placeholder="Enter code..."
+                        maxLength={12}
+                        style={{ flex: 1, background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 8px", fontSize: 10, color: "#e2e8f0", fontFamily: "monospace", outline: "none" }}
+                      />
+                      <button
+                        onClick={() => void submitReferral()}
+                        disabled={referralSubmitting || !referralInput.trim()}
+                        style={{ padding: "5px 10px", borderRadius: 4, cursor: referralSubmitting || !referralInput.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", opacity: referralSubmitting || !referralInput.trim() ? 0.5 : 1 }}
+                      >
+                        {referralSubmitting ? "..." : "Apply"}
+                      </button>
+                    </div>
+                    {referralMsg && (
+                      <div style={{ fontSize: 9, color: referralMsg.includes("applied") ? "#4ade80" : "#f87171", marginTop: 5 }}>{referralMsg}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Col 2: Achievements + Owned Cards ── */}
