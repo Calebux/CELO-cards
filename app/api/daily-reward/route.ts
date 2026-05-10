@@ -9,6 +9,7 @@ import {
   CFA_FORWARDER_ABI,
   STREAM_FLOW_RATE,
 } from "../../lib/gooddollar";
+import { checkRateLimit } from "../../lib/rateLimit";
 
 const CLAIMS_KEY = "daily-claims";
 
@@ -41,6 +42,12 @@ export async function POST(req: NextRequest) {
     address = body.address;
   } catch {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+
+  // Rate limit: 3 attempts per address per 10 minutes
+  const allowed = await checkRateLimit(`ratelimit:daily-reward:${address.toLowerCase()}`, 3, 600);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
   }
 
   const today = todayStr();
