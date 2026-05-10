@@ -382,6 +382,49 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {/* Daily Streak */}
+            {address && (
+              <div style={{
+                backgroundColor: "rgba(15,23,42,0.55)",
+                border: streak && streak.count >= 3 ? "1px solid rgba(249,115,22,0.35)" : "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 8, padding: "14px 16px",
+                boxShadow: streak && streak.count >= 3 ? "0 0 12px rgba(249,115,22,0.08)" : "none",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#f97316", textTransform: "uppercase" }}>🔥 Daily Streak</div>
+                  {streak && streak.count > 0 && (
+                    <div style={{ fontSize: 11, fontWeight: 800, color: streak.count >= 7 ? "#fbbf24" : "#f97316" }}>
+                      Day {streak.count}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: "#6b7280" }}>
+                    Best: <span style={{ color: "#94a3b8", fontWeight: 700 }}>{streak?.longestStreak ?? 0} days</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: "#6b7280" }}>
+                    {streak && streak.count >= 7 ? "🏆 On fire!" : streak && streak.count >= 3 ? "⚡ Keep it up!" : "Check in daily for bonus pts"}
+                  </div>
+                </div>
+                {streakMsg && (
+                  <div style={{ fontSize: 9, color: "#4ade80", marginBottom: 8, textAlign: "center", fontWeight: 600 }}>{streakMsg}</div>
+                )}
+                <button
+                  onClick={() => void checkInStreak()}
+                  disabled={streakChecking}
+                  style={{
+                    width: "100%", padding: "6px 0", borderRadius: 5, cursor: streakChecking ? "not-allowed" : "pointer",
+                    background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.35)",
+                    fontSize: 9, fontWeight: 800, color: "#f97316",
+                    letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit",
+                    opacity: streakChecking ? 0.6 : 1,
+                  }}
+                >
+                  {streakChecking ? "Checking..." : "Check In Today →"}
+                </button>
+              </div>
+            )}
+
             {/* Stats */}
             <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
