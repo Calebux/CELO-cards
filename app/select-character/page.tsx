@@ -10,6 +10,7 @@ import { OnboardingCoach } from "../components/OnboardingCoach";
 import { WalletSection } from "../components/WalletSection";
 import { playSound } from "../lib/soundManager";
 import { isMiniPay } from "../lib/minipay";
+import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const BG = "/new-assets/two-fighters-vs.png";
 
@@ -32,8 +33,6 @@ const STAT_META = [
   { key: "priorityStat" as const, icon: "speed", label: "Priority", color: "#60a5fa" },
   { key: "drainStat" as const, icon: "bolt", label: "Drain", color: "#4ade80" },
 ];
-
-import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 export default function SelectCharacter() {
   const isMp = isMiniPay();
