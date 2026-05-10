@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
@@ -8,7 +8,7 @@ import { WalletSection } from "../components/WalletSection";
 import { ClaimGDollar } from "../components/ClaimGDollar";
 import { CardPreviewModal } from "../components/CardPreviewModal";
 import { SeasonPassModal } from "../components/SeasonPassModal";
-import { CHARACTERS, CARDS } from "../lib/gameData";
+import { CARDS } from "../lib/gameData";
 import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount, getCardForgeProgress } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
@@ -319,24 +319,6 @@ export default function ProfilePage() {
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
 
-  // Derived stats from match history
-  const { favouriteChar, topRival, totalPointsAllTime } = useMemo(() => {
-    const charPlayed: Record<string, number> = {};
-    const rivalWins: Record<string, number> = {};
-    let total = 0;
-    for (const m of matchHistory) {
-      charPlayed[m.playerCharId] = (charPlayed[m.playerCharId] ?? 0) + 1;
-      rivalWins[m.opponentCharId] = (rivalWins[m.opponentCharId] ?? 0) + (m.outcome === "win" ? 1 : 0);
-      total += m.pointsEarned;
-    }
-    const favId = Object.entries(charPlayed).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-    const rivalId = Object.entries(rivalWins).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-    return {
-      favouriteChar: favId ? CHARACTERS.find((c) => c.id === favId) ?? null : null,
-      topRival: rivalId ? CHARACTERS.find((c) => c.id === rivalId) ?? null : null,
-      totalPointsAllTime: total,
-    };
-  }, [matchHistory]);
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -509,101 +491,6 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Stats */}
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
-              {[
-                { label: "Played",      value: displayPlayed,  color: "#94a3b8" },
-                { label: "Wins",        value: displayWins,    color: "#4ade80" },
-                { label: "Losses",      value: displayLosses,  color: "#f87171" },
-                { label: "Win Rate",    value: winRate(displayWins, displayPlayed), color: "#b9e7f4" },
-                { label: "Streak",      value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
-                { label: "Best Streak", value: maxWinStreak,   color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
-                { label: "Pts Earned",  value: displayPoints > 0 ? `+${displayPoints.toLocaleString()}` : "—", color: "#fbbf24" },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>{label}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color }}>{value}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Referral */}
-            {address && (
-              <div style={{
-                backgroundColor: "rgba(15,23,42,0.55)",
-                border: "1px solid rgba(86,164,203,0.25)",
-                borderRadius: 8, padding: "14px 16px",
-              }}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>🔗 Referrals</div>
-                {/* Your referral code */}
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Your referral code</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ flex: 1, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, padding: "5px 8px", fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 2, fontFamily: "monospace" }}>
-                      {referralData?.code ?? addressToCode(address)}
-                    </div>
-                    <button
-                      onClick={() => {
-                        const code = referralData?.code ?? addressToCode(address);
-                        void navigator.clipboard.writeText(code).then(() => {
-                          setReferralCopied(true);
-                          setTimeout(() => setReferralCopied(false), 2000);
-                        });
-                      }}
-                      style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit" }}
-                    >
-                      {referralCopied ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 8, color: "#475569", marginTop: 3 }}>
-                    Earn +100 pts for each friend who joins using your code
-                  </div>
-                </div>
-                {/* Stats row */}
-                {referralData && (
-                  <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
-                    <div style={{ flex: 1, textAlign: "center" }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: "#56a4cb" }}>{referralData.referrals.length}</div>
-                      <div style={{ fontSize: 8, color: "#475569" }}>Referred</div>
-                    </div>
-                    <div style={{ flex: 1, textAlign: "center" }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}>+{referralData.totalBonusEarned}</div>
-                      <div style={{ fontSize: 8, color: "#475569" }}>Pts Earned</div>
-                    </div>
-                    <div style={{ flex: 1, textAlign: "center" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: referralData.referredBy ? "#4ade80" : "#475569" }}>{referralData.referredBy ? "Yes" : "No"}</div>
-                      <div style={{ fontSize: 8, color: "#475569" }}>Referred By</div>
-                    </div>
-                  </div>
-                )}
-                {/* Apply code (only if not already referred) */}
-                {!referralData?.referredBy && (
-                  <div>
-                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Have a code? Enter it for +50 pts</div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <input
-                        value={referralInput}
-                        onChange={e => setReferralInput(e.target.value)}
-                        placeholder="Enter code..."
-                        maxLength={12}
-                        style={{ flex: 1, background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 8px", fontSize: 10, color: "#e2e8f0", fontFamily: "monospace", outline: "none" }}
-                      />
-                      <button
-                        onClick={() => void submitReferral()}
-                        disabled={referralSubmitting || !referralInput.trim()}
-                        style={{ padding: "5px 10px", borderRadius: 4, cursor: referralSubmitting || !referralInput.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", opacity: referralSubmitting || !referralInput.trim() ? 0.5 : 1 }}
-                      >
-                        {referralSubmitting ? "..." : "Apply"}
-                      </button>
-                    </div>
-                    {referralMsg && (
-                      <div style={{ fontSize: 9, color: referralMsg.includes("applied") ? "#4ade80" : "#f87171", marginTop: 5 }}>{referralMsg}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* ── Col 2: Achievements + Owned Cards ── */}
@@ -775,41 +662,102 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* ── Col 3: Main + Top Rival ── */}
+          {/* ── Col 3: Match Stats + Referrals ── */}
           <div style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-            {(favouriteChar || topRival) ? (
-              <>
-                {favouriteChar && (
-                  <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: `1px solid ${favouriteChar.color}40`, borderRadius: 8, overflow: "hidden", boxShadow: `0 0 12px ${favouriteChar.color}15` }}>
-                    <div style={{ height: 110, overflow: "hidden", position: "relative" }}>
-                      <img src={favouriteChar.standingArt} alt={favouriteChar.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
-                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.8) 100%)" }} />
-                      <div style={{ position: "absolute", top: 6, left: 8, fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.5)", textTransform: "uppercase" }}>MAIN</div>
+
+            {/* Stats */}
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
+              {[
+                { label: "Played",      value: displayPlayed,  color: "#94a3b8" },
+                { label: "Wins",        value: displayWins,    color: "#4ade80" },
+                { label: "Losses",      value: displayLosses,  color: "#f87171" },
+                { label: "Win Rate",    value: winRate(displayWins, displayPlayed), color: "#b9e7f4" },
+                { label: "Streak",      value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
+                { label: "Best Streak", value: maxWinStreak,   color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
+                { label: "Pts Earned",  value: displayPoints > 0 ? `+${displayPoints.toLocaleString()}` : "—", color: "#fbbf24" },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>{label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color }}>{value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Referral */}
+            {address && (
+              <div style={{
+                backgroundColor: "rgba(15,23,42,0.55)",
+                border: "1px solid rgba(86,164,203,0.25)",
+                borderRadius: 8, padding: "14px 16px",
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>🔗 Referrals</div>
+                {/* Your referral code */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Your referral code</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ flex: 1, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, padding: "5px 8px", fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 2, fontFamily: "monospace" }}>
+                      {referralData?.code ?? addressToCode(address)}
                     </div>
-                    <div style={{ padding: "10px 12px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: favouriteChar.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{favouriteChar.name}</div>
-                      <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>{favouriteChar.className}</div>
+                    <button
+                      onClick={() => {
+                        const code = referralData?.code ?? addressToCode(address);
+                        void navigator.clipboard.writeText(code).then(() => {
+                          setReferralCopied(true);
+                          setTimeout(() => setReferralCopied(false), 2000);
+                        });
+                      }}
+                      style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit" }}
+                    >
+                      {referralCopied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 8, color: "#475569", marginTop: 3 }}>
+                    Earn +100 pts for each friend who joins using your code
+                  </div>
+                </div>
+                {/* Stats row */}
+                {referralData && (
+                  <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#56a4cb" }}>{referralData.referrals.length}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Referred</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}>+{referralData.totalBonusEarned}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Pts Earned</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: referralData.referredBy ? "#4ade80" : "#475569" }}>{referralData.referredBy ? "Yes" : "No"}</div>
+                      <div style={{ fontSize: 8, color: "#475569" }}>Referred By</div>
                     </div>
                   </div>
                 )}
-                {topRival && (
-                  <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: `1px solid ${topRival.color}40`, borderRadius: 8, overflow: "hidden", boxShadow: `0 0 12px ${topRival.color}15` }}>
-                    <div style={{ height: 110, overflow: "hidden", position: "relative" }}>
-                      <img src={topRival.standingArt} alt={topRival.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
-                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.8) 100%)" }} />
-                      <div style={{ position: "absolute", top: 6, left: 8, fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "rgba(255,255,255,0.5)", textTransform: "uppercase" }}>TOP RIVAL</div>
+                {/* Apply code (only if not already referred) */}
+                {!referralData?.referredBy && (
+                  <div>
+                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Have a code? Enter it for +50 pts</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        value={referralInput}
+                        onChange={e => setReferralInput(e.target.value)}
+                        placeholder="Enter code..."
+                        maxLength={12}
+                        style={{ flex: 1, background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "5px 8px", fontSize: 10, color: "#e2e8f0", fontFamily: "monospace", outline: "none" }}
+                      />
+                      <button
+                        onClick={() => void submitReferral()}
+                        disabled={referralSubmitting || !referralInput.trim()}
+                        style={{ padding: "5px 10px", borderRadius: 4, cursor: referralSubmitting || !referralInput.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", opacity: referralSubmitting || !referralInput.trim() ? 0.5 : 1 }}
+                      >
+                        {referralSubmitting ? "..." : "Apply"}
+                      </button>
                     </div>
-                    <div style={{ padding: "10px 12px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: topRival.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{topRival.name}</div>
-                      <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>{topRival.className}</div>
-                    </div>
+                    {referralMsg && (
+                      <div style={{ fontSize: 9, color: referralMsg.includes("applied") ? "#4ade80" : "#f87171", marginTop: 5 }}>{referralMsg}</div>
+                    )}
                   </div>
                 )}
-              </>
-            ) : (
-              <div style={{ backgroundColor: "rgba(15,23,42,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "20px 14px", textAlign: "center" }}>
-                <div style={{ fontSize: 22, marginBottom: 8 }}>⚔️</div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: "#334155", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: "14px" }}>Play matches to reveal your main & rival</div>
               </div>
             )}
 
