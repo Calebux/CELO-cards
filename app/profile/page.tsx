@@ -82,6 +82,11 @@ export default function ProfilePage() {
   const [streakMsg, setStreakMsg] = useState<string | null>(null);
   const [passInfo, setPassInfo] = useState<{ active: boolean; expiry: number | null; plan: string | null } | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
+  const [referralData, setReferralData] = useState<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number } | null>(null);
+  const [referralInput, setReferralInput] = useState("");
+  const [referralSubmitting, setReferralSubmitting] = useState(false);
+  const [referralMsg, setReferralMsg] = useState<string | null>(null);
+  const [referralCopied, setReferralCopied] = useState(false);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
   const previewCard = previewCardId ? ownedCards.find((card) => card.id === previewCardId) ?? null : null;
   const highestMasteryTier = getHighestMasteryTier(cardPerformance);
@@ -171,6 +176,44 @@ export default function ProfilePage() {
       setStreakChecking(false);
     }
   }, [address, streakChecking]);
+
+  // Fetch referral data on load
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/referral?address=${address.toLowerCase()}`)
+      .then(r => r.ok ? r.json() as Promise<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
+      .then(data => { if (data) setReferralData(data); })
+      .catch(() => {});
+  }, [address]);
+
+  const submitReferral = useCallback(async () => {
+    if (!address || referralSubmitting || !referralInput.trim()) return;
+    setReferralSubmitting(true);
+    setReferralMsg(null);
+    try {
+      const res = await fetch("/api/referral", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, code: referralInput.trim() }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; refereeBonus?: number };
+      if (data.ok) {
+        setReferralMsg(`Referral applied! +${data.refereeBonus ?? 50} pts bonus`);
+        setReferralInput("");
+        // Refresh referral data
+        fetch(`/api/referral?address=${address.toLowerCase()}`)
+          .then(r => r.ok ? r.json() as Promise<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
+          .then(d => { if (d) setReferralData(d); })
+          .catch(() => {});
+      } else {
+        setReferralMsg(data.error ?? "Failed to apply code.");
+      }
+    } catch {
+      setReferralMsg("Request failed. Try again.");
+    } finally {
+      setReferralSubmitting(false);
+    }
+  }, [address, referralSubmitting, referralInput]);
 
   // Sync achievements to server and fetch persisted unlocks
   const syncAchievements = useCallback(async (addr: string) => {
