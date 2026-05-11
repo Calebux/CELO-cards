@@ -188,7 +188,7 @@ export default function OpsPage() {
     );
   }
 
-  const { snapshot, policy, watchlist, activity, audience } = data;
+  const { snapshot, policy, watchlist, activity, audience, onChain } = data;
 
   return (
     <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", padding: "40px 32px 64px" }}>
@@ -232,6 +232,8 @@ export default function OpsPage() {
             { label: "Mirror Match Rate", value: pct(snapshot.mirrorMatchRate) },
             { label: "House Matches", value: activity.house.totalMatches.toLocaleString() },
             { label: "Black Market Buys", value: activity.blackMarket.totalPurchases.toLocaleString() },
+            { label: "Passes Sold (On-Chain)", value: onChain.totalPassesSold.toLocaleString() },
+            { label: "Matches On-Chain", value: onChain.totalMatchesOnChain.toLocaleString() },
           ].map((item) => (
             <div key={item.label} style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: "18px 18px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase" }}>{item.label}</div>

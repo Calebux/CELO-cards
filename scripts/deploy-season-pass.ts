@@ -19,9 +19,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const TREASURY = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as const;
 
-const deployerKey = process.env.TREASURY_PRIVATE_KEY;
+const deployerKey = process.env.DEPLOYER_PRIVATE_KEY ?? process.env.TREASURY_PRIVATE_KEY;
 if (!deployerKey) {
-  console.error("❌  TREASURY_PRIVATE_KEY not set in .env.local");
+  console.error("❌  DEPLOYER_PRIVATE_KEY not set in .env.local");
   process.exit(1);
 }
 

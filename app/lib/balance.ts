@@ -2,6 +2,10 @@ import { getRankedDashboardSnapshot, RankedDashboardSnapshot } from "./rankedTel
 import { getBlackMarketPurchaseActivity, getHouseMatchActivity, getOpsActivitySnapshot } from "./opsActivity";
 import { readLeaderboard } from "./leaderboard";
 import { redis } from "./redis";
+import { createPublicClient, http } from "viem";
+import { celo } from "viem/chains";
+import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "./seasonPassContract";
+import { MATCH_REGISTRY, MATCH_REGISTRY_ACTIVE, MATCH_REGISTRY_ABI } from "./matchRegistry";
 import { ServerMatch } from "./serverMatch";
 
 export const BALANCE_POLICY = {
@@ -159,11 +163,31 @@ export function buildBalanceWatchlist(snapshot: RankedDashboardSnapshot): Balanc
     .slice(0, 6);
 }
 
+async function getOnChainStats() {
+  const celoClient = createPublicClient({ chain: celo, transport: http() });
+  const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
+
+  const [totalPassesSold, totalMatchesOnChain] = await Promise.all([
+    CONTRACT_ACTIVE
+      ? celoClient.readContract({ address: SEASON_PASS_CONTRACT, abi: SEASON_PASS_ABI, functionName: "totalPassesSold" }).catch(() => 0n)
+      : Promise.resolve(0n),
+    MATCH_REGISTRY_ACTIVE
+      ? celoClient.readContract({ address: MATCH_REGISTRY, abi: MATCH_REGISTRY_ABI, functionName: "totalMatches" }).catch(() => 0n)
+      : Promise.resolve(0n),
+  ]);
+
+  return {
+    totalPassesSold: Number(totalPassesSold),
+    totalMatchesOnChain: Number(totalMatchesOnChain),
+  };
+}
+
 export async function getBalanceDashboard() {
-  const [snapshot, activity, audience] = await Promise.all([
+  const [snapshot, activity, audience, onChain] = await Promise.all([
     getRankedDashboardSnapshot(),
     getOpsActivitySnapshot(),
     getAudienceMetrics(),
+    getOnChainStats(),
   ]);
   return {
     snapshot,
@@ -171,5 +195,6 @@ export async function getBalanceDashboard() {
     watchlist: buildBalanceWatchlist(snapshot),
     activity,
     audience,
+    onChain,
   };
 }
