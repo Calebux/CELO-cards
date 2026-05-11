@@ -7,11 +7,13 @@ import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
+import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const TREASURY = TREASURY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
+const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 const USDT_ABI = [
   { name: "transfer", type: "function", stateMutability: "nonpayable",
     inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
@@ -238,7 +240,20 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           chainId: celo.id,
         });
         void pollAndRegister(hash, activeAddress);
+      } else if (CONTRACT_ACTIVE) {
+        // Route through SeasonPassRegistry contract — tx is FROM buyer's wallet
+        const hash = await writeContractAsync({
+          address: SEASON_PASS_CONTRACT,
+          abi: SEASON_PASS_ABI,
+          functionName: "buySeasonPass",
+          args: [selectedPlan],
+          value: plan.priceWeiCelo,
+          account: activeAddress,
+          chainId: celo.id,
+        });
+        void pollAndRegister(hash, activeAddress);
       } else {
+        // Fallback: direct transfer to treasury
         const hash = isMiniPay()
           ? await sendMiniPayNativeTransaction({
               from: activeAddress,
