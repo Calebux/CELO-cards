@@ -4,10 +4,12 @@ import { celo } from "viem/chains";
 import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../../lib/cusd";
+import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../../lib/seasonPassContract";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 export const dynamic = "force-dynamic";
 
 const publicClient = createPublicClient({ chain: celo, transport: http() });
@@ -145,12 +147,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "G$ transfer to treasury not found or insufficient" }, { status: 403 });
     }
   } else {
-    // Native CELO verification
-    if (tx.to?.toLowerCase() !== TREASURY.toLowerCase()) {
+    // Native CELO verification — contract path (new) or direct transfer (legacy)
+    const isContractTx = CONTRACT_ACTIVE &&
+      tx.to?.toLowerCase() === SEASON_PASS_CONTRACT.toLowerCase();
+    const isDirectTx = tx.to?.toLowerCase() === TREASURY.toLowerCase();
+
+    if (!isContractTx && !isDirectTx) {
       return NextResponse.json({ error: "Invalid transaction recipient" }, { status: 403 });
     }
-    if (tx.value < BigInt(planConfig.priceWei)) {
-      return NextResponse.json({ error: "Insufficient payment amount" }, { status: 403 });
+
+    if (isContractTx) {
+      // Verify PassPurchased event was emitted for this buyer
+      const logs = await publicClient.getContractEvents({
+        address: SEASON_PASS_CONTRACT,
+        abi: SEASON_PASS_ABI,
+        eventName: "PassPurchased",
+        args: { buyer: address as `0x${string}` },
+        fromBlock: receipt.blockNumber,
+        toBlock: receipt.blockNumber,
+      }).catch(() => []);
+      const matchingLog = logs.find(
+        l => l.transactionHash?.toLowerCase() === txHash.toLowerCase()
+      );
+      if (!matchingLog) {
+        return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
+      }
+    } else {
+      // Legacy direct transfer
+      if (tx.value < BigInt(planConfig.priceWei)) {
+        return NextResponse.json({ error: "Insufficient payment amount" }, { status: 403 });
+      }
     }
   }
   const durationMs = planConfig.days * 24 * 60 * 60 * 1000;
