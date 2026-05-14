@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { WagerModal } from "../components/WagerModal";
 import { formatUnits } from "viem";
+import { isMiniPay } from "../lib/minipay";
 
 const OPPONENT_WARN_MS  = 60_000;
 const OPPONENT_ABORT_MS = 90_000;
@@ -44,6 +45,7 @@ export default function Lobby() {
   const selfPaidRef      = useRef(false);
   const rankedEntryFiredRef = useRef(false);
 
+  const isMp = isMiniPay();
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
 
@@ -322,10 +324,10 @@ export default function Lobby() {
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
           animation: "ml-left 0.55s cubic-bezier(0.22,1,0.36,1) forwards",
-          width: 200,
+          width: isMp ? 140 : 200,
         }}>
           <div style={{
-            width: 136, height: 180, borderRadius: 8, overflow: "hidden",
+            width: isMp ? 96 : 136, height: isMp ? 130 : 180, borderRadius: 8, overflow: "hidden",
             border: `2px solid ${p1Ready ? p1Color : "rgba(86,164,203,0.3)"}`,
             boxShadow: p1Ready
               ? `0 0 32px ${p1Color}50, 0 0 60px ${p1Color}20`
@@ -370,7 +372,7 @@ export default function Lobby() {
         {/* Center VS block */}
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center",
-          margin: "0 36px",
+          margin: isMp ? "0 10px" : "0 36px",
           animation: "ml-fadein 0.6s 0.15s ease both",
         }}>
           <div style={{ width: 1, height: 44, background: "linear-gradient(to bottom, transparent, rgba(255,255,255,0.12), transparent)" }} />
@@ -392,10 +394,10 @@ export default function Lobby() {
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
           animation: "ml-right 0.55s cubic-bezier(0.22,1,0.36,1) forwards",
-          width: 200,
+          width: isMp ? 140 : 200,
         }}>
           <div style={{
-            width: 136, height: 180, borderRadius: 8, overflow: "hidden",
+            width: isMp ? 96 : 136, height: isMp ? 130 : 180, borderRadius: 8, overflow: "hidden",
             border: `2px solid ${p2Ready ? p2Color : "rgba(249,6,168,0.25)"}`,
             boxShadow: p2Ready
               ? `0 0 32px ${p2Color}50, 0 0 60px ${p2Color}20`
