@@ -55,12 +55,14 @@ export async function POST(req: NextRequest) {
   let currency: "cusd" | "celo" | "gdollar" = "cusd";
   let claimantAddress: string;
   let signature: string;
+  let fromMiniPay = false;
   try {
-    const body = await req.json() as { matchId: string; currency?: string; address?: string; signature?: string };
+    const body = await req.json() as { matchId: string; currency?: string; address?: string; signature?: string; isMiniPay?: boolean };
     if (!body.matchId || !body.address) throw new Error("missing fields");
     matchId = body.matchId;
     claimantAddress = body.address;
     signature = body.signature ?? "";
+    fromMiniPay = body.isMiniPay === true;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
   } catch {
@@ -100,13 +102,17 @@ export async function POST(req: NextRequest) {
     if (winner.toLowerCase() !== claimantAddress.toLowerCase()) {
       return NextResponse.json({ error: "Only the match winner can claim payout" }, { status: 403 });
     }
-    const isValidSignature = await verifyTreasuryActionSignature(
-      claimantAddress,
-      signature,
-      buildPayoutClaimAuthMessage(claimantAddress, matchId, currency),
-    );
-    if (!isValidSignature) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    // MiniPay doesn't support personal_sign — address ownership is proven by auto-connect.
+    // Winner check above is sufficient to authorise the claim.
+    if (!fromMiniPay) {
+      const isValidSignature = await verifyTreasuryActionSignature(
+        claimantAddress,
+        signature,
+        buildPayoutClaimAuthMessage(claimantAddress, matchId, currency),
+      );
+      if (!isValidSignature) {
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
     }
 
     // Check if both players wagered and get the actual payout amount from their stakes

@@ -1,18 +1,19 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
 import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
-import { CHARACTERS } from './lib/gameData';
 import { WalletSection } from './components/WalletSection';
-import { HowToPlayModal } from './components/HowToPlayModal';
-import { SeasonPassModal } from './components/SeasonPassModal';
 import { MiniPayImage } from './components/MiniPayImage';
 import { isMiniPay } from './lib/minipay';
 import { useAccount } from 'wagmi';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
+
+const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
+const SeasonPassModal = dynamic(() => import('./components/SeasonPassModal').then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
 export default function ActionOrderLandingPage() {
   const isMp = isMiniPay();
@@ -71,13 +72,12 @@ export default function ActionOrderLandingPage() {
   return (
     <>
       <title>Action Order</title>
-      <link href="https://fonts.googleapis.com/css2?family=Ruda:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <style>{`
         .ko-land-page-wrapper {
           width: 1440px;
           height: 823px;
           overflow: hidden;
-          font-family: 'Ruda', sans-serif;
+          font-family: var(--font-ruda, 'Ruda'), sans-serif;
           background: #0a0f1c;
           margin: 0 auto;
           position: relative;
@@ -265,8 +265,8 @@ export default function ActionOrderLandingPage() {
         <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left" }}>
           <div className="ko-land-page">
 
-            {/* Background */}
-            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.png" alt="background" minipayWidth={1280} minipayQuality={58} priority />
+            {/* Background — WebP served to all browsers; MiniPay gets /_next/image optimized version */}
+            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" minipayWidth={1280} minipayQuality={75} priority />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, rgba(5,8,18,0.82) 0%, rgba(5,8,18,0.22) 22%, rgba(5,8,18,0.22) 78%, rgba(5,8,18,0.82) 100%)", zIndex:1, pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 

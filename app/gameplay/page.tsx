@@ -462,13 +462,17 @@ export default function Gameplay() {
     if (!address || !matchId || payoutState !== "idle" || matchMode !== "wager") return;
     setPayoutState("loading");
     try {
-      const signature = await signMessageAsync({
-        message: buildPayoutClaimAuthMessage(address, matchId, wagerCurrency),
-      });
+      let signature = "";
+      const miniPay = isMiniPay();
+      if (!miniPay) {
+        signature = await signMessageAsync({
+          message: buildPayoutClaimAuthMessage(address, matchId, wagerCurrency),
+        });
+      }
       const res = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, currency: wagerCurrency, address, signature }),
+        body: JSON.stringify({ matchId, currency: wagerCurrency, address, signature, isMiniPay: miniPay }),
       });
       const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");

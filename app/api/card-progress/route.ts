@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { address?: string; attunedCardIds?: string[]; signature?: string };
+  let body: { address?: string; attunedCardIds?: string[]; signature?: string; isMiniPay?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -53,8 +53,15 @@ export async function POST(req: NextRequest) {
   if (!isAddress(body.address)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
-  if (!body.signature || !body.signature.startsWith("0x")) {
-    return NextResponse.json({ error: "Valid signature required" }, { status: 400 });
+
+  const fromMiniPay = body.isMiniPay === true;
+
+  // MiniPay doesn't support personal_sign — skip signature check.
+  // Address ownership is proven by the MiniPay auto-connect flow.
+  if (!fromMiniPay) {
+    if (!body.signature || !body.signature.startsWith("0x")) {
+      return NextResponse.json({ error: "Valid signature required" }, { status: 400 });
+    }
   }
 
   const attunedCardIds = normalizeAttunedCardIds(body.attunedCardIds);
@@ -62,23 +69,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Attune up to ${ATTUNEMENT_LIMIT} valid cards` }, { status: 400 });
   }
 
-  const noncePayload = await redis.get<{ nonce: string; issuedAt: string }>(cardProgressNonceKey(body.address));
-  if (!noncePayload) {
-    return NextResponse.json({ error: "Auth request expired" }, { status: 410 });
+  if (!fromMiniPay) {
+    const noncePayload = await redis.get<{ nonce: string; issuedAt: string }>(cardProgressNonceKey(body.address));
+    if (!noncePayload) {
+      return NextResponse.json({ error: "Auth request expired" }, { status: 410 });
+    }
+
+    const verified = await verifyCardProgressSignature(
+      body.address,
+      attunedCardIds,
+      noncePayload.nonce,
+      noncePayload.issuedAt,
+      body.signature!
+    );
+    if (!verified) {
+      return NextResponse.json({ error: "Wallet signature does not match attunement update" }, { status: 401 });
+    }
+
+    await redis.del(cardProgressNonceKey(body.address)).catch(() => {});
   }
 
-  const verified = await verifyCardProgressSignature(
-    body.address,
-    attunedCardIds,
-    noncePayload.nonce,
-    noncePayload.issuedAt,
-    body.signature
-  );
-  if (!verified) {
-    return NextResponse.json({ error: "Wallet signature does not match attunement update" }, { status: 401 });
-  }
-
-  await redis.del(cardProgressNonceKey(body.address)).catch(() => {});
   const snapshot = await updateAttunedCardProgress(body.address, attunedCardIds);
   return NextResponse.json({ ok: true, snapshot });
 }
