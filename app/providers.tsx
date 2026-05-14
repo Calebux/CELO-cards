@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { celo, celoAlfajores } from "wagmi/chains";
 import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
-import "@rainbow-me/rainbowkit/styles.css";
+// CSS loaded async — avoids render-blocking the first paint (not needed in MiniPay at all)
+const RainbowKitStyles = dynamic(() => import("./components/RainbowKitStyles").then(m => ({ default: m.RainbowKitStyles })), { ssr: false });
 import { WalletSync } from "./lib/wallet";
 import { miniPayConnector } from "./lib/minipay";
 import { createWeb3AuthConnector } from "./lib/web3auth";
@@ -37,6 +38,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
+          <RainbowKitStyles />
           <WalletSync />
           <PortraitOverlay />
           <DailyReward />

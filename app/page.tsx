@@ -441,7 +441,7 @@ export default function ActionOrderLandingPage() {
 
             {/* News card 1 */}
             <div className="ko-news-card" style={{ position:"absolute", left:isMp ? 1088 : 1130, top:isMp ? 228 : 232, width:isMp ? 280 : 237, zIndex:15 }}>
-              <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy.jpeg" alt="Season 1" minipayWidth={420} minipayQuality={58} />
+              <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy.webp" alt="Season 1" minipayWidth={420} minipayQuality={75} />
               <div className="ko-card-title">
                 <p style={{ color:"#56a4cb", fontSize:isMp ? 11 : 10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>LATEST</p>
                 <p>SEASON 1: ORDER ASCENSION</p>
