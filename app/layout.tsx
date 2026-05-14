@@ -65,9 +65,9 @@ export default function RootLayout({
     set:function(v){if(v&&!v.getAppVersion)v.getAppVersion=_noop;_val=v||{};}
   });
 })();` }} />
-        {/* Material Icons — loaded async so it doesn't block first paint */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Material Icons — async so it doesn't block first paint.
+            next/font already preconnects fonts.googleapis.com + fonts.gstatic.com,
+            so no separate preconnect needed here. */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block"

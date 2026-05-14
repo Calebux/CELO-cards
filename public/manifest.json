@@ -1,20 +1,27 @@
 {
   "name": "Action Order",
   "short_name": "Action Order",
-  "description": "On-chain card fighting game on Celo",
+  "description": "On-chain card fighting game on Celo. Pick your fighter, battle for G$ rewards.",
   "start_url": "/",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#050505",
+  "background_color": "#050812",
   "theme_color": "#56a4cb",
   "icons": [
     {
-      "src": "/characters/characters /Adobe Express - file (4).webp",
+      "src": "/icon-192.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.webp",
       "sizes": "512x512",
       "type": "image/webp",
       "purpose": "any maskable"
     }
   ],
-  "categories": ["games"],
-  "lang": "en"
+  "categories": ["games", "entertainment"],
+  "lang": "en",
+  "scope": "/"
 }
