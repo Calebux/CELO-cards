@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { celo, celoAlfajores } from "wagmi/chains";
@@ -9,9 +10,11 @@ import { WalletSync } from "./lib/wallet";
 import { miniPayConnector } from "./lib/minipay";
 import { createWeb3AuthConnector } from "./lib/web3auth";
 import { PortraitOverlay } from "./components/PortraitOverlay";
-import { DailyReward } from "./components/DailyReward";
-import { UsernameModal } from "./components/UsernameModal";
-import { TutorialModal } from "./components/TutorialModal";
+
+// Heavy modals — load after initial paint so they don't block first interaction
+const DailyReward    = dynamic(() => import("./components/DailyReward").then(m => ({ default: m.DailyReward })), { ssr: false });
+const UsernameModal  = dynamic(() => import("./components/UsernameModal").then(m => ({ default: m.UsernameModal })), { ssr: false });
+const TutorialModal  = dynamic(() => import("./components/TutorialModal").then(m => ({ default: m.TutorialModal })), { ssr: false });
 
 const { connectors } = getDefaultWallets({
   appName: "Action Order",
