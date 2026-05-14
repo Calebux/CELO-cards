@@ -66,7 +66,7 @@ const PLANS = [
 ] as const;
 
 type PlanId = (typeof PLANS)[number]["id"];
-type Step = "checking" | "idle" | "waiting-tx" | "confirming" | "registering" | "done" | "error";
+type Step = "checking" | "idle" | "waiting-tx" | "confirming" | "registering" | "done" | "error" | "low-balance";
 
 type Props = {
   onClose: () => void;
@@ -86,7 +86,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>("celo");
+  const [currency, setCurrency] = useState<Currency>(isMp ? "usdt" : "celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
@@ -147,7 +147,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { writeContractAsync } = useWriteContract();
   const { connectAsync } = useConnect();
   const { switchChainAsync } = useSwitchChain();
-  const availableCurrencies: Currency[] = isMp ? ["celo", "usdt"] : ["celo", "gdollar"];
+  const availableCurrencies: Currency[] = isMp ? ["usdt"] : ["celo", "gdollar"];
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
 
@@ -228,6 +228,8 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
           account: activeAddress,
           chainId: celo.id,
+          // CIP-64: pay gas in USDT so user doesn't need CELO
+          ...(isMp ? { feeCurrency: "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72" as `0x${string}` } : {}),
         });
         void pollAndRegister(hash, activeAddress);
       } else if (currency === "gdollar") {
@@ -272,8 +274,13 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         void pollAndRegister(hash, activeAddress);
       }
     } catch (err) {
-      setErrMsg(err instanceof Error ? err.message : "Transaction rejected.");
-      setStep("error");
+      const msg = err instanceof Error ? err.message : "Transaction rejected.";
+      if (/insufficient funds|insufficient balance|exceeds balance/i.test(msg)) {
+        setStep("low-balance");
+      } else {
+        setErrMsg(msg);
+        setStep("error");
+      }
     }
   }, [currency, ensureWalletReady, plan, pollAndRegister, sendTransactionAsync, writeContractAsync]);
 
@@ -415,6 +422,47 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               </button>
             </div>
           </div>
+        ) : step === "low-balance" ? (
+          <div style={{ padding: "32px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 16 }}>💸</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#f87171", marginBottom: 8 }}>
+              Balance Too Low
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(185,231,244,0.6)", marginBottom: 24, lineHeight: 1.5 }}>
+              Your balance is too low to complete this purchase. Deposit USDT to continue.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                onClick={() => window.open("https://minipay.opera.com/add_cash", "_blank")}
+                style={{
+                  padding: isMp ? "36px 32px" : "12px 32px", borderRadius: 7,
+                  background: "linear-gradient(135deg, #26a17b22, #26a17b44)",
+                  border: "1.5px solid #26a17b",
+                  cursor: "pointer", fontSize: 13, fontWeight: 800, letterSpacing: 2,
+                  textTransform: "uppercase", color: "#fff", fontFamily: "inherit",
+                  boxShadow: "0 0 20px rgba(38,161,123,0.3)",
+                }}
+              >
+                💳 Deposit
+              </button>
+              <button
+                onClick={() => setStep("idle")}
+                style={{
+                  padding: isMp ? "36px 32px" : "10px 32px", borderRadius: 7,
+                  background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.25)",
+                  cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
+                  textTransform: "uppercase", color: "rgba(185,231,244,0.6)", fontFamily: "inherit",
+                }}
+              >
+                Back
+              </button>
+            </div>
+            <div style={{ marginTop: 20 }}>
+              <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ color: "#56a4cb", fontSize: 11, textDecoration: "none" }}>
+                Need help? Chat on Telegram →
+              </a>
+            </div>
+          </div>
         ) : (
           <>
             {/* Currency toggle */}
@@ -440,13 +488,11 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 );
               })}
             </div>
-            <div style={{ padding: "10px 24px 0", fontSize: 11, lineHeight: 1.45, color: "rgba(148,163,184,0.92)" }}>
-              {isMp ? (
-                <>MiniPay season passes support <span style={{ color: "#56a4cb", fontWeight: 700 }}>CELO</span> or <span style={{ color: "#26a17b", fontWeight: 700 }}>USDT</span>.</>
-              ) : (
-                <>Web season passes support <span style={{ color: "#56a4cb", fontWeight: 700 }}>CELO</span> or <span style={{ color: "#00C58E", fontWeight: 700 }}>G$</span>.</>
-              )}
-            </div>
+            {!isMp && (
+              <div style={{ padding: "10px 24px 0", fontSize: 11, lineHeight: 1.45, color: "rgba(148,163,184,0.92)" }}>
+                Web season passes support <span style={{ color: "#56a4cb", fontWeight: 700 }}>CELO</span> or <span style={{ color: "#00C58E", fontWeight: 700 }}>G$</span>.
+              </div>
+            )}
 
             {/* Plan selector */}
             <div style={{ padding: "16px 24px 0" }}>
@@ -516,6 +562,11 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             {step === "error" && (
               <div style={{ margin: "0 24px 12px", padding: "10px 14px", borderRadius: 6, backgroundColor: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", fontSize: 12, color: "#f87171" }}>
                 {errMsg || "Something went wrong. Try again."}
+                <div style={{ marginTop: 6 }}>
+                  <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ color: "#56a4cb", fontSize: 11, textDecoration: "none" }}>
+                    Need help? Chat on Telegram →
+                  </a>
+                </div>
               </div>
             )}
 

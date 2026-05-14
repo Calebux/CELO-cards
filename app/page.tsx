@@ -493,7 +493,8 @@ export default function ActionOrderLandingPage() {
           <div style={{ marginTop:"20px", padding:isMp ? "26px 0" : "24px 0", borderTop:"1px solid rgba(86,164,203,0.2)", display:"flex", flexWrap:"wrap", justifyContent:"center", gap:isMp ? "34px" : "30px", width:"1440px", color:"rgba(185,231,244,0.5)", fontSize:isMp ? "14px" : "13px", textTransform:"uppercase", letterSpacing:"1px" }}>
             <Link href="/terms"   style={{ textDecoration:"none", color:"inherit" }}>Terms of Service</Link>
             <Link href="/privacy" style={{ textDecoration:"none", color:"inherit" }}>Privacy Policy</Link>
-            <a href="https://t.me/knockorder" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", color:"inherit" }}>Support</a>
+            <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", color:"inherit" }}>Support</a>
+            <Link href="/stats"   style={{ textDecoration:"none", color:"inherit" }}>Stats</Link>
           </div>
         </div>
       </div>
