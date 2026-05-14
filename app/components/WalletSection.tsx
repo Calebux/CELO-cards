@@ -51,7 +51,7 @@ function Balances({ address }: { address: `0x${string}` }) {
 
   return (
     <>
-      <BalanceChip label="CELO" value={celoVal} color="#FBCC5C" />
+      {!mp && <BalanceChip label="CELO" value={celoVal} color="#FBCC5C" />}
       <BalanceChip label={mp ? "USDT" : "G$"} value={token2Val} color={mp ? "#26a17b" : "#00C58E"} />
     </>
   );
@@ -94,9 +94,26 @@ function MuteButton() {
 
 export function WalletSection() {
   const { address, isConnected } = useAccount();
-  const { connectAsync, isPending: isConnectingMiniPay } = useConnect();
+  const { connectAsync } = useConnect();
   const { switchChainAsync } = useSwitchChain();
   const { playerName } = useGameStore();
+  const [autoConnecting, setAutoConnecting] = useState(false);
+
+  // Silently auto-connect in MiniPay — no button shown
+  useEffect(() => {
+    if (!isMiniPay() || isConnected) return;
+    setAutoConnecting(true);
+    const connector = getMiniPayConnector();
+    connectAsync({ connector, chainId: celo.id })
+      .then(async (result) => {
+        if (result.chainId !== celo.id) {
+          await switchChainAsync({ chainId: celo.id }).catch(() => {});
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAutoConnecting(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected]);
 
   const base: React.CSSProperties = {
     display: "flex",
@@ -111,44 +128,10 @@ export function WalletSection() {
     fontFamily: "var(--font-space-grotesk), sans-serif",
   };
 
+  // While auto-connecting in MiniPay, render nothing
   if (isMiniPay() && !isConnected) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <MuteButton />
-        <button
-          onClick={() => {
-            const connector = getMiniPayConnector();
-            void connectAsync({ connector, chainId: celo.id })
-              .then(async (result) => {
-                if (result.chainId !== celo.id) {
-                  await switchChainAsync({ chainId: celo.id }).catch(() => {});
-                }
-              })
-              .catch(() => {});
-          }}
-          style={{
-            ...base,
-            cursor: isConnectingMiniPay ? "default" : "pointer",
-            opacity: isConnectingMiniPay ? 0.75 : 1,
-            background: "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",
-          }}
-        >
-          <div style={{
-            width: 7, height: 7, borderRadius: "50%",
-            background: "#56a4cb",
-            boxShadow: "0 0 6px #56a4cb",
-          }} />
-          <div>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
-              MiniPay
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
-              {isConnectingMiniPay ? "CONNECTING..." : "CONNECT WALLET"}
-            </div>
-          </div>
-        </button>
-      </div>
-    );
+    if (autoConnecting) return null;
+    return null;
   }
 
   if (isMiniPay() && isConnected && address) {
@@ -159,7 +142,7 @@ export function WalletSection() {
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>CELO WALLET</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>WALLET</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>{playerName || formatAddress(address)}</div>
           </div>
         </div>
