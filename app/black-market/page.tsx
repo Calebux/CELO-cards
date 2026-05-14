@@ -308,7 +308,7 @@ export default function BlackMarket() {
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}>Pay with</span>
                     {(isMiniPay()
-                      ? [{ key: "usdt" as BuyCurrency, label: "USDT", color: "#26a17b" }, { key: "celo" as BuyCurrency, label: "CELO", color: "#f9c846" }]
+                      ? [{ key: "usdt" as BuyCurrency, label: "USDT", color: "#26a17b" }]
                       : [{ key: "celo" as BuyCurrency, label: "CELO", color: "#f9c846" }, { key: "gdollar" as BuyCurrency, label: "G$", color: GDOLLAR_COLOR }]
                     ).map(({ key, label, color }) => (
                       <button

@@ -300,7 +300,7 @@ export default function Lobby() {
             borderRadius: 20,
           }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: 1, textTransform: "uppercase" }}>
-              ⚡ {(requiredWagerCurrency ?? wagerCurrency)?.toUpperCase() ?? "CELO"}
+              ⚡ {(requiredWagerCurrency ?? wagerCurrency)?.toUpperCase() ?? "CUSD"}
             </span>
             {requiredWagerAmountRaw && (
               <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(251,191,36,0.7)", letterSpacing: 0.8 }}>
@@ -604,10 +604,10 @@ export default function Lobby() {
             <span className="material-icons" style={{ fontSize: 44, color: "#f87171", display: "block", marginBottom: 14 }}>person_off</span>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9", marginBottom: 10 }}>Opponent Left</div>
             <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.7, marginBottom: 8 }}>
-              Your opponent quit after the entry fee was collected. Your <strong style={{ color: "#fbbf24" }}>0.000007 CELO</strong> entry fee is held in the Arena contract.
+              Your opponent quit after the entry fee was collected. Your entry fee is held in the Arena contract.
             </div>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 24 }}>
-              Contact <strong style={{ color: "#56a4cb" }}>@knockorder</strong> on Telegram for a refund.
+              Contact <strong style={{ color: "#56a4cb" }}>@actionorder</strong> on Telegram for a refund.
             </div>
             <button
               onClick={() => router.replace("/")}

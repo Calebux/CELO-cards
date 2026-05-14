@@ -3,6 +3,7 @@
 import { useAccount, useSignMessage } from "wagmi";
 import { ATTUNEMENT_LIMIT, buildCardProgressAuthMessage } from "./cardProgress";
 import { useGameStore } from "./gameStore";
+import { isMiniPay } from "./minipay";
 
 type AttunementSnapshot = {
   attunedCardIds: string[];
@@ -35,9 +36,13 @@ export function useAttunementSync() {
       throw new Error(authData?.error ?? "Failed to prepare attunement update.");
     }
 
-    const signature = await signMessageAsync({
-      message: buildCardProgressAuthMessage(lower, nextAttunedCardIds, authData.nonce, authData.issuedAt),
-    });
+    const miniPay = isMiniPay();
+    let signature = "";
+    if (!miniPay) {
+      signature = await signMessageAsync({
+        message: buildCardProgressAuthMessage(lower, nextAttunedCardIds, authData.nonce, authData.issuedAt),
+      });
+    }
 
     const response = await fetch("/api/card-progress", {
       method: "POST",
@@ -46,6 +51,7 @@ export function useAttunementSync() {
         address: lower,
         attunedCardIds: nextAttunedCardIds,
         signature,
+        isMiniPay: miniPay,
       }),
     });
     const data = (await response.json().catch(() => null)) as { error?: string; snapshot?: AttunementSnapshot } | null;

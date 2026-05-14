@@ -58,7 +58,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(lockedCurrency ?? "celo");
+  const [currency, setCurrency] = useState<Currency>(lockedCurrency ?? (isMp ? "cusd" : "celo"));
   const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw) ?? "0.01");
 
   useEffect(() => {
@@ -444,7 +444,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
         {/* Currency selector */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(["cusd", "celo", "gdollar"] as Currency[]).map((c) => {
+          {(isMp ? (["cusd"] as Currency[]) : (["cusd", "celo", "gdollar"] as Currency[])).map((c) => {
             const cc = CURRENCY_CONFIG[c];
             const disabledByLock = !!lockedCurrency && lockedCurrency !== c;
             return (
