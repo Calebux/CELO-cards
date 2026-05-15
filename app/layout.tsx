@@ -94,8 +94,7 @@ export default async function RootLayout({
     document.documentElement.style.setProperty('--ao-tr',tr);
   }catch(e){}
 })();` }} />
-        {/* Preconnect for Alchemy RPC — eliminates DNS+TLS cold start on first wagmi call */}
-        <link rel="preconnect" href="https://celo-mainnet.g.alchemy.com" />
+        {/* Warm up Alchemy RPC connection before wagmi makes its first call */}
         <link rel="dns-prefetch" href="https://celo-mainnet.g.alchemy.com" />
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
