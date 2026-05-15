@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Ruda } from "next/font/google";
+import dynamic from "next/dynamic";
+import { headers } from "next/headers";
 import "./globals.css";
 // Self-hosted Material Icons — no external CDN dependency, works in MiniPay
 import "material-icons/iconfont/material-icons.css";
-import { Providers } from "./providers";
+
+// Separate chunks: MiniPay gets wagmi-only bundle, web gets full RainbowKit/WalletConnect bundle
+const Providers = dynamic(() => import("./providers").then(m => ({ default: m.Providers })));
+const MiniPayProviders = dynamic(() => import("./minipay-providers").then(m => ({ default: m.MiniPayProviders })));
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -45,11 +50,15 @@ export const viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const ua = (await headers()).get("user-agent") ?? "";
+  const isMiniPayUA = /MiniPay/i.test(ua);
+  const ProviderComponent = isMiniPayUA ? MiniPayProviders : Providers;
+
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${ruda.variable}`}>
       <head>
@@ -70,7 +79,7 @@ export default function RootLayout({
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-        <Providers>{children}</Providers>
+        <ProviderComponent>{children}</ProviderComponent>
       </body>
     </html>
   );
