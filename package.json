@@ -20,6 +20,7 @@
     "@web3auth/base": "^9.7.0",
     "@web3auth/ethereum-provider": "^9.7.0",
     "@web3auth/modal": "^10.16.0",
+    "material-icons": "^1.13.14",
     "next": "^16.1.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

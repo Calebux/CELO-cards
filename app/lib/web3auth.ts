@@ -3,21 +3,23 @@
 
 import { createConnector } from "wagmi";
 import { celo } from "wagmi/chains";
-import { WEB3AUTH_NETWORK, fromViemChain } from "@web3auth/modal";
-import type { Web3Auth } from "@web3auth/modal";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID!;
 
-let web3authInstance: Web3Auth | null = null;
-let initPromise: Promise<Web3Auth> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let web3authInstance: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let initPromise: Promise<any> | null = null;
 
-async function getWeb3Auth(): Promise<Web3Auth> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getWeb3Auth(): Promise<any> {
   if (web3authInstance) return web3authInstance;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    // Dynamic import to avoid SSR issues
-    const { Web3Auth: Web3AuthClass } = await import("@web3auth/modal");
+    // All @web3auth imports are dynamic — nothing from the SDK lands in the
+    // critical bundle. The full SDK only loads when user clicks "Social Login".
+    const { Web3Auth: Web3AuthClass, WEB3AUTH_NETWORK, fromViemChain } = await import("@web3auth/modal");
 
     const instance = new Web3AuthClass({
       clientId: CLIENT_ID,
@@ -43,7 +45,6 @@ export function createWeb3AuthConnector() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async connect(_parameters?: any) {
       const web3auth = await getWeb3Auth();
-      // connect() opens the modal; rejects if user closes without connecting
       const provider = await web3auth.connect();
       if (!provider) throw new Error("Web3Auth: no provider after connect");
       const accounts = (await provider.request({ method: "eth_accounts" })) as `0x${string}`[];

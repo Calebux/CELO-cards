@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Ruda } from "next/font/google";
 import "./globals.css";
+// Self-hosted Material Icons — no external CDN dependency, works in MiniPay
+import "material-icons/iconfont/material-icons.css";
 import { Providers } from "./providers";
 
 const spaceGrotesk = Space_Grotesk({
@@ -65,20 +67,6 @@ export default function RootLayout({
     set:function(v){if(v&&!v.getAppVersion)v.getAppVersion=_noop;_val=v||{};}
   });
 })();` }} />
-        {/* Material Icons — async so it doesn't block first paint.
-            next/font already preconnects fonts.googleapis.com + fonts.gstatic.com,
-            so no separate preconnect needed here. */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block"
-          rel="stylesheet"
-          media="print"
-          // @ts-expect-error — onload is not in React's link props but works at runtime
-          onLoad="this.media='all'"
-        />
-        <noscript>
-          <link href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block" rel="stylesheet" />
-        </noscript>
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
