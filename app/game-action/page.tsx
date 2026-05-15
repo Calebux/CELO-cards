@@ -49,7 +49,7 @@ export default function GameAction() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: 'flex', justifyContent: 'center', alignItems: 'center', transform: "var(--ao-tr)" }}>
         <MiniPayImage 
           src="/new addition/Game action.webp" 
           alt="VS Action" 

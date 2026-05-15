@@ -36,12 +36,22 @@ export default function DeckPage() {
     useEffect(() => {
         const scale = () => {
             if (!wrapRef.current) return;
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            const s = Math.min(w / DESIGN_W, h / DESIGN_H);
-            const scaledW = DESIGN_W * s;
-            const scaledH = DESIGN_H * s;
-            wrapRef.current.style.transform = `translate(${(w - scaledW) / 2}px, ${(h - scaledH) / 2}px) scale(${s})`;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const isPortrait = vh > vw;
+            let transform: string;
+            if (isPortrait) {
+                const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+                const tx = vw / 2 + (DESIGN_H * s) / 2;
+                const ty = vh / 2 - (DESIGN_W * s) / 2;
+                transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+            } else {
+                const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+                const tx = (vw - DESIGN_W * s) / 2;
+                const ty = (vh - DESIGN_H * s) / 2;
+                transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+            }
+            wrapRef.current.style.transform = transform;
         };
         scale();
         window.addEventListener("resize", scale);
@@ -54,7 +64,7 @@ export default function DeckPage() {
 
     return (
         <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-            <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left" }}>
+            <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
                 {/* BG */}
                 <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 

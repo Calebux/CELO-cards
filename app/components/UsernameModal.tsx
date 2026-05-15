@@ -107,7 +107,7 @@ export function UsernameModal() {
       backdropFilter: "blur(10px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
         <div style={{
           position: "relative", width: 420,
           background: "rgba(12,18,36,0.97)",
