@@ -189,7 +189,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
-      if (attempts > 30) {
+      if (attempts > 60) {
         clearInterval(poll);
         setErrMsg("Transaction confirmation timed out. Contact support.");
         setStep("error");
@@ -317,7 +317,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: isMp ? 760 : 520, maxWidth: isMp ? "calc(100vw - 28px)" : undefined, borderRadius: 14,
+        width: isMp ? 760 : 520, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",
@@ -337,7 +337,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               Play Ranked. No Fees.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? "24px" : "4px", minWidth: isMp ? 92 : undefined, minHeight: isMp ? 92 : undefined, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? "24px" : "8px 10px", minWidth: isMp ? 92 : 40, minHeight: isMp ? 92 : 40, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
         {step === "checking" ? (

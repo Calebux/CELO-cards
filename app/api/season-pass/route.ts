@@ -12,7 +12,10 @@ const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${strin
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 export const dynamic = "force-dynamic";
 
-const publicClient = createPublicClient({ chain: celo, transport: http() });
+const publicClient = createPublicClient({
+  chain: celo,
+  transport: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
+});
 
 // G$ has 18 decimals; USDT has 6 decimals on Celo
 export const SEASON_PLANS = {
@@ -113,14 +116,20 @@ export async function POST(req: NextRequest) {
     if (tx.to?.toLowerCase() !== USDT_CONTRACT.toLowerCase()) {
       return NextResponse.json({ error: "Invalid transaction recipient" }, { status: 403 });
     }
-    const logs = await publicClient.getLogs({
-      address: USDT_CONTRACT,
-      event: transferEvent,
-      args: { to: TREASURY_MINIPAY },
-      fromBlock: receipt.blockNumber,
-      toBlock: receipt.blockNumber,
-    }).catch(() => []);
-    const matchingLog = logs.find(
+    let usdtLogs;
+    try {
+      usdtLogs = await publicClient.getLogs({
+        address: USDT_CONTRACT,
+        event: transferEvent,
+        args: { to: TREASURY_MINIPAY },
+        fromBlock: receipt.blockNumber,
+        toBlock: receipt.blockNumber,
+      });
+    } catch {
+      // RPC failure — treat as pending so the client keeps polling
+      return NextResponse.json({ pending: true }, { status: 404 });
+    }
+    const matchingLog = usdtLogs.find(
       (l) => l.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
              BigInt((l.args as { value?: bigint }).value ?? 0n) >= BigInt(planConfig.priceUsdt)
     );
@@ -132,14 +141,19 @@ export async function POST(req: NextRequest) {
     if (tx.to?.toLowerCase() !== GDOLLAR_CONTRACT.toLowerCase()) {
       return NextResponse.json({ error: "Invalid transaction recipient" }, { status: 403 });
     }
-    const logs = await publicClient.getLogs({
-      address: GDOLLAR_CONTRACT,
-      event: transferEvent,
-      args: { to: TREASURY },
-      fromBlock: receipt.blockNumber,
-      toBlock: receipt.blockNumber,
-    }).catch(() => []);
-    const matchingLog = logs.find(
+    let gdollarLogs;
+    try {
+      gdollarLogs = await publicClient.getLogs({
+        address: GDOLLAR_CONTRACT,
+        event: transferEvent,
+        args: { to: TREASURY },
+        fromBlock: receipt.blockNumber,
+        toBlock: receipt.blockNumber,
+      });
+    } catch {
+      return NextResponse.json({ pending: true }, { status: 404 });
+    }
+    const matchingLog = gdollarLogs.find(
       (l) => l.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
              BigInt((l.args as { value?: bigint }).value ?? 0n) >= BigInt(planConfig.priceGdollar)
     );

@@ -332,23 +332,25 @@ export default function ActionOrderLandingPage() {
               <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
             </a>
 
-            {/* ── G$ Claim Banner ──────────────────────────────────── */}
+            {/* ── G$ Claim Banner — hidden in MiniPay (USDT-only env) */}
+            {!isMp && (
             <Link href="/profile" style={{
-              position:"absolute", left:36, top:isMp ? 84 : 72, width:isMp ? 220 : 180, zIndex:15,
+              position:"absolute", left:36, top:72, width:180, zIndex:15,
               display:"flex", alignItems:"center", gap:8,
-              padding:isMp ? "10px 16px" : "7px 14px",
+              padding:"7px 14px",
               background:"linear-gradient(135deg, rgba(0,197,142,0.18), rgba(0,197,142,0.06))",
               border:"1px solid rgba(0,197,142,0.5)",
               borderRadius:6, textDecoration:"none",
               boxShadow:"0 0 12px rgba(0,197,142,0.2)",
               animation:"ko-dot-pulse 2.5s ease-in-out infinite",
             }}>
-              <span style={{ fontSize:isMp ? 16 : 14 }}>🌱</span>
+              <span style={{ fontSize:14 }}>🌱</span>
               <div>
-                <div style={{ fontSize:isMp ? 9 : 8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
-                <div style={{ fontSize:isMp ? 11 : 10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
+                <div style={{ fontSize:8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
+                <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
               </div>
             </Link>
+            )}
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
             {effectiveResumeRoute && (

@@ -419,8 +419,8 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* G$ UBI Claim */}
-            <ClaimGDollar />
+            {/* G$ UBI Claim — hidden in MiniPay (USDT-only env) */}
+            {!isMp && <ClaimGDollar />}
 
             {/* Season Pass status */}
             {address && (

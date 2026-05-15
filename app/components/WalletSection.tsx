@@ -142,8 +142,7 @@ export function WalletSection() {
       })
       .catch(() => {})
       .finally(() => setAutoConnecting(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected]);
+  }, [mp, isConnected, connectAsync, switchChainAsync]);
 
   const base: React.CSSProperties = {
     display: "flex",

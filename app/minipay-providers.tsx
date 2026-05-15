@@ -24,7 +24,16 @@ const miniPayConfig = createConfig({
   connectors: [miniPayConnector],
 });
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Don't refetch on every mount/page transition — on-chain data doesn't change every second
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+    },
+  },
+});
 
 export function MiniPayProviders({ children }: { children: React.ReactNode }) {
   return (

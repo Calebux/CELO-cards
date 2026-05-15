@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
+import { useMiniPayMode } from "../lib/premiumPayments";
 
 export function DailyReward() {
   const { address } = useAccount();
+  const isMp = useMiniPayMode();
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,11 +24,11 @@ export function DailyReward() {
       .then((data: { claimed?: boolean; txHash?: string; streaming?: boolean; error?: string }) => {
         if (data.claimed || data.error) return;
         localStorage.setItem(key, today);
-        setToast("Daily G$ stream started! ✓");
+        if (!isMp) setToast("Daily G$ stream started! ✓");
         setTimeout(() => setToast(null), 5000);
       })
       .catch(() => {});
-  }, [address]);
+  }, [address, isMp]);
 
   if (!toast) return null;
 
