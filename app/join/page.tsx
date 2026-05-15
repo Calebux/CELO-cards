@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { MultiplayerMode } from "../lib/matchmaking";
 import { useAccount } from "wagmi";
 import { isMiniPay } from "../lib/minipay";
@@ -12,7 +13,7 @@ import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const SeasonPassModal = dynamic(() => import("../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 async function fetchSeasonPass(address: string) {
   const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
@@ -174,7 +175,7 @@ function JoinMatchContent() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* ── Top Bar ── */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>

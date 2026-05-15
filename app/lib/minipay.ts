@@ -70,6 +70,7 @@ export async function sendMiniPayNativeTransaction(args: {
   value: bigint;
   gas?: bigint;
   data?: `0x${string}`;
+  feeCurrency?: `0x${string}`;
 }): Promise<`0x${string}`> {
   const provider = getMiniPayProvider();
   if (!provider) {
@@ -94,6 +95,7 @@ export async function sendMiniPayNativeTransaction(args: {
         value: toHex(args.value),
         gas: toHex(args.gas ?? 21000n),
         data: args.data ?? "0x",
+        ...(args.feeCurrency ? { feeCurrency: args.feeCurrency } : {}),
       }],
     });
 

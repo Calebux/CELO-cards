@@ -15,11 +15,11 @@ import {
 } from "wagmi";
 import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
-import { parseUnits } from "viem";
+import { encodeFunctionData, parseUnits } from "viem";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { getCardForgeProgress, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
-import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
+import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDT_FEE_CURRENCY } from "../lib/cusd";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency } from "../lib/premiumPayments";
@@ -29,7 +29,6 @@ const WalletSection = dynamic(() => import("../components/WalletSection").then(m
 // Treasury wallet that receives Black Market payments
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
-const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const USDT_ABI = [
   { name: "transfer", type: "function", stateMutability: "nonpayable",
     inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
@@ -170,14 +169,27 @@ export default function BlackMarket() {
       const activeAddress = await ensureWalletReady();
       let txHash: string;
       if (buyCurrency === "usdt") {
-        txHash = await writeContractAsync({
-          address: USDT_CONTRACT,
-          abi: USDT_ABI,
-          functionName: "transfer",
-          args: [TREASURY_MINIPAY, ptsToUsdt(price)],
-          account: activeAddress,
-          chainId: celo.id,
-        });
+        txHash = isMp
+          ? await sendMiniPayNativeTransaction({
+              from: activeAddress,
+              to: USDT_CONTRACT,
+              value: 0n,
+              gas: 120000n,
+              data: encodeFunctionData({
+                abi: USDT_ABI,
+                functionName: "transfer",
+                args: [TREASURY_MINIPAY, ptsToUsdt(price)],
+              }),
+              feeCurrency: USDT_FEE_CURRENCY,
+            })
+          : await writeContractAsync({
+              address: USDT_CONTRACT,
+              abi: USDT_ABI,
+              functionName: "transfer",
+              args: [TREASURY_MINIPAY, ptsToUsdt(price)],
+              account: activeAddress,
+              chainId: celo.id,
+            });
       } else if (buyCurrency === "gdollar") {
         txHash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,
@@ -228,7 +240,7 @@ export default function BlackMarket() {
 
         {/* Background */}
         <MiniPayImage
-          src="/new addition/gameplay landing page.webp"
+          src="/new-assets/gameplay-landing-lite.webp"
           alt=""
           priority
           minipayWidth={1280}

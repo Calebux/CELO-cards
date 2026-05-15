@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 // Card images — local assets
 const S1 = "/cards/phantom_break.webp";
@@ -66,7 +67,7 @@ export default function DeckPage() {
         <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
             <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
                 {/* BG */}
-                <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+                <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
                 {/* ── Top Bar ── */}
                 <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
@@ -102,7 +103,7 @@ export default function DeckPage() {
                 <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 148, display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "center", maxWidth: 800 }}>
                     {cards.map((img, i) => (
                         <div key={i} style={{ width: 130, height: 180, borderRadius: 6, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", position: "relative" }}>
-                            <img src={img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                            <MiniPayImage src={img} alt="" minipayWidth={260} minipayQuality={48} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                         </div>
                     ))}
                 </div>

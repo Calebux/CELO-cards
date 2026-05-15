@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { isMiniPay } from "../lib/minipay";
 
 const BOUNTY_EXTENSION_DAYS = 5;
 
@@ -80,6 +82,7 @@ const HOW_IT_WORKS = [
 ];
 
 export default function WeeklyChallengePage() {
+  const isMp = isMiniPay();
   const outerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -209,16 +212,27 @@ export default function WeeklyChallengePage() {
 
       {/* Background */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
-        <video autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.10 }}
-          onLoadedData={(e) => {
-            // Pause video on low-end devices to save performance
-            const conn = (navigator as { connection?: { effectiveType?: string } }).connection;
-            if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") {
-              (e.target as HTMLVideoElement).pause();
-            }
-          }}>
-          <source src="/new-assets/lobby-vs-scene.webm" type="video/webm" />
-        </video>
+        {isMp ? (
+          <MiniPayImage
+            src="/new-assets/landing-hero.webp"
+            alt=""
+            minipayWidth={960}
+            minipayQuality={48}
+            priority
+            style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.14 }}
+          />
+        ) : (
+          <video autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.10 }}
+            onLoadedData={(e) => {
+              // Pause video on low-end devices to save performance
+              const conn = (navigator as { connection?: { effectiveType?: string } }).connection;
+              if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") {
+                (e.target as HTMLVideoElement).pause();
+              }
+            }}>
+            <source src="/new-assets/lobby-vs-scene.webm" type="video/webm" />
+          </video>
+        )}
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(86,164,203,0.05) 0%, transparent 70%)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,5,5,0.7) 0%, rgba(5,5,5,0.4) 40%, rgba(5,5,5,0.85) 100%)" }} />
       </div>

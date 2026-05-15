@@ -15,7 +15,7 @@ import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
-const BG = "/new-assets/two-fighters-vs.png";
+const BG = "/new-assets/two-fighters-vs.webp";
 
 // Grey filler portraits for locked slots — use local assets so they never break
 const GREY_PORTRAITS = [

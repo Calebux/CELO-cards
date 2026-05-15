@@ -136,7 +136,7 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
         kenji: "/arena-backgrounds/arena_kaira_kenji.webp",
         riven: "/arena-backgrounds/arena_kaira_riven.webp",
         zane:  "/arena-backgrounds/arena_kaira_zane.webp",
-        elara: "/arena-backgrounds/arena_kaira_elara.jpg",
+        elara: "/arena-backgrounds/arena_kaira_elara.webp",
     },
     kenji: {
         kenji: "/arena-backgrounds/arena_kenji_kenji.webp",
@@ -163,13 +163,13 @@ export const ARENA_BACKGROUNDS: Record<string, Record<string, string>> = {
         elara: "/arena-backgrounds/arena_elara_elara.webp",
         riven: "/arena-backgrounds/arena_elara_riven.webp",
         zane:  "/arena-backgrounds/arena_elara_zane.webp",
-        kaira: "/arena-backgrounds/arena_elara_kaira.jpg",
+        kaira: "/arena-backgrounds/arena_elara_kaira.webp",
         kenji: "/arena-backgrounds/arena_elara_kenji.webp",
     },
 };
 
 export function getArenaBackground(playerId: string, opponentId: string): string {
-    return ARENA_BACKGROUNDS[playerId]?.[opponentId] ?? "/new addition/gameplay777.webp";
+    return ARENA_BACKGROUNDS[playerId]?.[opponentId] ?? "/new-assets/gameplay777-lite.webp";
 }
 
 // ── Cards ─────────────────────────────────────────────────────────────────

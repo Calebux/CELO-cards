@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { CARDS } from "../lib/gameData";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import type { TradeOffer } from "../lib/cardTrade";
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 type TabView = "inbox" | "outbox" | "send";
 

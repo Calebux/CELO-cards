@@ -305,7 +305,7 @@ export default function CreateMatch() {
   if (isMp) {
     return (
       <div style={{ width: "100vw", minHeight: "100vh", overflow: "hidden", position: "relative", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif", color: "#f8fafc" }}>
-        <MiniPayImage src="/new addition/gameplay landing page.webp" alt="" minipayWidth={960} minipayQuality={48} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.22, pointerEvents: "none" }} />
+        <MiniPayImage src="/new-assets/gameplay-landing-lite.webp" alt="" minipayWidth={960} minipayQuality={48} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.22, pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(5,5,5,0.92) 0%, rgba(5,8,18,0.82) 38%, rgba(5,5,5,0.98) 100%)", pointerEvents: "none" }} />
 
         <div style={{ position: "relative", zIndex: 1, padding: "calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 26px)" }}>
@@ -503,7 +503,7 @@ export default function CreateMatch() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <MiniPayImage src="/new addition/gameplay landing page.webp" alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
+        <MiniPayImage src="/new-assets/gameplay-landing-lite.webp" alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.85) 0%, rgba(5,8,18,0.75) 50%, rgba(5,5,5,0.85) 100%)", pointerEvents: "none" }} />
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}

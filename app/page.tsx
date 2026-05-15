@@ -45,7 +45,6 @@ export default function ActionOrderLandingPage() {
 
 
   useEffect(() => {
-    if (isMp) return;
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -90,132 +89,6 @@ export default function ActionOrderLandingPage() {
     const timeout = window.setTimeout(prefetch, 900);
     return () => window.clearTimeout(timeout);
   }, [router]);
-
-  if (isMp) {
-    return (
-      <>
-        <title>Action Order</title>
-        <div style={{ width: "100vw", minHeight: "100vh", background: "#071019", color: "#f8fafc", fontFamily: "var(--font-space-grotesk), sans-serif", position: "relative", overflow: "hidden" }}>
-          <MiniPayImage
-            src="/new-assets/landing-hero.webp"
-            alt="Action Order fighters"
-            minipayWidth={960}
-            minipayQuality={48}
-            priority
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.22, pointerEvents: "none" }}
-          />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(7,16,25,0.92) 0%, rgba(7,16,25,0.78) 34%, rgba(7,16,25,0.98) 100%)", pointerEvents: "none" }} />
-
-          <div style={{ position: "relative", zIndex: 1, padding: "calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 24px)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2.8, color: "#56a4cb", textTransform: "uppercase" }}>Action Order</div>
-                <div style={{ marginTop: 6, fontSize: 26, lineHeight: 1.02, fontWeight: 900, letterSpacing: -1.2 }}>Fast onchain fights for MiniPay.</div>
-              </div>
-              <WalletSection />
-            </div>
-
-            {effectiveResumeRoute && (
-              <button
-                onClick={handleResume}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  marginBottom: 14,
-                  padding: "13px 14px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(125,211,252,0.4)",
-                  background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
-                  color: "#e0f2fe",
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase" }}>Match in progress</span>
-                <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase" }}>Resume</span>
-              </button>
-            )}
-
-            <div style={{ padding: "18px 16px", borderRadius: 18, border: "1px solid rgba(86,164,203,0.22)", background: "rgba(9,18,30,0.82)", boxShadow: "0 18px 40px rgba(0,0,0,0.22)", backdropFilter: "blur(10px)" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2.1, color: "#7dd3fc", textTransform: "uppercase" }}>MiniPay Mode</div>
-              <div style={{ marginTop: 8, fontSize: 15, lineHeight: 1.55, color: "#cbd5e1" }}>
-                Faster pages, cleaner taps, and premium purchases in <span style={{ color: "#34d399", fontWeight: 800 }}>USDT</span>.
-              </div>
-
-              <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
-                <Link href="/create" style={{ textDecoration: "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 16px", borderRadius: 16, background: "linear-gradient(135deg, rgba(27,59,83,0.95), rgba(15,34,51,0.95))", border: "1px solid rgba(86,164,203,0.55)", color: "#f8fafc" }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.6, textTransform: "uppercase" }}>Create Match</div>
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#b9e7f4", lineHeight: 1.45 }}>Ranked, wager, vs house, or tournament entry.</div>
-                    </div>
-                    <div style={{ fontSize: 20, color: "#7dd3fc" }}>→</div>
-                  </div>
-                </Link>
-
-                <Link href="/join" style={{ textDecoration: "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 16px", borderRadius: 16, background: "rgba(9,18,30,0.88)", border: "1px solid rgba(86,164,203,0.28)", color: "#f8fafc" }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.6, textTransform: "uppercase" }}>Join Match</div>
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#94a3b8", lineHeight: 1.45 }}>Use a match ID and jump straight into the lobby.</div>
-                    </div>
-                    <div style={{ fontSize: 20, color: "#56a4cb" }}>→</div>
-                  </div>
-                </Link>
-
-                <Link href="/black-market" style={{ textDecoration: "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 16px", borderRadius: 16, background: "linear-gradient(135deg, rgba(60,15,15,0.88), rgba(24,24,27,0.92))", border: "1px solid rgba(239,68,68,0.42)", color: "#f8fafc" }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.6, textTransform: "uppercase" }}>Black Market</div>
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#fecaca", lineHeight: 1.45 }}>Premium cards and pass upgrades with USDT.</div>
-                    </div>
-                    <div style={{ fontSize: 20, color: "#f87171" }}>→</div>
-                  </div>
-                </Link>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginTop: 16 }}>
-                <div style={{ padding: "12px 12px", borderRadius: 14, border: "1px solid rgba(168,85,247,0.22)", background: "rgba(21,16,36,0.78)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.8, color: "#c084fc", textTransform: "uppercase" }}>Points</div>
-                  <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, letterSpacing: -0.8 }}>{playerPoints.toLocaleString()}</div>
-                </div>
-                <div style={{ padding: "12px 12px", borderRadius: 14, border: "1px solid rgba(251,146,60,0.24)", background: "rgba(38,20,9,0.78)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.8, color: "#fb923c", textTransform: "uppercase" }}>Win Streak</div>
-                  <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, letterSpacing: -0.8 }}>{winStreak > 0 ? `🔥 ${winStreak}` : "None"}</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginTop: 16 }}>
-              <button
-                onClick={() => setShowSeasonPassModal(true)}
-                style={{ padding: "14px 12px", borderRadius: 14, border: "1px solid rgba(251,191,36,0.42)", background: "rgba(60,45,0,0.34)", color: "#fbbf24", fontSize: 12, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase", fontFamily: "inherit", cursor: "pointer" }}
-              >
-                Season Pass
-              </button>
-              <button
-                onClick={() => setShowHowToPlay(true)}
-                style={{ padding: "14px 12px", borderRadius: 14, border: "1px solid rgba(86,164,203,0.28)", background: "rgba(9,18,30,0.82)", color: "#b9e7f4", fontSize: 12, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase", fontFamily: "inherit", cursor: "pointer" }}
-              >
-                How To Play
-              </button>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 16, padding: "0 2px", color: "rgba(185,231,244,0.62)", fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>
-              <Link href="/leaderboard" style={{ color: "inherit", textDecoration: "none" }}>Leaderboard</Link>
-              <Link href="/profile" style={{ color: "inherit", textDecoration: "none" }}>Profile</Link>
-              <Link href="/terms" style={{ color: "inherit", textDecoration: "none" }}>Terms</Link>
-            </div>
-          </div>
-        </div>
-        {showHowToPlay && <HowToPlayModal onClose={() => setShowHowToPlay(false)} />}
-        {showSeasonPassModal && <SeasonPassModal onClose={() => setShowSeasonPassModal(false)} onActivated={() => setShowSeasonPassModal(false)} />}
-      </>
-    );
-  }
 
   return (
     <>
@@ -415,7 +288,7 @@ export default function ActionOrderLandingPage() {
           <div className="ko-land-page">
 
             {/* Background — WebP served to all browsers; MiniPay gets /_next/image optimized version */}
-            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" minipayWidth={1280} minipayQuality={75} priority />
+            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" minipayWidth={1280} minipayQuality={58} priority />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, rgba(5,8,18,0.82) 0%, rgba(5,8,18,0.22) 22%, rgba(5,8,18,0.22) 78%, rgba(5,8,18,0.82) 100%)", zIndex:1, pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 

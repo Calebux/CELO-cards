@@ -10,7 +10,7 @@ import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 export default function ReadyYourDeckPage() {
   return (

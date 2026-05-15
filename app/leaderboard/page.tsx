@@ -4,12 +4,13 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { isMiniPay } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 type Tab = "casual" | "ranked";
 
@@ -106,7 +107,7 @@ export default function Leaderboard() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.75)" }} />
 
         {/* ── Top Bar ── */}

@@ -150,7 +150,7 @@ export function ClashCinematic({
       : ["#fbbf24", "#fff", "#fde68a", "#fcd34d", "#fef", "#fff"];
 
   const winningCard = result.winner === "player" ? result.playerCard : result.winner === "opponent" ? result.opponentCard : null;
-  const actionVideo = getVideoForCard(winningCard);
+  const actionVideo = isMp ? null : getVideoForCard(winningCard);
 
   return (
     <div style={{
@@ -211,7 +211,7 @@ export function ClashCinematic({
           />
         </div>
       )}
-      {actionVideo && !isMp && (
+      {actionVideo && (
         <video src={actionVideo} autoPlay muted playsInline preload="metadata" tabIndex={-1}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85, pointerEvents: "none" }}
         />

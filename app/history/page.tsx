@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { CHARACTERS, CARDS } from "../lib/gameData";
 import type { MatchRecord } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 function timeAgo(isoDate: string): string {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -78,7 +79,7 @@ export default function HistoryPage() {
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
-        <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.82)" }} />
 
         {/* Top Bar */}

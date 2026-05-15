@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MiniPayImage } from "../../components/MiniPayImage";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 function getRank(points: number): { label: string; color: string } {
   if (points >= 5000) return { label: "LEGEND", color: "#FFD700" };
@@ -132,7 +133,7 @@ export default function PublicProfileClient({ address }: Props) {
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#000" }}>
       <div ref={wrapRef}>
         {/* Background */}
-        <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${BG_IMAGE})`, backgroundSize: "cover", backgroundPosition: "center", filter: "brightness(0.25)" }} />
+        <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.25)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(86,164,203,0.06) 0%,transparent 60%)" }} />
 
         {/* Nav */}

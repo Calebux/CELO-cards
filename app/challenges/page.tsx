@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { GDOLLAR_COLOR } from "../lib/gooddollar";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
@@ -93,7 +94,7 @@ export default function ChallengesPage() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <img src="/new addition/gameplay landing page.webp" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.25, pointerEvents: "none" }} />
+        <MiniPayImage src="/new-assets/gameplay-landing-lite.webp" alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.25, pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.92) 0%, rgba(5,8,18,0.85) 100%)", pointerEvents: "none" }} />
 
         {/* Top bar */}

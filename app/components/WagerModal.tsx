@@ -11,7 +11,7 @@ import {
   useSwitchChain,
 } from "wagmi";
 import { celo } from "wagmi/chains";
-import { parseUnits, formatUnits } from "viem";
+import { encodeFunctionData, parseUnits, formatUnits } from "viem";
 import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDT_FEE_CURRENCY } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
@@ -264,15 +264,27 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
-      const hash = await writeContractAsync({
-        address: USDT_CONTRACT,
-        abi: ERC20_ABI,
-        functionName: "transfer",
-        args: [TREASURY_MINIPAY_ADDRESS, amt],
-        account: activeAddress,
-        chainId: celo.id,
-        ...(isMp ? { feeCurrency: USDT_FEE_CURRENCY } : {}),
-      });
+      const hash = isMp
+        ? await sendMiniPayNativeTransaction({
+            from: activeAddress,
+            to: USDT_CONTRACT,
+            value: 0n,
+            gas: 120000n,
+            data: encodeFunctionData({
+              abi: ERC20_ABI,
+              functionName: "transfer",
+              args: [TREASURY_MINIPAY_ADDRESS, amt],
+            }),
+            feeCurrency: USDT_FEE_CURRENCY,
+          })
+        : await writeContractAsync({
+            address: USDT_CONTRACT,
+            abi: ERC20_ABI,
+            functionName: "transfer",
+            args: [TREASURY_MINIPAY_ADDRESS, amt],
+            account: activeAddress,
+            chainId: celo.id,
+          });
       setTxHash(hash);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "USDT transfer failed.");
