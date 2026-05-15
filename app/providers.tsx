@@ -4,7 +4,8 @@ import dynamic from "next/dynamic";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { celo, celoAlfajores } from "wagmi/chains";
-import { RainbowKitProvider, getDefaultWallets } from "@rainbow-me/rainbowkit";
+import { injected } from "wagmi/connectors";
+import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 // CSS loaded async — avoids render-blocking the first paint (not needed in MiniPay at all)
 const RainbowKitStyles = dynamic(() => import("./components/RainbowKitStyles").then(m => ({ default: m.RainbowKitStyles })), { ssr: false });
 import { WalletSync } from "./lib/wallet";
@@ -17,18 +18,15 @@ const DailyReward    = dynamic(() => import("./components/DailyReward").then(m =
 const UsernameModal  = dynamic(() => import("./components/UsernameModal").then(m => ({ default: m.UsernameModal })), { ssr: false });
 const TutorialModal  = dynamic(() => import("./components/TutorialModal").then(m => ({ default: m.TutorialModal })), { ssr: false });
 
-const { connectors } = getDefaultWallets({
-  appName: "Action Order",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "action-order",
-});
-
+// WalletConnect (getDefaultWallets) removed from initial bundle — saves ~1MB on mobile parse time.
+// Users connect via: MetaMask/injected wallets, or Web3Auth (social login).
 const config = createConfig({
   chains: [celo, celoAlfajores],
   transports: {
     [celo.id]: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
     [celoAlfajores.id]: http(),
   },
-  connectors: [miniPayConnector, createWeb3AuthConnector(), ...connectors],
+  connectors: [miniPayConnector, createWeb3AuthConnector(), injected()],
 });
 
 const queryClient = new QueryClient();

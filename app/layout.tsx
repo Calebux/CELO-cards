@@ -76,6 +76,23 @@ export default async function RootLayout({
     set:function(v){if(v&&!v.getAppVersion)v.getAppVersion=_noop;_val=v||{};}
   });
 })();` }} />
+        {/* Compute viewport scale before first paint so the 1440×823 design
+            is visually in position immediately — eliminates the LCP delay
+            caused by the React useEffect running after JS parses (~3s mobile) */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){
+  try{
+    var w=window.innerWidth,h=window.innerHeight,dw=1440,dh=823;
+    var s,tx,ty,tr;
+    if(h>w){
+      s=Math.min(w/dh,h/dw);tx=w/2+(dh*s)/2;ty=h/2-(dw*s)/2;
+      tr='translate('+tx+'px,'+ty+'px) rotate(90deg) scale('+s+')';
+    }else{
+      s=Math.min(w/dw,h/dh);tx=(w-dw*s)/2;ty=(h-dh*s)/2;
+      tr='translate('+tx+'px,'+ty+'px) scale('+s+')';
+    }
+    document.documentElement.style.setProperty('--ao-tr',tr);
+  }catch(e){}
+})();` }} />
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>

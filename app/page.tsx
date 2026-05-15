@@ -72,6 +72,7 @@ export default function ActionOrderLandingPage() {
   return (
     <>
       <title>Action Order</title>
+      <link rel="preload" as="image" href="/new-assets/landing-hero.webp" fetchPriority="high" type="image/webp" />
       <style>{`
         .ko-land-page-wrapper {
           width: 1440px;
@@ -262,7 +263,7 @@ export default function ActionOrderLandingPage() {
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
-        <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left" }}>
+        <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
           <div className="ko-land-page">
 
             {/* Background — WebP served to all browsers; MiniPay gets /_next/image optimized version */}
