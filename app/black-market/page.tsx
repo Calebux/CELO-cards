@@ -16,7 +16,7 @@ import {
 import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { parseUnits } from "viem";
-import { getMiniPayConnector, getMiniPayWalletClient, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay, sendMiniPayErc20Transfer, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { getCardForgeProgress, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
@@ -166,13 +166,11 @@ export default function BlackMarket() {
       let txHash: string;
       if (buyCurrency === "usdt") {
         txHash = isMp
-          ? await getMiniPayWalletClient().writeContract({
-              address: USDT_CONTRACT,
-              abi: USDT_ABI,
-              functionName: "transfer",
-              args: [TREASURY_MINIPAY, ptsToUsdt(price)],
-              account: activeAddress,
-              ...getMiniPayWriteOverrides(),
+          ? await sendMiniPayErc20Transfer({
+              from: activeAddress,
+              token: USDT_CONTRACT,
+              to: TREASURY_MINIPAY,
+              amount: ptsToUsdt(price),
             })
           : await writeContractAsync({
               address: USDT_CONTRACT,

@@ -1,6 +1,6 @@
 // MiniPay wallet detection and Celo address helpers
 
-import { toHex, createWalletClient, custom, type EIP1193Provider } from "viem";
+import { toHex, createWalletClient, custom, encodeFunctionData, type EIP1193Provider } from "viem";
 import { celo } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
@@ -180,6 +180,37 @@ export async function sendMiniPayNativeTransaction(args: {
     await new Promise((resolve) => setTimeout(resolve, 350));
     return requestChainAndSend();
   }
+}
+
+export async function sendMiniPayErc20Transfer(args: {
+  from: `0x${string}`;
+  token: `0x${string}`;
+  to: `0x${string}`;
+  amount: bigint;
+  gas?: bigint;
+}): Promise<`0x${string}`> {
+  const transferData = encodeFunctionData({
+    abi: [{
+      name: "transfer",
+      type: "function",
+      stateMutability: "nonpayable",
+      inputs: [
+        { name: "to", type: "address" },
+        { name: "value", type: "uint256" },
+      ],
+      outputs: [{ name: "", type: "bool" }],
+    }] as const,
+    functionName: "transfer",
+    args: [args.to, args.amount],
+  });
+
+  return sendMiniPayNativeTransaction({
+    from: args.from,
+    to: args.token,
+    value: 0n,
+    data: transferData,
+    gas: args.gas ?? 100000n,
+  });
 }
 
 export function formatAddress(address: string): string {

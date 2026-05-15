@@ -16,7 +16,7 @@ import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, U
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
-import { getMiniPayConnector, getMiniPayWalletClient, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay, sendMiniPayErc20Transfer, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { getInitialMiniPayMode, useMiniPayMode } from "../lib/premiumPayments";
 
@@ -272,13 +272,11 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     setStep("entering");
     try {
       const hash = isMp
-        ? await getMiniPayWalletClient().writeContract({
-            address: USDT_CONTRACT,
-            abi: ERC20_ABI,
-            functionName: "transfer",
-            args: [TREASURY_MINIPAY_ADDRESS, amt],
-            account: activeAddress,
-            ...getMiniPayWriteOverrides(),
+        ? await sendMiniPayErc20Transfer({
+            from: activeAddress,
+            token: USDT_CONTRACT,
+            to: TREASURY_MINIPAY_ADDRESS,
+            amount: amt,
           })
         : await writeContractAsync({
             address: USDT_CONTRACT,
