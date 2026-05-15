@@ -62,6 +62,7 @@ function Balances({ address, enabled, mp }: { address: `0x${string}`; enabled: b
 function MuteButton() {
   const [muted, setMutedState] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const isMp = useMiniPayMode();
 
   useEffect(() => {
     setMutedState(isMuted());
@@ -80,7 +81,7 @@ function MuteButton() {
           border: "1px solid rgba(86,164,203,0.25)",
           borderRadius: 6,
           cursor: "pointer",
-          padding: isMiniPay() ? "16px 14px" : "5px 8px",
+          padding: isMp ? "16px 14px" : "5px 8px",
           display: "flex", alignItems: "center", gap: 4,
           transition: "all 0.2s",
         }}

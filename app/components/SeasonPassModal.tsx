@@ -225,27 +225,31 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       const activeAddress = await ensureWalletReady();
       activeAddressRef.current = activeAddress;
       if (currency === "usdt") {
-        const hash = isMp
-          ? await sendMiniPayNativeTransaction({
-              from: activeAddress,
-              to: USDT_CONTRACT,
-              value: 0n,
-              gas: 120000n,
-              data: encodeFunctionData({
-                abi: USDT_ABI,
-                functionName: "transfer",
-                args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
-              }),
-              feeCurrency: USDT_FEE_CURRENCY,
-            })
-          : await writeContractAsync({
-              address: USDT_CONTRACT,
+        let hash: `0x${string}`;
+        try {
+          hash = await writeContractAsync({
+            address: USDT_CONTRACT,
+            abi: USDT_ABI,
+            functionName: "transfer",
+            args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
+            account: activeAddress,
+            chainId: celo.id,
+          });
+        } catch (writeError) {
+          if (!isMp) throw writeError;
+          hash = await sendMiniPayNativeTransaction({
+            from: activeAddress,
+            to: USDT_CONTRACT,
+            value: 0n,
+            gas: 120000n,
+            data: encodeFunctionData({
               abi: USDT_ABI,
               functionName: "transfer",
               args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
-              account: activeAddress,
-              chainId: celo.id,
-            });
+            }),
+            feeCurrency: USDT_FEE_CURRENCY,
+          });
+        }
         void pollAndRegister(hash, activeAddress);
       } else if (currency === "gdollar") {
         const hash = await writeContractAsync({

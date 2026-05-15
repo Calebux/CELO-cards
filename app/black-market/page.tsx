@@ -165,27 +165,30 @@ export default function BlackMarket() {
       const activeAddress = await ensureWalletReady();
       let txHash: string;
       if (buyCurrency === "usdt") {
-        txHash = isMp
-          ? await sendMiniPayNativeTransaction({
-              from: activeAddress,
-              to: USDT_CONTRACT,
-              value: 0n,
-              gas: 120000n,
-              data: encodeFunctionData({
-                abi: USDT_ABI,
-                functionName: "transfer",
-                args: [TREASURY_MINIPAY, ptsToUsdt(price)],
-              }),
-              feeCurrency: USDT_FEE_CURRENCY,
-            })
-          : await writeContractAsync({
-              address: USDT_CONTRACT,
+        try {
+          txHash = await writeContractAsync({
+            address: USDT_CONTRACT,
+            abi: USDT_ABI,
+            functionName: "transfer",
+            args: [TREASURY_MINIPAY, ptsToUsdt(price)],
+            account: activeAddress,
+            chainId: celo.id,
+          });
+        } catch (writeError) {
+          if (!isMp) throw writeError;
+          txHash = await sendMiniPayNativeTransaction({
+            from: activeAddress,
+            to: USDT_CONTRACT,
+            value: 0n,
+            gas: 120000n,
+            data: encodeFunctionData({
               abi: USDT_ABI,
               functionName: "transfer",
               args: [TREASURY_MINIPAY, ptsToUsdt(price)],
-              account: activeAddress,
-              chainId: celo.id,
-            });
+            }),
+            feeCurrency: USDT_FEE_CURRENCY,
+          });
+        }
       } else if (buyCurrency === "gdollar") {
         txHash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,

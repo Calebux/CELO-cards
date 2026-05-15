@@ -8,6 +8,39 @@ type MiniPayProvider = EIP1193Provider & {
 };
 
 const CELO_CHAIN_HEX = "0xa4ec";
+const MINIPAY_STORAGE_KEY = "ao:minipay";
+
+function persistMiniPayDetection() {
+  if (typeof document !== "undefined") {
+    document.documentElement.dataset.minipay = "1";
+  }
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(MINIPAY_STORAGE_KEY, "1");
+    } catch {}
+    try {
+      window.localStorage.setItem(MINIPAY_STORAGE_KEY, "1");
+    } catch {}
+  }
+}
+
+function hasMiniPayRuntimeHint(): boolean {
+  if (typeof document !== "undefined" && document.documentElement.dataset.minipay === "1") {
+    return true;
+  }
+  if (typeof navigator !== "undefined" && /MiniPay/i.test(navigator.userAgent)) {
+    return true;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      if (window.sessionStorage.getItem(MINIPAY_STORAGE_KEY) === "1") return true;
+    } catch {}
+    try {
+      if (window.localStorage.getItem(MINIPAY_STORAGE_KEY) === "1") return true;
+    } catch {}
+  }
+  return false;
+}
 
 function shouldRetryMiniPayNativeSend(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -23,17 +56,26 @@ function shouldRetryMiniPayNativeSend(error: unknown): boolean {
 export function isMiniPay(): boolean {
   if (typeof window === "undefined") return false;
   // window.ethereum check — most accurate once provider is injected
-  if ((window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay) return true;
-  // Fallback: server-side UA detection result embedded in the HTML before any JS runs.
-  // This fires correctly even when window.ethereum hasn't been injected yet on first render,
-  // which is the root cause of pages briefly showing CELO/G$ in MiniPay.
-  return document.documentElement.dataset.minipay === "1";
+  if ((window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay) {
+    persistMiniPayDetection();
+    return true;
+  }
+  // Fallbacks: server/client UA hints plus sticky session/local storage.
+  const hinted = hasMiniPayRuntimeHint();
+  if (hinted) {
+    persistMiniPayDetection();
+  }
+  return hinted;
 }
 
 export function getMiniPayProvider(): MiniPayProvider | undefined {
   if (typeof window === "undefined") return undefined;
   const provider = window.ethereum as MiniPayProvider | undefined;
-  return provider?.isMiniPay ? provider : undefined;
+  if (provider?.isMiniPay) {
+    persistMiniPayDetection();
+    return provider;
+  }
+  return undefined;
 }
 
 export const miniPayConnector = injected({
@@ -78,16 +120,21 @@ export async function sendMiniPayNativeTransaction(args: {
   }
 
   const requestChainAndSend = async () => {
+    let switchChainPromise: Promise<unknown> | undefined;
     try {
-      await provider.request({
+      switchChainPromise = provider.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: CELO_CHAIN_HEX }],
       });
+      await Promise.race([
+        switchChainPromise,
+        new Promise((resolve) => window.setTimeout(resolve, 900)),
+      ]);
     } catch {
       // MiniPay is typically already pinned to Celo mainnet.
     }
 
-    const hash = await provider.request({
+    const result = await provider.request({
       method: "eth_sendTransaction",
       params: [{
         from: args.from,
@@ -99,7 +146,17 @@ export async function sendMiniPayNativeTransaction(args: {
       }],
     });
 
-    return hash as `0x${string}`;
+    if (typeof result === "string") {
+      return result as `0x${string}`;
+    }
+    if (result && typeof result === "object") {
+      const hash = (result as { hash?: string; transactionHash?: string }).hash
+        ?? (result as { hash?: string; transactionHash?: string }).transactionHash;
+      if (typeof hash === "string") {
+        return hash as `0x${string}`;
+      }
+    }
+    throw new Error("MiniPay transaction hash missing.");
   };
 
   try {

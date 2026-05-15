@@ -271,27 +271,31 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
-      const hash = isMp
-        ? await sendMiniPayNativeTransaction({
-            from: activeAddress,
-            to: USDT_CONTRACT,
-            value: 0n,
-            gas: 120000n,
-            data: encodeFunctionData({
-              abi: ERC20_ABI,
-              functionName: "transfer",
-              args: [TREASURY_MINIPAY_ADDRESS, amt],
-            }),
-            feeCurrency: USDT_FEE_CURRENCY,
-          })
-        : await writeContractAsync({
-            address: USDT_CONTRACT,
+      let hash: `0x${string}`;
+      try {
+        hash = await writeContractAsync({
+          address: USDT_CONTRACT,
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [TREASURY_MINIPAY_ADDRESS, amt],
+          account: activeAddress,
+          chainId: celo.id,
+        });
+      } catch (writeError) {
+        if (!isMp) throw writeError;
+        hash = await sendMiniPayNativeTransaction({
+          from: activeAddress,
+          to: USDT_CONTRACT,
+          value: 0n,
+          gas: 120000n,
+          data: encodeFunctionData({
             abi: ERC20_ABI,
             functionName: "transfer",
             args: [TREASURY_MINIPAY_ADDRESS, amt],
-            account: activeAddress,
-            chainId: celo.id,
-          });
+          }),
+          feeCurrency: USDT_FEE_CURRENCY,
+        });
+      }
       setTxHash(hash);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "USDT transfer failed.");

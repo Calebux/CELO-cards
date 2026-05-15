@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
 import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
 import { MiniPayImage } from './components/MiniPayImage';
-import { isMiniPay } from './lib/minipay';
+import { useMiniPayMode } from './lib/premiumPayments';
 import { useAccount } from 'wagmi';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 
@@ -16,7 +16,7 @@ const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(
 const SeasonPassModal = dynamic(() => import('./components/SeasonPassModal').then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
 export default function ActionOrderLandingPage() {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const { playerPoints, winStreak, matchPhase, matchId, playerRole, selectedCharacter, vsBot } = useGameStore();
   const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);

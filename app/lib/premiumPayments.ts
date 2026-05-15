@@ -62,7 +62,7 @@ export function useMiniPayMode(): boolean {
 
     const retry = window.setInterval(() => {
       attempts += 1;
-      if (sync() || attempts > 8) {
+      if (sync() || attempts > 40) {
         window.clearInterval(retry);
       }
     }, 250);
