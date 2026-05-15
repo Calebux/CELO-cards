@@ -295,6 +295,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       <div ref={wrapRef} style={isMp ? {
         width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0,
         transformOrigin: "top left",
+        transform: "var(--ao-tr)",
         display: "flex", alignItems: "center", justifyContent: "center",
       } : {
         width: "100%", height: "100%",

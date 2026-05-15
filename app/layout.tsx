@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Ruda } from "next/font/google";
+import dynamic from "next/dynamic";
+import { headers } from "next/headers";
 import "./globals.css";
-import { Providers } from "./providers";
+// Material Icons moved to globals.css as self-hosted @font-face with font-display:swap
+// (was: package import that loaded all 5 variants with font-display:block — render-blocking)
+
+// Separate chunks: MiniPay gets wagmi-only bundle, web gets full RainbowKit/WalletConnect bundle
+const Providers = dynamic(() => import("./providers").then(m => ({ default: m.Providers })));
+const MiniPayProviders = dynamic(() => import("./minipay-providers").then(m => ({ default: m.MiniPayProviders })));
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "600", "700"],
   variable: "--font-space-grotesk",
+  display: "swap",
 });
 
 const ruda = Ruda({
@@ -43,11 +51,15 @@ export const viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const ua = (await headers()).get("user-agent") ?? "";
+  const isMiniPayUA = /MiniPay/i.test(ua);
+  const ProviderComponent = isMiniPayUA ? MiniPayProviders : Providers;
+
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${ruda.variable}`}>
       <head>
@@ -65,24 +77,30 @@ export default function RootLayout({
     set:function(v){if(v&&!v.getAppVersion)v.getAppVersion=_noop;_val=v||{};}
   });
 })();` }} />
-        {/* Material Icons — async so it doesn't block first paint.
-            next/font already preconnects fonts.googleapis.com + fonts.gstatic.com,
-            so no separate preconnect needed here. */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block"
-          rel="stylesheet"
-          media="print"
-          // @ts-expect-error — onload is not in React's link props but works at runtime
-          onLoad="this.media='all'"
-        />
-        <noscript>
-          <link href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block" rel="stylesheet" />
-        </noscript>
+        {/* Compute viewport scale before first paint so the 1440×823 design
+            is visually in position immediately — eliminates the LCP delay
+            caused by the React useEffect running after JS parses (~3s mobile) */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){
+  try{
+    var w=window.innerWidth,h=window.innerHeight,dw=1440,dh=823;
+    var s,tx,ty,tr;
+    if(h>w){
+      s=Math.min(w/dh,h/dw);tx=w/2+(dh*s)/2;ty=h/2-(dw*s)/2;
+      tr='translate('+tx+'px,'+ty+'px) rotate(90deg) scale('+s+')';
+    }else{
+      s=Math.min(w/dw,h/dh);tx=(w-dw*s)/2;ty=(h-dh*s)/2;
+      tr='translate('+tx+'px,'+ty+'px) scale('+s+')';
+    }
+    document.documentElement.style.setProperty('--ao-tr',tr);
+  }catch(e){}
+})();` }} />
+        {/* Preconnect for Alchemy RPC — eliminates DNS+TLS cold start on first wagmi call */}
+        <link rel="preconnect" href="https://celo-mainnet.g.alchemy.com" />
+        <link rel="dns-prefetch" href="https://celo-mainnet.g.alchemy.com" />
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-        <Providers>{children}</Providers>
+        <ProviderComponent>{children}</ProviderComponent>
       </body>
     </html>
   );
