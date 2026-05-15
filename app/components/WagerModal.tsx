@@ -16,7 +16,7 @@ import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, U
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
-import { getMiniPayAddress, getMiniPayConnector, isMiniPay, sendMiniPayErc20Transfer, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { getInitialMiniPayMode, useMiniPayMode } from "../lib/premiumPayments";
 
@@ -280,21 +280,15 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     setStep("entering");
     try {
-      const hash = isMp
-        ? await sendMiniPayErc20Transfer({
-            from: activeAddress,
-            token: USDT_CONTRACT,
-            to: TREASURY_MINIPAY_ADDRESS,
-            amount: amt,
-          })
-        : await writeContractAsync({
-            address: USDT_CONTRACT,
-            abi: ERC20_ABI,
-            functionName: "transfer",
-            args: [TREASURY_MINIPAY_ADDRESS, amt],
-            account: activeAddress,
-            chainId: celo.id,
-          });
+      const hash = await writeContractAsync({
+          address: USDT_CONTRACT,
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [TREASURY_MINIPAY_ADDRESS, amt],
+          account: activeAddress,
+          chainId: celo.id,
+          ...getMiniPayWriteOverrides(),
+        });
       setTxHash(hash);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "USDT transfer failed.");
