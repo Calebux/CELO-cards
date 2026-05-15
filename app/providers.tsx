@@ -12,6 +12,7 @@ import { WalletSync } from "./lib/wallet";
 import { miniPayConnector } from "./lib/minipay";
 import { createWeb3AuthConnector } from "./lib/web3auth";
 import { PortraitOverlay } from "./components/PortraitOverlay";
+import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
 
 // Heavy modals — load after initial paint so they don't block first interaction
 const DailyReward    = dynamic(() => import("./components/DailyReward").then(m => ({ default: m.DailyReward })), { ssr: false });
@@ -39,9 +40,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <RainbowKitStyles />
           <WalletSync />
           <PortraitOverlay />
-          <DailyReward />
-          <UsernameModal />
-          <TutorialModal />
+          <DeferredGlobalOverlays>
+            <DailyReward />
+            <UsernameModal />
+            <TutorialModal />
+          </DeferredGlobalOverlays>
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

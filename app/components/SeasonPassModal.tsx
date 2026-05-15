@@ -9,6 +9,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency } from "../lib/premiumPayments";
 
 const TREASURY = TREASURY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -20,7 +21,7 @@ const USDT_ABI = [
     outputs: [{ name: "", type: "bool" }] },
 ] as const;
 
-type Currency = "celo" | "gdollar" | "usdt";
+type Currency = PremiumPaymentCurrency;
 
 const PLANS = [
   {
@@ -82,11 +83,11 @@ async function fetchSeasonPass(address: string) {
 
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
-  const [isMp, setIsMp] = useState(false);
+  const [isMp, setIsMp] = useState(() => getInitialMiniPayMode());
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>("celo");
+  const [currency, setCurrency] = useState<Currency>(() => getInitialMiniPayMode() ? "usdt" : "celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
@@ -97,11 +98,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   }, [address]);
 
   useEffect(() => {
-    if (isMiniPay()) {
-      setIsMp(true);
-      setCurrency("usdt");
-    }
-  }, []);
+    if (!isMp && isMiniPay()) setIsMp(true);
+  }, [isMp]);
+
+  useEffect(() => {
+    if (isMp && currency !== "usdt") setCurrency("usdt");
+  }, [currency, isMp]);
 
   useEffect(() => {
     if (!isMp) return;
@@ -154,7 +156,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { writeContractAsync } = useWriteContract();
   const { connectAsync } = useConnect();
   const { switchChainAsync } = useSwitchChain();
-  const availableCurrencies: Currency[] = isMp ? ["usdt"] : ["celo", "gdollar"];
+  const availableCurrencies = getPremiumPaymentOptions(isMp);
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
 
@@ -476,22 +478,21 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             {/* Currency toggle */}
             <div style={{ padding: "16px 24px 0", display: "flex", gap: 8 }}>
               {availableCurrencies.map((c) => {
-                const activeColor = c === "gdollar" ? "#00C58E" : c === "usdt" ? "#26a17b" : "#56a4cb";
-                const label = c === "celo" ? "Pay with CELO" : c === "usdt" ? "Pay with USDT" : "Pay with G$";
+                const isActive = currency === c.key;
                 return (
                 <button
-                  key={c}
-                  onClick={() => setCurrency(c as Currency)}
+                  key={c.key}
+                  onClick={() => setCurrency(c.key)}
                   style={{
                     flex: 1, padding: isMp ? "38px 8px" : "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
-                    border: `1.5px solid ${currency === c ? activeColor : "rgba(86,164,203,0.15)"}`,
-                    background: currency === c ? `${activeColor}1a` : "rgba(255,255,255,0.02)",
+                    border: `1.5px solid ${isActive ? c.color : "rgba(86,164,203,0.15)"}`,
+                    background: isActive ? `${c.color}1a` : "rgba(255,255,255,0.02)",
                     fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
-                    color: currency === c ? activeColor : "rgba(185,231,244,0.4)",
+                    color: isActive ? c.color : "rgba(185,231,244,0.4)",
                     transition: "all 0.15s",
                   }}
                 >
-                  {label}
+                  {c.actionLabel}
                 </button>
                 );
               })}

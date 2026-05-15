@@ -38,7 +38,7 @@ function modeNeedsEntryTx(mode: MultiplayerMode): boolean {
 }
 
 function validWagerCurrency(currency: unknown): currency is WagerCurrency {
-  return currency === "cusd" || currency === "celo" || currency === "gdollar";
+  return currency === "cusd" || currency === "celo" || currency === "gdollar" || currency === "usdt";
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────

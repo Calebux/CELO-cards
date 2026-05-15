@@ -1,11 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
-import { WagerModal } from "../components/WagerModal";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { formatUnits } from "viem";
 import { isMiniPay } from "../lib/minipay";
+
+const WagerModal = dynamic(() => import("../components/WagerModal").then(m => ({ default: m.WagerModal })), { ssr: false });
 
 const OPPONENT_WARN_MS  = 60_000;
 const OPPONENT_ABORT_MS = 90_000;
@@ -37,7 +40,7 @@ export default function Lobby() {
   const [opponentAbandoned, setOpponentAbandoned] = useState(false);
   const [payWaitMs, setPayWaitMs] = useState(0);
   const [rankedEntryError, setRankedEntryError] = useState<string | null>(null);
-  const [requiredWagerCurrency, setRequiredWagerCurrency] = useState<"cusd" | "celo" | "gdollar" | null>(null);
+  const [requiredWagerCurrency, setRequiredWagerCurrency] = useState<"cusd" | "celo" | "gdollar" | "usdt" | null>(null);
   const [requiredWagerAmountRaw, setRequiredWagerAmountRaw] = useState<string | null>(null);
   const payWaitStartRef = useRef<number | null>(null);
 
@@ -72,7 +75,7 @@ export default function Lobby() {
           selfWagered?:     boolean;
           paymentRequired?: boolean;
           abortedBy?:       "host" | "joiner" | null;
-          requiredWagerCurrency?: "cusd" | "celo" | "gdollar" | null;
+          requiredWagerCurrency?: "cusd" | "celo" | "gdollar" | "usdt" | null;
           requiredWagerAmount?: string | null;
         };
         setNetErrorCount(0);
@@ -231,6 +234,18 @@ export default function Lobby() {
 
   const p1Color = player?.color  ?? "#56a4cb";
   const p2Color = opponent?.color ?? "#f906a8";
+  const wagerTokenLabel =
+    requiredWagerCurrency === "gdollar" ? "G$" :
+    requiredWagerCurrency === "cusd" ? "cUSD" :
+    requiredWagerCurrency === "usdt" ? "USDT" :
+    requiredWagerCurrency === "celo" ? "CELO" :
+    wagerCurrency === "gdollar" ? "G$" :
+    wagerCurrency === "cusd" ? "cUSD" :
+    wagerCurrency === "usdt" ? "USDT" :
+    wagerCurrency === "celo" ? "CELO" :
+    "cUSD";
+  const wagerTokenDecimals =
+    (requiredWagerCurrency ?? wagerCurrency) === "usdt" ? 6 : 18;
 
   return (
     <div style={{
@@ -302,11 +317,11 @@ export default function Lobby() {
             borderRadius: 20,
           }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: 1, textTransform: "uppercase" }}>
-              ⚡ {(requiredWagerCurrency ?? wagerCurrency)?.toUpperCase() ?? "CUSD"}
+              ⚡ {wagerTokenLabel}
             </span>
             {requiredWagerAmountRaw && (
               <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(251,191,36,0.7)", letterSpacing: 0.8 }}>
-                · {formatUnits(BigInt(requiredWagerAmountRaw), 18)}
+                · {formatUnits(BigInt(requiredWagerAmountRaw), wagerTokenDecimals)}
               </span>
             )}
           </div>
@@ -336,9 +351,11 @@ export default function Lobby() {
             background: "#0a0510",
           }}>
             {player ? (
-              <img
+              <MiniPayImage
                 src={player.standingArt}
                 alt={player.name}
+                minipayWidth={272}
+                minipayQuality={50}
                 style={{
                   width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center",
                   filter: p1Ready ? "none" : "grayscale(0.4) brightness(0.85)",
@@ -406,9 +423,11 @@ export default function Lobby() {
             background: "#0a0510",
           }}>
             {opponent ? (
-              <img
+              <MiniPayImage
                 src={opponent.standingArt}
                 alt={opponent.name}
+                minipayWidth={272}
+                minipayQuality={50}
                 style={{
                   width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center",
                   filter: p2Ready ? "none" : "grayscale(0.4) brightness(0.85)",

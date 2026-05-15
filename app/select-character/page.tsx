@@ -1,16 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
 import { ArchetypeKey, getStarterArchetypes } from "../lib/archetypes";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { OnboardingCoach } from "../components/OnboardingCoach";
-import { WalletSection } from "../components/WalletSection";
 import { playSound } from "../lib/soundManager";
 import { isMiniPay } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+
+const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
 const BG = "/new-assets/two-fighters-vs.png";
 
@@ -187,7 +189,7 @@ export default function SelectCharacter() {
           const { parseUnits } = await import("viem");
           const n = Number(wagerAmountInput);
           if (!isNaN(n) && n > 0) {
-            wagerAmountBig = parseUnits(wagerAmountInput as `${number}`, 18).toString();
+            wagerAmountBig = parseUnits(wagerAmountInput as `${number}`, wagerCurrency === "usdt" ? 6 : 18).toString();
           }
         } catch { /* ignore */ }
       }

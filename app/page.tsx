@@ -6,12 +6,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
 import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
-import { WalletSection } from './components/WalletSection';
 import { MiniPayImage } from './components/MiniPayImage';
 import { isMiniPay } from './lib/minipay';
 import { useAccount } from 'wagmi';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 
+const WalletSection = dynamic(() => import('./components/WalletSection').then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const SeasonPassModal = dynamic(() => import('./components/SeasonPassModal').then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 

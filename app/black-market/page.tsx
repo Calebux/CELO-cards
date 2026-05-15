@@ -21,6 +21,8 @@ import { getCardForgeProgress, getCardMasterySnapshot } from "../lib/cardMastery
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { MiniPayImage } from "../components/MiniPayImage";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency } from "../lib/premiumPayments";
 
 // Treasury wallet that receives Black Market payments
 const TREASURY = TREASURY_ADDRESS;
@@ -55,7 +57,7 @@ function ptsDisplay(pts: number, currency: "celo" | "gdollar" | "usdt") {
   return `${formatted} CELO`;
 }
 
-type BuyCurrency = "celo" | "gdollar" | "usdt";
+type BuyCurrency = PremiumPaymentCurrency;
 type MarketView = "premium" | "forge";
 
 export default function BlackMarket() {
@@ -67,8 +69,8 @@ export default function BlackMarket() {
   const unlockCard = useGameStore((s) => s.purchaseCard);
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
 
-  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>("celo");
-  const [isMp, setIsMp] = useState(false);
+  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(() => getInitialMiniPayMode() ? "usdt" : "celo");
+  const [isMp, setIsMp] = useState(() => getInitialMiniPayMode());
   const [activeView, setActiveView] = useState<MarketView>("premium");
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string>("");
@@ -80,6 +82,7 @@ export default function BlackMarket() {
   const { switchChainAsync } = useSwitchChain();
 
   const marketCards = CARDS.filter((c) => c.isPremium);
+  const paymentOptions = getPremiumPaymentOptions(isMp);
   const forgeCards = CARDS
     .filter((c) => !c.isPremium)
     .map((card) => {
@@ -96,11 +99,12 @@ export default function BlackMarket() {
   const previewCard = previewCardId ? CARDS.find((card) => card.id === previewCardId) ?? null : null;
 
   useEffect(() => {
-    if (isMiniPay()) {
-      setIsMp(true);
-      setBuyCurrency("usdt");
-    }
-  }, []);
+    if (!isMp && isMiniPay()) setIsMp(true);
+  }, [isMp]);
+
+  useEffect(() => {
+    if (isMp && buyCurrency !== "usdt") setBuyCurrency("usdt");
+  }, [buyCurrency, isMp]);
 
   useEffect(() => {
     const scale = () => {
@@ -221,7 +225,14 @@ export default function BlackMarket() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <img src="/new addition/gameplay landing page.webp" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.15, pointerEvents: "none", filter: "hue-rotate(-20deg) saturate(1.5)" }} />
+        <MiniPayImage
+          src="/new addition/gameplay landing page.webp"
+          alt=""
+          priority
+          minipayWidth={1280}
+          minipayQuality={54}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.15, pointerEvents: "none", filter: "hue-rotate(-20deg) saturate(1.5)" }}
+        />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(86,0,0,0.1) 0%, rgba(0,0,0,0.95) 100%)", pointerEvents: "none" }} />
 
         {/* Top bar */}
@@ -315,10 +326,7 @@ export default function BlackMarket() {
 
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}>Pay with</span>
-                    {(isMp
-                      ? [{ key: "usdt" as BuyCurrency, label: "USDT", color: "#26a17b" }]
-                      : [{ key: "celo" as BuyCurrency, label: "CELO", color: "#f9c846" }, { key: "gdollar" as BuyCurrency, label: "G$", color: GDOLLAR_COLOR }]
-                    ).map(({ key, label, color }) => (
+                    {paymentOptions.map(({ key, label, color }) => (
                       <button
                         key={key}
                         onClick={() => setBuyCurrency(key)}
@@ -358,7 +366,15 @@ export default function BlackMarket() {
                         transform: isBuying ? "scale(1.05)" : "scale(1)",
                         cursor: "pointer",
                       }}>
-                        <img src={c.image} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <MiniPayImage
+                          src={c.image}
+                          alt={c.name}
+                          minipayWidth={340}
+                          minipayQuality={48}
+                          loading="lazy"
+                          decoding="async"
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
                         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 100%)" }} />
 
                         <button
@@ -471,7 +487,15 @@ export default function BlackMarket() {
                       }}
                     >
                     <div style={{ position: "relative", width: 84, height: 116, borderRadius: 10, overflow: "hidden", border: `1px solid ${card.color}55` }}>
-                      <img src={card.image} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <MiniPayImage
+                        src={card.image}
+                        alt={card.name}
+                        minipayWidth={168}
+                        minipayQuality={46}
+                        loading="lazy"
+                        decoding="async"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
                       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent 60%)" }} />
                       <div style={{ position: "absolute", left: 6, right: 6, bottom: 6, fontSize: 8, fontWeight: 800, color: "#fff", letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.15 }}>
                         {card.name}

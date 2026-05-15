@@ -4,8 +4,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { redis, getMatch } from "../../lib/redis";
 import {
-  ERC20_ABI, CUSD_CONTRACT,
-  PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO,
+  ERC20_ABI, CUSD_CONTRACT, USDT_CONTRACT,
+  PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO, PAYOUT_AMOUNT_USDT,
 } from "../../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
 import {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   let matchId: string;
-  let currency: "cusd" | "celo" | "gdollar" = "cusd";
+  let currency: "cusd" | "celo" | "gdollar" | "usdt" = "cusd";
   let claimantAddress: string;
   let signature: string;
   let fromMiniPay = false;
@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     fromMiniPay = body.isMiniPay === true;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
+    if (body.currency === "usdt")    currency = "usdt";
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Arena contract path ───────────────────────────────────────────────────
-    if (USE_CONTRACT) {
+    if (USE_CONTRACT && currency !== "usdt") {
       const { request } = await publicClient.simulateContract({
         account,
         address: ARENA_ADDRESS,
@@ -172,6 +173,16 @@ export async function POST(req: NextRequest) {
       // Native CELO direct transfer
       const celoAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO;
       txHash = await walletClient.sendTransaction({ to: winner, value: celoAmt });
+    } else if (currency === "usdt") {
+      const usdtAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_USDT;
+      const { request } = await publicClient.simulateContract({
+        account,
+        address: USDT_CONTRACT,
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [winner, usdtAmt],
+      });
+      txHash = await walletClient.writeContract(request);
     } else {
       // cUSD direct transfer
       const cusdAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT;

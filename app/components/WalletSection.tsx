@@ -32,12 +32,12 @@ function BalanceChip({ label, value, color }: { label: string; value: string; co
   );
 }
 
-function Balances({ address }: { address: `0x${string}` }) {
+function Balances({ address, enabled }: { address: `0x${string}`; enabled: boolean }) {
   const mp = useMemo(() => isMiniPay(), []);
   const { data: celoBalance } = useBalance({
     address,
     chainId: celo.id,
-    query: { enabled: !!address },
+    query: { enabled: !!address && enabled },
   });
   const { data: token2 } = useReadContract({
     address: mp ? USDT_CONTRACT : GDOLLAR_CONTRACT,
@@ -45,7 +45,7 @@ function Balances({ address }: { address: `0x${string}` }) {
     functionName: "balanceOf",
     args: [address],
     chainId: celo.id,
-    query: { enabled: !!address },
+    query: { enabled: !!address && enabled },
   });
 
   const celoVal = celoBalance ? parseFloat(formatUnits(celoBalance.value, 18)).toFixed(3) : "—";
@@ -100,7 +100,33 @@ export function WalletSection() {
   const { switchChainAsync } = useSwitchChain();
   const { playerName } = useGameStore();
   const [autoConnecting, setAutoConnecting] = useState(false);
+  const [showBalances, setShowBalances] = useState(false);
   const mp = useMemo(() => isMiniPay(), []);
+
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setShowBalances(false);
+      return;
+    }
+    if (!mp) {
+      setShowBalances(true);
+      return;
+    }
+
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(() => setShowBalances(true), { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(() => setShowBalances(true), 900);
+    return () => window.clearTimeout(timeout);
+  }, [address, isConnected, mp]);
 
   // Silently auto-connect in MiniPay — no button shown
   useEffect(() => {
@@ -141,7 +167,7 @@ export function WalletSection() {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
-        <Balances address={address} />
+        {showBalances ? <Balances address={address} enabled={showBalances} /> : null}
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
