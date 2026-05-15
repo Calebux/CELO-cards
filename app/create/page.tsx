@@ -1,17 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
-import { OnboardingCoach } from "../components/OnboardingCoach";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { WalletSection } from "../components/WalletSection";
-import { WagerModal } from "../components/WagerModal";
-import { SeasonPassModal } from "../components/SeasonPassModal";
 import { isMiniPay } from "../lib/minipay";
 import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+
+const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+const WagerModal = dynamic(() => import("../components/WagerModal").then(m => ({ default: m.WagerModal })), { ssr: false });
+const SeasonPassModal = dynamic(() => import("../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
 async function fetchSeasonPass(address: string) {
   const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
@@ -108,22 +110,54 @@ export default function CreateMatch() {
     const fetchOnline = () => {
       fetch("/api/online").then((r) => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
     };
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    if (isMp) {
+      let idleHandle: number | undefined;
+      let timeoutHandle: number | undefined;
+      if (idleWindow.requestIdleCallback) {
+        idleHandle = idleWindow.requestIdleCallback(fetchOnline, { timeout: 1800 });
+      } else {
+        timeoutHandle = window.setTimeout(fetchOnline, 1200);
+      }
+      const id = setInterval(fetchOnline, 30_000);
+      return () => {
+        if (idleHandle !== undefined) idleWindow.cancelIdleCallback?.(idleHandle);
+        if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle);
+        clearInterval(id);
+      };
+    }
+
     fetchOnline();
     const id = setInterval(fetchOnline, 15_000);
     return () => clearInterval(id);
-  }, []);
+  }, [isMp]);
 
   useEffect(() => {
     if (!address) {
       setHasSeasonPass(false);
       return;
     }
+    if (isMp) {
+      const timeout = window.setTimeout(() => {
+        fetchSeasonPass(address)
+          .then((d: { active: boolean }) => setHasSeasonPass(d.active))
+          .catch(() => {});
+      }, 900);
+      return () => window.clearTimeout(timeout);
+    }
+
     fetchSeasonPass(address)
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
       .catch(() => {});
-  }, [address]);
+  }, [address, isMp]);
 
   useEffect(() => {
+    if (isMp) return;
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -156,6 +190,27 @@ export default function CreateMatch() {
       setMatchType(mode);
     }
   }, []);
+
+  useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    const prefetch = () => {
+      void router.prefetch("/select-character");
+      void router.prefetch("/ready");
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(prefetch, 900);
+    return () => window.clearTimeout(timeout);
+  }, [router]);
 
   // FIND PLAYER: create match immediately, verify pass, proceed to character select.
   // No queue wait — match appears in open games so opponents can join.
@@ -246,6 +301,201 @@ export default function CreateMatch() {
     if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
     if (effectiveResumeRoute) router.push(effectiveResumeRoute);
   };
+
+  if (isMp) {
+    return (
+      <div style={{ width: "100vw", minHeight: "100vh", overflow: "hidden", position: "relative", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif", color: "#f8fafc" }}>
+        <MiniPayImage src="/new addition/gameplay landing page.webp" alt="" minipayWidth={960} minipayQuality={48} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.22, pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(5,5,5,0.92) 0%, rgba(5,8,18,0.82) 38%, rgba(5,5,5,0.98) 100%)", pointerEvents: "none" }} />
+
+        <div style={{ position: "relative", zIndex: 1, padding: "calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 26px)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
+            <div>
+              <button onClick={() => router.push("/")} style={{ background: "none", border: "none", padding: 0, color: "#7dd3fc", fontFamily: "inherit", fontSize: 12, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase", cursor: "pointer" }}>
+                ← Back
+              </button>
+              <div style={{ marginTop: 10, fontSize: 26, fontWeight: 900, letterSpacing: -1, lineHeight: 1.02 }}>Create match</div>
+              <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5, color: "#94a3b8" }}>MiniPay uses a lighter flow here for faster loading and faster route changes.</div>
+            </div>
+            <WalletSection />
+          </div>
+
+          {effectiveResumeRoute && (
+            <button
+              onClick={handleResume}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                marginBottom: 14,
+                padding: "13px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(6,168,249,0.42)",
+                background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
+                color: "#e0f2fe",
+                fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase" }}>Match in progress</span>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase" }}>Resume</span>
+            </button>
+          )}
+
+          <div style={{ padding: "16px", borderRadius: 18, border: "1px solid rgba(86,164,203,0.2)", background: "rgba(8,14,26,0.82)", boxShadow: "0 18px 40px rgba(0,0,0,0.22)", backdropFilter: "blur(10px)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+              {MATCH_TYPES.map((mt) => {
+                const active = matchType === mt.key;
+                return (
+                  <button
+                    key={mt.key}
+                    onClick={() => setMatchType(mt.key)}
+                    style={{
+                      padding: "14px 12px",
+                      minHeight: 112,
+                      borderRadius: 16,
+                      border: active ? `1.5px solid ${mt.color}` : "1px solid rgba(255,255,255,0.08)",
+                      background: active ? `${mt.color}18` : "rgba(255,255,255,0.03)",
+                      color: "#f8fafc",
+                      fontFamily: "inherit",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      boxShadow: active ? `0 0 18px ${mt.color}22` : "none",
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: active ? mt.color : "#94a3b8", textTransform: "uppercase" }}>{mt.label}</div>
+                    <div style={{ marginTop: 6, fontSize: 15, fontWeight: 900, letterSpacing: -0.4 }}>{mt.sub}</div>
+                    <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.45, color: active ? "#cbd5e1" : "#64748b" }}>{mt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: 14, padding: "13px 14px", borderRadius: 14, border: `1px solid ${selected.color}35`, background: "rgba(255,255,255,0.03)" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.6, color: selected.color, textTransform: "uppercase" }}>{selected.label}</div>
+              <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.55, color: "#cbd5e1" }}>{selected.desc}</div>
+            </div>
+
+            {matchType === "ranked" && (
+              !hasSeasonPass ? (
+                <button
+                  onClick={() => setShowSeasonPassModal(true)}
+                  style={{ width: "100%", marginTop: 14, padding: "13px 14px", borderRadius: 14, border: "1px solid rgba(251,204,92,0.38)", background: "rgba(60,45,0,0.24)", color: "#fbbf24", fontSize: 12, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}
+                >
+                  Season pass required for ranked. Tap to unlock.
+                </button>
+              ) : (
+                <div style={{ marginTop: 14, padding: "13px 14px", borderRadius: 14, border: "1px solid rgba(74,222,128,0.35)", background: "rgba(20,43,30,0.26)", color: "#4ade80", fontSize: 12, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase" }}>
+                  Season pass active
+                </div>
+              )
+            )}
+
+            {matchType === "vshouse" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 14 }}>
+                {([
+                  { level: 0 as const, label: "Easy", color: "#4ade80" },
+                  { level: 1 as const, label: "Normal", color: "#f59e0b" },
+                  { level: 2 as const, label: "Hard", color: "#f87171" },
+                ] as const).map(({ level, label, color }) => {
+                  const active = aiDifficulty === level;
+                  return (
+                    <button
+                      key={level}
+                      onClick={() => setAiDifficulty(level)}
+                      style={{ padding: "12px 8px", borderRadius: 12, border: `1px solid ${active ? color : "rgba(255,255,255,0.1)"}`, background: active ? `${color}18` : "rgba(255,255,255,0.03)", color: active ? color : "#94a3b8", fontFamily: "inherit", fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", cursor: "pointer" }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+              {!address ? (
+                <button disabled style={{ width: "100%", padding: "16px 14px", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "#64748b", fontSize: 13, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase", fontFamily: "inherit" }}>
+                  Connect wallet to play
+                </button>
+              ) : matchType === "ranked" ? (
+                <>
+                  <button onClick={() => void handleFindMatch()} style={{ width: "100%", padding: "16px 14px", borderRadius: 16, border: `1px solid ${selected.color}`, background: "linear-gradient(135deg, #1a3a52, #0f2233)", color: "#b9e7f4", fontSize: 13, fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase", fontFamily: "inherit", cursor: "pointer" }}>
+                    Find player
+                  </button>
+                  <button onClick={handleCreateMatch} style={{ width: "100%", padding: "16px 14px", borderRadius: 16, border: "1px solid rgba(86,164,203,0.32)", background: "rgba(255,255,255,0.03)", color: "#56a4cb", fontSize: 13, fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase", fontFamily: "inherit", cursor: "pointer" }}>
+                    Invite friend
+                  </button>
+                </>
+              ) : (
+                <button onClick={handleCreateMatch} style={{ width: "100%", padding: "16px 14px", borderRadius: 16, border: `1px solid ${selected.color}`, background: "linear-gradient(135deg, #1a3a52, #0f2233)", color: "#b9e7f4", fontSize: 13, fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase", fontFamily: "inherit", cursor: "pointer" }}>
+                  Continue
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginTop: 14 }}>
+            <div style={{ padding: "12px 10px", borderRadius: 14, border: "1px solid rgba(74,222,128,0.2)", background: "rgba(10,18,30,0.74)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.6, color: "#4ade80", textTransform: "uppercase" }}>Online</div>
+              <div style={{ marginTop: 6, fontSize: 18, fontWeight: 900 }}>{onlineCount !== null ? onlineCount.toLocaleString() : "—"}</div>
+            </div>
+            <div style={{ padding: "12px 10px", borderRadius: 14, border: "1px solid rgba(86,164,203,0.18)", background: "rgba(10,18,30,0.74)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.6, color: "#7dd3fc", textTransform: "uppercase" }}>Bots</div>
+              <div style={{ marginTop: 6, fontSize: 18, fontWeight: 900 }}>Ready</div>
+            </div>
+            <div style={{ padding: "12px 10px", borderRadius: 14, border: "1px solid rgba(38,161,123,0.22)", background: "rgba(10,18,30,0.74)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.6, color: "#26a17b", textTransform: "uppercase" }}>Premium</div>
+              <div style={{ marginTop: 6, fontSize: 18, fontWeight: 900 }}>USDT</div>
+            </div>
+          </div>
+        </div>
+
+        {showWager && (
+          <>
+            <WagerModal
+              onConfirmed={proceedAfterPayment}
+              onSkip={() => {
+                setWager(false, null);
+                setShowWager(false);
+              }}
+            />
+            {!hasSeasonPass && (
+              <div style={{
+                position: "fixed", bottom: `calc(${safeBottom} + 18px)`, left: "50%", transform: "translateX(-50%)",
+                zIndex: 9999,
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 16px", borderRadius: 30,
+                backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
+                boxShadow: "0 0 20px rgba(251,191,36,0.1)",
+              }}>
+                <span style={{ fontSize: 11, color: "rgba(185,231,244,0.6)" }}>Want instant ranked access?</span>
+                <button
+                  onClick={() => setShowSeasonPassModal(true)}
+                  style={{
+                    background: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.3))",
+                    border: "1px solid rgba(251,191,36,0.5)",
+                    borderRadius: 20, padding: "5px 14px", cursor: "pointer",
+                    fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24",
+                    textTransform: "uppercase", fontFamily: "inherit",
+                  }}
+                >
+                  Get Season Pass
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {showSeasonPassModal && (
+          <SeasonPassModal
+            onClose={() => setShowSeasonPassModal(false)}
+            onActivated={() => setShowSeasonPassModal(false)}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>

@@ -1,18 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-import { WalletSection } from "../components/WalletSection";
 import { ClaimGDollar } from "../components/ClaimGDollar";
 import { CardPreviewModal } from "../components/CardPreviewModal";
-import { SeasonPassModal } from "../components/SeasonPassModal";
 import { CARDS } from "../lib/gameData";
 import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount, getCardForgeProgress } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { addressToCode } from "../lib/referral";
+import { isMiniPay } from "../lib/minipay";
+
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+const SeasonPassModal = dynamic(() => import("../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -49,6 +52,7 @@ function winRate(won: number, played: number): string {
 export default function ProfilePage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMp = isMiniPay();
   const { address } = useAccount();
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
@@ -801,7 +805,7 @@ export default function ProfilePage() {
         <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#4ade80" }} />
           <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", letterSpacing: 1.2, textTransform: "uppercase" }}>
-            ACTION ORDER — CELO MAINNET
+            {isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}
           </span>
         </div>
 

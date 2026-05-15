@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
 import { ArchetypeKey, getStarterArchetypes } from "../lib/archetypes";
@@ -73,6 +74,7 @@ export default function SelectCharacter() {
   ];
 
   useEffect(() => {
+    if (isMp) return;
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -137,6 +139,7 @@ export default function SelectCharacter() {
   // Poll for opponent joining — multiplayer only
   useEffect(() => {
     if (!matchId || !playerRole || vsBot || opponentJoinedRef.current) return;
+    const pollMs = isMp ? 3000 : 2000;
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
@@ -152,10 +155,10 @@ export default function SelectCharacter() {
           setTimeout(() => setJoinFlash(false), 3000);
         }
       } catch { /* ignore */ }
-    }, 2000);
+    }, pollMs);
     return () => clearInterval(poll);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, playerRole, vsBot]);
+  }, [isMp, matchId, playerRole, vsBot]);
 
   // Countdown timer — auto-lock when it runs out
   useEffect(() => {
@@ -171,6 +174,27 @@ export default function SelectCharacter() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timer]);
+
+  useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    const prefetch = () => {
+      void router.prefetch(vsBot ? "/loadout" : "/lobby");
+      void router.prefetch("/create");
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(prefetch, 900);
+    return () => window.clearTimeout(timeout);
+  }, [router, vsBot]);
 
   const handleLock = async () => {
     if (vsBot && !playerAddress) {
@@ -211,6 +235,112 @@ export default function SelectCharacter() {
       router.push("/loadout");
     }
   };
+
+  if (isMp) {
+    return (
+      <div style={{ width: "100vw", minHeight: "100vh", overflow: "hidden", position: "relative", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif", color: "#f8fafc" }}>
+        <div className="absolute inset-0">
+          <MiniPayImage src={BG} alt="" minipayWidth={960} minipayQuality={48} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.22, pointerEvents: "none" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(6,10,18,0.8) 40%, rgba(0,0,0,0.96) 100%)" }} />
+        </div>
+
+        <div style={{ position: "relative", zIndex: 1, padding: "calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 26px)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
+            <div>
+              <button onClick={() => router.back()} style={{ background: "none", border: "none", padding: 0, color: "#7dd3fc", fontFamily: "inherit", fontSize: 12, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase", cursor: "pointer" }}>
+                ← Back
+              </button>
+              <div style={{ marginTop: 10, fontSize: 26, fontWeight: 900, letterSpacing: -1, lineHeight: 1.02 }}>Select fighter</div>
+              <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5, color: "#94a3b8" }}>{vsBot ? "Pick your fighter and jump in." : "Choose quickly and move to the lobby."}</div>
+            </div>
+            <WalletSection />
+          </div>
+
+          {!vsBot && (
+            <div style={{ marginBottom: 14, padding: "13px 14px", borderRadius: 14, border: `1px solid ${joinFlash ? "rgba(74,222,128,0.45)" : "rgba(86,164,203,0.24)"}`, background: joinFlash ? "rgba(20,43,30,0.28)" : "rgba(8,14,26,0.82)" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.6, color: joinFlash ? "#4ade80" : "#7dd3fc", textTransform: "uppercase" }}>
+                {opponentJoined ? `${opponentJoinedName ?? "Opponent"} joined` : "Waiting for opponent"}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1", lineHeight: 1.45 }}>
+                {opponentJoined ? "Both players can lock their fighter now." : "Keep this screen open while the other player joins your match."}
+              </div>
+            </div>
+          )}
+
+          <div style={{ padding: "16px", borderRadius: 18, border: "1px solid rgba(86,164,203,0.18)", background: "rgba(8,14,26,0.84)", boxShadow: "0 18px 40px rgba(0,0,0,0.22)", backdropFilter: "blur(10px)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "108px minmax(0, 1fr)", gap: 14, alignItems: "start" }}>
+              <div style={{ position: "relative", width: 108, height: 152, borderRadius: 14, overflow: "hidden", border: `1px solid ${activeChar.color}66`, boxShadow: `0 0 18px ${activeChar.color}22` }}>
+                <MiniPayImage src={activeChar.standingArt} alt={activeChar.name} minipayWidth={520} minipayQuality={50} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: activeChar.color, textTransform: "uppercase" }}>{activeChar.className} Class</div>
+                <div style={{ marginTop: 6, fontSize: 24, fontWeight: 900, letterSpacing: -0.8 }}>{activeChar.name}</div>
+                <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.55, color: "#cbd5e1" }}>{highlightedPlanSummary || "Balanced starter plan for this fighter."}</div>
+                <Link href={`/characters/${activeChar.id}`} style={{ display: "inline-block", marginTop: 10, color: "#7dd3fc", fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", textDecoration: "none" }}>
+                  View details
+                </Link>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+              {STAT_META.map((s) => {
+                const pct = activeChar[s.key];
+                return (
+                  <div key={s.label}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: s.color, textTransform: "uppercase" }}>{s.label}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#f8fafc" }}>{pct}%</div>
+                    </div>
+                    <div style={{ marginTop: 6, height: 7, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", borderRadius: 999, background: s.color, boxShadow: `0 0 10px ${s.color}` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {activeChar.passive && (
+              <div style={{ marginTop: 14, padding: "13px 14px", borderRadius: 14, border: `1px solid ${activeChar.color}35`, background: "rgba(255,255,255,0.03)" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: activeChar.color, textTransform: "uppercase" }}>{activeChar.passive.name}</div>
+                <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.55, color: "#cbd5e1" }}>{activeChar.passive.description}</div>
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 16 }}>
+              {CHARACTERS.map((char, index) => {
+                const active = selectedIdx === index;
+                return (
+                  <button
+                    key={char.id}
+                    onClick={() => setSelectedIdx(index)}
+                    style={{ padding: "10px 8px", borderRadius: 14, border: `1px solid ${active ? char.color : "rgba(255,255,255,0.08)"}`, background: active ? `${char.color}16` : "rgba(255,255,255,0.03)", color: "#f8fafc", fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}
+                  >
+                    <div style={{ position: "relative", width: "100%", aspectRatio: "0.76", borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
+                      <MiniPayImage src={char.portrait} alt={char.name} minipayWidth={180} minipayQuality={46} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.1, color: active ? char.color : "#cbd5e1", textTransform: "uppercase" }}>{char.name}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 16 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>Time remaining</div>
+                <div style={{ marginTop: 4, fontSize: 22, fontWeight: 900, color: "#7dd3fc", fontFamily: "monospace" }}>00:{timer.toString().padStart(2, "0")}</div>
+              </div>
+              <button
+                onClick={() => void handleLock()}
+                style={{ minWidth: 156, padding: "15px 16px", borderRadius: 16, border: `1px solid ${activeChar.color}`, background: "linear-gradient(135deg, #1a3a52, #0f2233)", color: "#f8fafc", fontSize: 13, fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase", fontFamily: "inherit", cursor: "pointer", boxShadow: `0 0 18px ${activeChar.color}22` }}
+              >
+                Lock selection
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>

@@ -1,13 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
-import { WalletSection } from "../components/WalletSection";
-import { SeasonPassModal } from "../components/SeasonPassModal";
 import { MultiplayerMode } from "../lib/matchmaking";
 import { useAccount } from "wagmi";
+import { isMiniPay } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+const SeasonPassModal = dynamic(() => import("../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -30,6 +33,7 @@ type LiveMatch = {
 function JoinMatchContent() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMp = isMiniPay();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
@@ -431,7 +435,7 @@ function JoinMatchContent() {
           {/* Footer status */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>ACTION ORDER — CELO MAINNET</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>{isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}</span>
           </div>
         </div>
 

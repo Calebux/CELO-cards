@@ -1,9 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
-import { WalletSection } from "../components/WalletSection";
 import { CardPreviewModal } from "../components/CardPreviewModal";
 import { CARDS } from "../lib/gameData";
 import {
@@ -23,6 +23,8 @@ import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency } from "../lib/premiumPayments";
+
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
 // Treasury wallet that receives Black Market payments
 const TREASURY = TREASURY_ADDRESS;

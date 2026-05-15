@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
@@ -7,12 +8,13 @@ import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType, CHARACTERS } from "../lib/gameData";
 import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../lib/archetypes";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { OnboardingCoach } from "../components/OnboardingCoach";
-import { WalletSection } from "../components/WalletSection";
 import { getCardForgeProgress, getCardMasteryPerkCopy, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { isMiniPay } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+
+const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";

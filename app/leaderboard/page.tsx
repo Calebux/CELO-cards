@@ -1,10 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
-import { WalletSection } from "../components/WalletSection";
+import { isMiniPay } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
 const BG_IMAGE = "/new addition/gameplay landing page.webp";
 
@@ -39,6 +42,7 @@ const RANK_COLORS: Record<number, string> = {
 export default function Leaderboard() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMp = isMiniPay();
   const { address } = useAccount();
   const [tab, setTab] = useState<Tab>("casual");
   const [players, setPlayers] = useState<Player[]>([]);
@@ -332,7 +336,7 @@ export default function Leaderboard() {
         <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#4ade80" }} />
           <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", letterSpacing: 1.2, textTransform: "uppercase" }}>
-            ACTION ORDER — CELO MAINNET
+            {isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}
           </span>
         </div>
 
