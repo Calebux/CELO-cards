@@ -18,6 +18,7 @@ import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } fr
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { useMobileViewportMode } from "../lib/mobile";
+import { scheduleIdle, useIdleReady, usePageVisibility } from "../lib/perf";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
@@ -31,6 +32,8 @@ export default function Gameplay() {
   const router = useRouter();
   const isMp = useMiniPayMode();
   const isMobileViewport = useMobileViewportMode();
+  const pageVisible = usePageVisibility();
+  const matchLoadingDurationMs = isMp || isMobileViewport ? 1400 : MATCH_LOADING_DURATION_MS;
 
   const {
     selectedCharacter,
@@ -85,6 +88,7 @@ export default function Gameplay() {
   const { signMessageAsync } = useSignMessage();
 
   const isMatchEnd = matchPhase === "match-end";
+  const coachReady = useIdleReady(!isMatchEnd, isMp || isMobileViewport ? 1800 : 1200);
 
   // Payout state
   const [payoutState, setPayoutState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -149,15 +153,20 @@ export default function Gameplay() {
 
   // Brief cinematic loading screen before match starts
   useEffect(() => {
-    const t = setTimeout(() => setMatchLoading(false), MATCH_LOADING_DURATION_MS);
+    const t = setTimeout(() => setMatchLoading(false), matchLoadingDurationMs);
     return () => clearTimeout(t);
-  }, []);
+  }, [matchLoadingDurationMs]);
 
   // Background polling to detect if opponent quits (multiplayer only)
   useEffect(() => {
     if (vsBot || !matchId || isMatchEnd || opponentLeft) return;
-    
-    const interval = setInterval(async () => {
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const nextPollDelay = () => (!pageVisible ? 9000 : isMp || isMobileViewport ? 5000 : 4000);
+
+    const pollOnce = async () => {
+      if (cancelled) return;
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
         const data = await res.json() as {
@@ -172,7 +181,8 @@ export default function Gameplay() {
         const opponentRole = playerRole === "host" ? "joiner" : "host";
         if (data.abortedBy === opponentRole) {
           setOpponentLeft(true);
-          clearInterval(interval);
+          if (timer) clearTimeout(timer);
+          return;
         }
         if (
           typeof data.round === "number" &&
@@ -201,10 +211,16 @@ export default function Gameplay() {
       } catch (e) {
         // ignore polling errors
       }
-    }, 4000);
-    
-    return () => clearInterval(interval);
-  }, [vsBot, matchId, isMatchEnd, playerRole, opponentLeft, matchPhase, showResult, setCurrentOrderFromIds, setPrecomputedFromServer, syncMultiplayerRoundState]);
+      if (!cancelled) timer = setTimeout(() => { void pollOnce(); }, nextPollDelay());
+    };
+
+    void pollOnce();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isMatchEnd, isMobileViewport, isMp, matchId, matchPhase, opponentLeft, pageVisible, playerRole, setCurrentOrderFromIds, setPrecomputedFromServer, showResult, syncMultiplayerRoundState, vsBot]);
 
   // Start background music on mount
   useEffect(() => {
@@ -336,8 +352,10 @@ export default function Gameplay() {
 
   // Prefetch next screen so round transitions are less sensitive to poor network.
   useEffect(() => {
-    void router.prefetch("/loadout");
-  }, [router]);
+    return scheduleIdle(() => {
+      void router.prefetch("/loadout");
+    }, isMp || isMobileViewport ? 1800 : 1200);
+  }, [isMobileViewport, isMp, router]);
 
   // wrapRef only mounts after matchLoading → false, so re-apply scale then
   useEffect(() => {
@@ -500,54 +518,54 @@ export default function Gameplay() {
       legend:       { name: "Legend",         icon: "👑" },
       iron_will:    { name: "Iron Will",      icon: "🛡️" },
     };
-    void fetch("/api/achievements", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        address,
-        stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
-      }),
-    }).then((r) => r.json()).then((data: { newlyUnlocked?: string[] }) => {
-      const queue = (data.newlyUnlocked ?? []).map((id) => ({
-        id,
-        name: ACHIEVEMENT_META[id]?.name ?? id,
-        icon: ACHIEVEMENT_META[id]?.icon ?? "🏅",
-      }));
-      if (queue.length === 0) return;
-      achievementQueueRef.current = queue;
-      // Show first toast; subsequent ones are shown after each auto-dismiss
-      setAchievementToast(queue[0]);
-      achievementQueueRef.current = queue.slice(1);
-    }).catch(() => {});
-    void fetch("/api/challenges", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, won }),
-    }).then(() =>
-      fetch(`/api/challenges?address=${address}`)
-        .then((r) => r.json())
-        .then((data: { challenges?: { id: string; title: string; eligible: boolean }[] }) => {
-          const readyChallenges = (data.challenges ?? []).filter((c) => c.eligible);
-          if (readyChallenges.length > 0) {
-            // Queue challenge toasts after any achievement toasts
-            const challengeItems = readyChallenges.map((c) => ({
-              id: `challenge-${c.id}`,
-              name: c.title,
-              icon: "🎯",
-              label: "Challenge Ready to Claim",
-            }));
-            const existingQueue = achievementQueueRef.current ?? [];
-            achievementQueueRef.current = [...existingQueue, ...challengeItems];
-            if (!achievementToast) {
-              setAchievementToast(achievementQueueRef.current[0]);
-              achievementQueueRef.current = achievementQueueRef.current.slice(1);
+    return scheduleIdle(() => {
+      void fetch("/api/achievements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address,
+          stats: { matchesWon, matchesPlayed, playerPoints, maxWinStreak, matchesLost },
+        }),
+      }).then((r) => r.json()).then((data: { newlyUnlocked?: string[] }) => {
+        const queue = (data.newlyUnlocked ?? []).map((id) => ({
+          id,
+          name: ACHIEVEMENT_META[id]?.name ?? id,
+          icon: ACHIEVEMENT_META[id]?.icon ?? "🏅",
+        }));
+        if (queue.length === 0) return;
+        achievementQueueRef.current = queue;
+        setAchievementToast(queue[0]);
+        achievementQueueRef.current = queue.slice(1);
+      }).catch(() => {});
+      void fetch("/api/challenges", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, won }),
+      }).then(() =>
+        fetch(`/api/challenges?address=${address}`)
+          .then((r) => r.json())
+          .then((data: { challenges?: { id: string; title: string; eligible: boolean }[] }) => {
+            const readyChallenges = (data.challenges ?? []).filter((c) => c.eligible);
+            if (readyChallenges.length > 0) {
+              const challengeItems = readyChallenges.map((c) => ({
+                id: `challenge-${c.id}`,
+                name: c.title,
+                icon: "🎯",
+                label: "Challenge Ready to Claim",
+              }));
+              const existingQueue = achievementQueueRef.current ?? [];
+              achievementQueueRef.current = [...existingQueue, ...challengeItems];
+              if (!achievementToast) {
+                setAchievementToast(achievementQueueRef.current[0]);
+                achievementQueueRef.current = achievementQueueRef.current.slice(1);
+              }
             }
-          }
-        })
-        .catch(() => {})
-    ).catch(() => {});
+          })
+          .catch(() => {})
+      ).catch(() => {});
+    }, isMp || isMobileViewport ? 2400 : 1400);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchPhase]);
+  }, [address, isMobileViewport, isMp, matchPhase, matchesLost, matchesPlayed, matchesWon, maxWinStreak, playerPoints, playerRoundsWon, opponentRoundsWon]);
 
   // Auto-trigger payout when a wager match ends and the local player wins.
   useEffect(() => {
@@ -622,8 +640,8 @@ export default function Gameplay() {
     autoLockOrder();
     // Re-show loading screen
     setMatchLoading(true);
-    setTimeout(() => setMatchLoading(false), 2200);
-  }, [vsBot, resetMatch, setVsBot, setMatchMode, router, startMatch, autoLockOrder]);
+    setTimeout(() => setMatchLoading(false), matchLoadingDurationMs);
+  }, [autoLockOrder, matchLoadingDurationMs, resetMatch, router, setMatchMode, setVsBot, startMatch, vsBot]);
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;
@@ -888,7 +906,7 @@ export default function Gameplay() {
           )}
         </div>
 
-        {!isMatchEnd && <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 90px)`, right: 20, zIndex: 18 }} accent="#4ade80" />}
+        {!isMatchEnd && coachReady && <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 90px)`, right: 20, zIndex: 18 }} accent="#4ade80" />}
 
         {/* ── HUD ──────────────────────────────────────────── */}
         <div style={{ position: "absolute", top: `calc(${safeTop} + 16px)`, left: 32, right: 32, display: "flex", alignItems: "flex-start", gap: 12, zIndex: 10 }}>

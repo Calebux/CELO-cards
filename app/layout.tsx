@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Ruda } from "next/font/google";
 import dynamic from "next/dynamic";
 import { headers } from "next/headers";
 import "./globals.css";
@@ -9,20 +8,6 @@ import "./globals.css";
 // Separate chunks: MiniPay gets wagmi-only bundle, web gets full RainbowKit/WalletConnect bundle
 const Providers = dynamic(() => import("./providers").then(m => ({ default: m.Providers })));
 const MiniPayProviders = dynamic(() => import("./minipay-providers").then(m => ({ default: m.MiniPayProviders })));
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-space-grotesk",
-  display: "swap",
-});
-
-const ruda = Ruda({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-ruda",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -61,7 +46,7 @@ export default async function RootLayout({
   const ProviderComponent = isMiniPayUA ? MiniPayProviders : Providers;
 
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${ruda.variable}`} data-minipay={isMiniPayUA ? "1" : undefined}>
+    <html lang="en" data-minipay={isMiniPayUA ? "1" : undefined}>
       <head>
         {/* Intercept window.electronAPI so wallet extensions that look for
             Electron APIs don't throw and crash the React tree.

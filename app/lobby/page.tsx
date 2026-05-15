@@ -7,6 +7,8 @@ import { useGameStore } from "../lib/gameStore";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { formatUnits } from "viem";
 import { useMiniPayMode } from "../lib/premiumPayments";
+import { useMobileViewportMode } from "../lib/mobile";
+import { usePageVisibility } from "../lib/perf";
 
 const WagerModal = dynamic(() => import("../components/WagerModal").then(m => ({ default: m.WagerModal })), { ssr: false });
 
@@ -49,6 +51,8 @@ export default function Lobby() {
   const rankedEntryFiredRef = useRef(false);
 
   const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
+  const pageVisible = usePageVisibility();
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
 
@@ -65,7 +69,15 @@ export default function Lobby() {
       if (waitStartRef.current) setOpponentWaitMs(Date.now() - waitStartRef.current);
     }, 1000);
 
-    const poll = setInterval(async () => {
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    const nextPollDelay = () => {
+      if (!pageVisible) return 7000;
+      return isMp || isMobileViewport ? 3500 : 2000;
+    };
+
+    const pollOnce = async () => {
+      if (cancelled) return;
       try {
         const res  = await fetch(`/api/match/${matchId}?role=${playerRole}`);
         const data = await res.json() as {
@@ -82,7 +94,7 @@ export default function Lobby() {
         setFirstPollDone(true);
 
         if (data.phase === "timed-out") {
-          clearInterval(poll);
+          if (pollTimer) clearTimeout(pollTimer);
           clearInterval(waitTick);
           router.replace("/");
           return;
@@ -109,7 +121,7 @@ export default function Lobby() {
         // Opponent abandoned after self paid
         if (data.abortedBy && data.abortedBy !== playerRole && selfPaid && paymentRequired) {
           setOpponentAbandoned(true);
-          clearInterval(poll);
+          if (pollTimer) clearTimeout(pollTimer);
           clearInterval(waitTick);
           return;
         }
@@ -123,21 +135,26 @@ export default function Lobby() {
           setOpponentCharacterFromServer(data.opponentCharId);
           if (!data.paymentRequired || data.opponentWagered) {
             setP2Ready(true);
-            clearInterval(poll);
+            if (pollTimer) clearTimeout(pollTimer);
             clearInterval(waitTick);
+            return;
           }
         }
       } catch {
         setNetErrorCount((n) => n + 1);
       }
-    }, 2000);
+      if (!cancelled) pollTimer = setTimeout(() => { void pollOnce(); }, nextPollDelay());
+    };
+
+    void pollOnce();
 
     return () => {
-      clearInterval(poll);
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
       clearInterval(waitTick);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerRole, matchId]);
+  }, [isMobileViewport, isMp, matchId, pageVisible, playerRole]);
 
   // Auto-ready P1 after 3s — but only AFTER the first poll confirms
   // paymentRequired status (prevents racing the poll on slow networks).
