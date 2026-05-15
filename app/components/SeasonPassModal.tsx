@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
@@ -9,7 +9,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDT_FEE_CURRENCY } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
-import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency } from "../lib/premiumPayments";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -82,7 +82,7 @@ async function fetchSeasonPass(address: string) {
 
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
-  const [isMp, setIsMp] = useState(() => getInitialMiniPayMode());
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
@@ -96,15 +96,11 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     activeAddressRef.current = address ?? null;
   }, [address]);
 
-  useEffect(() => {
-    if (!isMp && isMiniPay()) setIsMp(true);
-  }, [isMp]);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isMp && currency !== "usdt") setCurrency("usdt");
   }, [currency, isMp]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isMp) return;
     const scale = () => {
       if (!wrapRef.current) return;
@@ -321,7 +317,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: 520, borderRadius: 14,
+        width: isMp ? 760 : 520, maxWidth: isMp ? "calc(100vw - 28px)" : undefined, borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",

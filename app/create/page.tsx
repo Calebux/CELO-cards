@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
@@ -77,7 +77,7 @@ const MATCH_TYPES: {
 ];
 
 export default function CreateMatch() {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("ranked");
   const [showWager, setShowWager] = useState(false);
@@ -813,7 +813,9 @@ export default function CreateMatch() {
                       ? "Find a random player or invite a friend via Match ID"
                       : matchType === "tourney"
                         ? "Tournament mode is managed from the weekly bracket page"
-                      : "Secure connection via Celo network"
+                      : isMp
+                        ? "MiniPay wagers and premium payments use USDT"
+                        : "Secure connection via Celo network"
                     : "Use the Connect button in the top right ↗"}
                 </p>
               </div>

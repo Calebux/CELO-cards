@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CardPreviewModal } from "../components/CardPreviewModal";
@@ -22,7 +22,7 @@ import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDT_FEE_CURRENCY } from "../lib/cusd";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency } from "../lib/premiumPayments";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -62,6 +62,7 @@ type BuyCurrency = PremiumPaymentCurrency;
 type MarketView = "premium" | "forge";
 
 export default function BlackMarket() {
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address, isConnected, chainId } = useAccount();
@@ -71,7 +72,6 @@ export default function BlackMarket() {
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
 
   const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(() => getInitialMiniPayMode() ? "usdt" : "celo");
-  const [isMp, setIsMp] = useState(() => getInitialMiniPayMode());
   const [activeView, setActiveView] = useState<MarketView>("premium");
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string>("");
@@ -99,11 +99,7 @@ export default function BlackMarket() {
     });
   const previewCard = previewCardId ? CARDS.find((card) => card.id === previewCardId) ?? null : null;
 
-  useEffect(() => {
-    if (!isMp && isMiniPay()) setIsMp(true);
-  }, [isMp]);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isMp && buyCurrency !== "usdt") setBuyCurrency("usdt");
   }, [buyCurrency, isMp]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -18,6 +18,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar"
 import { useGameStore } from "../lib/gameStore";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { getInitialMiniPayMode, useMiniPayMode } from "../lib/premiumPayments";
 
 type Props = {
   onConfirmed: () => void;
@@ -39,7 +40,7 @@ const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: 
 };
 
 export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrency }: Props) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const pendingAddressRef = useRef<`0x${string}` | null>(null);
   const { address, isConnected, chainId } = useAccount();
@@ -59,10 +60,10 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (isMiniPay() ? "usdt" : "celo"));
-  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (isMiniPay() ? "usdt" : "celo")) ?? "0.01");
+  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo"));
+  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo")) ?? "0.01");
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -102,6 +103,12 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     const formatted = formatLockedAmount(lockedAmountRaw, lockedCurrency ?? currency);
     if (formatted) setAmountInput(formatted);
   }, [currency, lockedAmountRaw, lockedCurrency]);
+
+  useLayoutEffect(() => {
+    if (isMp && !lockedCurrency && currency !== "usdt") {
+      setCurrency("usdt");
+    }
+  }, [currency, isMp, lockedCurrency]);
 
   // Check existing cUSD allowance for the arena (only relevant for cUSD path)
   const { data: allowance } = useReadContract({
