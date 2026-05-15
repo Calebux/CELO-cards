@@ -67,7 +67,8 @@ export default function BlackMarket() {
   const unlockCard = useGameStore((s) => s.purchaseCard);
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
 
-  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(() => isMiniPay() ? "usdt" : "celo");
+  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>("celo");
+  const [isMp, setIsMp] = useState(false);
   const [activeView, setActiveView] = useState<MarketView>("premium");
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string>("");
@@ -93,6 +94,13 @@ export default function BlackMarket() {
       return b.mastery.xp - a.mastery.xp;
     });
   const previewCard = previewCardId ? CARDS.find((card) => card.id === previewCardId) ?? null : null;
+
+  useEffect(() => {
+    if (isMiniPay()) {
+      setIsMp(true);
+      setBuyCurrency("usdt");
+    }
+  }, []);
 
   useEffect(() => {
     const scale = () => {
@@ -307,7 +315,7 @@ export default function BlackMarket() {
 
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}>Pay with</span>
-                    {(isMiniPay()
+                    {(isMp
                       ? [{ key: "usdt" as BuyCurrency, label: "USDT", color: "#26a17b" }]
                       : [{ key: "celo" as BuyCurrency, label: "CELO", color: "#f9c846" }, { key: "gdollar" as BuyCurrency, label: "G$", color: GDOLLAR_COLOR }]
                     ).map(({ key, label, color }) => (

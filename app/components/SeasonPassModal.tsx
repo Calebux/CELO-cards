@@ -82,11 +82,11 @@ async function fetchSeasonPass(address: string) {
 
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
-  const isMp = isMiniPay();
+  const [isMp, setIsMp] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>(() => isMiniPay() ? "usdt" : "celo");
+  const [currency, setCurrency] = useState<Currency>("celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
@@ -95,6 +95,13 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   useEffect(() => {
     activeAddressRef.current = address ?? null;
   }, [address]);
+
+  useEffect(() => {
+    if (isMiniPay()) {
+      setIsMp(true);
+      setCurrency("usdt");
+    }
+  }, []);
 
   useEffect(() => {
     if (!isMp) return;
