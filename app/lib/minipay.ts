@@ -127,19 +127,10 @@ export async function sendMiniPayNativeTransaction(args: {
   }
 
   const requestChainAndSend = async () => {
-    let switchChainPromise: Promise<unknown> | undefined;
-    try {
-      switchChainPromise = provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: CELO_CHAIN_HEX }],
-      });
-      await Promise.race([
-        switchChainPromise,
-        new Promise((resolve) => window.setTimeout(resolve, 900)),
-      ]);
-    } catch {
-      // MiniPay is typically already pinned to Celo mainnet.
-    }
+    // Do NOT call wallet_switchEthereumChain — MiniPay is always pinned to
+    // Celo mainnet, and sending that request creates a pending entry in
+    // MiniPay's serial request queue that blocks eth_sendTransaction from
+    // surfacing as a popup to the user.
 
     const result = await provider.request({
       method: "eth_sendTransaction",

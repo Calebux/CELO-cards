@@ -282,7 +282,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
               functionName: "transfer",
               args: [TREASURY_MINIPAY_ADDRESS, amt],
             }),
-            feeCurrency: USDT_FEE_CURRENCY,
+            // No feeCurrency — MiniPay handles gas internally via USDm (legacy tx mode).
           })
         : await writeContractAsync({
             address: USDT_CONTRACT,

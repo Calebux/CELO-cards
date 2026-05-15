@@ -176,7 +176,7 @@ export default function BlackMarket() {
                 functionName: "transfer",
                 args: [TREASURY_MINIPAY, ptsToUsdt(price)],
               }),
-              feeCurrency: USDT_FEE_CURRENCY,
+              // No feeCurrency — MiniPay handles gas internally via USDm (legacy tx mode).
             })
           : await writeContractAsync({
               address: USDT_CONTRACT,

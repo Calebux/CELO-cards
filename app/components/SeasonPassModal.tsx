@@ -236,7 +236,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 functionName: "transfer",
                 args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
               }),
-              feeCurrency: USDT_FEE_CURRENCY,
+              // No feeCurrency — MiniPay handles gas internally via USDm (legacy tx mode).
             })
           : await writeContractAsync({
               address: USDT_CONTRACT,
