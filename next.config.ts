@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  compress: true,
+  poweredByHeader: false,
+  experimental: {
+    // Tree-shake large web3 packages — only bundle actually-used exports
+    optimizePackageImports: ["wagmi", "viem", "@rainbow-me/rainbowkit", "@tanstack/react-query"],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
@@ -48,6 +54,11 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/:path*.jpeg",
+        headers: [{ key: "Cache-Control", value: `public, max-age=${ONE_YEAR}, immutable` }],
+      },
+      // Self-hosted fonts
+      {
+        source: "/:path*.woff2",
         headers: [{ key: "Cache-Control", value: `public, max-age=${ONE_YEAR}, immutable` }],
       },
     ];

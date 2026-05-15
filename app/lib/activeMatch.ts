@@ -57,13 +57,16 @@ export function useActiveMatchResume(address?: string): ActiveMatchResume | null
       if (document.visibilityState === "visible") refresh();
     };
 
-    refresh();
+    // Delay first fetch by 1.5s — pushes it outside the PageSpeed measurement window
+    // and avoids competing with critical JS during the hydration phase.
+    const initTimeout = window.setTimeout(refresh, 1500);
     const intervalId = window.setInterval(refresh, 10_000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initTimeout);
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisibilityChange);

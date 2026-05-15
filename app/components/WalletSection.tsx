@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
@@ -33,7 +33,7 @@ function BalanceChip({ label, value, color }: { label: string; value: string; co
 }
 
 function Balances({ address }: { address: `0x${string}` }) {
-  const mp = isMiniPay();
+  const mp = useMemo(() => isMiniPay(), []);
   const { data: celoBalance } = useBalance({
     address,
     chainId: celo.id,
@@ -100,10 +100,11 @@ export function WalletSection() {
   const { switchChainAsync } = useSwitchChain();
   const { playerName } = useGameStore();
   const [autoConnecting, setAutoConnecting] = useState(false);
+  const mp = useMemo(() => isMiniPay(), []);
 
   // Silently auto-connect in MiniPay — no button shown
   useEffect(() => {
-    if (!isMiniPay() || isConnected) return;
+    if (!mp || isConnected) return;
     setAutoConnecting(true);
     const connector = getMiniPayConnector();
     connectAsync({ connector, chainId: celo.id })
@@ -123,7 +124,7 @@ export function WalletSection() {
     gap: 10,
     border: "1.5px solid #56a4cb",
     borderRadius: 6,
-    padding: isMiniPay() ? "16px 18px" : "8px 18px",
+    padding: mp ? "16px 18px" : "8px 18px",
     backdropFilter: "blur(10px)",
     clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
     boxShadow: "0 0 16px rgba(86,164,203,0.3), inset 0 0 20px rgba(86,164,203,0.07)",
@@ -131,12 +132,12 @@ export function WalletSection() {
   };
 
   // While auto-connecting in MiniPay, render nothing
-  if (isMiniPay() && !isConnected) {
+  if (mp && !isConnected) {
     if (autoConnecting) return null;
     return null;
   }
 
-  if (isMiniPay() && isConnected && address) {
+  if (mp && isConnected && address) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
