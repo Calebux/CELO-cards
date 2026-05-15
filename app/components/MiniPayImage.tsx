@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
 import { isMiniPay } from "../lib/minipay";
+import { useMobileViewportMode } from "../lib/mobile";
 
 type MiniPayImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   minipayWidth?: number;
@@ -37,13 +38,15 @@ export function MiniPayImage({
   ...props
 }: MiniPayImageProps) {
   const srcValue = typeof src === "string" ? src : "";
-  const [optimizeForMiniPay, setOptimizeForMiniPay] = useState(false);
+  const isMobileViewport = useMobileViewportMode();
+  const [preferOptimized, setPreferOptimized] = useState(false);
+  const optimizeForMiniPay = preferOptimized && srcValue.startsWith("/");
   const effectiveMiniPaySizes =
     minipaySizes ?? (minipayWidth <= 480 ? `${Math.max(96, Math.round(minipayWidth / 2))}px` : "100vw");
 
   useEffect(() => {
-    setOptimizeForMiniPay(srcValue.startsWith("/") && isMiniPay());
-  }, [srcValue]);
+    setPreferOptimized(srcValue.startsWith("/") && (isMiniPay() || isMobileViewport));
+  }, [isMobileViewport, srcValue]);
 
   return (
     <img
@@ -56,7 +59,7 @@ export function MiniPayImage({
       fetchPriority={fetchPriority ?? (priority ? "high" : "auto")}
       onError={(event) => {
         if (optimizeForMiniPay) {
-          setOptimizeForMiniPay(false);
+          setPreferOptimized(false);
           return;
         }
         onError?.(event);

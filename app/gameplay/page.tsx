@@ -17,6 +17,7 @@ import { DUAL_WAGER_PAYOUT_GDOLLAR } from "../lib/gooddollar";
 import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } from "./ClashCinematic";
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
 import { MiniPayImage } from "../components/MiniPayImage";
+import { useMobileViewportMode } from "../lib/mobile";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
@@ -29,6 +30,7 @@ export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
 
   const {
     selectedCharacter,
@@ -1336,7 +1338,7 @@ export default function Gameplay() {
           const accentColor = won ? "#06a8f9" : (opponent?.color || "#f906a8");
           const accentGlow  = won ? "rgba(6,168,249,0.5)" : `${opponent?.color || "#f906a8"}80`;
           const winnerChar = won ? selectedCharacter : opponent;
-          const finisherVideo = isMp ? null : (winnerChar?.finisherVideo ?? "/new-assets/action-solo-burst.webm");
+          const finisherVideo = isMp || isMobileViewport ? null : (winnerChar?.finisherVideo ?? "/new-assets/action-solo-burst.webm");
           return (
             <div style={{ position: "absolute", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {/* Background */}

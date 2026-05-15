@@ -7,6 +7,7 @@ import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useMobileViewportMode } from "../lib/mobile";
 import { useMiniPayMode } from "../lib/premiumPayments";
 
 const BOUNTY_EXTENSION_DAYS = 5;
@@ -83,6 +84,7 @@ const HOW_IT_WORKS = [
 
 export default function WeeklyChallengePage() {
   const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
   const outerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -212,7 +214,7 @@ export default function WeeklyChallengePage() {
 
       {/* Background */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
-        {isMp ? (
+        {isMp || isMobileViewport ? (
           <MiniPayImage
             src="/new-assets/landing-hero.webp"
             alt=""

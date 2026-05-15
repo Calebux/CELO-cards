@@ -3,6 +3,7 @@
 import { MiniPayImage } from "../components/MiniPayImage";
 import { Card, CardType } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
+import { useMobileViewportMode } from "../lib/mobile";
 import { useMiniPayMode } from "../lib/premiumPayments";
 
 export function getTypeColor(type: CardType): string {
@@ -139,6 +140,7 @@ export function ClashCinematic({
   opponentPortrait,
 }: ClashCinematicProps) {
   const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
   const winnerColor = result.winner === "player" ? "#06a8f9"
     : result.winner === "opponent" ? opponentColor
       : "#fbbf24";
@@ -150,7 +152,7 @@ export function ClashCinematic({
       : ["#fbbf24", "#fff", "#fde68a", "#fcd34d", "#fef", "#fff"];
 
   const winningCard = result.winner === "player" ? result.playerCard : result.winner === "opponent" ? result.opponentCard : null;
-  const actionVideo = isMp ? null : getVideoForCard(winningCard);
+  const actionVideo = isMp || isMobileViewport ? null : getVideoForCard(winningCard);
 
   return (
     <div style={{
