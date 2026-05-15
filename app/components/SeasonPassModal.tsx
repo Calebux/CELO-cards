@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
-import { encodeFunctionData, parseEther, parseUnits } from "viem";
+import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDT_FEE_CURRENCY } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
@@ -225,20 +225,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       const activeAddress = await ensureWalletReady();
       activeAddressRef.current = activeAddress;
       if (currency === "usdt") {
-        const hash = isMp
-          ? await sendMiniPayNativeTransaction({
-              from: activeAddress,
-              to: USDT_CONTRACT,
-              value: 0n,
-              gas: 120000n,
-              data: encodeFunctionData({
-                abi: USDT_ABI,
-                functionName: "transfer",
-                args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
-              }),
-              // No feeCurrency — MiniPay handles gas internally via USDm (legacy tx mode).
-            })
-          : await writeContractAsync({
+        const hash = await writeContractAsync({
               address: USDT_CONTRACT,
               abi: USDT_ABI,
               functionName: "transfer",

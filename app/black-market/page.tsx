@@ -15,7 +15,7 @@ import {
 } from "wagmi";
 import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
-import { encodeFunctionData, parseUnits } from "viem";
+import { parseUnits } from "viem";
 import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { getCardForgeProgress, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
@@ -165,20 +165,7 @@ export default function BlackMarket() {
       const activeAddress = await ensureWalletReady();
       let txHash: string;
       if (buyCurrency === "usdt") {
-        txHash = isMp
-          ? await sendMiniPayNativeTransaction({
-              from: activeAddress,
-              to: USDT_CONTRACT,
-              value: 0n,
-              gas: 120000n,
-              data: encodeFunctionData({
-                abi: USDT_ABI,
-                functionName: "transfer",
-                args: [TREASURY_MINIPAY, ptsToUsdt(price)],
-              }),
-              // No feeCurrency — MiniPay handles gas internally via USDm (legacy tx mode).
-            })
-          : await writeContractAsync({
+        txHash = await writeContractAsync({
               address: USDT_CONTRACT,
               abi: USDT_ABI,
               functionName: "transfer",
