@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -43,7 +43,7 @@ const RANK_COLORS: Record<number, string> = {
 export default function Leaderboard() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const { address } = useAccount();
   const [tab, setTab] = useState<Tab>("casual");
   const [players, setPlayers] = useState<Player[]>([]);

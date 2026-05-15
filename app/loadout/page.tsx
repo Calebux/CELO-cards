@@ -10,7 +10,7 @@ import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../
 import { MiniPayImage } from "../components/MiniPayImage";
 import { getCardForgeProgress, getCardMasteryPerkCopy, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
@@ -161,7 +161,7 @@ function CardTooltip({
 }
 
 export default function Loadout() {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const storePersist = (useGameStore as typeof useGameStore & {
     persist?: {
       hasHydrated?: () => boolean;

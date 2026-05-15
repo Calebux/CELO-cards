@@ -18,7 +18,7 @@ import { ClashCinematic, CLASH_STYLES, getTypeColor, getTypeIcon, getTypeBg } fr
 import { MatchLoadingScreen } from "../components/MatchLoadingScreen";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { buildPayoutClaimAuthMessage } from "../lib/treasuryAuth";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const MENU_BG = "/new-assets/gameplay-landing-lite.webp";
@@ -28,7 +28,7 @@ const ShareCard = dynamic(() => import("../components/ShareCard").then(m => ({ d
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
 
   const {
     selectedCharacter,
@@ -464,7 +464,7 @@ export default function Gameplay() {
     setPayoutState("loading");
     try {
       let signature = "";
-      const miniPay = isMiniPay();
+      const miniPay = isMp;
       if (!miniPay) {
         signature = await signMessageAsync({
           message: buildPayoutClaimAuthMessage(address, matchId, wagerCurrency),

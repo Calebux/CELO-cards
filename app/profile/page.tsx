@@ -13,7 +13,7 @@ import { getCardMasterySnapshot, getHighestMasteryTier, getMasteredCardCount, ge
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { addressToCode } from "../lib/referral";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const SeasonPassModal = dynamic(() => import("../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
@@ -53,7 +53,7 @@ function winRate(won: number, played: number): string {
 export default function ProfilePage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const { address } = useAccount();
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";

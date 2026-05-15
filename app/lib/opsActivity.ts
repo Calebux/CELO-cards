@@ -26,7 +26,7 @@ export type BlackMarketPurchaseActivity = {
   playerName: string | null;
   cardId: string;
   cardName: string;
-  currency: "celo" | "gdollar";
+  currency: "celo" | "gdollar" | "usdt";
   pricePoints: number;
   txHash: string;
   purchasedAt: number;
@@ -64,7 +64,8 @@ export async function getOpsActivitySnapshot() {
   const housePoints = houseMatches.reduce((sum, match) => sum + match.pointsEarned, 0);
   const purchaseBuyers = new Set(purchases.map((purchase) => purchase.address.toLowerCase()));
   const gdollarPurchases = purchases.filter((purchase) => purchase.currency === "gdollar").length;
-  const celoPurchases = purchases.length - gdollarPurchases;
+  const usdtPurchases = purchases.filter((purchase) => purchase.currency === "usdt").length;
+  const celoPurchases = purchases.filter((purchase) => purchase.currency === "celo").length;
   const purchaseRevenuePoints = purchases.reduce((sum, purchase) => sum + purchase.pricePoints, 0);
 
   const recentHouseMatches = houseMatches.slice(0, 12).map((match) => {
@@ -97,6 +98,7 @@ export async function getOpsActivitySnapshot() {
       totalPurchases: purchases.length,
       uniqueBuyers: purchaseBuyers.size,
       gdollarPurchases,
+      usdtPurchases,
       celoPurchases,
       revenuePoints: purchaseRevenuePoints,
       recentPurchases: recentBlackMarketPurchases,

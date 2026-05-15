@@ -7,7 +7,7 @@ import { useGameStore } from "../lib/gameStore";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { MultiplayerMode } from "../lib/matchmaking";
 import { useAccount } from "wagmi";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -34,7 +34,7 @@ type LiveMatch = {
 function JoinMatchContent() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchId = useGameStore((s) => s.setMatchId);
   const setMatchMode = useGameStore((s) => s.setMatchMode);

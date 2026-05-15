@@ -5,7 +5,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -23,7 +23,7 @@ export default function ReadyYourDeckPage() {
 function ReadyYourDeck() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const [copied, setCopied] = useState(false);
   const [linkShared, setLinkShared] = useState(false);
   const [opponentFound, setOpponentFound] = useState(false);

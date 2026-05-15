@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { formatUnits } from "viem";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 
 const WagerModal = dynamic(() => import("../components/WagerModal").then(m => ({ default: m.WagerModal })), { ssr: false });
 
@@ -48,7 +48,7 @@ export default function Lobby() {
   const selfPaidRef      = useRef(false);
   const rankedEntryFiredRef = useRef(false);
 
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
 

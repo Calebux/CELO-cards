@@ -9,7 +9,7 @@ import { CHARACTERS } from "../lib/gameData";
 import { ArchetypeKey, getStarterArchetypes } from "../lib/archetypes";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { playSound } from "../lib/soundManager";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
@@ -38,7 +38,7 @@ const STAT_META = [
 ];
 
 export default function SelectCharacter() {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [timer, setTimer] = useState(44);

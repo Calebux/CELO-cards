@@ -3,7 +3,7 @@
 import { MiniPayImage } from "../components/MiniPayImage";
 import { Card, CardType } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 
 export function getTypeColor(type: CardType): string {
   switch (type) {
@@ -138,7 +138,7 @@ export function ClashCinematic({
   playerPortrait,
   opponentPortrait,
 }: ClashCinematicProps) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const winnerColor = result.winner === "player" ? "#06a8f9"
     : result.winner === "opponent" ? opponentColor
       : "#fbbf24";
