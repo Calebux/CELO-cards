@@ -58,7 +58,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(lockedCurrency ?? (isMp ? "cusd" : "celo"));
+  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (isMiniPay() ? "cusd" : "celo"));
   const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw) ?? "0.01");
 
   useEffect(() => {

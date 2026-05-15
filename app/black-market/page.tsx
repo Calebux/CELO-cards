@@ -67,7 +67,7 @@ export default function BlackMarket() {
   const unlockCard = useGameStore((s) => s.purchaseCard);
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
 
-  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(isMiniPay() ? "usdt" : "celo");
+  const [buyCurrency, setBuyCurrency] = useState<BuyCurrency>(() => isMiniPay() ? "usdt" : "celo");
   const [activeView, setActiveView] = useState<MarketView>("premium");
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string>("");

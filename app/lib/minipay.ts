@@ -22,8 +22,12 @@ function shouldRetryMiniPayNativeSend(error: unknown): boolean {
 
 export function isMiniPay(): boolean {
   if (typeof window === "undefined") return false;
-  // MiniPay injects window.ethereum with isMiniPay = true
-  return !!(window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay;
+  // window.ethereum check — most accurate once provider is injected
+  if ((window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay) return true;
+  // Fallback: server-side UA detection result embedded in the HTML before any JS runs.
+  // This fires correctly even when window.ethereum hasn't been injected yet on first render,
+  // which is the root cause of pages briefly showing CELO/G$ in MiniPay.
+  return document.documentElement.dataset.minipay === "1";
 }
 
 export function getMiniPayProvider(): MiniPayProvider | undefined {

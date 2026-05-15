@@ -61,7 +61,7 @@ export default async function RootLayout({
   const ProviderComponent = isMiniPayUA ? MiniPayProviders : Providers;
 
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${ruda.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${ruda.variable}`} data-minipay={isMiniPayUA ? "1" : undefined}>
       <head>
         {/* Intercept window.electronAPI so wallet extensions that look for
             Electron APIs don't throw and crash the React tree.

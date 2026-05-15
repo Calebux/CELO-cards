@@ -86,7 +86,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>(isMp ? "usdt" : "celo");
+  const [currency, setCurrency] = useState<Currency>(() => isMiniPay() ? "usdt" : "celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
