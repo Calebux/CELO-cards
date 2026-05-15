@@ -12,11 +12,11 @@ import {
 } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseUnits, formatUnits } from "viem";
-import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDT_FEE_CURRENCY } from "../lib/cusd";
+import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
-import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { getInitialMiniPayMode, useMiniPayMode } from "../lib/premiumPayments";
 
@@ -272,13 +272,14 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     setStep("entering");
     try {
       const hash = await writeContractAsync({
-            address: USDT_CONTRACT,
-            abi: ERC20_ABI,
-            functionName: "transfer",
-            args: [TREASURY_MINIPAY_ADDRESS, amt],
-            account: activeAddress,
-            chainId: celo.id,
-          });
+        address: USDT_CONTRACT,
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [TREASURY_MINIPAY_ADDRESS, amt],
+        account: activeAddress,
+        chainId: celo.id,
+        ...(isMp ? getMiniPayWriteOverrides() : {}),
+      });
       setTxHash(hash);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "USDT transfer failed.");

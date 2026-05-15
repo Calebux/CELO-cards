@@ -1,6 +1,7 @@
 // MiniPay wallet detection and Celo address helpers
 
-import { toHex, type EIP1193Provider } from "viem";
+import { toHex, createWalletClient, custom, type EIP1193Provider } from "viem";
+import { celo } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
 type MiniPayProvider = EIP1193Provider & {
@@ -83,6 +84,18 @@ export function getMiniPayProvider(): MiniPayProvider | undefined {
     return provider;
   }
   return undefined;
+}
+
+export function getMiniPayWalletClient() {
+  const provider = getMiniPayProvider();
+  if (!provider) throw new Error("MiniPay wallet not available.");
+  return createWalletClient({ chain: celo, transport: custom(provider) });
+}
+
+export function getMiniPayWriteOverrides() {
+  return isMiniPay()
+    ? { type: "legacy" as const }
+    : {};
 }
 
 export const miniPayConnector = injected({
