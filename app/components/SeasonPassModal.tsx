@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import { getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayConnector, getMiniPayWalletClient, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
@@ -225,15 +225,23 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       const activeAddress = await ensureWalletReady();
       activeAddressRef.current = activeAddress;
       if (currency === "usdt") {
-        const hash = await writeContractAsync({
-          address: USDT_CONTRACT,
-          abi: USDT_ABI,
-          functionName: "transfer",
-          args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
-          account: activeAddress,
-          chainId: celo.id,
-          ...(isMp ? getMiniPayWriteOverrides() : {}),
-        });
+        const hash = isMp
+          ? await getMiniPayWalletClient().writeContract({
+              address: USDT_CONTRACT,
+              abi: USDT_ABI,
+              functionName: "transfer",
+              args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
+              account: activeAddress,
+              ...getMiniPayWriteOverrides(),
+            })
+          : await writeContractAsync({
+              address: USDT_CONTRACT,
+              abi: USDT_ABI,
+              functionName: "transfer",
+              args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
+              account: activeAddress,
+              chainId: celo.id,
+            });
         void pollAndRegister(hash, activeAddress);
       } else if (currency === "gdollar") {
         const hash = await writeContractAsync({
