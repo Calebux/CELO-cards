@@ -16,7 +16,7 @@ import {
 import { celo } from "wagmi/chains";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { parseUnits } from "viem";
-import { getMiniPayConnector, isMiniPay, sendMiniPayErc20Transfer, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayAddress, getMiniPayConnector, isMiniPay, sendMiniPayErc20Transfer, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { getCardForgeProgress, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
@@ -129,6 +129,14 @@ export default function BlackMarket() {
   }, []);
 
   const ensureWalletReady = async () => {
+    if (isMiniPay()) {
+      const miniPayAddress = await getMiniPayAddress();
+      if (!miniPayAddress) {
+        throw new Error("MiniPay wallet not available.");
+      }
+      return miniPayAddress as `0x${string}`;
+    }
+
     let activeAddress = address;
     let activeChainId = chainId;
     let connected = isConnected;

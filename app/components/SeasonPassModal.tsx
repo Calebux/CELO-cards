@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import { getMiniPayConnector, isMiniPay, sendMiniPayErc20Transfer, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayAddress, getMiniPayConnector, isMiniPay, sendMiniPayErc20Transfer, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
@@ -156,6 +156,14 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
 
   const ensureWalletReady = useCallback(async () => {
+    if (isMiniPay()) {
+      const miniPayAddress = await getMiniPayAddress();
+      if (!miniPayAddress) {
+        throw new Error("MiniPay wallet not available.");
+      }
+      return miniPayAddress as `0x${string}`;
+    }
+
     let activeAddress = address;
     let activeChainId = chainId;
     let connected = isConnected;

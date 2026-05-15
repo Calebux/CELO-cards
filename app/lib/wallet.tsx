@@ -5,8 +5,7 @@
 // • Everywhere: keeps gameStore.playerAddress + playerName in sync with wagmi address
 
 import { useEffect } from "react";
-import { celo } from "wagmi/chains";
-import { useAccount, useConnect, useSwitchChain } from "wagmi";
+import { useAccount, useConnect } from "wagmi";
 import { useGameStore } from "./gameStore";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
 import { useRef } from "react";
@@ -15,7 +14,6 @@ import type { CardProgressPayload } from "./cardProgress";
 export function WalletSync() {
   const { address, isConnected } = useAccount();
   const { connectAsync } = useConnect();
-  const { switchChainAsync } = useSwitchChain();
   const setPlayerAddress = useGameStore((s) => s.setPlayerAddress);
   const setPlayerName = useGameStore((s) => s.setPlayerName);
   const hydrateCardProgress = useGameStore((s) => s.hydrateCardProgress);
@@ -35,10 +33,7 @@ export function WalletSync() {
       if (cancelled || inFlight) return;
       inFlight = true;
       try {
-        const result = await connectAsync({ connector, chainId: celo.id });
-        if (!cancelled && result.chainId !== celo.id) {
-          await switchChainAsync({ chainId: celo.id }).catch(() => {});
-        }
+        await connectAsync({ connector });
       } catch {
         // Provider injection can lag inside MiniPay WebViews; retry below.
       } finally {
@@ -65,7 +60,7 @@ export function WalletSync() {
       cancelled = true;
       window.clearInterval(retry);
     };
-  }, [connectAsync, isConnected, switchChainAsync]);
+  }, [connectAsync, isConnected]);
 
   useEffect(() => {
     setPlayerAddress(address ?? null);

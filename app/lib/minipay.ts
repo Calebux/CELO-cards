@@ -119,8 +119,17 @@ export async function getMiniPayAddress(): Promise<string | null> {
   const provider = getMiniPayProvider();
   try {
     if (!provider) return null;
-    const accounts = await provider.request({ method: "eth_requestAccounts" });
-    return accounts[0] ?? null;
+    const existingAccounts = await provider.request({ method: "eth_accounts" }).catch(() => []) as string[] | undefined;
+    if (existingAccounts?.[0]) {
+      persistMiniPayDetection();
+      return existingAccounts[0];
+    }
+    const accounts = await provider.request({ method: "eth_requestAccounts" }) as string[] | undefined;
+    if (accounts?.[0]) {
+      persistMiniPayDetection();
+      return accounts[0];
+    }
+    return null;
   } catch {
     return null;
   }
