@@ -75,6 +75,13 @@ export function getMiniPayProvider(): MiniPayProvider | undefined {
     persistMiniPayDetection();
     return provider;
   }
+  // Fallback: isMiniPay flag can be missing on first paint if the WebView injects
+  // window.ethereum asynchronously. If runtime hints confirm MiniPay (UA header
+  // or server-set data-minipay="1"), use window.ethereum directly — there are no
+  // third-party wallet extensions inside MiniPay's WebView.
+  if (provider && hasMiniPayRuntimeHint()) {
+    return provider;
+  }
   return undefined;
 }
 
