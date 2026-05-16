@@ -104,12 +104,16 @@ export const miniPayConnector = injected({
   target: {
     id: "minipay",
     name: "MiniPay",
-    // Return window.ethereum without isMiniPay guard — the flag is injected
-    // asynchronously, so gating on it caused the connector to return undefined
-    // at connect time → wagmi had no provider → writeContractAsync failed.
-    // This connector is only used inside MiniPayProviders (MiniPay WebView).
     provider(window) {
-      return window?.ethereum as MiniPayProvider | undefined;
+      const provider = window?.ethereum as MiniPayProvider | undefined;
+      // Primary check: isMiniPay flag is most reliable once injected.
+      if (provider?.isMiniPay) return provider;
+      // Fallback for async injection: if runtime hints (UA, data-minipay, storage)
+      // confirm we're in MiniPay, use window.ethereum directly. Avoids returning
+      // undefined at connect time while also avoiding MetaMask deep-link triggers
+      // that happen when window.ethereum is returned without any MiniPay check.
+      if (provider && hasMiniPayRuntimeHint()) return provider;
+      return undefined;
     },
   },
 });
