@@ -101,18 +101,16 @@ export function getMiniPayWriteOverrides() {
 export const miniPayConnector = injected({
   shimDisconnect: false,
   unstable_shimAsyncInject: 3_000,
-  target() {
-    // Return window.ethereum directly — no isMiniPay guard.
-    // MiniPay injects the flag asynchronously; gating on it causes the
-    // connector to return undefined at connect time, leaving wagmi with
-    // no provider and writeContractAsync failing with "provider not found".
-    // This connector is only used inside MiniPayProviders (MiniPay context),
-    // so there are no third-party extensions to worry about.
-    return {
-      id: "minipay",
-      name: "MiniPay",
-      provider: typeof window !== "undefined" ? (window.ethereum as MiniPayProvider | undefined) : undefined,
-    };
+  target: {
+    id: "minipay",
+    name: "MiniPay",
+    // Return window.ethereum without isMiniPay guard — the flag is injected
+    // asynchronously, so gating on it caused the connector to return undefined
+    // at connect time → wagmi had no provider → writeContractAsync failed.
+    // This connector is only used inside MiniPayProviders (MiniPay WebView).
+    provider(window) {
+      return window?.ethereum as MiniPayProvider | undefined;
+    },
   },
 });
 
