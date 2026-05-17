@@ -76,8 +76,13 @@ export function createWeb3AuthConnector() {
     },
 
     async getProvider() {
-      const web3auth = await getWeb3Auth();
-      return web3auth.provider;
+      // Never trigger web3auth init just to check availability.
+      // RainbowKit calls getProvider() on all connectors at startup to detect
+      // which wallets are "installed". Calling getWeb3Auth() here would load
+      // 1.3 MB from auth.web3auth.io on every page load.
+      // Return null when not connected — the actual init happens in connect().
+      if (!web3authInstance?.provider) return null;
+      return web3authInstance.provider;
     },
 
     async isAuthorized() {

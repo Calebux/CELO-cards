@@ -1,0 +1,11 @@
+# Target modern browsers only — drops polyfills for Array.at, Object.hasOwn,
+# Array.flat/flatMap, Object.fromEntries, String.trimStart/trimEnd, etc.
+# All of these are baseline in Chrome 90+, Firefox 91+, Safari 15+.
+# MiniPay runs on Chrome for Android 90+ so this is safe.
+
+Chrome >= 90
+ChromeAndroid >= 90
+Firefox >= 91
+Safari >= 15
+iOS >= 15
+Edge >= 90
