@@ -95,6 +95,9 @@ function MuteButton() {
   );
 }
 
+const DEPOSIT_DEEPLINK = "https://minipay.opera.com/add_cash";
+const LOW_BALANCE_THRESHOLD = 0.50; // USDT
+
 export function WalletSection() {
   const { address, isConnected } = useAccount();
   const { connectAsync } = useConnect();
@@ -103,6 +106,18 @@ export function WalletSection() {
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [showBalances, setShowBalances] = useState(false);
   const mp = useMiniPayMode();
+
+  // Low-balance check for MiniPay — only enabled when connected in MiniPay
+  const { data: usdtRaw } = useReadContract({
+    address: USDT_CONTRACT,
+    abi: BALANCE_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: celo.id,
+    query: { enabled: !!address && mp && isConnected },
+  });
+  const usdtFloat = usdtRaw !== undefined ? parseFloat(formatUnits(usdtRaw, 6)) : null;
+  const isLowBalance = mp && usdtFloat !== null && usdtFloat < LOW_BALANCE_THRESHOLD;
 
   useEffect(() => {
     if (!isConnected || !address) {
@@ -168,6 +183,25 @@ export function WalletSection() {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
         {showBalances ? <Balances address={address} enabled={showBalances} mp={mp} /> : null}
+        {isLowBalance && (
+          <a
+            href={DEPOSIT_DEEPLINK}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 12px",
+              background: "rgba(251,191,36,0.12)",
+              border: "1px solid rgba(251,191,36,0.45)",
+              borderRadius: 6,
+              color: "#fbbf24",
+              fontSize: 11, fontWeight: 800, letterSpacing: 1.2,
+              textTransform: "uppercase", textDecoration: "none",
+              boxShadow: "0 0 10px rgba(251,191,36,0.2)",
+            }}
+          >
+            <span className="material-icons" style={{ fontSize: 13 }}>add_circle</span>
+            Deposit
+          </a>
+        )}
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
