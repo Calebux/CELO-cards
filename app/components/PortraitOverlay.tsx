@@ -20,9 +20,23 @@ export function PortraitOverlay() {
       if (!isPortrait) setDismissed(false);
     }
 
+    // MiniPay WebViews (and some Android browsers) fire orientationchange but
+    // NOT resize on device rotation. We listen to both and delay the check by
+    // 120ms after orientationchange so the viewport dimensions have updated.
+    let orientationTimer: ReturnType<typeof setTimeout>;
+    function onOrientationChange() {
+      clearTimeout(orientationTimer);
+      orientationTimer = setTimeout(check, 120);
+    }
+
     check();
     window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    window.addEventListener("orientationchange", onOrientationChange);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("orientationchange", onOrientationChange);
+      clearTimeout(orientationTimer);
+    };
   }, []);
 
   if (!show || dismissed) return null;
