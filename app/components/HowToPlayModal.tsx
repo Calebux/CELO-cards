@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 const STEPS = [
@@ -78,7 +78,7 @@ interface Props {
 }
 
 export function HowToPlayModal({ onClose }: Props) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
   const current = STEPS[step];

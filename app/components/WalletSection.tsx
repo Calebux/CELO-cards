@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
@@ -9,6 +9,7 @@ import { getMiniPayConnector, isMiniPay, formatAddress } from "../lib/minipay";
 import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
+import { useMiniPayMode } from "../lib/premiumPayments";
 
 const WebWalletSection = dynamic(() => import("./WebWalletSection").then(m => ({ default: m.WebWalletSection })), { ssr: false });
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -32,12 +33,11 @@ function BalanceChip({ label, value, color }: { label: string; value: string; co
   );
 }
 
-function Balances({ address }: { address: `0x${string}` }) {
-  const mp = useMemo(() => isMiniPay(), []);
+function Balances({ address, enabled, mp }: { address: `0x${string}`; enabled: boolean; mp: boolean }) {
   const { data: celoBalance } = useBalance({
     address,
     chainId: celo.id,
-    query: { enabled: !!address },
+    query: { enabled: !!address && enabled && !mp },
   });
   const { data: token2 } = useReadContract({
     address: mp ? USDT_CONTRACT : GDOLLAR_CONTRACT,
@@ -45,7 +45,7 @@ function Balances({ address }: { address: `0x${string}` }) {
     functionName: "balanceOf",
     args: [address],
     chainId: celo.id,
-    query: { enabled: !!address },
+    query: { enabled: !!address && enabled },
   });
 
   const celoVal = celoBalance ? parseFloat(formatUnits(celoBalance.value, 18)).toFixed(3) : "—";
@@ -62,6 +62,7 @@ function Balances({ address }: { address: `0x${string}` }) {
 function MuteButton() {
   const [muted, setMutedState] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const isMp = useMiniPayMode();
 
   useEffect(() => {
     setMutedState(isMuted());
@@ -80,7 +81,7 @@ function MuteButton() {
           border: "1px solid rgba(86,164,203,0.25)",
           borderRadius: 6,
           cursor: "pointer",
-          padding: isMiniPay() ? "16px 14px" : "5px 8px",
+          padding: isMp ? "16px 14px" : "5px 8px",
           display: "flex", alignItems: "center", gap: 4,
           transition: "all 0.2s",
         }}
@@ -100,7 +101,33 @@ export function WalletSection() {
   const { switchChainAsync } = useSwitchChain();
   const { playerName } = useGameStore();
   const [autoConnecting, setAutoConnecting] = useState(false);
-  const mp = useMemo(() => isMiniPay(), []);
+  const [showBalances, setShowBalances] = useState(false);
+  const mp = useMiniPayMode();
+
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setShowBalances(false);
+      return;
+    }
+    if (!mp) {
+      setShowBalances(true);
+      return;
+    }
+
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(() => setShowBalances(true), { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(() => setShowBalances(true), 900);
+    return () => window.clearTimeout(timeout);
+  }, [address, isConnected, mp]);
 
   // Silently auto-connect in MiniPay — no button shown
   useEffect(() => {
@@ -115,8 +142,7 @@ export function WalletSection() {
       })
       .catch(() => {})
       .finally(() => setAutoConnecting(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected]);
+  }, [mp, isConnected, connectAsync, switchChainAsync]);
 
   const base: React.CSSProperties = {
     display: "flex",
@@ -141,11 +167,11 @@ export function WalletSection() {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
-        <Balances address={address} />
+        {showBalances ? <Balances address={address} enabled={showBalances} mp={mp} /> : null}
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>WALLET</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>MINIPAY</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>{playerName || formatAddress(address)}</div>
           </div>
         </div>

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     address?: string;
     playerName?: string | null;
     cardId?: string;
-    currency?: "celo" | "gdollar";
+    currency?: "celo" | "gdollar" | "usdt";
     pricePoints?: number;
     txHash?: string;
   };
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (!card) {
     return NextResponse.json({ error: "Unknown card" }, { status: 400 });
   }
-  if (body.currency !== "celo" && body.currency !== "gdollar") {
+  if (body.currency !== "celo" && body.currency !== "gdollar" && body.currency !== "usdt") {
     return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
   }
   if (typeof body.pricePoints !== "number" || body.pricePoints <= 0) {

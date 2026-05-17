@@ -6,17 +6,20 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from './lib/gameStore';
 import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
-import { WalletSection } from './components/WalletSection';
 import { MiniPayImage } from './components/MiniPayImage';
-import { isMiniPay } from './lib/minipay';
+import { useMiniPayMode } from './lib/premiumPayments';
 import { useAccount } from 'wagmi';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
+import { GameLoadingScreen } from './components/GameLoadingScreen';
 
+const WalletSection = dynamic(() => import('./components/WalletSection').then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const SeasonPassModal = dynamic(() => import('./components/SeasonPassModal').then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
 export default function ActionOrderLandingPage() {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
+  const [isMobile, setIsMobile] = useState(false);
+  const isCompact = isMp || isMobile;
   const { playerPoints, winStreak, matchPhase, matchId, playerRole, selectedCharacter, vsBot } = useGameStore();
   const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -44,7 +47,22 @@ export default function ActionOrderLandingPage() {
 
 
 
+  const [showLoader, setShowLoader] = useState(false);
+  const handleLoaded = () => {
+    sessionStorage.setItem('ao-loaded', '1');
+    setShowLoader(false);
+  };
+
   useEffect(() => {
+    // < 768 targets phones only — iPads start at 768px and should use the desktop layout
+    setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+    if (!sessionStorage.getItem('ao-loaded')) setShowLoader(true);
+  }, []);
+
+  useEffect(() => {
+    // Re-run when showLoader changes: the canvas is only in the DOM after the
+    // loading screen disappears, so the scale calculation must run again then.
+    if (showLoader) return;
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -67,7 +85,32 @@ export default function ActionOrderLandingPage() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
-  }, []);
+  }, [showLoader]);
+
+  useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    const prefetch = () => {
+      void router.prefetch("/create");
+      void router.prefetch("/join");
+      void router.prefetch("/loadout");
+      void router.prefetch("/gameplay");
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(prefetch, 900);
+    return () => window.clearTimeout(timeout);
+  }, [router]);
+
+  if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 
   return (
     <>
@@ -152,25 +195,46 @@ export default function ActionOrderLandingPage() {
         .ko-nav-btn:hover .ko-btn-icon  { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(86,164,203,0.8)); }
 
         .ko-land-page-wrapper.ko-minipay .ko-nav-btn {
-          height: 56px;
-          width: 220px;
-          padding: 0 18px;
-          gap: 14px;
+          height: 70px;
+          width: 256px;
+          padding: 0 22px;
+          gap: 16px;
           border-width: 1.5px;
         }
         .ko-land-page-wrapper.ko-minipay .ko-nav-btn .ko-btn-icon {
-          width: 20px;
-          height: 20px;
+          width: 24px;
+          height: 24px;
         }
         .ko-land-page-wrapper.ko-minipay .ko-nav-btn .ko-btn-label {
-          font-size: 15px;
-          letter-spacing: 1.7px;
+          font-size: 18px;
+          letter-spacing: 2px;
         }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-create { left: 36px; top: 248px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-join { left: 36px; top: 314px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-tournament { left: 36px; top: 380px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-leaderboard { left: 36px; top: 446px; }
-        .ko-land-page-wrapper.ko-minipay .ko-btn-profile { left: 36px; top: 512px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-create { left: 36px; top: 236px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-join { left: 36px; top: 318px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-tournament { left: 36px; top: 400px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-leaderboard { left: 36px; top: 482px; }
+        .ko-land-page-wrapper.ko-minipay .ko-btn-profile { left: 36px; top: 564px; }
+
+        .ko-land-page-wrapper.ko-mobile .ko-nav-btn {
+          height: 70px;
+          width: 256px;
+          padding: 0 22px;
+          gap: 16px;
+          border-width: 1.5px;
+        }
+        .ko-land-page-wrapper.ko-mobile .ko-nav-btn .ko-btn-icon {
+          width: 24px;
+          height: 24px;
+        }
+        .ko-land-page-wrapper.ko-mobile .ko-nav-btn .ko-btn-label {
+          font-size: 18px;
+          letter-spacing: 2px;
+        }
+        .ko-land-page-wrapper.ko-mobile .ko-btn-create { left: 36px; top: 236px; }
+        .ko-land-page-wrapper.ko-mobile .ko-btn-join { left: 36px; top: 318px; }
+        .ko-land-page-wrapper.ko-mobile .ko-btn-tournament { left: 36px; top: 400px; }
+        .ko-land-page-wrapper.ko-mobile .ko-btn-leaderboard { left: 36px; top: 482px; }
+        .ko-land-page-wrapper.ko-mobile .ko-btn-profile { left: 36px; top: 564px; }
 
         /* ── Points badge ─────────────────────────────── */
         .ko-points-badge {
@@ -263,11 +327,11 @@ export default function ActionOrderLandingPage() {
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
-        <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
+        <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
           <div className="ko-land-page">
 
             {/* Background — WebP served to all browsers; MiniPay gets /_next/image optimized version */}
-            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" minipayWidth={1280} minipayQuality={75} priority />
+            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" minipayWidth={1280} minipayQuality={58} priority />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, rgba(5,8,18,0.82) 0%, rgba(5,8,18,0.22) 22%, rgba(5,8,18,0.22) 78%, rgba(5,8,18,0.82) 100%)", zIndex:1, pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 
@@ -311,23 +375,25 @@ export default function ActionOrderLandingPage() {
               <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
             </a>
 
-            {/* ── G$ Claim Banner ──────────────────────────────────── */}
+            {/* ── G$ Claim Banner — hidden in MiniPay (USDT-only env) */}
+            {!isMp && (
             <Link href="/profile" style={{
-              position:"absolute", left:36, top:isMp ? 84 : 72, width:isMp ? 220 : 180, zIndex:15,
+              position:"absolute", left:36, top:72, width:180, zIndex:15,
               display:"flex", alignItems:"center", gap:8,
-              padding:isMp ? "10px 16px" : "7px 14px",
+              padding:"7px 14px",
               background:"linear-gradient(135deg, rgba(0,197,142,0.18), rgba(0,197,142,0.06))",
               border:"1px solid rgba(0,197,142,0.5)",
               borderRadius:6, textDecoration:"none",
               boxShadow:"0 0 12px rgba(0,197,142,0.2)",
               animation:"ko-dot-pulse 2.5s ease-in-out infinite",
             }}>
-              <span style={{ fontSize:isMp ? 16 : 14 }}>🌱</span>
+              <span style={{ fontSize:14 }}>🌱</span>
               <div>
-                <div style={{ fontSize:isMp ? 9 : 8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
-                <div style={{ fontSize:isMp ? 11 : 10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
+                <div style={{ fontSize:8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
+                <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
               </div>
             </Link>
+            )}
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
             {effectiveResumeRoute && (
@@ -374,7 +440,7 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
-            <div className="ko-points-badge" style={{ top: isMp ? 656 : 596 }}>
+            <div className="ko-points-badge" style={{ top: isCompact ? 656 : 596 }}>
               <span style={{ fontSize:isMp ? 18 : 16, flexShrink:0 }}>⚡</span>
               <div style={{ display:"flex", flexDirection:"column" }}>
                 <span className="ko-points-label">Total Points</span>
@@ -392,24 +458,24 @@ export default function ActionOrderLandingPage() {
             </div>
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
-            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isMp ? 662 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isMp ? 12 : 10 }}>
-              <div style={{ display:"flex", gap:isMp ? 14 : 12 }}>
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isCompact ? 726 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
+              <div style={{ display:"flex", gap:isCompact ? 16 : 12 }}>
                 <Link href="/black-market" style={{
-                  display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "12px 26px" : "10px 24px",
+                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
                   border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",
-                  color:"#fff", fontSize:isMp ? 15 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                  color:"#fff", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
                   boxShadow:"0 0 20px rgba(239,68,68,0.35)", animation:"ko-pulse 2.5s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                  <svg width={isCompact ? 18 : 16} height={isCompact ? 18 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   BLACK MARKET
                 </Link>
                 <button onClick={() => setShowSeasonPassModal(true)} style={{
-                  display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "12px 26px" : "10px 24px",
+                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
                   background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
                   border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
-                  color:"#fbbf24", fontSize:isMp ? 15 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                  color:"#fbbf24", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
                   animation:"ko-tournament-blink 1.4s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                   cursor:"pointer", fontFamily:"inherit",
@@ -417,14 +483,14 @@ export default function ActionOrderLandingPage() {
                   ⚡ SEASON PASS
                 </button>
                 <button onClick={() => setShowHowToPlay(true)} style={{
-                  display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "12px 22px" : "10px 20px",
+                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
                   borderRadius:6, cursor:"pointer", fontFamily:"inherit",
-                  color:"#b9e7f4", fontSize:isMp ? 15 : 13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
+                  color:"#b9e7f4", fontSize:isCompact ? 17 : 13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
                   backdropFilter:"blur(8px)",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
                 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                  <svg width={isCompact ? 17 : 14} height={isCompact ? 17 : 14} viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                   HOW TO PLAY
                 </button>
               </div>
@@ -442,7 +508,7 @@ export default function ActionOrderLandingPage() {
 
             {/* News card 1 */}
             <div className="ko-news-card" style={{ position:"absolute", left:isMp ? 1088 : 1130, top:isMp ? 228 : 232, width:isMp ? 280 : 237, zIndex:15 }}>
-              <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy.webp" alt="Season 1" minipayWidth={420} minipayQuality={75} />
+              <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy-sm.webp" alt="Season 1" minipayWidth={420} minipayQuality={75} />
               <div className="ko-card-title">
                 <p style={{ color:"#56a4cb", fontSize:isMp ? 11 : 10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>LATEST</p>
                 <p>SEASON 1: ORDER ASCENSION</p>
@@ -466,27 +532,6 @@ export default function ActionOrderLandingPage() {
             <div className="ko-scrollbar-track" />
             <div className="ko-scrollbar-thumb" />
 
-            {/* ── Fullscreen ───────────────────────────────────────── */}
-            <button
-              onClick={() => {
-                void (document.fullscreenElement
-                  ? document.exitFullscreen()
-                  : document.documentElement.requestFullscreen());
-              }}
-              title="Fullscreen"
-              style={{
-                position: "absolute", left: 36, bottom: isMp ? 36 : 28, zIndex: 15,
-                width: isMp ? 52 : 44, height: isMp ? 52 : 44, borderRadius: "50%",
-                backgroundColor: "rgba(10,18,32,0.85)",
-                border: "2px solid rgba(86,164,203,0.45)",
-                boxShadow: "0 0 14px rgba(86,164,203,0.3)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", backdropFilter: "blur(8px)",
-                fontSize: isMp ? 20 : 18, color: "#56a4cb", transition: "all 0.2s ease",
-              }}
-            >
-              ⛶
-            </button>
 
           </div>
 

@@ -1,11 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
-import { WagerModal } from "../components/WagerModal";
+import { MiniPayImage } from "../components/MiniPayImage";
 import { formatUnits } from "viem";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
+import { useMobileViewportMode } from "../lib/mobile";
+import { usePageVisibility } from "../lib/perf";
+
+const WagerModal = dynamic(() => import("../components/WagerModal").then(m => ({ default: m.WagerModal })), { ssr: false });
 
 const OPPONENT_WARN_MS  = 60_000;
 const OPPONENT_ABORT_MS = 90_000;
@@ -37,7 +42,7 @@ export default function Lobby() {
   const [opponentAbandoned, setOpponentAbandoned] = useState(false);
   const [payWaitMs, setPayWaitMs] = useState(0);
   const [rankedEntryError, setRankedEntryError] = useState<string | null>(null);
-  const [requiredWagerCurrency, setRequiredWagerCurrency] = useState<"cusd" | "celo" | "gdollar" | null>(null);
+  const [requiredWagerCurrency, setRequiredWagerCurrency] = useState<"cusd" | "celo" | "gdollar" | "usdt" | null>(null);
   const [requiredWagerAmountRaw, setRequiredWagerAmountRaw] = useState<string | null>(null);
   const payWaitStartRef = useRef<number | null>(null);
 
@@ -45,7 +50,9 @@ export default function Lobby() {
   const selfPaidRef      = useRef(false);
   const rankedEntryFiredRef = useRef(false);
 
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
+  const pageVisible = usePageVisibility();
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
 
@@ -62,7 +69,15 @@ export default function Lobby() {
       if (waitStartRef.current) setOpponentWaitMs(Date.now() - waitStartRef.current);
     }, 1000);
 
-    const poll = setInterval(async () => {
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    const nextPollDelay = () => {
+      if (!pageVisible) return 7000;
+      return isMp || isMobileViewport ? 3500 : 2000;
+    };
+
+    const pollOnce = async () => {
+      if (cancelled) return;
       try {
         const res  = await fetch(`/api/match/${matchId}?role=${playerRole}`);
         const data = await res.json() as {
@@ -72,14 +87,14 @@ export default function Lobby() {
           selfWagered?:     boolean;
           paymentRequired?: boolean;
           abortedBy?:       "host" | "joiner" | null;
-          requiredWagerCurrency?: "cusd" | "celo" | "gdollar" | null;
+          requiredWagerCurrency?: "cusd" | "celo" | "gdollar" | "usdt" | null;
           requiredWagerAmount?: string | null;
         };
         setNetErrorCount(0);
         setFirstPollDone(true);
 
         if (data.phase === "timed-out") {
-          clearInterval(poll);
+          if (pollTimer) clearTimeout(pollTimer);
           clearInterval(waitTick);
           router.replace("/");
           return;
@@ -106,7 +121,7 @@ export default function Lobby() {
         // Opponent abandoned after self paid
         if (data.abortedBy && data.abortedBy !== playerRole && selfPaid && paymentRequired) {
           setOpponentAbandoned(true);
-          clearInterval(poll);
+          if (pollTimer) clearTimeout(pollTimer);
           clearInterval(waitTick);
           return;
         }
@@ -120,21 +135,26 @@ export default function Lobby() {
           setOpponentCharacterFromServer(data.opponentCharId);
           if (!data.paymentRequired || data.opponentWagered) {
             setP2Ready(true);
-            clearInterval(poll);
+            if (pollTimer) clearTimeout(pollTimer);
             clearInterval(waitTick);
+            return;
           }
         }
       } catch {
         setNetErrorCount((n) => n + 1);
       }
-    }, 2000);
+      if (!cancelled) pollTimer = setTimeout(() => { void pollOnce(); }, nextPollDelay());
+    };
+
+    void pollOnce();
 
     return () => {
-      clearInterval(poll);
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
       clearInterval(waitTick);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerRole, matchId]);
+  }, [isMobileViewport, isMp, matchId, pageVisible, playerRole]);
 
   // Auto-ready P1 after 3s — but only AFTER the first poll confirms
   // paymentRequired status (prevents racing the poll on slow networks).
@@ -231,6 +251,18 @@ export default function Lobby() {
 
   const p1Color = player?.color  ?? "#56a4cb";
   const p2Color = opponent?.color ?? "#f906a8";
+  const wagerTokenLabel =
+    requiredWagerCurrency === "gdollar" ? "G$" :
+    requiredWagerCurrency === "cusd" ? "cUSD" :
+    requiredWagerCurrency === "usdt" ? "USDT" :
+    requiredWagerCurrency === "celo" ? "CELO" :
+    wagerCurrency === "gdollar" ? "G$" :
+    wagerCurrency === "cusd" ? "cUSD" :
+    wagerCurrency === "usdt" ? "USDT" :
+    wagerCurrency === "celo" ? "CELO" :
+    "cUSD";
+  const wagerTokenDecimals =
+    (requiredWagerCurrency ?? wagerCurrency) === "usdt" ? 6 : 18;
 
   return (
     <div style={{
@@ -302,11 +334,11 @@ export default function Lobby() {
             borderRadius: 20,
           }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: 1, textTransform: "uppercase" }}>
-              ⚡ {(requiredWagerCurrency ?? wagerCurrency)?.toUpperCase() ?? "CUSD"}
+              ⚡ {wagerTokenLabel}
             </span>
             {requiredWagerAmountRaw && (
               <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(251,191,36,0.7)", letterSpacing: 0.8 }}>
-                · {formatUnits(BigInt(requiredWagerAmountRaw), 18)}
+                · {formatUnits(BigInt(requiredWagerAmountRaw), wagerTokenDecimals)}
               </span>
             )}
           </div>
@@ -336,9 +368,11 @@ export default function Lobby() {
             background: "#0a0510",
           }}>
             {player ? (
-              <img
+              <MiniPayImage
                 src={player.standingArt}
                 alt={player.name}
+                minipayWidth={272}
+                minipayQuality={50}
                 style={{
                   width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center",
                   filter: p1Ready ? "none" : "grayscale(0.4) brightness(0.85)",
@@ -406,9 +440,11 @@ export default function Lobby() {
             background: "#0a0510",
           }}>
             {opponent ? (
-              <img
+              <MiniPayImage
                 src={opponent.standingArt}
                 alt={opponent.name}
+                minipayWidth={272}
+                minipayQuality={50}
                 style={{
                   width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center",
                   filter: p2Ready ? "none" : "grayscale(0.4) brightness(0.85)",

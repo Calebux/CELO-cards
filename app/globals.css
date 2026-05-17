@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+:root {
+  --font-space-grotesk: "Space Grotesk", "Ruda", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-ruda: "Ruda", "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 /* Self-hosted Material Icons (filled only) — font-display:swap avoids render-blocking.
    The package import in layout.tsx loaded all 5 variants (800KB+); this loads only filled (125KB). */
 @font-face {

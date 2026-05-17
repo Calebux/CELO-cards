@@ -1,12 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
-import { WalletSection } from "../components/WalletSection";
+import { MiniPayImage } from "../components/MiniPayImage";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 export default function ReadyYourDeckPage() {
   return (
@@ -19,6 +23,7 @@ export default function ReadyYourDeckPage() {
 function ReadyYourDeck() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMp = useMiniPayMode();
   const [copied, setCopied] = useState(false);
   const [linkShared, setLinkShared] = useState(false);
   const [opponentFound, setOpponentFound] = useState(false);
@@ -134,7 +139,7 @@ function ReadyYourDeck() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3, pointerEvents: "none" }} />
+        <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3, pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.88) 0%, rgba(5,8,18,0.78) 50%, rgba(5,5,5,0.88) 100%)", pointerEvents: "none" }} />
 
         {/* ── Top Bar ── */}
@@ -294,7 +299,7 @@ function ReadyYourDeck() {
           {/* Footer status */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>ACTION ORDER — CELO MAINNET</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>{isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}</span>
           </div>
         </div>
 

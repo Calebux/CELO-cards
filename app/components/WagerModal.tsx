@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -11,13 +11,14 @@ import {
   useSwitchChain,
 } from "wagmi";
 import { celo } from "wagmi/chains";
-import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS } from "../lib/cusd";
+import { parseUnits, formatUnits } from "viem";
+import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
-import { formatUnits } from "viem";
-import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { getInitialMiniPayMode, useMiniPayMode } from "../lib/premiumPayments";
 
 type Props = {
   onConfirmed: () => void;
@@ -27,18 +28,19 @@ type Props = {
 };
 
 type Step = "idle" | "approving" | "approved" | "entering" | "done" | "error";
-type Currency = "cusd" | "celo" | "gdollar";
+type Currency = "cusd" | "celo" | "gdollar" | "usdt";
 
 const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
-const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: string }> = {
-  cusd:    { label: "cUSD",    color: "#56a4cb",     symbol: "cUSD" },
-  celo:    { label: "CELO",    color: "#f9c846",     symbol: "CELO" },
-  gdollar: { label: "G$",      color: GDOLLAR_COLOR, symbol: "G$" },
+const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: string; decimals: number }> = {
+  cusd:    { label: "cUSD",    color: "#56a4cb",     symbol: "cUSD", decimals: 18 },
+  celo:    { label: "CELO",    color: "#f9c846",     symbol: "CELO", decimals: 18 },
+  gdollar: { label: "G$",      color: GDOLLAR_COLOR, symbol: "G$", decimals: 18 },
+  usdt:    { label: "USDT",    color: "#26a17b",     symbol: "USDT", decimals: 6 },
 };
 
 export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrency }: Props) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const pendingAddressRef = useRef<`0x${string}` | null>(null);
   const { address, isConnected, chainId } = useAccount();
@@ -47,10 +49,10 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   const playerRole          = useGameStore((s) => s.playerRole);
   const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
 
-  const formatLockedAmount = (raw?: string) => {
+  const formatLockedAmount = (raw?: string, rawCurrency?: Currency) => {
     if (!raw) return null;
     try {
-      return formatUnits(BigInt(raw), 18);
+      return formatUnits(BigInt(raw), CURRENCY_CONFIG[rawCurrency ?? "cusd"].decimals);
     } catch {
       return null;
     }
@@ -58,10 +60,10 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(lockedCurrency ?? (isMp ? "cusd" : "celo"));
-  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw) ?? "0.01");
+  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo"));
+  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo")) ?? "0.01");
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -98,9 +100,15 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   useEffect(() => {
     if (lockedCurrency) setCurrency(lockedCurrency);
-    const formatted = formatLockedAmount(lockedAmountRaw);
+    const formatted = formatLockedAmount(lockedAmountRaw, lockedCurrency ?? currency);
     if (formatted) setAmountInput(formatted);
-  }, [lockedAmountRaw, lockedCurrency]);
+  }, [currency, lockedAmountRaw, lockedCurrency]);
+
+  useLayoutEffect(() => {
+    if (isMp && !lockedCurrency && currency !== "usdt") {
+      setCurrency("usdt");
+    }
+  }, [currency, isMp, lockedCurrency]);
 
   // Check existing cUSD allowance for the arena (only relevant for cUSD path)
   const { data: allowance } = useReadContract({
@@ -112,6 +120,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   });
 
   const { isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const miniPayCurrencyMismatch = isMp && !!lockedCurrency && lockedCurrency !== "usdt";
 
   // After approve confirms → move to entering (cUSD only)
   useEffect(() => {
@@ -123,10 +132,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   // Parse amount input to bigint (18 decimals). Returns 0n on invalid input.
   const parsedAmount = (): bigint => {
     try {
-      const { parseUnits } = require("viem") as typeof import("viem");
       const val = amountInput.trim();
       if (!val || isNaN(Number(val)) || Number(val) <= 0) return 0n;
-      return parseUnits(val as `${number}`, 18);
+      return parseUnits(val as `${number}`, CURRENCY_CONFIG[currency].decimals);
     } catch {
       return 0n;
     }
@@ -184,6 +192,15 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ensureWalletReady = async () => {
+    if (isMiniPay()) {
+      const miniPayAddress = await getMiniPayAddress();
+      if (!miniPayAddress) {
+        throw new Error("MiniPay wallet not available.");
+      }
+      pendingAddressRef.current = miniPayAddress as `0x${string}`;
+      return miniPayAddress as `0x${string}`;
+    }
+
     let activeAddress = address;
     let activeChainId = chainId;
     let connected = isConnected;
@@ -229,6 +246,11 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       return;
     }
 
+    if (currency === "usdt") {
+      await handleUsdtTransfer(activeAddress);
+      return;
+    }
+
     if (currency === "celo") {
       if (!USE_CONTRACT) {
         await handleDirectCeloTransfer(activeAddress);
@@ -249,6 +271,28 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       setStep("approved");
     } else {
       await handleApprove(activeAddress);
+    }
+  };
+
+  // ── USDT: direct ERC-20 transfer to MiniPay treasury ─────────────────────
+  const handleUsdtTransfer = async (activeAddress: `0x${string}`) => {
+    const amt = parsedAmount();
+    if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
+    setStep("entering");
+    try {
+      const hash = await writeContractAsync({
+          address: USDT_CONTRACT,
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [TREASURY_MINIPAY_ADDRESS, amt],
+          account: activeAddress,
+          chainId: celo.id,
+          ...getMiniPayWriteOverrides(),
+        });
+      setTxHash(hash);
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "USDT transfer failed.");
+      setStep("error");
     }
   };
 
@@ -392,15 +436,16 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   const statusLabel = () => {
     if (step === "approving") return "Approving cUSD spend…";
     if (step === "approved")  return "Approval confirmed — entering match…";
-    if (step === "entering")  return currency === "gdollar" ? "Sending G$…" : "Waiting for confirmation…";
+    if (step === "entering")  return currency === "gdollar" ? "Sending G$…" : currency === "usdt" ? "Sending USDT…" : "Waiting for confirmation…";
     return null;
   };
 
   const cfg = CURRENCY_CONFIG[currency];
+  const currencyDecimals = cfg.decimals;
   const stakeAmt = parsedAmount();
   const wagerDisplay = `${amountInput || "0"} ${cfg.symbol}`;
   const dualPayoutDisplay = stakeAmt > 0n
-    ? `${formatUnits(stakeAmt * 2n * 9000n / 10000n, 18)} ${cfg.symbol}`
+    ? `${formatUnits(stakeAmt * 2n * 9000n / 10000n, currencyDecimals)} ${cfg.symbol}`
     : `— ${cfg.symbol}`;
 
   const payoutNote = currency === "gdollar"
@@ -444,7 +489,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
         {/* Currency selector */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(isMp ? (["cusd"] as Currency[]) : (["cusd", "celo", "gdollar"] as Currency[])).map((c) => {
+          {(isMp ? (["usdt"] as Currency[]) : (["cusd", "celo", "gdollar"] as Currency[])).map((c) => {
             const cc = CURRENCY_CONFIG[c];
             const disabledByLock = !!lockedCurrency && lockedCurrency !== c;
             return (
@@ -470,6 +515,19 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
             );
           })}
         </div>
+
+        {miniPayCurrencyMismatch && (
+          <div style={{
+            marginBottom: 12, padding: "10px 14px",
+            background: "rgba(248,113,113,0.08)",
+            border: "1px solid rgba(248,113,113,0.3)",
+            borderRadius: 6,
+          }}>
+            <span style={{ fontSize: 11, color: "#f87171", fontWeight: 700, letterSpacing: 0.3 }}>
+              MiniPay wager matches use USDT only. Ask the host to recreate this match in MiniPay.
+            </span>
+          </div>
+        )}
 
         {/* G$ streaming badge */}
         {currency === "gdollar" && (
@@ -552,14 +610,15 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
         {/* Pay button */}
         <button
           onClick={() => void handlePay()}
-          disabled={busy}
+          disabled={busy || miniPayCurrencyMismatch}
           style={{
             width: "100%", padding: isMp ? "36px 0" : "14px 0", marginBottom: 12,
             background: busy ? `${cfg.color}40` : `${cfg.color}18`,
             border: `1.5px solid ${cfg.color}`,
-            borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
+            borderRadius: 6, cursor: busy || miniPayCurrencyMismatch ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
             transition: "all 0.2s",
+            opacity: miniPayCurrencyMismatch ? 0.5 : 1,
           }}
         >
           <span className="material-icons" style={{ fontSize: 18, color: cfg.color }}>

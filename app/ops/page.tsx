@@ -365,7 +365,7 @@ export default function OpsPage() {
               </div>
             </div>
             <div style={{ marginBottom: 12, fontSize: 12, color: "#64748b" }}>
-              CELO {activity.blackMarket.celoPurchases} · G$ {activity.blackMarket.gdollarPurchases}
+              USDT {activity.blackMarket.usdtPurchases} · CELO {activity.blackMarket.celoPurchases} · G$ {activity.blackMarket.gdollarPurchases}
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               {activity.blackMarket.recentPurchases.length === 0 && (
@@ -375,10 +375,10 @@ export default function OpsPage() {
                 <div key={`${purchase.txHash}-${purchase.purchasedAt}`} style={{ padding: "12px 12px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <div style={{ fontWeight: 800 }}>{purchase.playerName ?? shortHash(purchase.address)}</div>
-                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: purchase.currency === "gdollar" ? "#00C58E" : "#fbbf24", textTransform: "uppercase" }}>{purchase.currency}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: purchase.currency === "gdollar" ? "#00C58E" : purchase.currency === "usdt" ? "#26a17b" : "#fbbf24", textTransform: "uppercase" }}>{purchase.currency}</div>
                   </div>
                   <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
-                    {purchase.cardName} · {ptsToDisplay(purchase.pricePoints)} {purchase.currency === "gdollar" ? "G$" : "CELO"}
+                    {purchase.cardName} · {ptsToDisplay(purchase.pricePoints)} {purchase.currency === "gdollar" ? "G$" : purchase.currency === "usdt" ? "USDT" : "CELO"}
                   </div>
                   <div style={{ marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
                     {shortHash(purchase.txHash)} · {new Date(purchase.purchasedAt).toLocaleString()}

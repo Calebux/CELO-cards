@@ -1,12 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
-import { WalletSection } from "../components/WalletSection";
+import { MiniPayImage } from "../components/MiniPayImage";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
-const BG_IMAGE = "/new addition/gameplay landing page.webp";
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
 type Tab = "casual" | "ranked";
 
@@ -39,7 +43,10 @@ const RANK_COLORS: Record<number, string> = {
 export default function Leaderboard() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const isMp = useMiniPayMode();
   const { address } = useAccount();
+  const [isMobile, setIsMobile] = useState(false);
+  const isCompact = isMp || isMobile;
   const [tab, setTab] = useState<Tab>("casual");
   const [players, setPlayers] = useState<Player[]>([]);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
@@ -69,6 +76,10 @@ export default function Leaderboard() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
+  }, []);
+
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
   }, []);
 
   const loadLeaderboard = () => {
@@ -102,7 +113,7 @@ export default function Leaderboard() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <img src={BG_IMAGE} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.75)" }} />
 
         {/* ── Top Bar ── */}
@@ -116,7 +127,7 @@ export default function Leaderboard() {
         </div>
 
         {/* Main container */}
-        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -46%)", width: 820 }}>
+        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -46%)", width: isCompact ? 1160 : 820 }}>
 
           {/* Corner accents */}
           {[
@@ -143,10 +154,10 @@ export default function Leaderboard() {
             {/* Heading */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <div>
-                <h2 style={{ fontSize: 26, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: 0, lineHeight: "32px" }}>
+                <h2 style={{ fontSize: isCompact ? 36 : 26, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: 0, lineHeight: isCompact ? "44px" : "32px" }}>
                   Leaderboard
                 </h2>
-                <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0", letterSpacing: 0.5 }}>
+                <p style={{ fontSize: isCompact ? 16 : 12, color: "#94a3b8", margin: "4px 0 0", letterSpacing: 0.5 }}>
                   {tab === "casual"
                     ? "All matches — VS House, PvP, and wager"
                     : "Wager matches only — points count toward prizes"}
@@ -163,7 +174,7 @@ export default function Leaderboard() {
                     key={key}
                     onClick={() => setTab(key)}
                     style={{
-                      padding: "7px 18px",
+                      padding: isCompact ? "10px 26px" : "7px 18px",
                       border: `1.5px solid ${tab === key ? "#56a4cb" : "#334155"}`,
                       borderRadius: 5,
                       background: tab === key ? "rgba(86,164,203,0.15)" : "rgba(17,10,24,0.4)",
@@ -175,10 +186,10 @@ export default function Leaderboard() {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span className="material-icons" style={{ fontSize: 13, color: tab === key ? "#56a4cb" : "#475569" }}>{icon}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
+                      <span className="material-icons" style={{ fontSize: isCompact ? 18 : 13, color: tab === key ? "#56a4cb" : "#475569" }}>{icon}</span>
+                      <span style={{ fontSize: isCompact ? 15 : 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
                     </div>
-                    <span style={{ fontSize: 9, color: tab === key ? "#56a4cb99" : "#334155", letterSpacing: 0.5, textTransform: "uppercase" }}>{hint}</span>
+                    <span style={{ fontSize: isCompact ? 12 : 9, color: tab === key ? "#56a4cb99" : "#334155", letterSpacing: 0.5, textTransform: "uppercase" }}>{hint}</span>
                   </button>
                 ))}
               </div>
@@ -197,23 +208,23 @@ export default function Leaderboard() {
             {/* Table header */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "48px 1fr 90px 60px 60px 70px",
+              gridTemplateColumns: isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px",
               gap: 0,
-              padding: "8px 16px",
+              padding: isCompact ? "10px 20px" : "8px 16px",
               borderBottom: "1px solid #1e293b",
               marginBottom: 4,
             }}>
               {["#", "PLAYER", "POINTS", "W", "L", "WIN%"].map((col) => (
-                <span key={col} style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#475569", textTransform: "uppercase" }}>{col}</span>
+                <span key={col} style={{ fontSize: isCompact ? 13 : 9, fontWeight: 700, letterSpacing: 1.5, color: "#475569", textTransform: "uppercase" }}>{col}</span>
               ))}
             </div>
 
             {/* Table rows */}
-            <div style={{ minHeight: 340, maxHeight: 340, overflowY: "auto" }}>
+            <div style={{ minHeight: isCompact ? 420 : 340, maxHeight: isCompact ? 420 : 340, overflowY: "auto" }}>
               {loading ? (
                 <div>
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "48px 1fr 90px 60px 60px 70px", gap: 0, padding: "12px 16px", borderBottom: "1px solid rgba(30,41,59,0.6)" }}>
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px", gap: 0, padding: isCompact ? "14px 20px" : "12px 16px", borderBottom: "1px solid rgba(30,41,59,0.6)" }}>
                       <div style={{ width: 24, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
                       <div style={{ width: `${60 + (i % 3) * 12}%`, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
                       <div style={{ width: 44, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
@@ -244,9 +255,9 @@ export default function Leaderboard() {
                       key={p.address}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "48px 1fr 90px 60px 60px 70px",
+                        gridTemplateColumns: isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px",
                         gap: 0,
-                        padding: "10px 16px",
+                        padding: isCompact ? "14px 20px" : "10px 16px",
                         borderBottom: "1px solid rgba(30,41,59,0.6)",
                         backgroundColor: isMe ? "rgba(86,164,203,0.1)" : "transparent",
                         borderLeft: isMe ? "2px solid #56a4cb" : "2px solid transparent",
@@ -255,7 +266,7 @@ export default function Leaderboard() {
                     >
                       {/* Rank */}
                       <span style={{
-                        fontSize: rankColor ? 15 : 13,
+                        fontSize: isCompact ? (rankColor ? 20 : 17) : (rankColor ? 15 : 13),
                         fontWeight: 800,
                         color: rankColor ?? "#475569",
                         textShadow: rankColor ? `0 0 8px ${rankColor}` : "none",
@@ -270,7 +281,7 @@ export default function Leaderboard() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{
-                              fontSize: displayName ? 13 : 12,
+                              fontSize: isCompact ? (displayName ? 17 : 15) : (displayName ? 13 : 12),
                               fontWeight: isMe ? 700 : 500,
                               color: isMe ? "#b9e7f4" : displayName ? "#e2e8f0" : "#94a3b8",
                               fontFamily: displayName ? "inherit" : "monospace",
@@ -279,13 +290,13 @@ export default function Leaderboard() {
                               {displayName ?? truncateAddress(p.address)}
                             </span>
                             {isMe && (
-                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: "1px 5px" }}>
+                              <span style={{ fontSize: isCompact ? 12 : 9, fontWeight: 700, letterSpacing: 1, color: "#56a4cb", textTransform: "uppercase", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 3, padding: isCompact ? "2px 7px" : "1px 5px" }}>
                                 YOU
                               </span>
                             )}
                           </div>
                           {displayName && (
-                            <span style={{ fontSize: 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
+                            <span style={{ fontSize: isCompact ? 13 : 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
                               {truncateAddress(p.address)}
                             </span>
                           )}
@@ -294,18 +305,18 @@ export default function Leaderboard() {
                       })()}
 
                       {/* Points */}
-                      <span style={{ fontSize: 14, fontWeight: 800, color: "#f1f5f9" }}>
+                      <span style={{ fontSize: isCompact ? 18 : 14, fontWeight: 800, color: "#f1f5f9" }}>
                         {p.points.toLocaleString()}
                       </span>
 
                       {/* Wins */}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#4ade80" }}>{p.wins}</span>
+                      <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#4ade80" }}>{p.wins}</span>
 
                       {/* Losses */}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#f87171" }}>{p.losses}</span>
+                      <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#f87171" }}>{p.losses}</span>
 
                       {/* Win % */}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8" }}>{winPct(p.wins, p.losses)}</span>
+                      <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#94a3b8" }}>{winPct(p.wins, p.losses)}</span>
                     </div>
                   );
                 })
@@ -332,7 +343,7 @@ export default function Leaderboard() {
         <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#4ade80" }} />
           <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", letterSpacing: 1.2, textTransform: "uppercase" }}>
-            ACTION ORDER — CELO MAINNET
+            {isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}
           </span>
         </div>
 

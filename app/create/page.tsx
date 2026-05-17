@@ -1,17 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
-import { OnboardingCoach } from "../components/OnboardingCoach";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { WalletSection } from "../components/WalletSection";
-import { WagerModal } from "../components/WagerModal";
-import { SeasonPassModal } from "../components/SeasonPassModal";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+
+const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+const WagerModal = dynamic(() => import("../components/WagerModal").then(m => ({ default: m.WagerModal })), { ssr: false });
+const SeasonPassModal = dynamic(() => import("../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 
 async function fetchSeasonPass(address: string) {
   const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
@@ -75,7 +77,7 @@ const MATCH_TYPES: {
 ];
 
 export default function CreateMatch() {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [matchType, setMatchType] = useState<MatchType>("ranked");
   const [showWager, setShowWager] = useState(false);
@@ -108,20 +110,51 @@ export default function CreateMatch() {
     const fetchOnline = () => {
       fetch("/api/online").then((r) => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
     };
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    if (isMp) {
+      let idleHandle: number | undefined;
+      let timeoutHandle: number | undefined;
+      if (idleWindow.requestIdleCallback) {
+        idleHandle = idleWindow.requestIdleCallback(fetchOnline, { timeout: 1800 });
+      } else {
+        timeoutHandle = window.setTimeout(fetchOnline, 1200);
+      }
+      const id = setInterval(fetchOnline, 30_000);
+      return () => {
+        if (idleHandle !== undefined) idleWindow.cancelIdleCallback?.(idleHandle);
+        if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle);
+        clearInterval(id);
+      };
+    }
+
     fetchOnline();
     const id = setInterval(fetchOnline, 15_000);
     return () => clearInterval(id);
-  }, []);
+  }, [isMp]);
 
   useEffect(() => {
     if (!address) {
       setHasSeasonPass(false);
       return;
     }
+    if (isMp) {
+      const timeout = window.setTimeout(() => {
+        fetchSeasonPass(address)
+          .then((d: { active: boolean }) => setHasSeasonPass(d.active))
+          .catch(() => {});
+      }, 900);
+      return () => window.clearTimeout(timeout);
+    }
+
     fetchSeasonPass(address)
       .then((d: { active: boolean }) => setHasSeasonPass(d.active))
       .catch(() => {});
-  }, [address]);
+  }, [address, isMp]);
 
   useEffect(() => {
     const scale = () => {
@@ -156,6 +189,29 @@ export default function CreateMatch() {
       setMatchType(mode);
     }
   }, []);
+
+  useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    const prefetch = () => {
+      void router.prefetch("/select-character");
+      void router.prefetch("/ready");
+      void router.prefetch("/loadout");
+      void router.prefetch("/gameplay");
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(prefetch, 900);
+    return () => window.clearTimeout(timeout);
+  }, [router]);
 
   // FIND PLAYER: create match immediately, verify pass, proceed to character select.
   // No queue wait — match appears in open games so opponents can join.
@@ -253,7 +309,7 @@ export default function CreateMatch() {
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
 
         {/* Background */}
-        <MiniPayImage src="/new addition/gameplay landing page.webp" alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
+        <MiniPayImage src="/new-assets/gameplay-landing-lite.webp" alt="" minipayWidth={1280} minipayQuality={56} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.85) 0%, rgba(5,8,18,0.75) 50%, rgba(5,5,5,0.85) 100%)", pointerEvents: "none" }} />
 
         {/* ── Top Bar ──────────────────────────────────────────────────── */}
@@ -563,7 +619,9 @@ export default function CreateMatch() {
                       ? "Find a random player or invite a friend via Match ID"
                       : matchType === "tourney"
                         ? "Tournament mode is managed from the weekly bracket page"
-                      : "Secure connection via Celo network"
+                      : isMp
+                        ? "MiniPay wagers and premium payments use USDT"
+                        : "Secure connection via Celo network"
                     : "Use the Connect button in the top right ↗"}
                 </p>
               </div>

@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    // MiniPayImage requests /_next/image with widths derived from minipayWidth.
+    // All 12 direct minipayWidth values < 640 are listed first (these are used
+    // in the src attr — must succeed). Remaining 13 slots cover the most common
+    // srcSet 0.5x variants. Next.js hard-caps imageSizes at 25 entries.
+    imageSizes: [
+      64, 80, 84, 110, 120, 140, 160, 168, 170, 180,
+      210, 220, 240, 260, 272, 280, 320, 340, 360, 380,
+      390, 420, 480, 510, 540,
+    ],
+    deviceSizes: [640, 720, 750, 760, 828, 960, 1080, 1140, 1200, 1280, 1440, 1920, 2048, 3840],
   },
   async headers() {
     return [

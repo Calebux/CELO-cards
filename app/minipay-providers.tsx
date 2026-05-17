@@ -3,27 +3,48 @@
 import React from "react";
 import dynamic from "next/dynamic";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, createConfig, http } from "wagmi";
+import { WagmiProvider, createConfig, custom, fallback, http } from "wagmi";
 import { celo } from "wagmi/chains";
-import { miniPayConnector } from "./lib/minipay";
+import { getMiniPayProvider, miniPayConnector } from "./lib/minipay";
 import { WalletSync } from "./lib/wallet";
 import { PortraitOverlay } from "./components/PortraitOverlay";
+import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
 
 // Heavy modals — load after initial paint
 const DailyReward   = dynamic(() => import("./components/DailyReward").then(m => ({ default: m.DailyReward })), { ssr: false });
 const UsernameModal = dynamic(() => import("./components/UsernameModal").then(m => ({ default: m.UsernameModal })), { ssr: false });
 const TutorialModal = dynamic(() => import("./components/TutorialModal").then(m => ({ default: m.TutorialModal })), { ssr: false });
 
+const miniPayTransport = fallback([
+  custom({
+    async request({ method, params }: { method: string; params?: unknown[] }) {
+      const provider = getMiniPayProvider();
+      if (!provider) throw new Error("not-minipay");
+      return provider.request({ method: method as never, params: params as never });
+    },
+  }),
+  http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
+]);
+
 // Minimal wagmi config — only MiniPay connector, no RainbowKit / WalletConnect / Web3Auth
 const miniPayConfig = createConfig({
   chains: [celo],
   transports: {
-    [celo.id]: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
+    [celo.id]: miniPayTransport,
   },
   connectors: [miniPayConnector],
 });
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Don't refetch on every mount/page transition — on-chain data doesn't change every second
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+    },
+  },
+});
 
 export function MiniPayProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -31,9 +52,11 @@ export function MiniPayProviders({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <WalletSync />
         <PortraitOverlay />
-        <DailyReward />
-        <UsernameModal />
-        <TutorialModal />
+        <DeferredGlobalOverlays>
+          <DailyReward />
+          <UsernameModal />
+          <TutorialModal />
+        </DeferredGlobalOverlays>
         {children}
       </QueryClientProvider>
     </WagmiProvider>

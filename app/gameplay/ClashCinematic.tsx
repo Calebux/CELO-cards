@@ -3,7 +3,8 @@
 import { MiniPayImage } from "../components/MiniPayImage";
 import { Card, CardType } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
-import { isMiniPay } from "../lib/minipay";
+import { useMobileViewportMode } from "../lib/mobile";
+import { useMiniPayMode } from "../lib/premiumPayments";
 
 export function getTypeColor(type: CardType): string {
   switch (type) {
@@ -138,7 +139,8 @@ export function ClashCinematic({
   playerPortrait,
   opponentPortrait,
 }: ClashCinematicProps) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
   const winnerColor = result.winner === "player" ? "#06a8f9"
     : result.winner === "opponent" ? opponentColor
       : "#fbbf24";
@@ -150,7 +152,7 @@ export function ClashCinematic({
       : ["#fbbf24", "#fff", "#fde68a", "#fcd34d", "#fef", "#fff"];
 
   const winningCard = result.winner === "player" ? result.playerCard : result.winner === "opponent" ? result.opponentCard : null;
-  const actionVideo = getVideoForCard(winningCard);
+  const actionVideo = isMp || isMobileViewport ? null : getVideoForCard(winningCard);
 
   return (
     <div style={{
@@ -211,7 +213,7 @@ export function ClashCinematic({
           />
         </div>
       )}
-      {actionVideo && !isMp && (
+      {actionVideo && (
         <video src={actionVideo} autoPlay muted playsInline preload="metadata" tabIndex={-1}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.85, pointerEvents: "none" }}
         />

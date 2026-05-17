@@ -10,6 +10,8 @@ export const CUSD_ADDRESS = {
 } as const;
 
 export const CUSD_CONTRACT = CUSD_ADDRESS.mainnet;
+export const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+export const USDT_FEE_CURRENCY = "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72" as `0x${string}`;
 
 // Micro wager amounts — optimised for agent activity volume
 export const WAGER_AMOUNT  = 7_000_000_000_000n; // 0.000007 cUSD
@@ -17,6 +19,8 @@ export const PAYOUT_AMOUNT = 7_000_000_000_000n; // 0.000007 cUSD (entry == payo
 
 export const WAGER_AMOUNT_CELO  = 7_000_000_000_000n; // 0.000007 CELO
 export const PAYOUT_AMOUNT_CELO = 7_000_000_000_000n; // 0.000007 CELO
+export const WAGER_AMOUNT_USDT  = 7n; // 0.000007 USDT (6 decimals)
+export const PAYOUT_AMOUNT_USDT = 7n; // 0.000007 USDT (entry == payout)
 
 // Platform fee — 10% from each player when both wager (winner-takes-all)
 export const PLATFORM_FEE_BPS = 1000n; // 10% in basis points (1000/10000)
@@ -25,6 +29,7 @@ export const PLATFORM_FEE_BPS = 1000n; // 10% in basis points (1000/10000)
 // = 2 × WAGER_AMOUNT × (1 − 10%) = 0.0000126
 export const DUAL_WAGER_PAYOUT      = 2n * WAGER_AMOUNT      * (10000n - PLATFORM_FEE_BPS) / 10000n;
 export const DUAL_WAGER_PAYOUT_CELO = 2n * WAGER_AMOUNT_CELO * (10000n - PLATFORM_FEE_BPS) / 10000n;
+export const DUAL_WAGER_PAYOUT_USDT = 2n * WAGER_AMOUNT_USDT * (10000n - PLATFORM_FEE_BPS) / 10000n;
 
 // Minimal ERC-20 ABI — only what we need
 export const ERC20_ABI = [

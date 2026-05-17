@@ -3,6 +3,7 @@
 
 import { createConnector } from "wagmi";
 import { celo } from "wagmi/chains";
+import { isMiniPay } from "./minipay";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID!;
 
@@ -13,6 +14,12 @@ let initPromise: Promise<any> | null = null;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getWeb3Auth(): Promise<any> {
+  // Never initialize Web3Auth (or its MetaMask SDK dependency) inside MiniPay.
+  // Doing so causes MetaMask SDK to open a metamask:// deeplink that MiniPay's
+  // WebView cannot handle (ERR_UNKNOWN_URL_SCHEME).
+  if (typeof window !== "undefined" && isMiniPay()) {
+    throw new Error("Web3Auth is not available in MiniPay.");
+  }
   if (web3authInstance) return web3authInstance;
   if (initPromise) return initPromise;
 
@@ -69,18 +76,24 @@ export function createWeb3AuthConnector() {
     },
 
     async getProvider() {
-      const web3auth = await getWeb3Auth();
-      return web3auth.provider;
+      // Never trigger web3auth init just to check availability.
+      // RainbowKit calls getProvider() on all connectors at startup to detect
+      // which wallets are "installed". Calling getWeb3Auth() here would load
+      // 1.3 MB from auth.web3auth.io on every page load.
+      // Return null when not connected — the actual init happens in connect().
+      if (!web3authInstance?.provider) return null;
+      return web3authInstance.provider;
     },
 
     async isAuthorized() {
-      try {
-        if (typeof window === "undefined") return false;
-        const web3auth = await getWeb3Auth();
-        return web3auth.connected;
-      } catch {
-        return false;
-      }
+      // Do NOT call getWeb3Auth() here — wagmi invokes isAuthorized() on every
+      // connector at startup. If we called getWeb3Auth(), it would trigger the
+      // dynamic import of @web3auth/modal, loading 1.3MB from auth.web3auth.io
+      // on every page load. Instead, return false unless the SDK is already
+      // initialised (user connected in this session).
+      if (typeof window === "undefined") return false;
+      if (isMiniPay()) return false;
+      return web3authInstance?.connected ?? false;
     },
 
     onAccountsChanged() {},

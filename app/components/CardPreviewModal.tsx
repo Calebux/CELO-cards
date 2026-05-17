@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Card } from "../lib/gameData";
 import type { CardPerformanceStats } from "../lib/cardProgress";
 import { getCardMasteryPerkCopy, getCardMasterySnapshot, getNextUnlockCopy } from "../lib/cardMastery";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 interface CardPreviewModalProps {
@@ -637,7 +637,7 @@ function CardPreviewContent({
 }
 
 export function CardPreviewModal(props: CardPreviewModalProps) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const viewport = useViewportSize();

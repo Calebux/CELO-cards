@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
@@ -7,12 +8,15 @@ import { useGameStore } from "../lib/gameStore";
 import { CARDS, Card, CardType, CHARACTERS } from "../lib/gameData";
 import { ArchetypeKey, CARD_INTEL, getPlayTips, getStarterArchetypes } from "../lib/archetypes";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { OnboardingCoach } from "../components/OnboardingCoach";
-import { WalletSection } from "../components/WalletSection";
 import { getCardForgeProgress, getCardMasteryPerkCopy, getCardMasterySnapshot } from "../lib/cardMastery";
 import { useAttunementSync } from "../lib/useSignatureCardSync";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
+import { useMobileViewportMode } from "../lib/mobile";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useIdleReady, usePageVisibility } from "../lib/perf";
+
+const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
+const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";
@@ -159,7 +163,10 @@ function CardTooltip({
 }
 
 export default function Loadout() {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
+  const pageVisible = usePageVisibility();
+  const coachReady = useIdleReady(true, isMp || isMobileViewport ? 1800 : 1200);
   const storePersist = (useGameStore as typeof useGameStore & {
     persist?: {
       hasHydrated?: () => boolean;
@@ -375,6 +382,10 @@ export default function Loadout() {
   const pollDelayRef = useRef(2000);
   const pendingSubmitRef = useRef<{ role: "host" | "joiner"; cardIds: string[]; round: number; attunedCardIds: string[] } | null>(null);
   useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
+  const getBasePollDelay = useCallback(() => {
+    if (!pageVisible) return 7000;
+    return isMp || isMobileViewport ? 3000 : 2000;
+  }, [isMobileViewport, isMp, pageVisible]);
   const beginWaitingForResolution = useCallback((pendingKey: string, expectedRound: number) => {
     if (!matchId || !playerRole) return;
 
@@ -415,7 +426,7 @@ export default function Loadout() {
     setWaiting(true);
     setLockError(null);
     setNetStatus(navigator.onLine ? "online" : "offline");
-    pollDelayRef.current = 2000;
+    pollDelayRef.current = getBasePollDelay();
 
     const pollOnce = async () => {
       if (!matchId || !playerRole) return;
@@ -447,7 +458,7 @@ export default function Loadout() {
         };
         setPollErrorCount(0);
         setNetStatus("online");
-        pollDelayRef.current = 2000;
+        pollDelayRef.current = getBasePollDelay();
         setGraceRemainingMs(data.graceRemainingMs ?? 0);
 
         if (data.opponentCharId) {
@@ -526,6 +537,7 @@ export default function Loadout() {
     });
     void pollOnce();
   }, [
+    getBasePollDelay,
     matchId,
     playerRole,
     resetMatch,
@@ -552,7 +564,7 @@ export default function Loadout() {
 
     const handleOnline = () => {
       setNetStatus("online");
-      pollDelayRef.current = 2000;
+      pollDelayRef.current = getBasePollDelay();
       const p = pendingSubmitRef.current;
       if (p && matchId) {
         void fetch(`/api/match/${matchId}`, {
@@ -584,7 +596,7 @@ export default function Loadout() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [matchId]);
+  }, [getBasePollDelay, matchId]);
 
   const exitMatchFromWaitState = useCallback(async () => {
     if (exitingWaitState) return;
@@ -804,7 +816,7 @@ export default function Loadout() {
           </div>
         </div>
 
-        <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 74px)`, right: 18, zIndex: 45 }} />
+        {coachReady && <OnboardingCoach style={{ position: "absolute", top: `calc(${safeTop} + 74px)`, right: 18, zIndex: 45 }} />}
 
         {/* Left character panel — compact portrait + ability intel */}
         <div style={{

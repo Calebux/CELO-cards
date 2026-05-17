@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getVolume, isMuted, playSound, setMuted, setVolume } from "../lib/soundManager";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 interface SoundSettingsProps {
@@ -12,7 +12,7 @@ interface SoundSettingsProps {
 }
 
 export function SoundSettings({ onClose }: SoundSettingsProps) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [muted, setMutedState] = useState(false);
   const [volume, setVolumeState] = useState(100);

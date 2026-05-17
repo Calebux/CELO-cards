@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { isMiniPay } from "../lib/minipay";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 interface Character {
@@ -24,7 +24,7 @@ const CARD_W = 400;
 const CARD_H = 560;
 
 export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponentRounds, onClose }: ShareCardProps) {
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 

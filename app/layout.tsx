@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Ruda } from "next/font/google";
 import dynamic from "next/dynamic";
 import { headers } from "next/headers";
 import "./globals.css";
@@ -9,20 +8,6 @@ import "./globals.css";
 // Separate chunks: MiniPay gets wagmi-only bundle, web gets full RainbowKit/WalletConnect bundle
 const Providers = dynamic(() => import("./providers").then(m => ({ default: m.Providers })));
 const MiniPayProviders = dynamic(() => import("./minipay-providers").then(m => ({ default: m.MiniPayProviders })));
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-space-grotesk",
-  display: "swap",
-});
-
-const ruda = Ruda({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-ruda",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -61,7 +46,7 @@ export default async function RootLayout({
   const ProviderComponent = isMiniPayUA ? MiniPayProviders : Providers;
 
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${ruda.variable}`}>
+    <html lang="en" data-minipay={isMiniPayUA ? "1" : undefined}>
       <head>
         {/* Intercept window.electronAPI so wallet extensions that look for
             Electron APIs don't throw and crash the React tree.
@@ -94,8 +79,17 @@ export default async function RootLayout({
     document.documentElement.style.setProperty('--ao-tr',tr);
   }catch(e){}
 })();` }} />
-        {/* Preconnect for Alchemy RPC — eliminates DNS+TLS cold start on first wagmi call */}
-        <link rel="preconnect" href="https://celo-mainnet.g.alchemy.com" />
+        {/* Service Worker — cache static assets for fast repeat visits */}
+        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});}` }} />
+        {/* LCP hero — tell the browser to fetch it before layout parses */}
+        <link rel="preload" href="/new-assets/landing-hero.webp" as="image" type="image/webp" fetchPriority="high" />
+        {/* Material Icons font — preload so it starts alongside HTML, not after CSS parses */}
+        <link rel="preload" href="/material-icons.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        {/* Google Fonts (Inter) — used by RainbowKit. Preconnect cuts DNS+TLS
+            from the critical path so the font sheet arrives ~300ms sooner. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Warm up Alchemy RPC connection before wagmi makes its first call */}
         <link rel="dns-prefetch" href="https://celo-mainnet.g.alchemy.com" />
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>

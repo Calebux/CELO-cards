@@ -8,7 +8,7 @@
  */
 
 import { privateKeyToAccount } from "viem/accounts";
-import { createPublicClient, createWalletClient, http, parseEther } from "viem";
+import { createPublicClient, createWalletClient, http, parseEther, encodeFunctionData, toHex, padHex } from "viem";
 import { celo } from "viem/chains";
 import { randomBytes } from "node:crypto";
 
@@ -26,6 +26,20 @@ const SEASON_PASS_ABI = [
     type: "function",
     stateMutability: "payable",
     inputs: [{ name: "plan", type: "string" }],
+    outputs: [],
+  },
+];
+
+// KnockOrderArena wager contract — each bot wallet calls enterMatchWithCelo()
+// so the tx is FROM their wallet with real CELO value → Talent Protocol DAU.
+const WAGER_CONTRACT = "0x80B10A44B0Ea03473707660Bc5767099710bBFE0";
+const ENTRY_FEE = 7_000_000_000_000n; // 0.000007 CELO
+const WAGER_ABI = [
+  {
+    name: "enterMatchWithCelo",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [{ name: "matchId", type: "bytes32" }],
     outputs: [],
   },
 ];
@@ -111,26 +125,36 @@ function loadWallets() {
 // ── 2. Fund wallets from treasury ────────────────────────────────────────────
 
 async function fundWallets(wallets) {
-  const TARGET = parseEther("0.55");
-  // Only top up wallets that are essentially empty (new wallets).
-  // Existing wallets with ~0.04 CELO already have active passes and enough for gas.
-  const MIN_BALANCE = parseEther("0.02"); // existing bots have ~0.045 CELO — skip them
+  const TARGET = parseEther("0.60");
+  const PASS_THRESHOLD = parseEther("0.55"); // needs a new pass — must have this much
+  const GAS_THRESHOLD = parseEther("0.06");  // already has pass — needs gas for 2 recordMatch txs
   const treasury = privateKeyToAccount(/** @type {`0x${string}`} */ (process.env.TREASURY_PRIVATE_KEY));
   const walletClient = createWalletClient({ account: treasury, chain: celo, transport: http() });
 
   const treasuryBal = await publicClient.getBalance({ address: treasury.address });
   console.log(`\n💰 Treasury balance: ${(Number(treasuryBal) / 1e18).toFixed(4)} CELO`);
 
+  // Check pass status and balance in parallel
+  const [passStatuses, balances] = await Promise.all([
+    Promise.all(wallets.map(w =>
+      fetch(`${BASE_URL}/api/season-pass?address=${w.account.address.toLowerCase()}`)
+        .then(r => r.json()).catch(() => ({ active: false }))
+    )),
+    Promise.all(wallets.map(w => publicClient.getBalance({ address: w.account.address }))),
+  ]);
+
   const needed = [];
-  const balances = await Promise.all(wallets.map(w => publicClient.getBalance({ address: w.account.address })));
   for (let i = 0; i < wallets.length; i++) {
-    // Only fund wallets below the minimum threshold (new/empty wallets)
-    if (balances[i] < MIN_BALANCE) needed.push({ wallet: wallets[i], topup: TARGET - balances[i] });
+    const hasPass = passStatuses[i].active;
+    const bal = balances[i];
+    const min = hasPass ? GAS_THRESHOLD : PASS_THRESHOLD;
+    if (bal < min) needed.push({ wallet: wallets[i], topup: TARGET - bal });
   }
 
   if (needed.length === 0) { console.log("  ✓ All wallets sufficiently funded"); return; }
 
   const totalTopup = needed.reduce((s, { topup }) => s + topup, 0n);
+  console.log(`  ${needed.length} wallets need funding — total: ${(Number(totalTopup) / 1e18).toFixed(4)} CELO`);
   if (treasuryBal < totalTopup) {
     console.log(`  ⚠️  Treasury has ${(Number(treasuryBal) / 1e18).toFixed(4)} CELO but needs ${(Number(totalTopup) / 1e18).toFixed(4)} CELO`);
     console.log(`  ⚠️  Please top up the treasury: ${treasury.address}`);
@@ -141,10 +165,31 @@ async function fundWallets(wallets) {
   console.log(`\n💸 Funding ${needed.length} wallets from treasury...`);
   let nonce = await publicClient.getTransactionCount({ address: treasury.address });
   for (const { wallet, topup } of needed) {
-    console.log(`  Bot ${wallet.index}: +${(Number(topup) / 1e18).toFixed(4)} CELO (nonce ${nonce})`);
-    const txHash = await walletClient.sendTransaction({ to: wallet.account.address, value: topup, nonce: nonce++ });
-    await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
-    console.log(`    ✅ ${txHash.slice(0, 18)}…`);
+    let attempts = 0;
+    while (attempts < 3) {
+      try {
+        const txHash = await walletClient.sendTransaction({ to: wallet.account.address, value: topup, nonce });
+        await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 90_000 });
+        console.log(`  ✅ Bot ${wallet.index}: +${(Number(topup) / 1e18).toFixed(4)} CELO`);
+        nonce++;
+        break;
+      } catch (err) {
+        attempts++;
+        const msg = String(err.message);
+        if (msg.includes("nonce too low") || msg.includes("already known")) {
+          console.log(`  ✅ Bot ${wallet.index}: tx confirmed`);
+          nonce++;
+          break;
+        }
+        if (attempts < 3) {
+          console.log(`  ⚠️ Bot ${wallet.index}: retry ${attempts}/3`);
+          await sleep(3000);
+        } else {
+          console.log(`  ❌ Bot ${wallet.index}: failed — ${msg.slice(0, 60)}`);
+          nonce++;
+        }
+      }
+    }
   }
 }
 
@@ -185,13 +230,20 @@ async function buySeasonPasses(wallets) {
       const wc = createWalletClient({ account: w.account, chain: celo, transport: http() });
       let txHash;
       if (CONTRACT_ACTIVE) {
-        // Call contract — tx is FROM bot wallet, shows on Celoscan / Talent Protocol
-        txHash = await wc.writeContract({
-          address: /** @type {`0x${string}`} */ (SEASON_PASS_CONTRACT),
+        // Use sendTransaction to bypass viem's pre-flight balance check
+        const data = encodeFunctionData({
           abi: SEASON_PASS_ABI,
           functionName: "buySeasonPass",
           args: ["weekly"],
+        });
+        const fees = await publicClient.estimateFeesPerGas();
+        txHash = await wc.sendTransaction({
+          to: /** @type {`0x${string}`} */ (SEASON_PASS_CONTRACT),
+          data,
           value: SEASON_PASS_PRICE,
+          gas: 200_000n,
+          maxFeePerGas: fees.maxFeePerGas,
+          maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
         });
       } else {
         txHash = await wc.sendTransaction({ to: /** @type {`0x${string}`} */ (TREASURY), value: SEASON_PASS_PRICE });
@@ -230,13 +282,41 @@ async function registerAllEntries(matches) {
   console.log("\n");
 }
 
-// ── 6. Play a single match ────────────────────────────────────────────────────
+// ── 6. Enter match on-chain — each wallet sends 0.000007 CELO to wager contract ─
+
+async function enterMatchOnChain(wallet, matchId) {
+  const matchIdBytes32 = padHex(toHex(matchId), { size: 32 });
+  const fees = await publicClient.estimateFeesPerGas();
+  const data = encodeFunctionData({ abi: WAGER_ABI, functionName: "enterMatchWithCelo", args: [matchIdBytes32] });
+  const wc = createWalletClient({ account: wallet.account, chain: celo, transport: http() });
+  const txHash = await wc.sendTransaction({
+    to: /** @type {`0x${string}`} */ (WAGER_CONTRACT),
+    data,
+    value: ENTRY_FEE,
+    gas: 100_000n,
+    maxFeePerGas: fees.maxFeePerGas,
+    maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
+  });
+  await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
+  return txHash;
+}
+
+// ── 7. Play a single match ────────────────────────────────────────────────────
 
 async function playMatch(matchId, hostW, joinerW, matchNum) {
   const hostChar   = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
   const joinerChar = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
 
   console.log(`[#${matchNum}] ${matchId}  ${hostW.username} vs ${joinerW.username}`);
+
+  // Enter match on-chain — both wallets send 0.000007 CELO to wager contract
+  const [hr, jr] = await Promise.allSettled([
+    enterMatchOnChain(hostW, matchId),
+    enterMatchOnChain(joinerW, matchId),
+  ]);
+  const hostTx   = hr.status === "fulfilled" ? hr.value?.slice(0, 12) : "❌";
+  const joinerTx = jr.status === "fulfilled" ? jr.value?.slice(0, 12) : "❌";
+  console.log(`  [#${matchNum}] ⛓  host=${hostTx} joiner=${joinerTx}`);
 
   // Character select
   await api("POST", `/api/match/${matchId}`, {

@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { getMiniPayConnector, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
-import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../lib/cusd";
+import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const TREASURY = TREASURY_ADDRESS;
-const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 const USDT_ABI = [
@@ -20,7 +20,7 @@ const USDT_ABI = [
     outputs: [{ name: "", type: "bool" }] },
 ] as const;
 
-type Currency = "celo" | "gdollar" | "usdt";
+type Currency = PremiumPaymentCurrency;
 
 const PLANS = [
   {
@@ -82,11 +82,11 @@ async function fetchSeasonPass(address: string) {
 
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
-  const isMp = isMiniPay();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>(isMp ? "usdt" : "celo");
+  const [currency, setCurrency] = useState<Currency>(() => getInitialMiniPayMode() ? "usdt" : "celo");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
   const [expiry, setExpiry] = useState<number | null>(null);
@@ -96,7 +96,11 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     activeAddressRef.current = address ?? null;
   }, [address]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (isMp && currency !== "usdt") setCurrency("usdt");
+  }, [currency, isMp]);
+
+  useLayoutEffect(() => {
     if (!isMp) return;
     const scale = () => {
       if (!wrapRef.current) return;
@@ -147,11 +151,19 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { writeContractAsync } = useWriteContract();
   const { connectAsync } = useConnect();
   const { switchChainAsync } = useSwitchChain();
-  const availableCurrencies: Currency[] = isMp ? ["usdt"] : ["celo", "gdollar"];
+  const availableCurrencies = getPremiumPaymentOptions(isMp);
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
 
   const ensureWalletReady = useCallback(async () => {
+    if (isMiniPay()) {
+      const miniPayAddress = await getMiniPayAddress();
+      if (!miniPayAddress) {
+        throw new Error("MiniPay wallet not available.");
+      }
+      return miniPayAddress as `0x${string}`;
+    }
+
     let activeAddress = address;
     let activeChainId = chainId;
     let connected = isConnected;
@@ -185,7 +197,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
-      if (attempts > 30) {
+      if (attempts > 60) {
         clearInterval(poll);
         setErrMsg("Transaction confirmation timed out. Contact support.");
         setStep("error");
@@ -222,15 +234,14 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       activeAddressRef.current = activeAddress;
       if (currency === "usdt") {
         const hash = await writeContractAsync({
-          address: USDT_CONTRACT,
-          abi: USDT_ABI,
-          functionName: "transfer",
-          args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
-          account: activeAddress,
-          chainId: celo.id,
-          // CIP-64: pay gas in USDT so user doesn't need CELO
-          ...(isMp ? { feeCurrency: "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72" as `0x${string}` } : {}),
-        });
+              address: USDT_CONTRACT,
+              abi: USDT_ABI,
+              functionName: "transfer",
+              args: [TREASURY_MINIPAY, plan.priceWeiUsdt],
+              account: activeAddress,
+              chainId: celo.id,
+              ...getMiniPayWriteOverrides(),
+            });
         void pollAndRegister(hash, activeAddress);
       } else if (currency === "gdollar") {
         const hash = await writeContractAsync({
@@ -282,7 +293,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         setStep("error");
       }
     }
-  }, [currency, ensureWalletReady, plan, pollAndRegister, sendTransactionAsync, writeContractAsync]);
+  }, [currency, ensureWalletReady, isMp, plan, pollAndRegister, sendTransactionAsync, writeContractAsync]);
 
   const expiryDate = expiry ? new Date(expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
 
@@ -302,7 +313,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: 520, borderRadius: 14,
+        width: isMp ? 760 : 520, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",
@@ -322,7 +333,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               Play Ranked. No Fees.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? "24px" : "4px", minWidth: isMp ? 92 : undefined, minHeight: isMp ? 92 : undefined, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? "24px" : "8px 10px", minWidth: isMp ? 92 : 40, minHeight: isMp ? 92 : 40, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
         {step === "checking" ? (
@@ -469,22 +480,21 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             {/* Currency toggle */}
             <div style={{ padding: "16px 24px 0", display: "flex", gap: 8 }}>
               {availableCurrencies.map((c) => {
-                const activeColor = c === "gdollar" ? "#00C58E" : c === "usdt" ? "#26a17b" : "#56a4cb";
-                const label = c === "celo" ? "Pay with CELO" : c === "usdt" ? "Pay with USDT" : "Pay with G$";
+                const isActive = currency === c.key;
                 return (
                 <button
-                  key={c}
-                  onClick={() => setCurrency(c as Currency)}
+                  key={c.key}
+                  onClick={() => setCurrency(c.key)}
                   style={{
                     flex: 1, padding: isMp ? "38px 8px" : "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
-                    border: `1.5px solid ${currency === c ? activeColor : "rgba(86,164,203,0.15)"}`,
-                    background: currency === c ? `${activeColor}1a` : "rgba(255,255,255,0.02)",
+                    border: `1.5px solid ${isActive ? c.color : "rgba(86,164,203,0.15)"}`,
+                    background: isActive ? `${c.color}1a` : "rgba(255,255,255,0.02)",
                     fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
-                    color: currency === c ? activeColor : "rgba(185,231,244,0.4)",
+                    color: isActive ? c.color : "rgba(185,231,244,0.4)",
                     transition: "all 0.15s",
                   }}
                 >
-                  {label}
+                  {c.actionLabel}
                 </button>
                 );
               })}
