@@ -46,26 +46,36 @@ export function GameLoadingScreen({ onDone }: Props) {
 
   useEffect(() => {
     const total = ASSETS.length;
-    let loaded = 0;
-    const start = Date.now();
-
-    const tick = () => {
-      loaded++;
-      setProgress(Math.round((loaded / total) * 100));
-      if (loaded === total) {
-        const wait = Math.max(0, MIN_MS - (Date.now() - start));
-        setTimeout(() => {
-          setFading(true);
-          setTimeout(onDone, 450);
-        }, wait);
-      }
-    };
+    // actualLoaded tracks real network progress; displayed advances smoothly on an interval.
+    let actualLoaded = 0;
+    let displayed = 0;
 
     ASSETS.forEach((src) => {
       const img = new Image();
-      img.onload = img.onerror = tick;
+      img.onload = img.onerror = () => { actualLoaded++; };
       img.src = src;
     });
+
+    // Advance the progress bar one step at a time so users see the animation.
+    // Each step is MIN_MS / total ms apart — bar reaches 100% right at MIN_MS,
+    // but only if assets are actually loaded. If loading is slow, the bar waits.
+    const STEP_MS = Math.floor(MIN_MS / total); // ~183ms per step
+    const interval = setInterval(() => {
+      if (displayed < actualLoaded) {
+        displayed++;
+        setProgress(Math.round((displayed / total) * 100));
+      }
+      if (displayed >= total) {
+        clearInterval(interval);
+        // Show 100% for a brief moment before fading
+        setTimeout(() => {
+          setFading(true);
+          setTimeout(onDone, 450);
+        }, 350);
+      }
+    }, STEP_MS);
+
+    return () => clearInterval(interval);
   }, [onDone]);
 
   // In portrait mode rotate the loading screen to landscape — same orientation as the game canvas.

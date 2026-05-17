@@ -60,6 +60,9 @@ export default function ActionOrderLandingPage() {
   }, []);
 
   useEffect(() => {
+    // Re-run when showLoader changes: the canvas is only in the DOM after the
+    // loading screen disappears, so the scale calculation must run again then.
+    if (showLoader) return;
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -82,7 +85,7 @@ export default function ActionOrderLandingPage() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
-  }, []);
+  }, [showLoader]);
 
   useEffect(() => {
     type IdleWindow = Window & {
