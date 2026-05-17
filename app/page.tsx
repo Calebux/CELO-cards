@@ -10,6 +10,7 @@ import { MiniPayImage } from './components/MiniPayImage';
 import { useMiniPayMode } from './lib/premiumPayments';
 import { useAccount } from 'wagmi';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
+import { GameLoadingScreen } from './components/GameLoadingScreen';
 
 const WalletSection = dynamic(() => import('./components/WalletSection').then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
@@ -46,8 +47,16 @@ export default function ActionOrderLandingPage() {
 
 
 
+  const [showLoader, setShowLoader] = useState(false);
+  const handleLoaded = () => {
+    sessionStorage.setItem('ao-loaded', '1');
+    setShowLoader(false);
+  };
+
   useEffect(() => {
-    setIsMobile(window.innerWidth < 1024 || /Mobi|Android/i.test(navigator.userAgent));
+    // < 768 targets phones only — iPads start at 768px and should use the desktop layout
+    setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+    if (!sessionStorage.getItem('ao-loaded')) setShowLoader(true);
   }, []);
 
   useEffect(() => {
@@ -97,6 +106,8 @@ export default function ActionOrderLandingPage() {
     const timeout = window.setTimeout(prefetch, 900);
     return () => window.clearTimeout(timeout);
   }, [router]);
+
+  if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 
   return (
     <>
