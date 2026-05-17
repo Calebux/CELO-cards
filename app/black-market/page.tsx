@@ -63,6 +63,8 @@ type MarketView = "premium" | "forge";
 
 export default function BlackMarket() {
   const isMp = useMiniPayMode();
+  const [isMobile, setIsMobile] = useState(false);
+  const isCompact = isMp || isMobile;
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address, isConnected, chainId } = useAccount();
@@ -98,6 +100,10 @@ export default function BlackMarket() {
       return b.mastery.xp - a.mastery.xp;
     });
   const previewCard = previewCardId ? CARDS.find((card) => card.id === previewCardId) ?? null : null;
+
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+  }, []);
 
   useLayoutEffect(() => {
     if (isMp && buyCurrency !== "usdt") setBuyCurrency("usdt");
@@ -353,7 +359,7 @@ export default function BlackMarket() {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 24, paddingBottom: 4 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: isCompact ? 28 : 24, paddingBottom: 4 }}>
                 {marketCards.map((c) => {
                   const isOwned = unlockedPremiumCards.includes(c.id);
                   const isAttuned = attunedCardIds.includes(c.id);
@@ -361,11 +367,15 @@ export default function BlackMarket() {
                   const price = c.price ?? 3000;
                   const isBuying = buyingId === c.id;
                   const currColor = buyCurrency === "gdollar" ? GDOLLAR_COLOR : buyCurrency === "usdt" ? "#26a17b" : "#f9c846";
+                  const cardW = isCompact ? 220 : 170;
+                  const cardH = isCompact ? 305 : 236;
+                  const badgeSize = isCompact ? 36 : 28;
+                  const badgeFontSize = isCompact ? 15 : 12;
 
                   return (
-                    <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+                    <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: isCompact ? 14 : 12, alignItems: "center" }}>
                       <div style={{
-                        width: 170, height: 236, borderRadius: 10, position: "relative", overflow: "hidden",
+                        width: cardW, height: cardH, borderRadius: 10, position: "relative", overflow: "hidden",
                         border: `2px solid ${c.color}`, boxShadow: isOwned ? `0 0 20px ${c.color}40` : "none",
                         opacity: isOwned ? 1 : 0.85,
                         transition: "transform 0.2s ease",
@@ -375,7 +385,7 @@ export default function BlackMarket() {
                         <MiniPayImage
                           src={c.image}
                           alt={c.name}
-                          minipayWidth={340}
+                          minipayWidth={isCompact ? 440 : 340}
                           minipayQuality={48}
                           loading="lazy"
                           decoding="async"
@@ -389,25 +399,25 @@ export default function BlackMarket() {
                           style={{ position: "absolute", inset: 0, zIndex: 1, background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
                         />
 
-                        <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, textAlign: "center" }}>
-                          <div style={{ fontSize: 9, fontWeight: 800, color: c.color, letterSpacing: 1.5, textTransform: "uppercase" }}>{c.type}</div>
-                          <div style={{ fontSize: 13, fontWeight: 900, color: "white", textTransform: "uppercase" }}>{c.name}</div>
+                        <div style={{ position: "absolute", bottom: isCompact ? 14 : 12, left: 12, right: 12, textAlign: "center" }}>
+                          <div style={{ fontSize: isCompact ? 12 : 9, fontWeight: 800, color: c.color, letterSpacing: 1.5, textTransform: "uppercase" }}>{c.type}</div>
+                          <div style={{ fontSize: isCompact ? 17 : 13, fontWeight: 900, color: "white", textTransform: "uppercase" }}>{c.name}</div>
                         </div>
 
-                        <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.8)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${c.color}` }}>
-                          <span style={{ fontSize: 12, fontWeight: 800, color: c.color }}>{c.knock}</span>
+                        <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.8)", borderRadius: "50%", width: badgeSize, height: badgeSize, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${c.color}` }}>
+                          <span style={{ fontSize: badgeFontSize, fontWeight: 800, color: c.color }}>{c.knock}</span>
                         </div>
-                        <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #94a3b8" }}>
-                          <span style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af" }}>{c.priority}</span>
+                        <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: "50%", width: badgeSize, height: badgeSize, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #94a3b8" }}>
+                          <span style={{ fontSize: badgeFontSize, fontWeight: 800, color: "#9ca3af" }}>{c.priority}</span>
                         </div>
                         {isOwned && (
                           <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(74,222,128,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span className="material-icons" style={{ fontSize: 36, color: "#4ade80", opacity: 0.8 }}>check_circle</span>
+                            <span className="material-icons" style={{ fontSize: isCompact ? 48 : 36, color: "#4ade80", opacity: 0.8 }}>check_circle</span>
                           </div>
                         )}
                       </div>
 
-                      <div style={{ width: 170, textAlign: "center", fontSize: 10, color: "#9ca3af", lineHeight: 1.4, height: 44, overflow: "hidden" }}>
+                      <div style={{ width: cardW, textAlign: "center", fontSize: isCompact ? 13 : 10, color: "#9ca3af", lineHeight: 1.4, height: isCompact ? 56 : 44, overflow: "hidden" }}>
                         {c.effect}
                       </div>
 
@@ -416,12 +426,12 @@ export default function BlackMarket() {
                           disabled
                           style={{
                             width: "100%",
-                            padding: "10px",
+                            padding: isCompact ? "13px" : "10px",
                             background: isAttuned || masteryTier > 0 ? "rgba(251,191,36,0.14)" : "rgba(74,222,128,0.1)",
                             border: isAttuned || masteryTier > 0 ? "1px solid rgba(251,191,36,0.36)" : "1px solid rgba(74,222,128,0.3)",
                             borderRadius: 6,
                             color: isAttuned || masteryTier > 0 ? "#fbbf24" : "#4ade80",
-                            fontSize: 11,
+                            fontSize: isCompact ? 14 : 11,
                             fontWeight: 800,
                             cursor: "default",
                             letterSpacing: 2,
@@ -434,12 +444,12 @@ export default function BlackMarket() {
                           onClick={() => void handleBuy(c.id, price)}
                           disabled={isBuying}
                           style={{
-                            width: "100%", padding: "10px",
+                            width: "100%", padding: isCompact ? "13px" : "10px",
                             background: isBuying ? `${currColor}20` : `linear-gradient(135deg, ${currColor}28, ${currColor}10)`,
                             border: `1.5px solid ${isBuying ? currColor : c.color}`,
                             borderRadius: 6,
                             color: "white",
-                            fontSize: 11, fontWeight: 800,
+                            fontSize: isCompact ? 15 : 11, fontWeight: 800,
                             cursor: isBuying ? "not-allowed" : "pointer",
                             letterSpacing: 1,
                             transition: "all 0.2s ease",
@@ -447,7 +457,7 @@ export default function BlackMarket() {
                             opacity: 1,
                           }}
                         >
-                          <span className="material-icons" style={{ fontSize: 13, color: isBuying ? currColor : c.color }}>
+                          <span className="material-icons" style={{ fontSize: isCompact ? 17 : 13, color: isBuying ? currColor : c.color }}>
                             {isBuying ? "hourglass_empty" : buyCurrency === "gdollar" ? "stream" : buyCurrency === "usdt" ? "attach_money" : "toll"}
                           </span>
                           {isBuying ? "BUYING…" : ptsDisplay(price, buyCurrency)}
@@ -472,77 +482,81 @@ export default function BlackMarket() {
                     Reach Tier 5, 25 uses, 12 clash wins, and 100 total knock.
                   </div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14, paddingBottom: 6 }}>
-                  {forgeCards.map(({ card, mastery, forge, stats }) => (
+                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: isCompact ? 18 : 14, paddingBottom: 6 }}>
+                  {forgeCards.map(({ card, mastery, forge, stats }) => {
+                    const forgeImgW = isCompact ? 110 : 84;
+                    const forgeImgH = isCompact ? 152 : 116;
+                    const forgeItemW = isCompact ? 330 : 258;
+                    return (
                     <button
                       key={card.id}
                       onClick={() => setPreviewCardId(card.id)}
                       style={{
-                        minWidth: 258,
-                        width: 258,
-                        padding: 12,
+                        minWidth: forgeItemW,
+                        width: forgeItemW,
+                        padding: isCompact ? 16 : 12,
                         borderRadius: 12,
                         border: `1px solid ${forge.ready ? "rgba(251,191,36,0.34)" : "rgba(86,164,203,0.18)"}`,
                         background: forge.ready ? "linear-gradient(135deg, rgba(251,191,36,0.12), rgba(15,23,42,0.92))" : "rgba(255,255,255,0.03)",
                         display: "grid",
-                        gridTemplateColumns: "84px minmax(0, 1fr)",
-                        gap: 12,
+                        gridTemplateColumns: `${forgeImgW}px minmax(0, 1fr)`,
+                        gap: isCompact ? 16 : 12,
                         textAlign: "left",
                         cursor: "pointer",
                         boxShadow: forge.ready ? "0 0 24px rgba(251,191,36,0.14)" : "none",
                       }}
                     >
-                    <div style={{ position: "relative", width: 84, height: 116, borderRadius: 10, overflow: "hidden", border: `1px solid ${card.color}55` }}>
+                    <div style={{ position: "relative", width: forgeImgW, height: forgeImgH, borderRadius: 10, overflow: "hidden", border: `1px solid ${card.color}55` }}>
                       <MiniPayImage
                         src={card.image}
                         alt={card.name}
-                        minipayWidth={168}
+                        minipayWidth={isCompact ? 220 : 168}
                         minipayQuality={46}
                         loading="lazy"
                         decoding="async"
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent 60%)" }} />
-                      <div style={{ position: "absolute", left: 6, right: 6, bottom: 6, fontSize: 8, fontWeight: 800, color: "#fff", letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.15 }}>
+                      <div style={{ position: "absolute", left: 6, right: 6, bottom: 6, fontSize: isCompact ? 11 : 8, fontWeight: 800, color: "#fff", letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.15 }}>
                         {card.name}
                       </div>
                     </div>
 
-                    <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: isCompact ? 10 : 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 9, fontWeight: 800, color: card.color, letterSpacing: 1.4, textTransform: "uppercase" }}>{card.type}</div>
-                          <div style={{ marginTop: 4, fontSize: 13, fontWeight: 900, color: "#fff", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.name}</div>
+                          <div style={{ fontSize: isCompact ? 12 : 9, fontWeight: 800, color: card.color, letterSpacing: 1.4, textTransform: "uppercase" }}>{card.type}</div>
+                          <div style={{ marginTop: 4, fontSize: isCompact ? 16 : 13, fontWeight: 900, color: "#fff", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.name}</div>
                         </div>
-                        <div style={{ padding: "3px 7px", borderRadius: 999, border: `1px solid ${forge.ready ? "rgba(251,191,36,0.42)" : "rgba(148,163,184,0.22)"}`, background: forge.ready ? "rgba(251,191,36,0.18)" : mastery.tier > 0 ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)", color: forge.ready ? "#fbbf24" : mastery.tier > 0 ? "#fbbf24" : "#94a3b8", fontSize: 8, fontWeight: 800, letterSpacing: 0.9, textTransform: "uppercase", flexShrink: 0 }}>
+                        <div style={{ padding: "3px 7px", borderRadius: 999, border: `1px solid ${forge.ready ? "rgba(251,191,36,0.42)" : "rgba(148,163,184,0.22)"}`, background: forge.ready ? "rgba(251,191,36,0.18)" : mastery.tier > 0 ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)", color: forge.ready ? "#fbbf24" : mastery.tier > 0 ? "#fbbf24" : "#94a3b8", fontSize: isCompact ? 11 : 8, fontWeight: 800, letterSpacing: 0.9, textTransform: "uppercase", flexShrink: 0 }}>
                           {forge.ready ? "Forge Ready" : mastery.tier > 0 ? `T${mastery.tier}` : "Training"}
                         </div>
                       </div>
 
-                      <div style={{ fontSize: 10, color: "#cbd5e1", lineHeight: 1.35, minHeight: 28 }}>
+                      <div style={{ fontSize: isCompact ? 13 : 10, color: "#cbd5e1", lineHeight: 1.35, minHeight: isCompact ? 36 : 28 }}>
                         {card.effect}
                       </div>
 
                       <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1.2 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: isCompact ? 12 : 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1.2 }}>
                           <span>Mastery XP</span>
                           <span style={{ color: "#e2e8f0", fontWeight: 800 }}>{mastery.xp}</span>
                         </div>
-                        <div style={{ marginTop: 6, height: 7, borderRadius: 999, background: "rgba(15,23,42,0.8)", border: "1px solid rgba(148,163,184,0.14)", overflow: "hidden" }}>
+                        <div style={{ marginTop: 6, height: isCompact ? 9 : 7, borderRadius: 999, background: "rgba(15,23,42,0.8)", border: "1px solid rgba(148,163,184,0.14)", overflow: "hidden" }}>
                           <div style={{ width: `${mastery.progressToNext * 100}%`, height: "100%", background: "linear-gradient(90deg, rgba(251,191,36,0.72), rgba(251,191,36,1))", boxShadow: "0 0 10px rgba(251,191,36,0.34)" }} />
                         </div>
                       </div>
 
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6 }}>
                         {forge.requirements.map((requirement) => (
-                          <div key={requirement.label} style={{ padding: "6px 7px", borderRadius: 8, border: `1px solid ${requirement.complete ? "rgba(251,191,36,0.28)" : "rgba(148,163,184,0.14)"}`, background: requirement.complete ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.03)" }}>
-                            <div style={{ fontSize: 7, fontWeight: 800, color: requirement.complete ? "#fbbf24" : "#94a3b8", letterSpacing: 1, textTransform: "uppercase" }}>{requirement.label}</div>
-                            <div style={{ marginTop: 3, fontSize: 10, fontWeight: 800, color: "#f8fafc" }}>{requirement.current}/{requirement.target}</div>
+                          <div key={requirement.label} style={{ padding: isCompact ? "8px 9px" : "6px 7px", borderRadius: 8, border: `1px solid ${requirement.complete ? "rgba(251,191,36,0.28)" : "rgba(148,163,184,0.14)"}`, background: requirement.complete ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.03)" }}>
+                            <div style={{ fontSize: isCompact ? 10 : 7, fontWeight: 800, color: requirement.complete ? "#fbbf24" : "#94a3b8", letterSpacing: 1, textTransform: "uppercase" }}>{requirement.label}</div>
+                            <div style={{ marginTop: 3, fontSize: isCompact ? 13 : 10, fontWeight: 800, color: "#f8fafc" }}>{requirement.current}/{requirement.target}</div>
                           </div>
                         ))}
                       </div>
 
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 9, color: "#94a3b8" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: isCompact ? 12 : 9, color: "#94a3b8" }}>
                         <span>{stats?.timesPlayed ?? 0} uses</span>
                         <span style={{ color: forge.ready ? "#fbbf24" : "#56a4cb", fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>
                           {forge.ready ? "Ascension Ready" : "Inspect"}
@@ -550,7 +564,8 @@ export default function BlackMarket() {
                       </div>
                     </div>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
