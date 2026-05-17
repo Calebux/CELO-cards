@@ -5,19 +5,33 @@ import { useEffect, useState } from "react";
  *  and the viewport is narrow (< 600 px). Uses actual pixel dimensions
  *  rather than matchMedia so it works reliably in MiniPay WebViews.
  *  Tapping "Play anyway" dismisses the overlay. */
+const DISMISSED_KEY = "ao-portrait-dismissed";
+
 export function PortraitOverlay() {
   const [show, setShow] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // Initialise from sessionStorage so dismissal survives round transitions
+  // (MiniPay WebView can briefly fire a resize with landscape dims during
+  // page navigation, which would otherwise reset dismissed → overlay flashes).
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !!sessionStorage.getItem(DISMISSED_KEY);
+  });
 
   useEffect(() => {
-    function check() {
+    // "fromRotation" is true only when called after a genuine orientationchange.
+    // Resize events can fire transiently during page navigation in MiniPay's
+    // WebView (brief landscape dims while the canvas unmounts/remounts).
+    // We must NOT reset dismissed on those — only on genuine physical rotation.
+    function check(fromRotation = false) {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const isPortrait = w < h;
       const isNarrow   = w < 600;
       setShow(isPortrait && isNarrow);
-      // If device rotated to landscape, reset dismissed so overlay can show again next time
-      if (!isPortrait) setDismissed(false);
+      if (!isPortrait && fromRotation) {
+        sessionStorage.removeItem(DISMISSED_KEY);
+        setDismissed(false);
+      }
     }
 
     // MiniPay WebViews (and some Android browsers) fire orientationchange but
@@ -26,14 +40,16 @@ export function PortraitOverlay() {
     let orientationTimer: ReturnType<typeof setTimeout>;
     function onOrientationChange() {
       clearTimeout(orientationTimer);
-      orientationTimer = setTimeout(check, 120);
+      orientationTimer = setTimeout(() => check(true), 120);
     }
 
     check();
-    window.addEventListener("resize", check);
+    // Wrap in arrow so the native Event object is not passed as fromRotation
+    const onResize = () => check();
+    window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onOrientationChange);
     return () => {
-      window.removeEventListener("resize", check);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onOrientationChange);
       clearTimeout(orientationTimer);
     };
@@ -99,7 +115,10 @@ export function PortraitOverlay() {
 
       {/* Dismiss button */}
       <button
-        onClick={() => setDismissed(true)}
+        onClick={() => {
+          sessionStorage.setItem(DISMISSED_KEY, "1");
+          setDismissed(true);
+        }}
         style={{
           background: "none", border: "1px solid rgba(86,164,203,0.2)",
           borderRadius: 6, padding: "8px 24px",

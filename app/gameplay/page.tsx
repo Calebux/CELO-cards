@@ -130,12 +130,22 @@ export default function Gameplay() {
   const combatMessage = slotResults.length > 0 ? slotResults[slotResults.length - 1] : null;
 
   useEffect(() => {
-    if (!vsBot || playerAddress) return;
+    // Guard: never redirect if a match is already in progress.
+    // matchPhase="combat"/"loadout"/"round-result"/"match-end" means lockOrder
+    // already ran — redirecting here would kill mid-match rounds.
+    // playerAddress can be briefly null during wagmi hydration on navigation,
+    // so also check that there is no active match phase before bailing out.
+    const isActiveMatch =
+      matchPhase === "combat" ||
+      matchPhase === "loadout" ||
+      matchPhase === "round-result" ||
+      matchPhase === "match-end";
+    if (!vsBot || playerAddress || isActiveMatch) return;
     resetMatch();
     setVsBot(false);
     setMatchMode("vshouse");
     router.replace("/create");
-  }, [playerAddress, resetMatch, router, setMatchMode, setVsBot, vsBot]);
+  }, [matchPhase, playerAddress, resetMatch, router, setMatchMode, setVsBot, vsBot]);
 
   // Keep showResultRef current so async polling callbacks read the live value.
   useEffect(() => { showResultRef.current = showResult; }, [showResult]);
