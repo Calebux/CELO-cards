@@ -1,6 +1,25 @@
 "use client";
 
+import { useEffect } from "react";
 import { MiniPayImage } from "./MiniPayImage";
+
+// All card image paths used in gameplay — preloaded during this screen so
+// the first match has zero pop-in regardless of service-worker cache state.
+const CARD_IMAGES = [
+  "/cards/storm_kick.webp", "/cards/power_punch.webp", "/cards/direct_impact.webp",
+  "/cards/finisher.webp", "/cards/guard_stance.webp", "/cards/stability.webp",
+  "/cards/anticipation.webp", "/cards/mind_game.webp", "/cards/evasion.webp",
+  "/cards/pressure_advance.webp", "/cards/disrupt.webp", "/cards/berserk_surge.webp",
+  "/cards/run_away.webp", "/cards/inner_focus.webp", "/cards/javelin_dive.webp",
+  "/cards/aerial_spear_fist.webp",
+  "/cards/market/rko.webp", "/cards/market/go_to_hell.webp", "/cards/market/headbutt.webp",
+  "/cards/market/darkness_repellant.webp", "/cards/market/no_drain.webp", "/cards/market/bite.webp",
+  "/bad-cards/phantombreak.webp", "/bad-cards/reversaledge.webp", "/bad-cards/cage.webp",
+  "/bad-cards/ethereal_form.webp", "/bad-cards/fire.webp", "/bad-cards/grab.webp",
+  "/bad-cards/gravity_well.webp", "/bad-cards/halo_knee_jab.webp", "/bad-cards/halo_shield.webp",
+  "/bad-cards/jaw_breaker.webp", "/bad-cards/lightning.webp", "/bad-cards/shadow_bind.webp",
+  "/bad-cards/downslide.webp",
+];
 
 interface MatchLoadingScreenProps {
   playerName: string;
@@ -10,6 +29,7 @@ interface MatchLoadingScreenProps {
   opponentColor?: string;
   playerPortrait?: string;
   opponentPortrait?: string;
+  arenaBackground?: string;
   label?: string;
 }
 
@@ -21,8 +41,18 @@ export function MatchLoadingScreen({
   opponentColor = "#f906a8",
   playerPortrait,
   opponentPortrait,
+  arenaBackground,
   label = "LOADING MATCH…",
 }: MatchLoadingScreenProps) {
+  // Warm up browser cache for all assets the game will need.
+  // Fires immediately so images are in cache before the 2.2s timer ends.
+  useEffect(() => {
+    const srcs = arenaBackground
+      ? [arenaBackground, ...CARD_IMAGES]
+      : CARD_IMAGES;
+    srcs.forEach((src) => { const img = new Image(); img.src = src; });
+  }, [arenaBackground]);
+
   return (
     <div style={{
       position: "absolute", inset: 0, zIndex: 300,

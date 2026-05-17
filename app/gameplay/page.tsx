@@ -701,6 +701,7 @@ export default function Gameplay() {
             opponentColor={opponentCharacter.color}
             playerPortrait={selectedCharacter.standingArt}
             opponentPortrait={opponentCharacter.standingArt}
+            arenaBackground={BG_MAIN}
             label="MATCH STARTING…"
           />
         )}

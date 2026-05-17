@@ -200,6 +200,8 @@ export default function CreateMatch() {
     const prefetch = () => {
       void router.prefetch("/select-character");
       void router.prefetch("/ready");
+      void router.prefetch("/loadout");
+      void router.prefetch("/gameplay");
     };
 
     if (idleWindow.requestIdleCallback) {
