@@ -3,6 +3,7 @@
 
 import { createConnector } from "wagmi";
 import { celo } from "wagmi/chains";
+import { isMiniPay } from "./minipay";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID!;
 
@@ -13,6 +14,12 @@ let initPromise: Promise<any> | null = null;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getWeb3Auth(): Promise<any> {
+  // Never initialize Web3Auth (or its MetaMask SDK dependency) inside MiniPay.
+  // Doing so causes MetaMask SDK to open a metamask:// deeplink that MiniPay's
+  // WebView cannot handle (ERR_UNKNOWN_URL_SCHEME).
+  if (typeof window !== "undefined" && isMiniPay()) {
+    throw new Error("Web3Auth is not available in MiniPay.");
+  }
   if (web3authInstance) return web3authInstance;
   if (initPromise) return initPromise;
 
@@ -80,6 +87,7 @@ export function createWeb3AuthConnector() {
       // on every page load. Instead, return false unless the SDK is already
       // initialised (user connected in this session).
       if (typeof window === "undefined") return false;
+      if (isMiniPay()) return false;
       return web3authInstance?.connected ?? false;
     },
 

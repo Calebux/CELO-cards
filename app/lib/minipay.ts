@@ -98,22 +98,17 @@ export function getMiniPayWriteOverrides() {
     : {};
 }
 
+// Matches blokaz pattern: return window.ethereum directly — no isMiniPay guard
+// here. The transport (in minipay-providers.tsx) handles MiniPay routing. Guarding
+// the provider fn caused intermittent "provider not found" when isMiniPay was
+// injected asynchronously, which in turn triggered MetaMask SDK deeplinks.
 export const miniPayConnector = injected({
   shimDisconnect: false,
-  unstable_shimAsyncInject: 3_000,
   target: {
     id: "minipay",
     name: "MiniPay",
     provider(window) {
-      const provider = window?.ethereum as MiniPayProvider | undefined;
-      // Primary check: isMiniPay flag is most reliable once injected.
-      if (provider?.isMiniPay) return provider;
-      // Fallback for async injection: if runtime hints (UA, data-minipay, storage)
-      // confirm we're in MiniPay, use window.ethereum directly. Avoids returning
-      // undefined at connect time while also avoiding MetaMask deep-link triggers
-      // that happen when window.ethereum is returned without any MiniPay check.
-      if (provider && hasMiniPayRuntimeHint()) return provider;
-      return undefined;
+      return window?.ethereum as MiniPayProvider | undefined;
     },
   },
 });

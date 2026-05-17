@@ -9,7 +9,6 @@ import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 // CSS loaded async — avoids render-blocking the first paint (not needed in MiniPay at all)
 const RainbowKitStyles = dynamic(() => import("./components/RainbowKitStyles").then(m => ({ default: m.RainbowKitStyles })), { ssr: false });
 import { WalletSync } from "./lib/wallet";
-import { miniPayConnector } from "./lib/minipay";
 import { createWeb3AuthConnector } from "./lib/web3auth";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
@@ -27,7 +26,10 @@ const config = createConfig({
     [celo.id]: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
     [celoAlfajores.id]: http(),
   },
-  connectors: [miniPayConnector, createWeb3AuthConnector(), injected()],
+  // miniPayConnector is intentionally excluded — it lives only in MiniPayProviders.
+  // Including it here caused web3auth's MetaMask SDK to fire metamask:// deeplinks
+  // inside MiniPay's WebView whenever the web config was evaluated.
+  connectors: [createWeb3AuthConnector(), injected()],
 });
 
 const queryClient = new QueryClient({
