@@ -92,6 +92,10 @@ export default function Gameplay() {
     setPrecomputedFromServer,
     setOpponentName,
     activeAttunedCardIds,
+    upperChamberActive,
+    upperChamberRound,
+    advanceUpperChamber,
+    addBonusPoints,
   } = useGameStore();
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -644,6 +648,35 @@ export default function Gameplay() {
   const handleNextOpponent = useCallback(() => {
     playSound("click");
     if (vsBot) {
+      if (upperChamberActive) {
+        if (upperChamberRound < 4) {
+          // Advance to the next fighter in Upper Chamber
+          advanceUpperChamber(upperChamberRound + 1);
+          setRevealedSlots(0);
+          setSlotResults([]);
+          setShowResult(false);
+          setTotalPlayerKnock(0);
+          setTotalOpponentKnock(0);
+          setPlayerStreak(0);
+          setOpponentStreak(0);
+          setMomentum(0);
+          setCritBanner(null);
+          setComboBanner(null);
+          setShowBreakdown(false);
+          setShowShareCard(false);
+          setPayoutState("idle");
+          setPayoutTxHash(null);
+          autoLockOrder();
+          setMatchLoading(true);
+          setTimeout(() => setMatchLoading(false), matchLoadingDurationMs);
+        } else {
+          // All 5 fighters beaten — award 5000 bonus points and return to menu
+          addBonusPoints(5000);
+          resetMatch();
+          router.push("/");
+        }
+        return;
+      }
       resetMatch();
       setVsBot(true);
       setMatchMode("vshouse");
@@ -671,7 +704,7 @@ export default function Gameplay() {
     // Re-show loading screen
     setMatchLoading(true);
     setTimeout(() => setMatchLoading(false), matchLoadingDurationMs);
-  }, [autoLockOrder, matchLoadingDurationMs, resetMatch, router, setMatchMode, setVsBot, startMatch, vsBot]);
+  }, [addBonusPoints, advanceUpperChamber, autoLockOrder, matchLoadingDurationMs, resetMatch, router, setMatchMode, setVsBot, startMatch, upperChamberActive, upperChamberRound, vsBot]);
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;
@@ -1643,6 +1676,21 @@ export default function Gameplay() {
                     </div>
                   )}
 
+                  {/* Upper Chamber progress */}
+                  {upperChamberActive && (
+                    <div style={{ marginBottom: 14, padding: "8px 14px", background: "rgba(0,197,142,0.06)", border: "1px solid rgba(0,197,142,0.25)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "#00C58E", letterSpacing: 2, textTransform: "uppercase" }}>UPPER CHAMBER</span>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {[0,1,2,3,4].map((i) => (
+                          <div key={i} style={{ width: 14, height: 14, borderRadius: 2, background: i < upperChamberRound ? "#00C58E" : i === upperChamberRound ? (won ? "#00C58E" : "rgba(0,197,142,0.3)") : "rgba(255,255,255,0.06)", border: `1px solid ${i <= upperChamberRound ? "#00C58E" : "rgba(255,255,255,0.1)"}` }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(0,197,142,0.7)", letterSpacing: 0.5 }}>
+                        {upperChamberRound >= 4 && won ? "COMPLETE!" : `FIGHT ${upperChamberRound + 1}/5`}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: isCompactPhone ? 12 : 10, marginBottom: 0 }}>
                     {/* Rematch — ranked/tournament restart in their create flow, solo goes straight to loadout */}
@@ -1673,14 +1721,23 @@ export default function Gameplay() {
                         onClick={handleNextOpponent}
                         style={{
                           flex: 2, height: isCompactPhone ? 60 : 52,
-                          background: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
-                          border: "1.5px solid #4ade80",
+                          background: upperChamberActive && upperChamberRound >= 4
+                            ? "linear-gradient(135deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05))"
+                            : "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))",
+                          border: upperChamberActive && upperChamberRound >= 4
+                            ? "1.5px solid #fbbf24"
+                            : "1.5px solid #4ade80",
                           borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-                          fontWeight: 800, fontSize: isCompactPhone ? 13 : 12, letterSpacing: 1.5,
-                          color: "#4ade80", textTransform: "uppercase",
+                          fontWeight: 800, fontSize: isCompactPhone ? 12 : 11, letterSpacing: 1.2,
+                          color: upperChamberActive && upperChamberRound >= 4 ? "#fbbf24" : "#4ade80",
+                          textTransform: "uppercase",
                         }}
                       >
-                        NEXT ▶
+                        {upperChamberActive
+                          ? upperChamberRound >= 4
+                            ? "CLAIM 5000 PTS ★"
+                            : `FIGHT ${upperChamberRound + 2}/5 ▶`
+                          : "NEXT ▶"}
                       </button>
                     )}
                     {/* Share card */}

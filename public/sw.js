@@ -1,7 +1,7 @@
-// Action Order Service Worker — v4
+// Action Order Service Worker — v5
 // Caches static assets so repeat MiniPay visits load from device, not network.
 
-const CACHE = "ao-v4";
+const CACHE = "ao-v5";
 
 // Critical game assets pre-cached on SW install so first gameplay has zero image pop-in.
 // Paths must match exactly what the browser requests (URL-encoded for paths with spaces).

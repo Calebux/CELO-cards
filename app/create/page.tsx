@@ -50,12 +50,12 @@ const MATCH_TYPES: {
   },
   {
     key: "vshouse",
-    icon: "smart_toy",
-    label: "VS HOUSE",
-    sub: "Play AI",
-    desc: "Challenge the house AI. No wait time — jump straight in and sharpen your skills.",
+    icon: "whatshot",
+    label: "UPPER CHAMBER",
+    sub: "5-Fight Streak",
+    desc: "Face all 5 fighters back-to-back. Win each bout to advance. Beat all 5 and claim 5,000 bonus points.",
     color: "#00C58E",
-    badge: "INSTANT",
+    badge: "STREAK",
   },
   {
     key: "wager",
@@ -93,6 +93,7 @@ export default function CreateMatch() {
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const setUpperChamberActive = useGameStore((s) => s.setUpperChamberActive);
   const markOnboardingStep = useGameStore((s) => s.markOnboardingStep);
   const matchPhase = useGameStore((s) => s.matchPhase);
   const matchId = useGameStore((s) => s.matchId);
@@ -254,6 +255,7 @@ export default function CreateMatch() {
       setVsBot(true);
       setMatchMode(toStoreMode(matchType));
       setPlayerRole(null);
+      setUpperChamberActive(true);
       markOnboardingStep("create_match");
       router.push("/select-character");
       return;
@@ -404,7 +406,7 @@ export default function CreateMatch() {
                 </div>
 
                 {/* Match type cards */}
-                <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: isCompactPhone ? 14 : 12, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 24 }}>
                   {MATCH_TYPES.map((mt) => {
                     const active = matchType === mt.key;
                     return (
@@ -417,7 +419,7 @@ export default function CreateMatch() {
                         <button
                           onClick={() => setMatchType(mt.key)}
                           style={{
-                            width: "100%", minHeight: isCompactPhone ? 132 : 0, padding: isCompactPhone ? "24px 12px 20px" : "20px 12px 16px",
+                            width: "100%", padding: "20px 12px 16px",
                             background: active ? `${mt.color}1e` : "rgba(255,255,255,0.03)",
                             border: active ? `1.5px solid ${mt.color}` : "1.5px solid rgba(255,255,255,0.08)",
                             borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
@@ -486,10 +488,10 @@ export default function CreateMatch() {
                   </div>
                 )}
 
-                {/* Difficulty selector — VS House only */}
+                {/* Difficulty selector — Upper Chamber */}
                 {matchType === "vshouse" && (
                   <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>AI Difficulty</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>AI Difficulty (all 5 fights)</div>
                     <div style={{ display: "flex", gap: 10 }}>
                       {([
                         { level: 0 as const, label: "EASY",   sub: "Random orders",     color: "#4ade80" },
@@ -619,6 +621,8 @@ export default function CreateMatch() {
                       ? "Find a random player or invite a friend via Match ID"
                       : matchType === "tourney"
                         ? "Tournament mode is managed from the weekly bracket page"
+                      : matchType === "vshouse"
+                        ? "Choose your character, then face all 5 fighters in sequence"
                       : isMp
                         ? "MiniPay wagers and premium payments use USDT"
                         : "Secure connection via Celo network"
@@ -643,8 +647,8 @@ export default function CreateMatch() {
                 <div style={{ fontSize: 16, fontWeight: 800, color: "#b9e7f4", letterSpacing: -0.5 }}>Always On</div>
               </div>
               <div style={{ flex: 1, textAlign: "center", padding: "10px 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6 }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>VS House</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#00C58E", letterSpacing: -0.5 }}>Instant</div>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Upper Chamber</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#00C58E", letterSpacing: -0.5 }}>5,000 pts</div>
               </div>
             </div>
             <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
