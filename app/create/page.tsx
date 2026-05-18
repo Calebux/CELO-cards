@@ -40,6 +40,15 @@ const MATCH_TYPES: {
   badge?: string;
 }[] = [
   {
+    key: "vshouse",
+    icon: "smart_toy",
+    label: "VS HOUSE",
+    sub: "5-Fight Streak",
+    desc: "Face all 5 fighters back-to-back. Win each bout to advance. Beat all 5 and claim 5,000 bonus points.",
+    color: "#00C58E",
+    badge: "STREAK",
+  },
+  {
     key: "ranked",
     icon: "military_tech",
     label: "RANKED",
@@ -47,15 +56,6 @@ const MATCH_TYPES: {
     desc: "Climb the leaderboard. Qualify for the weekly tournament.",
     color: "#f59e0b",
     badge: "POPULAR",
-  },
-  {
-    key: "vshouse",
-    icon: "whatshot",
-    label: "UPPER CHAMBER",
-    sub: "5-Fight Streak",
-    desc: "Face all 5 fighters back-to-back. Win each bout to advance. Beat all 5 and claim 5,000 bonus points.",
-    color: "#00C58E",
-    badge: "STREAK",
   },
   {
     key: "wager",
@@ -79,7 +79,7 @@ const MATCH_TYPES: {
 export default function CreateMatch() {
   const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [matchType, setMatchType] = useState<MatchType>("ranked");
+  const [matchType, setMatchType] = useState<MatchType>("vshouse");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
@@ -395,31 +395,31 @@ export default function CreateMatch() {
               {/* Scanline */}
               <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #56a4cb, transparent)" }} />
 
-              <div style={{ padding: "36px 40px 40px" }}>
+              <div style={{ padding: "42px 46px 46px" }}>
 
                 {/* Heading */}
-                <div style={{ textAlign: "center", marginBottom: 32 }}>
+                <div style={{ textAlign: "center", marginBottom: 36 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>MATCH SETUP</div>
-                  <h2 style={{ fontSize: 30, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -1, margin: 0, lineHeight: 1 }}>
+                  <h2 style={{ fontSize: 34, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -1.2, margin: 0, lineHeight: 1 }}>
                     SELECT MATCH TYPE
                   </h2>
                 </div>
 
                 {/* Match type cards */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 28 }}>
                   {MATCH_TYPES.map((mt) => {
                     const active = matchType === mt.key;
                     return (
                       <div key={mt.key} style={{ flex: 1, position: "relative" }}>
                         {mt.badge && (
-                          <div style={{ position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)", background: mt.color, borderRadius: 3, padding: "2px 8px", zIndex: 2 }}>
-                            <span style={{ fontSize: 7.5, fontWeight: 800, color: "#000", letterSpacing: 1, textTransform: "uppercase" }}>{mt.badge}</span>
+                          <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: mt.color, borderRadius: 3, padding: "3px 9px", zIndex: 2 }}>
+                            <span style={{ fontSize: 8, fontWeight: 800, color: "#000", letterSpacing: 1, textTransform: "uppercase" }}>{mt.badge}</span>
                           </div>
                         )}
                         <button
                           onClick={() => setMatchType(mt.key)}
                           style={{
-                            width: "100%", padding: "20px 12px 16px",
+                            width: "100%", minHeight: 146, padding: "24px 14px 20px",
                             background: active ? `${mt.color}1e` : "rgba(255,255,255,0.03)",
                             border: active ? `1.5px solid ${mt.color}` : "1.5px solid rgba(255,255,255,0.08)",
                             borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
@@ -428,11 +428,11 @@ export default function CreateMatch() {
                             boxShadow: active ? `0 0 20px ${mt.color}25` : "none",
                           }}
                         >
-                          <span className="material-icons" style={{ fontSize: isCompactPhone ? 34 : 28, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 8 }}>{mt.icon}</span>
-                          <div style={{ fontSize: isCompactPhone ? 14 : 13, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{mt.label}</div>
-                          <div style={{ fontSize: isCompactPhone ? 10 : 9, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{mt.sub}</div>
+                          <span className="material-icons" style={{ fontSize: isCompactPhone ? 38 : 32, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 10 }}>{mt.icon}</span>
+                          <div style={{ fontSize: isCompactPhone ? 15 : 14, fontWeight: 800, color: active ? "#f1f5f9" : "#9ca3af", letterSpacing: 1.6, textTransform: "uppercase", marginBottom: 4 }}>{mt.label}</div>
+                          <div style={{ fontSize: isCompactPhone ? 11 : 10, color: active ? mt.color : "#6b7280", fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase" }}>{mt.sub}</div>
                           {mt.subSecondary && (
-                            <div style={{ fontSize: isCompactPhone ? 9 : 8, color: active ? `${mt.color}cc` : "#6b7280", fontWeight: 500, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>
+                            <div style={{ fontSize: isCompactPhone ? 10 : 9, color: active ? `${mt.color}cc` : "#6b7280", fontWeight: 500, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 3 }}>
                               {mt.subSecondary}
                             </div>
                           )}
@@ -488,7 +488,7 @@ export default function CreateMatch() {
                   </div>
                 )}
 
-                {/* Difficulty selector — Upper Chamber */}
+                {/* Difficulty selector — VS House */}
                 {matchType === "vshouse" && (
                   <div style={{ marginBottom: 24 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>AI Difficulty (all 5 fights)</div>
@@ -622,10 +622,10 @@ export default function CreateMatch() {
                       : matchType === "tourney"
                         ? "Tournament mode is managed from the weekly bracket page"
                       : matchType === "vshouse"
-                        ? "Choose your character, then face all 5 fighters in sequence"
-                      : isMp
-                        ? "MiniPay wagers and premium payments use USDT"
-                        : "Secure connection via Celo network"
+                        ? "Choose your character, then face the house across all 5 fights"
+                        : isMp
+                          ? "MiniPay wagers and premium payments use USDT"
+                          : "Secure connection via Celo network"
                     : "Use the Connect button in the top right ↗"}
                 </p>
               </div>
@@ -647,7 +647,7 @@ export default function CreateMatch() {
                 <div style={{ fontSize: 16, fontWeight: 800, color: "#b9e7f4", letterSpacing: -0.5 }}>Always On</div>
               </div>
               <div style={{ flex: 1, textAlign: "center", padding: "10px 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 6 }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Upper Chamber</div>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>VS House</div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "#00C58E", letterSpacing: -0.5 }}>5,000 pts</div>
               </div>
             </div>

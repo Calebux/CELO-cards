@@ -1,7 +1,7 @@
-// Action Order Service Worker — v5
+// Action Order Service Worker — v6
 // Caches static assets so repeat MiniPay visits load from device, not network.
 
-const CACHE = "ao-v5";
+const CACHE = "ao-v6";
 
 // Critical game assets pre-cached on SW install so first gameplay has zero image pop-in.
 // Paths must match exactly what the browser requests (URL-encoded for paths with spaces).
@@ -53,13 +53,13 @@ const PRECACHE = [
   // ── Arena backgrounds (all 25 matchup combos) ──────────────────────────────
   "/arena-backgrounds/arena_kaira_kaira.webp",
   "/arena-backgrounds/arena_kaira_kenji.webp",
-  "/arena-backgrounds/arena_kaira_kenji_new.webp",
+  "/new-assets/Kaira vs Kenji.png",
   "/arena-backgrounds/arena_kaira_riven.webp",
   "/arena-backgrounds/arena_kaira_zane.webp",
   "/arena-backgrounds/arena_kaira_elara.webp",
   "/arena-backgrounds/arena_kenji_kenji.webp",
   "/arena-backgrounds/arena_kenji_kaira.webp",
-  "/arena-backgrounds/arena_kenji_kaira_new.webp",
+  "/new-assets/Kenji and kaira.png",
   "/arena-backgrounds/arena_kenji_riven.webp",
   "/arena-backgrounds/arena_kenji_zane.webp",
   "/arena-backgrounds/arena_kenji_elara.webp",
