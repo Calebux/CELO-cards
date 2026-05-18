@@ -701,6 +701,10 @@ export default function Gameplay() {
   const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 
   if (!selectedCharacter || !opponentCharacter) {
+    // After quit, resetMatch() sets matchPhase→"idle" before navigation fires.
+    // Show plain black rather than the VS loading screen so it doesn't flash
+    // in portrait (MatchLoadingScreen has no landscape rotation outside the canvas).
+    if (matchPhase === "idle") return <div style={{ position: "fixed", inset: 0, background: "#050810" }} />;
     return <MatchLoadingScreen playerName="—" opponentName="—" />;
   }
 
