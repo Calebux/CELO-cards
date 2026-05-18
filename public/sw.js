@@ -53,11 +53,13 @@ const PRECACHE = [
   // ── Arena backgrounds (all 25 matchup combos) ──────────────────────────────
   "/arena-backgrounds/arena_kaira_kaira.webp",
   "/arena-backgrounds/arena_kaira_kenji.webp",
+  "/arena-backgrounds/arena_kaira_kenji_new.webp",
   "/arena-backgrounds/arena_kaira_riven.webp",
   "/arena-backgrounds/arena_kaira_zane.webp",
   "/arena-backgrounds/arena_kaira_elara.webp",
   "/arena-backgrounds/arena_kenji_kenji.webp",
   "/arena-backgrounds/arena_kenji_kaira.webp",
+  "/arena-backgrounds/arena_kenji_kaira_new.webp",
   "/arena-backgrounds/arena_kenji_riven.webp",
   "/arena-backgrounds/arena_kenji_zane.webp",
   "/arena-backgrounds/arena_kenji_elara.webp",

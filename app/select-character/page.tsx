@@ -47,7 +47,7 @@ export default function SelectCharacter() {
   const [isCompactPhone, setIsCompactPhone] = useState(false);
   const opponentJoinedRef = useRef(false);
   const router = useRouter();
-  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput, wagerCurrency, markOnboardingStep } = useGameStore();
+  const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput, wagerCurrency, markOnboardingStep, upperChamberActive, advanceUpperChamber } = useGameStore();
   const multiplayerMode = matchMode === "vshouse" ? "wager" : matchMode;
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
@@ -229,7 +229,11 @@ export default function SelectCharacter() {
       // Multiplayer always goes through lobby (payment gate + opponent sync)
       router.push("/lobby");
     } else {
-      startMatch();
+      if (vsBot && upperChamberActive) {
+        advanceUpperChamber(0);
+      } else {
+        startMatch();
+      }
       router.push("/loadout");
     }
   };
