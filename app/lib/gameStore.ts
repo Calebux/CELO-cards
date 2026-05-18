@@ -234,7 +234,17 @@ export const useGameStore = create<GameState>()(
     setUpperChamberActive: (v) => set({ upperChamberActive: v }),
     advanceUpperChamber: (nextRound) => {
         const { selectedCharacter } = get();
-        const order = ["kaira", "kenji", "riven", "zane", "elara"];
+        const chamberOrder = ["kaira", "kenji", "riven", "zane", "elara"];
+        const selectedIndex = selectedCharacter
+            ? chamberOrder.indexOf(selectedCharacter.id)
+            : -1;
+        const order =
+            selectedIndex >= 0
+                ? [
+                    ...chamberOrder.slice(selectedIndex + 1),
+                    ...chamberOrder.slice(0, selectedIndex + 1),
+                ]
+                : chamberOrder;
         const opponent = CHARACTERS.find((c) => c.id === order[nextRound]);
         if (!opponent) return;
         const deck = buildDeck(get().unlockedPremiumCards);
