@@ -1,9 +1,12 @@
 import { Redis } from "@upstash/redis";
 
 // Shared Upstash Redis client — works in Vercel serverless + Edge
+if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+  throw new Error("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set.");
+}
 export const redis = new Redis({
-  url:   process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url:   process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
 const MATCH_ARCHIVE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days — long owner resume window without permanent garbage

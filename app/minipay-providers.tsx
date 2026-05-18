@@ -23,7 +23,7 @@ const miniPayTransport = fallback([
       return provider.request({ method: method as never, params: params as never });
     },
   }),
-  http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
+  http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL),
 ]);
 
 // Minimal wagmi config — only MiniPay connector, no RainbowKit / WalletConnect / Web3Auth

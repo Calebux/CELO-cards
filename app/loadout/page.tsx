@@ -1718,6 +1718,19 @@ export default function Loadout() {
           </div>
         )}
 
+        {/* Bottom links — Terms / Privacy / Support */}
+        <div style={{
+          position: "absolute", bottom: 10, left: 0, right: 0,
+          display: "flex", justifyContent: "center", gap: 20,
+          fontSize: 10, fontWeight: 600, letterSpacing: 1.5,
+          textTransform: "uppercase", color: "rgba(185,231,244,0.25)",
+          zIndex: 10, pointerEvents: "auto",
+        }}>
+          <a href="/terms"   target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Terms</a>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Privacy</a>
+          <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Support</a>
+        </div>
+
       </div>
     </div>
   );

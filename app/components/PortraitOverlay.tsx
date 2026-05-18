@@ -40,7 +40,7 @@ export function PortraitOverlay() {
     let orientationTimer: ReturnType<typeof setTimeout>;
     function onOrientationChange() {
       clearTimeout(orientationTimer);
-      orientationTimer = setTimeout(() => check(true), 120);
+      orientationTimer = setTimeout(() => check(true), 150);
     }
 
     check();

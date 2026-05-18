@@ -23,7 +23,7 @@ const GREY_PORTRAITS = [
   "/Characters standing/Whisk_gdzlldmlhtm3e2nh1ymmfwotadmjrtlkzmm20sy.webp",
   "/Characters standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
   "/Characters standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
-  "/characters/characters /Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
+  "/characters/characters/Whisk_5edzhrtn5qtokzdotqwoxgtl4ydm00cn2cdmtqj 1.webp",
   "/Two fighters/standing 2.webp",
   "/characters/fighter.webp",
   "/Characters standing/Whisk_19475fe609c83ad99cb4dd1553b8093edr.webp",
@@ -549,6 +549,19 @@ export default function SelectCharacter() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Bottom links — Terms / Privacy / Support */}
+        <div style={{
+          position: "absolute", bottom: 10, left: 0, right: 0,
+          display: "flex", justifyContent: "center", gap: 20,
+          fontSize: 10, fontWeight: 600, letterSpacing: 1.5,
+          textTransform: "uppercase", color: "rgba(185,231,244,0.25)",
+          zIndex: 10,
+        }}>
+          <a href="/terms"   target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Terms</a>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Privacy</a>
+          <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Support</a>
         </div>
 
       </div>
