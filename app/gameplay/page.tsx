@@ -30,6 +30,15 @@ const ShareCard = dynamic(() => import("../components/ShareCard").then(m => ({ d
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const storePersist = (useGameStore as typeof useGameStore & {
+    persist?: {
+      hasHydrated?: () => boolean;
+      onFinishHydration?: (fn: () => void) => () => void;
+    };
+  }).persist;
+  const [storeHydrated, setStoreHydrated] = useState(
+    typeof window !== "undefined" ? (storePersist?.hasHydrated?.() ?? true) : true
+  );
   const isMp = useMiniPayMode();
   const isMobileViewport = useMobileViewportMode();
   const pageVisible = usePageVisibility();
@@ -232,6 +241,14 @@ export default function Gameplay() {
     };
   }, [isMatchEnd, isMobileViewport, isMp, matchId, matchPhase, opponentLeft, pageVisible, playerRole, setCurrentOrderFromIds, setPrecomputedFromServer, showResult, syncMultiplayerRoundState, vsBot]);
 
+  // Track Zustand store hydration so we don't redirect before persisted state loads
+  useEffect(() => {
+    if (!storePersist?.onFinishHydration) { setStoreHydrated(true); return; }
+    const unsub = storePersist.onFinishHydration(() => setStoreHydrated(true));
+    setStoreHydrated(storePersist.hasHydrated?.() ?? true);
+    return unsub;
+  }, [storePersist]);
+
   // Start background music on mount
   useEffect(() => {
     startBgMusic();
@@ -311,12 +328,15 @@ export default function Gameplay() {
   ]);
 
   useEffect(() => {
+    // Wait for Zustand persist hydration before checking — avoids false redirect
+    // on hard reload when characters briefly appear null before store loads from localStorage.
+    if (!storeHydrated) return;
     if (!selectedCharacter || !opponentCharacter) {
       if (!resumeChecked && !vsBot && matchId && playerRole) return;
       const t = setTimeout(() => router.push("/select-character"), 1500);
       return () => clearTimeout(t);
     }
-  }, [selectedCharacter, opponentCharacter, router, resumeChecked, vsBot, matchId, playerRole]);
+  }, [storeHydrated, selectedCharacter, opponentCharacter, router, resumeChecked, vsBot, matchId, playerRole]);
 
   useEffect(() => {
     if (matchPhase === "match-end") {

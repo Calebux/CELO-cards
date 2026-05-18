@@ -28,7 +28,10 @@ export function PortraitOverlay() {
       const isPortrait = w < h;
       const isNarrow   = w < 600;
       setShow(isPortrait && isNarrow);
-      if (!isPortrait && fromRotation) {
+      // Only reset dismissed when the device genuinely rotates back TO portrait.
+      // Resetting on rotation-to-landscape caused the overlay to re-appear on any
+      // transient resize event that MiniPay WebView fires during page navigation.
+      if (isPortrait && isNarrow && fromRotation) {
         sessionStorage.removeItem(DISMISSED_KEY);
         setDismissed(false);
       }
