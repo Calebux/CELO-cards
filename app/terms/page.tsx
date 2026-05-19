@@ -14,12 +14,12 @@ export default function TermsPage() {
 
       <h2 style={{ marginTop: "30px", marginBottom: "10px" }}>2. Game Mechanisms</h2>
       <p style={{ marginBottom: "20px", color: "#ccc" }}>
-        Action Order involves matches simulated entirely by your selected card strategies. Payouts and wagers are processed via ERC-20 cUSD transfers on the Celo network. We do not guarantee the performance of the underlying blockchain.
+        Action Order involves matches simulated entirely by your selected card strategies. Payouts and wagers are processed via stablecoin transfers (USDT / USDm) on the Celo network. We do not guarantee the performance of the underlying blockchain.
       </p>
 
       <h2 style={{ marginTop: "30px", marginBottom: "10px" }}>3. Risk Assumption</h2>
       <p style={{ marginBottom: "20px", color: "#ccc" }}>
-        You interact with cryptographic tokens at your own risk. You are solely responsible for managing your wallets and any fees incurred.
+        You interact with digital dollars on the Celo blockchain at your own risk. You are solely responsible for managing your wallets and any network fees incurred.
       </p>
       
       <p style={{ marginTop: "40px", color: "#60a5ce" }}>

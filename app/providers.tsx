@@ -23,7 +23,7 @@ const TutorialModal  = dynamic(() => import("./components/TutorialModal").then(m
 const config = createConfig({
   chains: [celo, celoAlfajores],
   transports: {
-    [celo.id]: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
+    [celo.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL),
     [celoAlfajores.id]: http(),
   },
   // miniPayConnector is intentionally excluded — it lives only in MiniPayProviders.

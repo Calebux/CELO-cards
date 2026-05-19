@@ -1,7 +1,7 @@
-// Action Order Service Worker — v3
+// Action Order Service Worker — v7
 // Caches static assets so repeat MiniPay visits load from device, not network.
 
-const CACHE = "ao-v3";
+const CACHE = "ao-v7";
 
 // Critical game assets pre-cached on SW install so first gameplay has zero image pop-in.
 // Paths must match exactly what the browser requests (URL-encoded for paths with spaces).
@@ -53,11 +53,13 @@ const PRECACHE = [
   // ── Arena backgrounds (all 25 matchup combos) ──────────────────────────────
   "/arena-backgrounds/arena_kaira_kaira.webp",
   "/arena-backgrounds/arena_kaira_kenji.webp",
+  "/arena-backgrounds/arena_kaira_kenji_fixed.webp",
   "/arena-backgrounds/arena_kaira_riven.webp",
   "/arena-backgrounds/arena_kaira_zane.webp",
   "/arena-backgrounds/arena_kaira_elara.webp",
   "/arena-backgrounds/arena_kenji_kenji.webp",
   "/arena-backgrounds/arena_kenji_kaira.webp",
+  "/arena-backgrounds/arena_kenji_kaira_fixed.webp",
   "/arena-backgrounds/arena_kenji_riven.webp",
   "/arena-backgrounds/arena_kenji_zane.webp",
   "/arena-backgrounds/arena_kenji_elara.webp",
@@ -78,9 +80,9 @@ const PRECACHE = [
   "/arena-backgrounds/arena_elara_kenji.webp",
 
   // ── Character portraits (URL-encoded for paths that contain spaces) ─────────
-  "/characters/characters%20/Adobe%20Express%20-%20file%20(4).webp",
-  "/characters/characters%20/Adobe%20Express%20-%20file%20(6).webp",
-  "/characters/characters%20/zane_portrait.webp",
+  "/characters/characters/Adobe%20Express%20-%20file%20(4).webp",
+  "/characters/characters/Adobe%20Express%20-%20file%20(6).webp",
+  "/characters/characters/zane_portrait.webp",
   "/Characters%20standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
   "/Characters%20standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
 ];

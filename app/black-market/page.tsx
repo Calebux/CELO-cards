@@ -320,8 +320,26 @@ export default function BlackMarket() {
 
           {/* Error banner */}
           {buyError && (
-            <div style={{ padding: "8px 20px", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 6 }}>
-              <span style={{ fontSize: 12, color: "#f87171" }}>{buyError}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 20px", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 6 }}>
+              <span style={{ fontSize: 12, color: "#f87171", flex: 1 }}>{buyError}</span>
+              {isMp && (
+                <a
+                  href="https://minipay.opera.com/add_cash"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "6px 14px", flexShrink: 0,
+                    background: "rgba(251,191,36,0.12)",
+                    border: "1px solid rgba(251,191,36,0.45)",
+                    borderRadius: 6,
+                    color: "#fbbf24",
+                    fontSize: 11, fontWeight: 800, letterSpacing: 1.2,
+                    textTransform: "uppercase", textDecoration: "none",
+                  }}
+                >
+                  <span className="material-icons" style={{ fontSize: 13 }}>add_circle</span>
+                  Deposit
+                </a>
+              )}
             </div>
           )}
 

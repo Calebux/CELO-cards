@@ -8,11 +8,11 @@ import { useEffect, useState } from "react";
 const ASSETS = [
   "/new-assets/landing-hero.webp",
   "/new-assets/fighters-energy-sm.webp",
-  "/characters/characters%20/Adobe%20Express%20-%20file%20(4).webp",
-  "/characters/characters%20/Adobe%20Express%20-%20file%20(6).webp",
-  "/characters/characters%20/zane_portrait.webp",
-  "/Characters%20standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
-  "/Characters%20standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
+  "/characters/characters/Adobe Express - file (4).webp",
+  "/characters/characters/Adobe Express - file (6).webp",
+  "/characters/characters/zane_portrait.webp",
+  "/Characters standing/Whisk_9a87489a13c392485344f4c75994d511eg.webp",
+  "/Characters standing/Whisk_7338ae2d54853d69dbd43da6240ebd8eeg.webp",
   "/cards/storm_kick.webp",
   "/cards/power_punch.webp",
   "/cards/finisher.webp",
@@ -29,13 +29,14 @@ interface Props {
 export function GameLoadingScreen({ onDone }: Props) {
   const [progress, setProgress] = useState(0);
   const [fading, setFading] = useState(false);
-  const [vw, setVw] = useState(0);
-  const [vh, setVh] = useState(0);
+  // Initialise directly from window so the first render already has the correct
+  // dimensions and the landscape-rotation transform is applied without any flash.
+  const [vw, setVw] = useState(() => typeof window !== "undefined" ? window.innerWidth : 0);
+  const [vh, setVh] = useState(() => typeof window !== "undefined" ? window.innerHeight : 0);
 
-  // Track viewport so we can rotate to landscape inside portrait viewports (MiniPay)
+  // Keep viewport in sync on resize / orientation change
   useEffect(() => {
     const update = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
-    update();
     window.addEventListener("resize", update);
     window.addEventListener("orientationchange", update);
     return () => {

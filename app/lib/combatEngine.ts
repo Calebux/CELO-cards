@@ -439,6 +439,50 @@ function shuffleCards(cards: Card[]): Card[] {
     return next;
 }
 
+function arrangeHardDifficultyOrder(cards: Card[], previousAiOrderIds: string[]): Card[] {
+    if (cards.length <= 1) return cards;
+
+    const remaining = [...cards];
+    const arranged: Card[] = [];
+
+    for (let i = 0; i < cards.length; i++) {
+        const previousId = previousAiOrderIds[i];
+        const eligibleIndices = remaining
+            .map((card, index) => ({ card, index }))
+            .filter(({ card }) => card.id !== previousId)
+            .map(({ index }) => index);
+
+        const pool = eligibleIndices.length > 0 ? eligibleIndices : remaining.map((_, index) => index);
+        const choiceWindow = Math.min(2, pool.length);
+        const chosenPoolIndex = Math.floor(Math.random() * choiceWindow);
+        const chosenIndex = pool[chosenPoolIndex];
+        arranged.push(remaining.splice(chosenIndex, 1)[0]);
+    }
+
+    return arranged;
+}
+
+function arrangeNormalDifficultyOrder(cards: Card[], previousAiOrderIds: string[]): Card[] {
+    if (cards.length <= 1) return cards;
+
+    const remaining = shuffleCards(cards);
+    const arranged: Card[] = [];
+
+    for (let i = 0; i < cards.length; i++) {
+        const previousId = previousAiOrderIds[i];
+        const eligible = previousId
+            ? remaining.filter((card) => card.id !== previousId)
+            : remaining;
+        const pool = eligible.length > 0 ? eligible : remaining;
+        const choiceWindow = Math.min(3, pool.length);
+        const chosen = pool[Math.floor(Math.random() * choiceWindow)];
+        const chosenIndex = remaining.findIndex((card) => card.id === chosen.id);
+        arranged.push(remaining.splice(chosenIndex, 1)[0]);
+    }
+
+    return arranged;
+}
+
 // difficulty: 0=easy (random), 1=normal (adaptive), 2=hard (optimal + counters)
 export function generateAIOrder(
     aiChar?: Character,
@@ -556,12 +600,15 @@ export function generateAIOrder(
 
     // Hard keeps strategic order, but still rotates away from exact repeats.
     if (difficulty === 2) {
-        if (!exactRepeat) return picks;
-        const shift = ((roundCtx?.roundNumber ?? 1) % picks.length) || 1;
-        return picks.slice(shift).concat(picks.slice(0, shift));
+        const arranged = previousAiOrderIds.length > 0
+            ? arrangeHardDifficultyOrder(picks, previousAiOrderIds)
+            : picks;
+        if (!exactRepeat) return arranged;
+        const shift = ((roundCtx?.roundNumber ?? 1) % arranged.length) || 1;
+        return arranged.slice(shift).concat(arranged.slice(0, shift));
     }
 
-    const shuffled = shuffleCards(picks);
+    const shuffled = arrangeNormalDifficultyOrder(picks, previousAiOrderIds);
     if (!exactRepeat) return shuffled;
     const shift = ((roundCtx?.roundNumber ?? 1) % shuffled.length) || 1;
     return shuffled.slice(shift).concat(shuffled.slice(0, shift));

@@ -5,7 +5,7 @@ import { createConnector } from "wagmi";
 import { celo } from "wagmi/chains";
 import { isMiniPay } from "./minipay";
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID!;
+const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let web3authInstance: any = null;
@@ -20,6 +20,7 @@ async function getWeb3Auth(): Promise<any> {
   if (typeof window !== "undefined" && isMiniPay()) {
     throw new Error("Web3Auth is not available in MiniPay.");
   }
+  if (!CLIENT_ID) throw new Error("NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is not configured.");
   if (web3authInstance) return web3authInstance;
   if (initPromise) return initPromise;
 
@@ -31,7 +32,7 @@ async function getWeb3Auth(): Promise<any> {
     const instance = new Web3AuthClass({
       clientId: CLIENT_ID,
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
-      chains: [{ ...fromViemChain(celo), rpcTarget: "https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA" }],
+      chains: [{ ...fromViemChain(celo), rpcTarget: process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL ?? "" }],
       defaultChainId: `0x${celo.id.toString(16)}`,
     });
 

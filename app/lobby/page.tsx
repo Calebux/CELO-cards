@@ -663,6 +663,19 @@ export default function Lobby() {
         </div>
       )}
 
+      {/* ── Bottom links — Terms / Privacy / Support ─────────────────────── */}
+      <div style={{
+        position: "absolute", bottom: 10, left: 0, right: 0,
+        display: "flex", justifyContent: "center", gap: 20,
+        fontSize: 10, fontWeight: 600, letterSpacing: 1.5,
+        textTransform: "uppercase", color: "rgba(185,231,244,0.25)",
+        pointerEvents: "auto", zIndex: 10,
+      }}>
+        <a href="/terms"   target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Terms</a>
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Privacy</a>
+        <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>Support</a>
+      </div>
+
       {/* ── Wager payment modal ──────────────────────────────────────────── */}
       {showPayModal && !selfPaid && matchMode === "wager" && (
         <WagerModal

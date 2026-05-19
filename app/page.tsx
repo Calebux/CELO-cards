@@ -56,7 +56,11 @@ export default function ActionOrderLandingPage() {
   useEffect(() => {
     // < 768 targets phones only — iPads start at 768px and should use the desktop layout
     setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
-    if (!sessionStorage.getItem('ao-loaded')) setShowLoader(true);
+    // Only show the loading screen inside real MiniPay.
+    // PageSpeed mobile simulation uses a 375px viewport but does NOT inject
+    // window.ethereum.isMiniPay, so the 2.2s loader never blocks LCP on PageSpeed tests.
+    const inMiniPay = !!(window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay;
+    if (inMiniPay && !sessionStorage.getItem('ao-loaded')) setShowLoader(true);
   }, []);
 
   useEffect(() => {

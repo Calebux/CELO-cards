@@ -93,6 +93,13 @@ interface GameState {
     aiDifficulty: 0 | 1 | 2;
     setAiDifficulty: (d: 0 | 1 | 2) => void;
 
+    // Upper Chamber — 5-fight streak mode
+    upperChamberActive: boolean;
+    upperChamberRound: number;   // 0-indexed (0–4)
+    setUpperChamberActive: (v: boolean) => void;
+    advanceUpperChamber: (nextRound: number) => void;
+    addBonusPoints: (amount: number) => void;
+
     // Player identity (Celo wallet address)
     playerAddress: string | null;
 
@@ -222,6 +229,56 @@ export const useGameStore = create<GameState>()(
     setVsBot: (v) => set({ vsBot: v }),
     aiDifficulty: 1,
     setAiDifficulty: (d) => set({ aiDifficulty: d }),
+    upperChamberActive: false,
+    upperChamberRound: 0,
+    setUpperChamberActive: (v) => set({ upperChamberActive: v }),
+    advanceUpperChamber: (nextRound) => {
+        const { selectedCharacter } = get();
+        const chamberOrder = ["kaira", "kenji", "riven", "zane", "elara"];
+        const selectedIndex = selectedCharacter
+            ? chamberOrder.indexOf(selectedCharacter.id)
+            : -1;
+        const order =
+            selectedIndex >= 0
+                ? [
+                    ...chamberOrder.slice(selectedIndex + 1),
+                    ...chamberOrder.slice(0, selectedIndex + 1),
+                ]
+                : chamberOrder;
+        const opponent = CHARACTERS.find((c) => c.id === order[nextRound]);
+        if (!opponent) return;
+        const deck = buildDeck(get().unlockedPremiumCards);
+        const maxEnergy = selectedCharacter ? calcEnergyPool(selectedCharacter) : 10;
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+        set({
+            opponentCharacter: opponent,
+            playerDeck: deck,
+            matchPhase: "lobby",
+            matchMode: "vshouse",
+            roundNumber: 1,
+            playerRoundsWon: 0,
+            opponentRoundsWon: 0,
+            currentOrder: [null, null, null, null, null],
+            opponentOrder: [],
+            currentRoundResult: null,
+            precomputedRound: null,
+            revealedSlots: 0,
+            matchId: `AO-UC-${suffix}`,
+            maxEnergy,
+            activeAttunedCardIds: [...get().attunedCardIds],
+            attunementSurgeUsed: false,
+            ultimateActivated: false,
+            ultimateUsed: false,
+            pointsThisRound: 0,
+            playerTaunt: null,
+            currentMatchRounds: [],
+            upperChamberRound: nextRound,
+        });
+    },
+    addBonusPoints: (amount) => set((state) => ({
+        playerPoints: state.playerPoints + amount,
+        pointsThisRound: state.pointsThisRound + amount,
+    })),
     playerAddress: null,
     wagerActive: false,
     wagerTxHash: null,
@@ -803,6 +860,8 @@ export const useGameStore = create<GameState>()(
             currentMatchRounds: [],
             activeAttunedCardIds: [],
             attunementSurgeUsed: false,
+            upperChamberActive: false,
+            upperChamberRound: 0,
         }));
     },
 
@@ -906,6 +965,8 @@ export const useGameStore = create<GameState>()(
         matchPhase: state.matchPhase,
         vsBot: state.vsBot,
         aiDifficulty: state.aiDifficulty,
+        upperChamberActive: state.upperChamberActive,
+        upperChamberRound: state.upperChamberRound,
         currentOrder: state.currentOrder,
         opponentOrder: state.opponentOrder,
         currentRoundResult: state.currentRoundResult,
