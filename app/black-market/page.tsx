@@ -492,7 +492,7 @@ export default function BlackMarket() {
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 800, color: "#56a4cb", letterSpacing: 2.4, textTransform: "uppercase" }}>Normal Card Forge</div>
                     <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1", maxWidth: 760, lineHeight: 1.45 }}>
-                      Normal cards build mastery through use. When a card hits the full forge path, it will show <span style={{ color: "#fbbf24", fontWeight: 800 }}>FORGE READY</span> here before paid ascension goes live.
+                      Normal cards build mastery through use. When a card hits the full forge path, it will show <span style={{ color: "#fbbf24", fontWeight: 800 }}>FORGE READY</span> here for ascension tracking.
                     </div>
                   </div>
                   <div style={{ minWidth: 180, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(251,191,36,0.18)", background: "rgba(251,191,36,0.08)", fontSize: 11, color: "#f8fafc", lineHeight: 1.45 }}>

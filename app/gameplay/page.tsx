@@ -575,28 +575,7 @@ export default function Gameplay() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address, won }),
-      }).then(() =>
-        fetch(`/api/challenges?address=${address}`)
-          .then((r) => r.json())
-          .then((data: { challenges?: { id: string; title: string; eligible: boolean }[] }) => {
-            const readyChallenges = (data.challenges ?? []).filter((c) => c.eligible);
-            if (readyChallenges.length > 0) {
-              const challengeItems = readyChallenges.map((c) => ({
-                id: `challenge-${c.id}`,
-                name: c.title,
-                icon: "🎯",
-                label: "Challenge Ready to Claim",
-              }));
-              const existingQueue = achievementQueueRef.current ?? [];
-              achievementQueueRef.current = [...existingQueue, ...challengeItems];
-              if (!achievementToast) {
-                setAchievementToast(achievementQueueRef.current[0]);
-                achievementQueueRef.current = achievementQueueRef.current.slice(1);
-              }
-            }
-          })
-          .catch(() => {})
-      ).catch(() => {});
+      }).catch(() => {});
     }, isMp || isMobileViewport ? 2400 : 1400);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, isMobileViewport, isMp, matchPhase, matchesLost, matchesPlayed, matchesWon, maxWinStreak, playerPoints, playerRoundsWon, opponentRoundsWon]);

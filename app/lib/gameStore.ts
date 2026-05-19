@@ -253,7 +253,7 @@ export const useGameStore = create<GameState>()(
         set({
             opponentCharacter: opponent,
             playerDeck: deck,
-            matchPhase: "lobby",
+            matchPhase: "loadout",
             matchMode: "vshouse",
             roundNumber: 1,
             playerRoundsWon: 0,

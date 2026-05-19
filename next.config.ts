@@ -26,6 +26,13 @@ const nextConfig: NextConfig = {
     ],
     deviceSizes: [640, 720, 750, 760, 828, 960, 1080, 1140, 1200, 1280, 1440, 1920, 2048, 3840],
   },
+  webpack(config) {
+    config.resolve ??= {};
+    config.resolve.alias ??= {};
+    config.resolve.alias["@react-native-async-storage/async-storage"] = false;
+    config.resolve.alias["pino-pretty"] = false;
+    return config;
+  },
   async headers() {
     return [
       // Static game assets — immutable, cache 1 year

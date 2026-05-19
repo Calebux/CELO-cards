@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
 import type { PlayerEntry, LeaderboardData } from "../../lib/leaderboard";
 import { checkRateLimit } from "../../lib/rateLimit";
+import { DAILY_CHALLENGES } from "../../lib/challenges";
 
 const CHALLENGES_KEY = "challenges:data";
 const LEADERBOARD_KEY = "leaderboard:data";
@@ -40,40 +41,6 @@ async function readLeaderboard(): Promise<LeaderboardData> {
 async function writeLeaderboard(data: LeaderboardData) {
   await redis.set(LEADERBOARD_KEY, data);
 }
-
-// Daily challenges
-export const DAILY_CHALLENGES = [
-  {
-    id: "win1",
-    title: "First Blood",
-    description: "Win 1 match today (any mode)",
-    requirement: { type: "wins", count: 1 },
-    rewardPoints: 50,
-    rewardGDollar: "0.05",
-    icon: "⚔️",
-    color: "#56a4cb",
-  },
-  {
-    id: "win3",
-    title: "On a Roll",
-    description: "Win 3 matches today (any mode)",
-    requirement: { type: "wins", count: 3 },
-    rewardPoints: 150,
-    rewardGDollar: "0.15",
-    icon: "🔥",
-    color: "#f59e0b",
-  },
-  {
-    id: "play5",
-    title: "Dedicated Fighter",
-    description: "Play 5 matches today (wins + losses)",
-    requirement: { type: "played", count: 5 },
-    rewardPoints: 100,
-    rewardGDollar: "0.10",
-    icon: "🏅",
-    color: "#a855f7",
-  },
-] as const;
 
 // GET /api/challenges?address=0x...
 export async function GET(req: NextRequest) {
@@ -154,4 +121,3 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ ok: true, daily: data.dailyStats[addr] });
 }
-
