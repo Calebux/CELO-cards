@@ -9,7 +9,6 @@ import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { useMobileViewportMode } from "../lib/mobile";
 import { useMiniPayMode } from "../lib/premiumPayments";
-import { fetchVerifiedPhoneMap } from "../lib/useVerifiedPhone";
 
 const BOUNTY_EXTENSION_DAYS = 5;
 
@@ -57,7 +56,6 @@ export default function WeeklyChallengePage() {
   const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
-  const [verifiedPhones, setVerifiedPhones] = useState<Record<string, string>>({});
   const [rank, setRank] = useState<number | null>(null);
   const [points, setPoints] = useState<number | null>(null);
 
@@ -148,9 +146,6 @@ export default function WeeklyChallengePage() {
             fetch(`/api/username?addresses=${addrs}`)
             .then((r) => r.json())
             .then((u: { map: Record<string, string> }) => setUsernames(u.map ?? {})),
-            isMp
-              ? fetchVerifiedPhoneMap(list.map((player) => player.address.toLowerCase())).then(setVerifiedPhones)
-              : Promise.resolve(setVerifiedPhones({})),
           ]);
         }
       })
@@ -209,8 +204,6 @@ export default function WeeklyChallengePage() {
   }, [address, nameInput, fetchLeaderboard]);
 
   function displayName(p: LeaderboardPlayer) {
-    const phoneLabel = verifiedPhones[p.address.toLowerCase()];
-    if (phoneLabel) return phoneLabel;
     if (p.name) return p.name;
     const name = usernames[p.address.toLowerCase()];
     return name ?? (isMp ? `Player ${p.address.slice(-4).toUpperCase()}` : `${p.address.slice(0, 6)}…${p.address.slice(-4)}`);

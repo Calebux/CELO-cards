@@ -10,7 +10,6 @@ import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
 import { useMiniPayMode } from "../lib/premiumPayments";
-import { useVerifiedPhone } from "../lib/useVerifiedPhone";
 
 const WebWalletSection = dynamic(() => import("./WebWalletSection").then(m => ({ default: m.WebWalletSection })), { ssr: false });
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -107,7 +106,6 @@ export function WalletSection() {
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [showBalances, setShowBalances] = useState(false);
   const mp = useMiniPayMode();
-  const { phoneLabel } = useVerifiedPhone(address, mp);
 
   // Low-balance check for MiniPay — only enabled when connected in MiniPay
   const { data: usdtRaw } = useReadContract({
@@ -181,12 +179,10 @@ export function WalletSection() {
   }
 
   if (mp && isConnected && address) {
-    const primaryIdentity = phoneLabel || playerName || "MINIPAY PLAYER";
-    const secondaryIdentity = phoneLabel
-      ? (playerName ? playerName : "Verified phone identity")
-      : playerName
+    const primaryIdentity = playerName || "MINIPAY PLAYER";
+    const secondaryIdentity = playerName
       ? "MiniPay ready"
-      : "Set username or verify phone in Profile";
+      : "Set username in Profile";
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
