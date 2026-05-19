@@ -28,6 +28,11 @@ export default function ActionOrderLandingPage() {
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const { address } = useAccount();
   const serverResumeMatch = useActiveMatchResume(address);
+  const tournamentPrizeDisplay = isMp ? "120,000 POINTS" : "120,000 G$";
+  const tournamentPrizeLabel = isMp ? "SEASON PRIZE POOL" : "PRIZE POOL";
+  const tournamentRewardCopy = isMp
+    ? "Top finishers earn leaderboard rewards and wallet prizes."
+    : "Top 4 finishers win a G$ stream direct to their wallet — no claim needed.";
 
   const resumeRoute = useMemo(() => {
     if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
@@ -373,7 +378,7 @@ export default function ActionOrderLandingPage() {
               <span style={{ fontSize:isMp ? 24 : 22 }}>🏆</span>
               <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>TOURNAMENT LIVE</span>
-                <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>120,000 G$ <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>PRIZE POOL</span></span>
+                <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>{tournamentPrizeDisplay} <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>{tournamentPrizeLabel}</span></span>
               </div>
               <div style={{ width:1, height:isMp ? 36 : 32, background:"rgba(251,204,92,0.25)" }} />
               <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
@@ -527,9 +532,9 @@ export default function ActionOrderLandingPage() {
               background:"linear-gradient(135deg, rgba(40,28,5,0.7), rgba(5,20,10,0.7))",
               border:"1px solid rgba(251,204,92,0.3)", borderRadius:6, padding:isMp ? "18px 16px" : "16px 14px" }}>
               <p style={{ color:"#fbbf24", fontSize:isMp ? 10 : 9, fontWeight:800, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>🏆 TOURNAMENT LIVE</p>
-              <p style={{ color:"#fff", fontSize:isMp ? 18 : 16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>120,000 G$<br/><span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>PRIZE POOL</span></p>
+              <p style={{ color:"#fff", fontSize:isMp ? 18 : 16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>{tournamentPrizeDisplay}<br/><span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>{tournamentPrizeLabel}</span></p>
               <div style={{ height:1, background:"rgba(251,204,92,0.2)", margin:"8px 0" }} />
-              <p style={{ color:"#9ca3af", fontSize:isMp ? 12 : 11, lineHeight:1.5, marginBottom:6 }}>Top 4 finishers win a G$ stream direct to their wallet — no claim needed.</p>
+              <p style={{ color:"#9ca3af", fontSize:isMp ? 12 : 11, lineHeight:1.5, marginBottom:6 }}>{tournamentRewardCopy}</p>
               <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:0.5 }}>Register on the tournament page →</p>
             </div>
 

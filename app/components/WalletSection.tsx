@@ -5,11 +5,12 @@ import dynamic from "next/dynamic";
 import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
 import { formatUnits } from "viem";
-import { getMiniPayConnector, isMiniPay, formatAddress } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
 import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
 import { useMiniPayMode } from "../lib/premiumPayments";
+import { useVerifiedPhone } from "../lib/useVerifiedPhone";
 
 const WebWalletSection = dynamic(() => import("./WebWalletSection").then(m => ({ default: m.WebWalletSection })), { ssr: false });
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -106,6 +107,7 @@ export function WalletSection() {
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [showBalances, setShowBalances] = useState(false);
   const mp = useMiniPayMode();
+  const { phoneLabel } = useVerifiedPhone(address, mp);
 
   // Low-balance check for MiniPay — only enabled when connected in MiniPay
   const { data: usdtRaw } = useReadContract({
@@ -179,6 +181,12 @@ export function WalletSection() {
   }
 
   if (mp && isConnected && address) {
+    const primaryIdentity = phoneLabel || playerName || "MINIPAY PLAYER";
+    const secondaryIdentity = phoneLabel
+      ? (playerName ? playerName : "Verified phone identity")
+      : playerName
+      ? "MiniPay ready"
+      : "Set username or verify phone in Profile";
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
@@ -206,7 +214,8 @@ export function WalletSection() {
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
             <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>MINIPAY</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>{playerName || formatAddress(address)}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.4 }}>{primaryIdentity}</div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.6, lineHeight: 1.2 }}>{secondaryIdentity}</div>
           </div>
         </div>
       </div>

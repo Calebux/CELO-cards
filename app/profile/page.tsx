@@ -14,6 +14,8 @@ import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { addressToCode } from "../lib/referral";
 import { useMiniPayMode } from "../lib/premiumPayments";
+import { normalizePhoneE164 } from "../lib/minipayPhone";
+import { useVerifiedPhone } from "../lib/useVerifiedPhone";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const SeasonPassModal = dynamic(() => import("../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
@@ -82,6 +84,10 @@ export default function ProfilePage() {
   const [nameInput, setNameInput] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
+  const [phoneSuccess, setPhoneSuccess] = useState<string | null>(null);
   const [serverUnlocked, setServerUnlocked] = useState<Set<string>>(new Set());
   const [serverStats, setServerStats] = useState<{ points: number; wins: number; losses: number } | null>(null);
   const [streak, setStreak] = useState<{ count: number; longestStreak: number } | null>(null);
@@ -98,6 +104,7 @@ export default function ProfilePage() {
   const [mintingCardId, setMintingCardId] = useState<string | null>(null);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
   const previewCard = previewCardId ? ownedCards.find((card) => card.id === previewCardId) ?? null : null;
+  const { phoneLabel: verifiedPhoneLabel, refresh: refreshVerifiedPhone } = useVerifiedPhone(address, isMp);
   const highestMasteryTier = getHighestMasteryTier(cardPerformance);
   const masteredCardCount = getMasteredCardCount(cardPerformance);
 
@@ -150,6 +157,64 @@ export default function ProfilePage() {
       setNameError("Network error");
     } finally {
       setNameSaving(false);
+    }
+  };
+
+  const saveVerifiedPhone = async () => {
+    if (!address) return;
+    const normalizedPhone = normalizePhoneE164(phoneInput);
+    if (!normalizedPhone) {
+      setPhoneError("Use E.164 format, for example +2348012345678.");
+      setPhoneSuccess(null);
+      return;
+    }
+
+    setPhoneSaving(true);
+    setPhoneError("");
+    setPhoneSuccess(null);
+    try {
+      const response = await fetch("/api/minipay-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, phoneNumber: normalizedPhone }),
+      });
+      const data = await response.json() as { phoneLabel?: string; error?: string };
+      if (!response.ok) {
+        setPhoneError(data.error ?? "Phone verification failed.");
+        return;
+      }
+      setPhoneInput("");
+      setPhoneSuccess("Verified and saved.");
+      await refreshVerifiedPhone();
+    } catch {
+      setPhoneError("Phone verification failed.");
+    } finally {
+      setPhoneSaving(false);
+    }
+  };
+
+  const clearVerifiedPhone = async () => {
+    if (!address) return;
+    setPhoneSaving(true);
+    setPhoneError("");
+    setPhoneSuccess(null);
+    try {
+      const response = await fetch("/api/minipay-phone", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (!response.ok) {
+        setPhoneError("Could not remove verified phone.");
+        return;
+      }
+      setPhoneInput("");
+      setPhoneSuccess("Verified phone removed.");
+      await refreshVerifiedPhone();
+    } catch {
+      setPhoneError("Could not remove verified phone.");
+    } finally {
+      setPhoneSaving(false);
     }
   };
 
@@ -394,14 +459,14 @@ export default function ProfilePage() {
               ) : (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 3 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.5 }}>
-                    {playerName || (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
+                    {verifiedPhoneLabel || playerName || (isMp ? "MINIPAY PLAYER" : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
                   </div>
                   <button onClick={() => { setNameInput(playerName); setEditingName(true); }} title="Edit name" style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 12, padding: 0, lineHeight: 1 }}>✏️</button>
                 </div>
               )}
 
               <div style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>
-                {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "NOT CONNECTED"}
+                {address ? (isMp ? (verifiedPhoneLabel ? "Verified phone identity" : "Linked via MiniPay") : `${address.slice(0, 6)}…${address.slice(-4)}`) : "NOT CONNECTED"}
               </div>
               {address && (
                 <button
@@ -410,6 +475,50 @@ export default function ProfilePage() {
                 >
                   🔗 Public Profile
                 </button>
+              )}
+              {isMp && address && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)", textAlign: "left" }}>
+                  <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 1.8, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>
+                    Phone Identity
+                  </div>
+                  {verifiedPhoneLabel ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0" }}>{verifiedPhoneLabel}</div>
+                      <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.5 }}>
+                        Verified against your MiniPay wallet via SocialConnect.
+                      </div>
+                      <button
+                        onClick={() => void clearVerifiedPhone()}
+                        disabled={phoneSaving}
+                        style={{ alignSelf: "flex-start", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", fontSize: 9, fontWeight: 700, color: "#f87171", fontFamily: "inherit", letterSpacing: 1, textTransform: "uppercase" }}
+                      >
+                        {phoneSaving ? "Removing…" : "Remove"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <input
+                        value={phoneInput}
+                        onChange={(e) => { setPhoneInput(e.target.value); setPhoneError(""); setPhoneSuccess(null); }}
+                        placeholder="+2348012345678"
+                        inputMode="tel"
+                        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 6, padding: "7px 9px", color: "#f1f5f9", fontSize: 11, fontWeight: 700, width: "100%", outline: "none" }}
+                      />
+                      <button
+                        onClick={() => void saveVerifiedPhone()}
+                        disabled={phoneSaving}
+                        style={{ alignSelf: "flex-start", padding: "6px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.12)", border: "1px solid rgba(86,164,203,0.32)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1, textTransform: "uppercase" }}
+                      >
+                        {phoneSaving ? "Verifying…" : "Verify Phone"}
+                      </button>
+                      <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.5 }}>
+                        Enter the MiniPay phone number already linked to this wallet in E.164 format.
+                      </div>
+                    </div>
+                  )}
+                  {phoneError && <div style={{ marginTop: 8, fontSize: 10, color: "#f87171", lineHeight: 1.4 }}>{phoneError}</div>}
+                  {phoneSuccess && <div style={{ marginTop: 8, fontSize: 10, color: "#4ade80", lineHeight: 1.4 }}>{phoneSuccess}</div>}
+                </div>
               )}
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ fontSize: 24, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>

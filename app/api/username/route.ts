@@ -19,11 +19,11 @@ export async function GET(req: NextRequest) {
     if (addrs.length === 0) return NextResponse.json({ map: {} });
 
     const keys = addrs.map((a) => `user:addr:${a}`);
-    const values = await redis.mget<string[]>(...keys);
+    const values = await redis.mget<string>(...keys);
 
     const map: Record<string, string> = {};
     addrs.forEach((a, i) => {
-      if (values[i]) map[a] = values[i] as string;
+      if (values[i]) map[a] = values[i];
     });
     return NextResponse.json({ map });
   }

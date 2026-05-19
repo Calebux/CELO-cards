@@ -1,13 +1,101 @@
 import { Redis } from "@upstash/redis";
 
-// Shared Upstash Redis client — works in Vercel serverless + Edge
-if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-  throw new Error("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set.");
+export const isRedisConfigured = Boolean(
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+);
+
+type RedisLike = {
+  get<T>(key: string): Promise<T | null>;
+  set(
+    key: string,
+    value: unknown,
+    options?: { ex?: number; nx?: boolean; xx?: boolean }
+  ): Promise<"OK" | null>;
+  del(...keys: string[]): Promise<number>;
+  sadd(key: string, ...members: string[]): Promise<number>;
+  srem(key: string, ...members: string[]): Promise<number>;
+  smembers(key: string): Promise<string[]>;
+  mget<T>(...keys: string[]): Promise<(T | null)[]>;
+  incr(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<number>;
+  lpush(key: string, ...values: string[]): Promise<number>;
+  lrange<T>(key: string, start: number, end: number): Promise<T[]>;
+  scan(cursor: string, options?: { match?: string; count?: number }): Promise<[string, string[]]>;
+  keys(pattern: string): Promise<string[]>;
+};
+
+function createDisabledRedis(): RedisLike {
+  let warned = false;
+  const warn = () => {
+    if (warned) return;
+    warned = true;
+    console.warn("Redis disabled: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not set. Falling back to empty in-memory responses.");
+  };
+
+  return {
+    async get<T>() {
+      warn();
+      return null as T | null;
+    },
+    async set(_key, _value, options) {
+      warn();
+      if (options?.nx) return "OK";
+      return "OK";
+    },
+    async del() {
+      warn();
+      return 0;
+    },
+    async sadd() {
+      warn();
+      return 0;
+    },
+    async srem() {
+      warn();
+      return 0;
+    },
+    async smembers() {
+      warn();
+      return [];
+    },
+    async mget<T>(...keys: string[]) {
+      warn();
+      return keys.map(() => null) as (T | null)[];
+    },
+    async incr() {
+      warn();
+      return 1;
+    },
+    async expire() {
+      warn();
+      return 1;
+    },
+    async lpush() {
+      warn();
+      return 0;
+    },
+    async lrange<T>() {
+      warn();
+      return [] as T[];
+    },
+    async scan() {
+      warn();
+      return ["0", []];
+    },
+    async keys() {
+      warn();
+      return [];
+    },
+  };
 }
-export const redis = new Redis({
-  url:   process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+
+// Shared Upstash Redis client — works in Vercel serverless + Edge
+export const redis: RedisLike = isRedisConfigured
+  ? (new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    }) as unknown as RedisLike)
+  : createDisabledRedis();
 
 const MATCH_ARCHIVE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days — long owner resume window without permanent garbage
 const OPEN_MATCHES_KEY = "open_matches";

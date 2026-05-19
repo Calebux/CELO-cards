@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { fetchVerifiedPhoneMap } from "../lib/useVerifiedPhone";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -50,6 +51,7 @@ export default function Leaderboard() {
   const [tab, setTab] = useState<Tab>("casual");
   const [players, setPlayers] = useState<Player[]>([]);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
+  const [verifiedPhones, setVerifiedPhones] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -98,6 +100,13 @@ export default function Leaderboard() {
             .then((r) => r.json())
             .then((u: { map: Record<string, string> }) => setUsernames(u.map ?? {}))
             .catch(() => {});
+          if (isMp) {
+            void fetchVerifiedPhoneMap(list.map((player) => player.address.toLowerCase()))
+              .then(setVerifiedPhones)
+              .catch(() => {});
+          } else {
+            setVerifiedPhones({});
+          }
         }
       })
       .catch(() => { setLoading(false); setFetchError(true); });
@@ -276,7 +285,8 @@ export default function Leaderboard() {
 
                       {/* Name / Address */}
                       {(() => {
-                        const displayName = usernames[p.address.toLowerCase()] ?? p.name;
+                        const phoneLabel = verifiedPhones[p.address.toLowerCase()];
+                        const displayName = phoneLabel ?? usernames[p.address.toLowerCase()] ?? p.name;
                         return (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -295,7 +305,7 @@ export default function Leaderboard() {
                               </span>
                             )}
                           </div>
-                          {displayName && (
+                          {displayName && !isMp && (
                             <span style={{ fontSize: isCompact ? 13 : 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
                               {truncateAddress(p.address)}
                             </span>

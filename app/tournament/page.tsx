@@ -9,6 +9,7 @@ import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { useMobileViewportMode } from "../lib/mobile";
 import { useMiniPayMode } from "../lib/premiumPayments";
+import { fetchVerifiedPhoneMap } from "../lib/useVerifiedPhone";
 
 const BOUNTY_EXTENSION_DAYS = 5;
 
@@ -44,44 +45,6 @@ function useCountdown() {
   return time;
 }
 
-const HOW_IT_WORKS = [
-  {
-    step: "01",
-    title: "SET YOUR USERNAME",
-    body: "Claim a username so rivals know who they're facing. Your name appears on the leaderboard and in matches.",
-    icon: "🎮",
-    color: "#56a4cb",
-  },
-  {
-    step: "02",
-    title: "ACTIVATE YOUR PASS",
-    body: "Buy a Season Pass to unlock ranked play. Your pass keeps you eligible for leaderboard climbs, weekly rewards, and tournament qualification without repeated match-fee prompts.",
-    icon: "🎫",
-    color: "#fbbf24",
-  },
-  {
-    step: "03",
-    title: "PLAY RANKED MATCHES",
-    body: "Every ranked match you win earns Points. Beat higher-ranked opponents for bonus multipliers.",
-    icon: "⚔️",
-    color: "#f59e0b",
-  },
-  {
-    step: "04",
-    title: "CLIMB THE BOARD",
-    body: "The bounty window now runs 5 extra days. Keep climbing until the countdown ends to improve your standing.",
-    icon: "📈",
-    color: "#a855f7",
-  },
-  {
-    step: "05",
-    title: "TOP PLAYER WINS",
-    body: "The #1 ranked player when the extended countdown hits zero wins the full prize pool in G$ — streamed straight to their wallet.",
-    icon: "💰",
-    color: "#4ade80",
-  },
-];
-
 export default function WeeklyChallengePage() {
   const isMp = useMiniPayMode();
   const isMobileViewport = useMobileViewportMode();
@@ -94,6 +57,7 @@ export default function WeeklyChallengePage() {
   const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
+  const [verifiedPhones, setVerifiedPhones] = useState<Record<string, string>>({});
   const [rank, setRank] = useState<number | null>(null);
   const [points, setPoints] = useState<number | null>(null);
 
@@ -105,6 +69,45 @@ export default function WeeklyChallengePage() {
   const [nameSuccess, setNameSuccess] = useState(false);
 
   const countdown = useCountdown();
+  const howItWorks = [
+    {
+      step: "01",
+      title: "SET YOUR USERNAME",
+      body: "Claim a username so rivals know who they're facing. Your name appears on the leaderboard and in matches.",
+      icon: "🎮",
+      color: "#56a4cb",
+    },
+    {
+      step: "02",
+      title: "ACTIVATE YOUR PASS",
+      body: "Buy a Season Pass to unlock ranked play. Your pass keeps you eligible for leaderboard climbs, weekly rewards, and tournament qualification without repeated match-fee prompts.",
+      icon: "🎫",
+      color: "#fbbf24",
+    },
+    {
+      step: "03",
+      title: "PLAY RANKED MATCHES",
+      body: "Every ranked match you win earns Points. Beat higher-ranked opponents for bonus multipliers.",
+      icon: "⚔️",
+      color: "#f59e0b",
+    },
+    {
+      step: "04",
+      title: "CLIMB THE BOARD",
+      body: "The bounty window now runs 5 extra days. Keep climbing until the countdown ends to improve your standing.",
+      icon: "📈",
+      color: "#a855f7",
+    },
+    {
+      step: "05",
+      title: "TOP PLAYER WINS",
+      body: isMp
+        ? "The #1 ranked player when the extended countdown hits zero claims the full tournament reward straight to their wallet."
+        : "The #1 ranked player when the extended countdown hits zero wins the full prize pool in G$ — streamed straight to their wallet.",
+      icon: "💰",
+      color: "#4ade80",
+    },
+  ];
 
   // Scale transform
   useEffect(() => {
@@ -128,7 +131,7 @@ export default function WeeklyChallengePage() {
     scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
-  }, []);
+  }, [isMp]);
 
   // Fetch leaderboard
   const fetchLeaderboard = useCallback(() => {
@@ -141,14 +144,19 @@ export default function WeeklyChallengePage() {
         // Fetch usernames for all displayed addresses
         const addrs = list.map((p) => p.address).join(",");
         if (addrs) {
-          return fetch(`/api/username?addresses=${addrs}`)
+          return Promise.all([
+            fetch(`/api/username?addresses=${addrs}`)
             .then((r) => r.json())
-            .then((u: { map: Record<string, string> }) => setUsernames(u.map ?? {}));
+            .then((u: { map: Record<string, string> }) => setUsernames(u.map ?? {})),
+            isMp
+              ? fetchVerifiedPhoneMap(list.map((player) => player.address.toLowerCase())).then(setVerifiedPhones)
+              : Promise.resolve(setVerifiedPhones({})),
+          ]);
         }
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [isMp]);
 
   useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
 
@@ -201,12 +209,14 @@ export default function WeeklyChallengePage() {
   }, [address, nameInput, fetchLeaderboard]);
 
   function displayName(p: LeaderboardPlayer) {
+    const phoneLabel = verifiedPhones[p.address.toLowerCase()];
+    if (phoneLabel) return phoneLabel;
     if (p.name) return p.name;
     const name = usernames[p.address.toLowerCase()];
-    return name ?? `${p.address.slice(0, 6)}…${p.address.slice(-4)}`;
+    return name ?? (isMp ? `Player ${p.address.slice(-4).toUpperCase()}` : `${p.address.slice(0, 6)}…${p.address.slice(-4)}`);
   }
 
-  const prizeDisplay = "120,000 G$";
+  const prizeDisplay = isMp ? "120,000 Points" : "120,000 G$";
   const qualified = rank !== null && rank <= 1;
 
   return (
@@ -393,9 +403,11 @@ export default function WeeklyChallengePage() {
                             {displayName(p)}
                             {isMe && <span style={{ marginLeft: 6, fontSize: 10, color: "#4ade80", fontWeight: 800 }}>YOU</span>}
                           </div>
-                          <div style={{ fontSize: 10, color: "#475569", marginTop: 1, fontFamily: "monospace" }}>
-                            {p.address.slice(0, 6)}…{p.address.slice(-4)}
-                          </div>
+                          {!isMp ? (
+                            <div style={{ fontSize: 10, color: "#475569", marginTop: 1, fontFamily: "monospace" }}>
+                              {p.address.slice(0, 6)}…{p.address.slice(-4)}
+                            </div>
+                          ) : null}
                         </div>
                         <div style={{ display: "flex", gap: 16, alignItems: "center", flexShrink: 0 }}>
                           <div style={{ textAlign: "right" }}>
@@ -419,7 +431,7 @@ export default function WeeklyChallengePage() {
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 14 }}>HOW IT WORKS</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                {HOW_IT_WORKS.map((item) => (
+                {howItWorks.map((item) => (
                   <div key={item.step} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${item.color}28`, borderRadius: 8, padding: "16px 14px", position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", top: -6, right: 10, fontSize: 48, fontWeight: 900, color: `${item.color}0d`, letterSpacing: -2, lineHeight: 1, userSelect: "none" }}>{item.step}</div>
                     <div style={{ fontSize: 20, marginBottom: 6 }}>{item.icon}</div>
@@ -480,7 +492,7 @@ export default function WeeklyChallengePage() {
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>YOUR STATUS</div>
               {!address ? (
                 <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6 }}>
-                  Connect your wallet to see your ranking and compete for the prize pool.
+                  {isMp ? "Waiting for MiniPay wallet to load your ranking and tournament status." : "Connect your wallet to see your ranking and compete for the prize pool."}
                 </div>
               ) : rank === null ? (
                 <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6 }}>

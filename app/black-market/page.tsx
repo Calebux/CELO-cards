@@ -156,7 +156,7 @@ export default function BlackMarket() {
     }
 
     if (!connected || !activeAddress) {
-      throw new Error("Connect your wallet first.");
+      throw new Error(isMp ? "MiniPay wallet is still loading. Try again in a moment." : "Connect your wallet first.");
     }
 
     if (activeChainId !== celo.id) {
