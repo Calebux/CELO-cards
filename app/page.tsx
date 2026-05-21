@@ -8,19 +8,21 @@ import { useMiniPayMode } from './lib/premiumPayments';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 
-const WalletSection = dynamic(() => import('./components/WalletSection').then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
-const SeasonPassModal = dynamic(() => import('./components/SeasonPassModal').then(m => ({ default: m.SeasonPassModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
-const ResumeMatchBanner = dynamic(() => import('./components/ResumeMatchBanner').then(m => ({ default: m.ResumeMatchBanner })), { ssr: false });
+
+type LandingWalletHudComponent = React.ComponentType<{ isMiniPay: boolean }>;
+type LandingSeasonPassButtonComponent = React.ComponentType<{ isCompact: boolean; isMiniPay: boolean }>;
 
 export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [showDeferredWalletUi, setShowDeferredWalletUi] = useState(false);
+  const [LandingWalletHudComponent, setLandingWalletHudComponent] = useState<LandingWalletHudComponent | null>(null);
+  const [LandingSeasonPassButtonComponent, setLandingSeasonPassButtonComponent] = useState<LandingSeasonPassButtonComponent | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
-  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const tournamentPrizeDisplay = isMp ? "120,000 POINTS" : "120,000 G$";
   const tournamentPrizeLabel = isMp ? "SEASON PRIZE POOL" : "PRIZE POOL";
   const tournamentRewardCopy = isMp
@@ -44,11 +46,46 @@ export default function ActionOrderLandingPage() {
   }, []);
 
   useEffect(() => {
-    // Re-run when showLoader changes: the canvas is only in the DOM after the
-    // loading screen disappears, so the scale calculation must run again then.
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    let cancelled = false;
+    const show = () => {
+      void Promise.all([
+        import('./components/LandingWalletHud'),
+        import('./components/LandingSeasonPassButton'),
+      ]).then(([walletHud, seasonPass]) => {
+        if (cancelled) return;
+        setLandingWalletHudComponent(() => walletHud.LandingWalletHud);
+        setLandingSeasonPassButtonComponent(() => seasonPass.LandingSeasonPassButton);
+        setShowDeferredWalletUi(true);
+      }).catch(() => {});
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(show, { timeout: 1800 });
+      return () => {
+        cancelled = true;
+        idleWindow.cancelIdleCallback?.(handle);
+      };
+    }
+
+    const timeout = window.setTimeout(show, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    // The root layout already computes --ao-tr before first paint. Only
+    // refresh it on later viewport changes so the landing page does not
+    // force an extra synchronous layout pass during hydration.
     if (showLoader) return;
     const scale = () => {
-      if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
@@ -64,9 +101,8 @@ export default function ActionOrderLandingPage() {
         const ty = (vh - DESIGN_H * s) / 2;
         transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
-      wrapRef.current.style.transform = transform;
+      document.documentElement.style.setProperty("--ao-tr", transform);
     };
-    scale();
     window.addEventListener("resize", scale);
     return () => window.removeEventListener("resize", scale);
   }, [showLoader]);
@@ -313,8 +349,9 @@ export default function ActionOrderLandingPage() {
               </div>
 
               {/* Right: wallet */}
-              <WalletSection />
+              <div style={{ width: isMp ? 320 : 220, height: isMp ? 54 : 40 }} />
             </div>
+            {showDeferredWalletUi && LandingWalletHudComponent ? <LandingWalletHudComponent isMiniPay={isMp} /> : null}
 
             {/* ── Tournament Live Banner — centered, blinking ───────── */}
             <a href="/tournament" style={{
@@ -355,8 +392,6 @@ export default function ActionOrderLandingPage() {
             )}
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
-            <ResumeMatchBanner isMiniPay={isMp} />
-
             {/* ── Left Nav ─────────────────────────────────────────── */}
             <Link className="ko-nav-btn ko-btn-create" href="/create">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -399,17 +434,22 @@ export default function ActionOrderLandingPage() {
                   <svg width={isCompact ? 18 : 16} height={isCompact ? 18 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   BLACK MARKET
                 </Link>
-                <button onClick={() => setShowSeasonPassModal(true)} style={{
-                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
-                  background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
-                  border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
-                  color:"#fbbf24", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
-                  animation:"ko-tournament-blink 1.4s ease-in-out infinite",
-                  clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
-                  cursor:"pointer", fontFamily:"inherit",
-                }}>
-                  ⚡ SEASON PASS
-                </button>
+                {showDeferredWalletUi && LandingSeasonPassButtonComponent ? (
+                  <LandingSeasonPassButtonComponent isCompact={isCompact} isMiniPay={isMp} />
+                ) : (
+                  <div
+                    style={{
+                      display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
+                      background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
+                      border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
+                      color:"#fbbf24", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                      clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                      opacity: 0.8,
+                    }}
+                  >
+                    ⚡ SEASON PASS
+                  </div>
+                )}
                 <button onClick={() => setShowHowToPlay(true)} style={{
                   display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
@@ -473,7 +513,6 @@ export default function ActionOrderLandingPage() {
         </div>
       </div>
       {showHowToPlay && <HowToPlayModal onClose={() => setShowHowToPlay(false)} />}
-      {showSeasonPassModal && <SeasonPassModal onClose={() => setShowSeasonPassModal(false)} onActivated={() => setShowSeasonPassModal(false)} />}
     </>
   );
 }
