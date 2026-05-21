@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { MiniPayImage } from './components/MiniPayImage';
@@ -18,7 +18,6 @@ export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
-  const wrapRef = useRef<HTMLDivElement>(null);
   const [showDeferredWalletUi, setShowDeferredWalletUi] = useState(false);
   const [LandingWalletHudComponent, setLandingWalletHudComponent] = useState<LandingWalletHudComponent | null>(null);
   const [LandingSeasonPassButtonComponent, setLandingSeasonPassButtonComponent] = useState<LandingSeasonPassButtonComponent | null>(null);
@@ -82,8 +81,8 @@ export default function ActionOrderLandingPage() {
 
   useEffect(() => {
     // The root layout already computes --ao-tr before first paint. Only
-    // refresh it on later viewport changes so the landing page does not
-    // force an extra synchronous layout pass during hydration.
+    // do one deferred correction plus later viewport updates. MiniPay's
+    // WebView can settle to its final size after the prepaint script runs.
     if (showLoader) return;
     const scale = () => {
       const vw = window.innerWidth;
@@ -103,8 +102,17 @@ export default function ActionOrderLandingPage() {
       }
       document.documentElement.style.setProperty("--ao-tr", transform);
     };
+    const raf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scale);
+    });
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    viewport?.addEventListener("resize", scale);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", scale);
+      viewport?.removeEventListener("resize", scale);
+    };
   }, [showLoader]);
 
   if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
@@ -322,7 +330,7 @@ export default function ActionOrderLandingPage() {
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
-        <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
+        <div className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
           <div className="ko-land-page">
 
             {/* LCP hero — serve the already-optimized WebP directly to avoid image optimizer overhead on first paint. */}
