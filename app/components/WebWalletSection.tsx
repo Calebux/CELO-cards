@@ -5,7 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, useConnect, useConnectors, useReadContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { formatUnits } from "viem";
-import { formatAddress } from "../lib/minipay";
+import { formatAddress } from "../lib/minipayRuntime";
 import { useGameStore } from "../lib/gameStore";
 import { isMuted } from "../lib/soundManager";
 import { SoundSettings } from "./SoundSettings";

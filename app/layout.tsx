@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { headers } from "next/headers";
-import "./globals.css";
+import { GLOBAL_CSS } from "./lib/globalCss";
 // Material Icons moved to globals.css as self-hosted @font-face with font-display:swap
 // (was: package import that loaded all 5 variants with font-display:block — render-blocking)
 
@@ -85,6 +85,7 @@ export default async function RootLayout({
         <link rel="preload" href="/new-assets/landing-hero.webp" as="image" type="image/webp" fetchPriority="high" />
         {/* Material Icons font — preload so it starts alongside HTML, not after CSS parses */}
         <link rel="preload" href="/material-icons.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
         {/* Warm up Alchemy RPC connection before wagmi makes its first call */}
         <link rel="dns-prefetch" href="https://celo-mainnet.g.alchemy.com" />
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />

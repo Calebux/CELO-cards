@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useState } from "react";
-import { isMiniPay } from "./minipay";
+import { isMiniPay } from "./minipayRuntime";
 
 export type PremiumPaymentCurrency = "celo" | "gdollar" | "usdt";
 

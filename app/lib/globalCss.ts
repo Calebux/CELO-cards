@@ -1,4 +1,4 @@
-:root {
+export const GLOBAL_CSS = String.raw`:root {
   --font-space-grotesk: "Space Grotesk", "Ruda", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-ruda: "Ruda", "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -48,8 +48,6 @@ canvas {
   display: none !important;
 }
 
-/* Self-hosted Material Icons (filled only) — font-display:swap avoids render-blocking.
-   The package import in layout.tsx loaded all 5 variants (800KB+); this loads only filled (125KB). */
 @font-face {
   font-family: "Material Icons";
   font-style: normal;
@@ -57,6 +55,7 @@ canvas {
   font-display: swap;
   src: url("/material-icons.woff2") format("woff2");
 }
+
 .material-icons {
   font-family: "Material Icons";
   font-weight: normal;
@@ -88,78 +87,76 @@ body {
     linear-gradient(160deg, #050810 0%, #0a1428 50%, #060c1e 100%);
 }
 
-@layer components {
-    .ko-btn {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        cursor: pointer;
-        text-decoration: none;
-        background: rgba(15, 23, 42, 0.85);
-        border: 1px solid rgba(86, 164, 203, 0.3);
-        border-radius: 6px;
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        backdrop-filter: blur(8px);
-        overflow: hidden;
-    }
+.ko-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(86, 164, 203, 0.3);
+  border-radius: 6px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
 
-    .ko-btn::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(90deg, transparent, rgba(86, 164, 203, 0.1), transparent);
-        transform: translateX(-100%);
-        transition: 0.5s;
-    }
+.ko-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(86, 164, 203, 0.1), transparent);
+  transform: translateX(-100%);
+  transition: 0.5s;
+}
 
-    .ko-btn:hover::before {
-        transform: translateX(100%);
-    }
+.ko-btn:hover::before {
+  transform: translateX(100%);
+}
 
-    .ko-btn-primary {
-        background: linear-gradient(135deg, rgba(34, 47, 66, 0.95), rgba(86, 164, 203, 0.25));
-        border: 1.5px solid #56a4cb;
-        box-shadow: 0 0 15px rgba(86, 164, 203, 0.4), inset 0 0 20px rgba(86, 164, 203, 0.1);
-        clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
-    }
+.ko-btn-primary {
+  background: linear-gradient(135deg, rgba(34, 47, 66, 0.95), rgba(86, 164, 203, 0.25));
+  border: 1.5px solid #56a4cb;
+  box-shadow: 0 0 15px rgba(86, 164, 203, 0.4), inset 0 0 20px rgba(86, 164, 203, 0.1);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+}
 
-    .ko-btn-primary:hover {
-        box-shadow: 0 0 20px rgba(86, 164, 203, 0.6), inset 0 0 30px rgba(86, 164, 203, 0.2);
-        border-color: rgba(86, 164, 203, 0.8);
-        background: rgba(30, 41, 59, 0.9);
-        transform: translateY(-2px);
-    }
+.ko-btn-primary:hover {
+  box-shadow: 0 0 20px rgba(86, 164, 203, 0.6), inset 0 0 30px rgba(86, 164, 203, 0.2);
+  border-color: rgba(86, 164, 203, 0.8);
+  background: rgba(30, 41, 59, 0.9);
+  transform: translateY(-2px);
+}
 
-    .ko-btn-primary:hover .ko-btn-text {
-        text-shadow: 0 0 8px rgba(185, 231, 244, 0.4);
-    }
+.ko-btn-primary:hover .ko-btn-text {
+  text-shadow: 0 0 8px rgba(185, 231, 244, 0.4);
+}
 
-    .ko-btn-primary:hover .ko-btn-icon {
-        transform: scale(1.1);
-        filter: drop-shadow(0 0 4px rgba(86, 164, 203, 0.8));
-    }
+.ko-btn-primary:hover .ko-btn-icon {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 4px rgba(86, 164, 203, 0.8));
+}
 
-    .ko-btn-secondary {
-        background: rgba(10, 6, 14, 0.5);
-        border: 0.75px solid #b9e7f4;
-    }
+.ko-btn-secondary {
+  background: rgba(10, 6, 14, 0.5);
+  border: 0.75px solid #b9e7f4;
+}
 
-    .ko-btn-secondary:hover {
-        background: rgba(20, 31, 46, 0.7);
-        border-color: #56a4cb;
-        box-shadow: 0 0 10px rgba(86, 164, 203, 0.2);
-    }
+.ko-btn-secondary:hover {
+  background: rgba(20, 31, 46, 0.7);
+  border-color: #56a4cb;
+  box-shadow: 0 0 10px rgba(86, 164, 203, 0.2);
+}
 
-    .ko-btn-secondary.active {
-        background: #56a4cb;
-        border: 1.5px solid #222f42;
-        box-shadow: 0px 0px 15px 0px rgba(140, 37, 244, 0.4);
-    }
+.ko-btn-secondary.active {
+  background: #56a4cb;
+  border: 1.5px solid #222f42;
+  box-shadow: 0px 0px 15px 0px rgba(140, 37, 244, 0.4);
 }
 
 .absolute { position: absolute; }
@@ -237,4 +234,6 @@ body {
   transition-duration: 150ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .duration-500 { transition-duration: 500ms; }
+`;

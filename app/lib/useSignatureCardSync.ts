@@ -3,7 +3,7 @@
 import { useAccount, useSignMessage } from "wagmi";
 import { ATTUNEMENT_LIMIT, buildCardProgressAuthMessage } from "./cardProgress";
 import { useGameStore } from "./gameStore";
-import { isMiniPay } from "./minipay";
+import { isMiniPay } from "./minipayRuntime";
 
 type AttunementSnapshot = {
   attunedCardIds: string[];
