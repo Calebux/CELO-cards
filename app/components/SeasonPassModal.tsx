@@ -9,7 +9,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
-import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -445,7 +445,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
-                onClick={() => window.open("https://minipay.opera.com/add_cash", "_blank")}
+                onClick={() => window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank")}
                 style={{
                   padding: isMp ? "36px 32px" : "12px 32px", borderRadius: 7,
                   background: "linear-gradient(135deg, #26a17b22, #26a17b44)",
@@ -502,6 +502,11 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             {!isMp && (
               <div style={{ padding: "10px 24px 0", fontSize: 11, lineHeight: 1.45, color: "rgba(148,163,184,0.92)" }}>
                 Web season passes support <span style={{ color: "#56a4cb", fontWeight: 700 }}>CELO</span> or <span style={{ color: "#00C58E", fontWeight: 700 }}>G$</span>.
+              </div>
+            )}
+            {isMp && (
+              <div style={{ padding: "10px 24px 0", fontSize: 11, lineHeight: 1.45, color: "rgba(148,163,184,0.92)" }}>
+                {MINIPAY_STABLECOIN_EXPLAINER}
               </div>
             )}
 

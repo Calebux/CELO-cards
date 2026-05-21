@@ -624,7 +624,7 @@ export default function CreateMatch() {
                       : matchType === "vshouse"
                         ? "Choose your character, then face the house across all 5 fights"
                         : isMp
-                          ? "MiniPay wagers and premium payments use USDT"
+                          ? "MiniPay mode uses USDT only for wagers and premium payments"
                           : "Secure connection via Celo network"
                     : "Use the Connect button in the top right ↗"}
                 </p>

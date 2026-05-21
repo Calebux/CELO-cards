@@ -18,7 +18,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar"
 import { useGameStore } from "../lib/gameStore";
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
-import { getInitialMiniPayMode, useMiniPayMode } from "../lib/premiumPayments";
+import { getInitialMiniPayMode, MINIPAY_STABLECOIN_EXPLAINER, MINIPAY_STABLECOIN_SHORT, useMiniPayMode } from "../lib/premiumPayments";
 
 type Props = {
   onConfirmed: () => void;
@@ -529,6 +529,19 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
           </div>
         )}
 
+        {isMp && !miniPayCurrencyMismatch && (
+          <div style={{
+            marginBottom: 12, padding: "10px 14px",
+            background: "rgba(38,161,123,0.08)",
+            border: "1px solid rgba(38,161,123,0.3)",
+            borderRadius: 6,
+          }}>
+            <span style={{ fontSize: 11, color: "#34d399", fontWeight: 700, letterSpacing: 0.3 }}>
+              {MINIPAY_STABLECOIN_EXPLAINER}
+            </span>
+          </div>
+        )}
+
         {/* G$ streaming badge */}
         {currency === "gdollar" && (
           <div style={{
@@ -572,6 +585,11 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
           {lockedAmountRaw && (
             <p style={{ fontSize: 11, color: "#6b7280", margin: "6px 0 0", letterSpacing: 0.3 }}>
               Amount and token are set by the match host.
+            </p>
+          )}
+          {isMp && !lockedAmountRaw && (
+            <p style={{ fontSize: 11, color: "#6b7280", margin: "6px 0 0", letterSpacing: 0.3 }}>
+              {MINIPAY_STABLECOIN_SHORT}
             </p>
           )}
         </div>

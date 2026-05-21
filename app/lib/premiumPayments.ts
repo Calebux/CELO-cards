@@ -5,6 +5,12 @@ import { isMiniPay } from "./minipay";
 
 export type PremiumPaymentCurrency = "celo" | "gdollar" | "usdt";
 
+export const MINIPAY_DEPOSIT_DEEPLINK = "https://link.minipay.xyz/add_cash?tokens=USDT";
+export const MINIPAY_STABLECOIN_EXPLAINER =
+  "MiniPay mode uses USDT only right now. If your funds are in another stablecoin, swap to USDT in MiniPay before paying.";
+export const MINIPAY_STABLECOIN_SHORT =
+  "MiniPay mode uses USDT only right now.";
+
 export const PREMIUM_PAYMENT_META = {
   celo: {
     key: "celo" as const,

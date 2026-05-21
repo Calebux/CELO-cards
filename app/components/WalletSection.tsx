@@ -9,7 +9,7 @@ import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
 import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
-import { useMiniPayMode } from "../lib/premiumPayments";
+import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
 
 const WebWalletSection = dynamic(() => import("./WebWalletSection").then(m => ({ default: m.WebWalletSection })), { ssr: false });
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -95,7 +95,6 @@ function MuteButton() {
   );
 }
 
-const DEPOSIT_DEEPLINK = "https://minipay.opera.com/add_cash";
 const LOW_BALANCE_THRESHOLD = 0.50; // USDT
 
 export function WalletSection() {
@@ -189,7 +188,7 @@ export function WalletSection() {
         {showBalances ? <Balances address={address} enabled={showBalances} mp={mp} /> : null}
         {isLowBalance && (
           <a
-            href={DEPOSIT_DEEPLINK}
+            href={MINIPAY_DEPOSIT_DEEPLINK}
             style={{
               display: "flex", alignItems: "center", gap: 5,
               padding: "6px 12px",

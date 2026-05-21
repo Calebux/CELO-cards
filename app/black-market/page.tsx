@@ -22,7 +22,7 @@ import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -324,7 +324,7 @@ export default function BlackMarket() {
               <span style={{ fontSize: 12, color: "#f87171", flex: 1 }}>{buyError}</span>
               {isMp && (
                 <a
-                  href="https://minipay.opera.com/add_cash"
+                  href={MINIPAY_DEPOSIT_DEEPLINK}
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     padding: "6px 14px", flexShrink: 0,
@@ -352,6 +352,11 @@ export default function BlackMarket() {
                     <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1", maxWidth: 620 }}>
                       Rare black market cards you can buy, own permanently, and attune once unlocked.
                     </div>
+                    {isMp && (
+                      <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8", maxWidth: 620, lineHeight: 1.45 }}>
+                        {MINIPAY_STABLECOIN_EXPLAINER}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
