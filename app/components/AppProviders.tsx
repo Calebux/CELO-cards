@@ -37,7 +37,7 @@ export function AppProviders({
     };
   }, [isMiniPayUA]);
 
-  if (!ProviderComponent) return <>{children}</>;
+  if (!ProviderComponent) return null;
 
   return <ProviderComponent>{children}</ProviderComponent>;
 }

@@ -381,7 +381,7 @@ export default function ActionOrderLandingPage() {
 
             {/* ── G$ Claim Banner — hidden in MiniPay (USDT-only env) */}
             {!isMp && (
-            <Link href="/profile" style={{
+            <a href="/profile" style={{
               position:"absolute", left:36, top:72, width:180, zIndex:15,
               display:"flex", alignItems:"center", gap:8,
               padding:"7px 14px",
@@ -396,42 +396,42 @@ export default function ActionOrderLandingPage() {
                 <div style={{ fontSize:8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
                 <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
               </div>
-            </Link>
+            </a>
             )}
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
             {/* ── Left Nav ─────────────────────────────────────────── */}
-            <Link className="ko-nav-btn ko-btn-create" href="/create">
+            <a className="ko-nav-btn ko-btn-create" href="/create">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
               <span className="ko-btn-label">CREATE MATCH</span>
-            </Link>
+            </a>
 
-            <Link className="ko-nav-btn ko-btn-join" href="/join">
+            <a className="ko-nav-btn ko-btn-join" href="/join">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span className="ko-btn-label">JOIN MATCH</span>
-            </Link>
+            </a>
 
             <a className="ko-nav-btn ko-btn-tournament" href="/tournament">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
               <span className="ko-btn-label">TOURNAMENT</span>
             </a>
 
-            <Link className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
+            <a className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
               <span className="ko-btn-label">LEADERBOARD</span>
-            </Link>
+            </a>
 
-            <Link className="ko-nav-btn ko-btn-profile" href="/profile">
+            <a className="ko-nav-btn ko-btn-profile" href="/profile">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               <span className="ko-btn-label">PROFILE</span>
-            </Link>
+            </a>
 
             <LandingProgressBadge isCompact={isCompact} />
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isCompact ? 726 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
               <div style={{ display:"flex", gap:isCompact ? 16 : 12 }}>
-                <Link href="/black-market" style={{
+                <a href="/black-market" style={{
                   display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
                   border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",
@@ -441,7 +441,7 @@ export default function ActionOrderLandingPage() {
                 }}>
                   <svg width={isCompact ? 18 : 16} height={isCompact ? 18 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   BLACK MARKET
-                </Link>
+                </a>
                 {showDeferredWalletUi && LandingSeasonPassButtonComponent ? (
                   <LandingSeasonPassButtonComponent isCompact={isCompact} isMiniPay={isMp} />
                 ) : (

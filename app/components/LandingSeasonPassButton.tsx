@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import { LandingWebProviders } from "./LandingWebProviders";
+import { LandingMiniPayProviders } from "./LandingMiniPayProviders";
 
 const SeasonPassModal = dynamic(() => import("./SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
-const LandingWebProviders = dynamic(() => import("./LandingWebProviders").then(m => ({ default: m.LandingWebProviders })), { ssr: false });
-const LandingMiniPayProviders = dynamic(() => import("./LandingMiniPayProviders").then(m => ({ default: m.LandingMiniPayProviders })), { ssr: false });
 
 export function LandingSeasonPassButton({ isCompact, isMiniPay }: { isCompact: boolean; isMiniPay: boolean }) {
   const [open, setOpen] = useState(false);
