@@ -1,56 +1,31 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useGameStore } from './lib/gameStore';
-import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
 import { MiniPayImage } from './components/MiniPayImage';
 import { useMiniPayMode } from './lib/premiumPayments';
-import { useAccount } from 'wagmi';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 
 const WalletSection = dynamic(() => import('./components/WalletSection').then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const SeasonPassModal = dynamic(() => import('./components/SeasonPassModal').then(m => ({ default: m.SeasonPassModal })), { ssr: false });
+const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
+const ResumeMatchBanner = dynamic(() => import('./components/ResumeMatchBanner').then(m => ({ default: m.ResumeMatchBanner })), { ssr: false });
 
 export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
-  const { playerPoints, winStreak, matchPhase, matchId, playerRole, selectedCharacter, vsBot } = useGameStore();
-  const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
-  const { address } = useAccount();
-  const serverResumeMatch = useActiveMatchResume(address);
   const tournamentPrizeDisplay = isMp ? "120,000 POINTS" : "120,000 G$";
   const tournamentPrizeLabel = isMp ? "SEASON PRIZE POOL" : "PRIZE POOL";
   const tournamentRewardCopy = isMp
     ? "Top finishers earn leaderboard rewards and wallet prizes."
     : "Top 4 finishers win a G$ stream direct to their wallet — no claim needed.";
-
-  const resumeRoute = useMemo(() => {
-    if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
-    if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
-    if (matchPhase === "loadout") return "/loadout";
-    if (matchPhase === "lobby") return "/select-character";
-    if (matchPhase === "waiting-for-opponent" && matchId) return "/select-character";
-    return null;
-  }, [matchId, matchPhase, selectedCharacter]);
-
-  const effectiveResumeRoute = serverResumeMatch?.route ?? resumeRoute ?? null;
-
-  const handleResume = () => {
-    if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
-    if (effectiveResumeRoute) router.push(effectiveResumeRoute);
-  };
-
-
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {
@@ -96,35 +71,10 @@ export default function ActionOrderLandingPage() {
     return () => window.removeEventListener("resize", scale);
   }, [showLoader]);
 
-  useEffect(() => {
-    type IdleWindow = Window & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-
-    const idleWindow = window as IdleWindow;
-    const prefetch = () => {
-      void router.prefetch("/create");
-      void router.prefetch("/join");
-      void router.prefetch("/loadout");
-      void router.prefetch("/gameplay");
-    };
-
-    if (idleWindow.requestIdleCallback) {
-      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1500 });
-      return () => idleWindow.cancelIdleCallback?.(handle);
-    }
-
-    const timeout = window.setTimeout(prefetch, 900);
-    return () => window.clearTimeout(timeout);
-  }, [router]);
-
   if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 
   return (
     <>
-      <title>Action Order</title>
-      <link rel="preload" as="image" href="/new-assets/landing-hero.webp" fetchPriority="high" type="image/webp" />
       <style>{`
         .ko-land-page-wrapper {
           width: 1440px;
@@ -339,8 +289,8 @@ export default function ActionOrderLandingPage() {
         <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
           <div className="ko-land-page">
 
-            {/* Background — WebP served to all browsers; MiniPay gets /_next/image optimized version */}
-            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" minipayWidth={1280} minipayQuality={58} priority />
+            {/* LCP hero — serve the already-optimized WebP directly to avoid image optimizer overhead on first paint. */}
+            <img className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" loading="eager" decoding="async" fetchPriority="high" />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, rgba(5,8,18,0.82) 0%, rgba(5,8,18,0.22) 22%, rgba(5,8,18,0.22) 78%, rgba(5,8,18,0.82) 100%)", zIndex:1, pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 
@@ -405,23 +355,7 @@ export default function ActionOrderLandingPage() {
             )}
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
-            {effectiveResumeRoute && (
-              <button
-                onClick={handleResume}
-                style={{
-                position: "absolute", left: "50%", transform: "translateX(-50%)", top: isMp ? 126 : 118, zIndex: 16,
-                display: "flex", alignItems: "center", gap: 10, padding: isMp ? "10px 18px" : "8px 16px",
-                background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
-                border: "1px solid rgba(6,168,249,0.45)", borderRadius: 6, textDecoration: "none",
-                boxShadow: "0 0 14px rgba(6,168,249,0.28)",
-                fontFamily: "inherit",
-                cursor: "pointer",
-              }}
-              >
-                <span style={{ fontSize: isMp ? 12 : 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
-                <span style={{ fontSize: isMp ? 12 : 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Tap to Resume</span>
-              </button>
-            )}
+            <ResumeMatchBanner isMiniPay={isMp} />
 
             {/* ── Left Nav ─────────────────────────────────────────── */}
             <Link className="ko-nav-btn ko-btn-create" href="/create">
@@ -449,22 +383,7 @@ export default function ActionOrderLandingPage() {
               <span className="ko-btn-label">PROFILE</span>
             </Link>
 
-            <div className="ko-points-badge" style={{ top: isCompact ? 656 : 596 }}>
-              <span style={{ fontSize:isMp ? 18 : 16, flexShrink:0 }}>⚡</span>
-              <div style={{ display:"flex", flexDirection:"column" }}>
-                <span className="ko-points-label">Total Points</span>
-                <span className="ko-points-value">{playerPoints.toLocaleString()}</span>
-              </div>
-              {winStreak > 1 && (
-                <>
-                  <div style={{ width:1, height:24, background:"rgba(168,85,247,0.3)", marginLeft:8, marginRight:8 }} />
-                  <div style={{ display:"flex", flexDirection:"column" }}>
-                    <span className="ko-points-label" style={{ color: "#f97316" }}>Win Streak</span>
-                    <span className="ko-points-value" style={{ color: "#f97316", textShadow: "0 0 12px rgba(249,115,22,0.6)" }}>🔥 {winStreak}</span>
-                  </div>
-                </>
-              )}
-            </div>
+            <LandingProgressBadge isCompact={isCompact} />
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isCompact ? 726 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
