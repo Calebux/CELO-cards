@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
-const STEPS = [
+const FULL_STEPS = [
   {
     icon: "⚔️",
     title: "Play 1V1 Battles",
@@ -73,15 +73,50 @@ const STEPS = [
   },
 ];
 
+const QUICK_START_STEPS = [
+  {
+    icon: "🎮",
+    title: "Choose Your Fighter",
+    body: "Start by picking 1 of 5 fighters. Each one changes your play style through different stats, passives, and a one-time ultimate.",
+    color: "#56a4cb",
+  },
+  {
+    icon: "🃏",
+    title: "Build 5 Cards",
+    body: "Pick 5 cards and place them into slots 1–5 while staying inside your energy cap. Your order matters as much as the cards themselves.",
+    color: "#f97316",
+  },
+  {
+    icon: "⚡",
+    title: "Priority Wins The Slot",
+    body: "Each slot resolves at the same time. The card with higher Priority wins the clash and deals Knock damage. Win more slots to win the round.",
+    color: "#a855f7",
+  },
+  {
+    icon: "🎫",
+    title: "Buy A Season Pass",
+    body: "Ranked play runs through the Season Pass. Once active, you can keep playing ranked matches without stopping to pay each time.",
+    color: "#fbbf24",
+  },
+  {
+    icon: "🏆",
+    title: "Win 3 Rounds",
+    body: "Matches are first to 3 rounds. Adapt your order, read your opponent, and take the match before they do.",
+    color: "#4ade80",
+  },
+] as const;
+
 interface Props {
   onClose: () => void;
+  variant?: "quickstart" | "full";
 }
 
-export function HowToPlayModal({ onClose }: Props) {
+export function HowToPlayModal({ onClose, variant = "full" }: Props) {
   const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
-  const current = STEPS[step];
+  const steps = variant === "quickstart" ? QUICK_START_STEPS : FULL_STEPS;
+  const current = steps[step];
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -157,7 +192,7 @@ export function HowToPlayModal({ onClose }: Props) {
 
           {/* Header */}
           <div style={{ fontSize: isMp ? 11 : 9, fontWeight: 700, letterSpacing: 3, color: "#475569", textTransform: "uppercase", marginBottom: isMp ? 28 : 24 }}>
-            HOW TO PLAY — {step + 1} / {STEPS.length}
+            {variant === "quickstart" ? "QUICK START" : "HOW TO PLAY"} — {step + 1} / {steps.length}
           </div>
 
           {/* Step icon + title */}
@@ -171,7 +206,7 @@ export function HowToPlayModal({ onClose }: Props) {
 
           {/* Step dots */}
           <div style={{ display: "flex", gap: isMp ? 8 : 6, marginTop: isMp ? 34 : 28, marginBottom: isMp ? 28 : 24 }}>
-            {STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <button
                 key={i}
                 onClick={() => setStep(i)}
@@ -196,7 +231,7 @@ export function HowToPlayModal({ onClose }: Props) {
               </button>
             )}
             <button
-              onClick={() => step < STEPS.length - 1 ? setStep(step + 1) : onClose()}
+              onClick={() => step < steps.length - 1 ? setStep(step + 1) : onClose()}
               style={{
                 flex: 2, height: isMp ? 58 : 46,
                 background: `linear-gradient(135deg, ${current.color}25, ${current.color}10)`,
@@ -207,7 +242,7 @@ export function HowToPlayModal({ onClose }: Props) {
                 transition: "all 0.2s",
               }}
             >
-              {step < STEPS.length - 1 ? "NEXT →" : "GOT IT — LET'S PLAY"}
+              {step < steps.length - 1 ? "NEXT →" : variant === "quickstart" ? "START PLAYING" : "GOT IT — LET'S PLAY"}
             </button>
           </div>
         </div>

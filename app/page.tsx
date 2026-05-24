@@ -7,6 +7,7 @@ import { MiniPayImage } from './components/MiniPayImage';
 import { useMiniPayMode } from './lib/premiumPayments';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
+import { useGameStore } from './lib/gameStore';
 
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
@@ -16,12 +17,15 @@ type LandingSeasonPassButtonComponent = React.ComponentType<{ isCompact: boolean
 
 export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
+  const hasSeenTutorial = useGameStore((s) => s.hasSeenTutorial);
+  const setHasSeenTutorial = useGameStore((s) => s.setHasSeenTutorial);
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
   const [showDeferredWalletUi, setShowDeferredWalletUi] = useState(false);
   const [LandingWalletHudComponent, setLandingWalletHudComponent] = useState<LandingWalletHudComponent | null>(null);
   const [LandingSeasonPassButtonComponent, setLandingSeasonPassButtonComponent] = useState<LandingSeasonPassButtonComponent | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [howToPlayVariant, setHowToPlayVariant] = useState<"quickstart" | "full">("full");
   const tournamentPrizeDisplay = isMp ? "120,000 POINTS" : "120,000 G$";
   const tournamentPrizeLabel = isMp ? "SEASON PRIZE POOL" : "PRIZE POOL";
   const tournamentRewardCopy = isMp
@@ -114,6 +118,15 @@ export default function ActionOrderLandingPage() {
       viewport?.removeEventListener("resize", scale);
     };
   }, [showLoader]);
+
+  useEffect(() => {
+    if (showLoader || hasSeenTutorial) return;
+    const timeout = window.setTimeout(() => {
+      setHowToPlayVariant("quickstart");
+      setShowHowToPlay(true);
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [hasSeenTutorial, showLoader]);
 
   if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 
@@ -459,7 +472,10 @@ export default function ActionOrderLandingPage() {
                     ⚡ SEASON PASS
                   </div>
                 )}
-                <button onClick={() => setShowHowToPlay(true)} style={{
+                <button onClick={() => {
+                  setHowToPlayVariant("full");
+                  setShowHowToPlay(true);
+                }} style={{
                   display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
                   borderRadius:6, cursor:"pointer", fontFamily:"inherit",
@@ -522,7 +538,17 @@ export default function ActionOrderLandingPage() {
           </div>
         </div>
       </div>
-      {showHowToPlay && <HowToPlayModal onClose={() => setShowHowToPlay(false)} />}
+      {showHowToPlay && (
+        <HowToPlayModal
+          variant={howToPlayVariant}
+          onClose={() => {
+            if (howToPlayVariant === "quickstart") {
+              setHasSeenTutorial(true);
+            }
+            setShowHowToPlay(false);
+          }}
+        />
+      )}
     </>
   );
 }
