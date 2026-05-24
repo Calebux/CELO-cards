@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { createPortal } from "react-dom";
 import { LandingWebProviders } from "./LandingWebProviders";
 import { LandingMiniPayProviders } from "./LandingMiniPayProviders";
 
@@ -9,7 +10,13 @@ const SeasonPassModal = dynamic(() => import("./SeasonPassModal").then(m => ({ d
 
 export function LandingSeasonPassButton({ isCompact, isMiniPay }: { isCompact: boolean; isMiniPay: boolean }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const Provider = isMiniPay ? LandingMiniPayProviders : LandingWebProviders;
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   return (
     <>
@@ -18,6 +25,7 @@ export function LandingSeasonPassButton({ isCompact, isMiniPay }: { isCompact: b
         style={{
           display: "flex",
           alignItems: "center",
+          justifyContent: "center",
           gap: isCompact ? 12 : 8,
           padding: isCompact ? "15px 30px" : "10px 24px",
           background: "linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
@@ -32,15 +40,20 @@ export function LandingSeasonPassButton({ isCompact, isMiniPay }: { isCompact: b
           clipPath: "polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
           cursor: "pointer",
           fontFamily: "inherit",
+          whiteSpace: "nowrap",
+          lineHeight: 1,
         }}
       >
         ⚡ SEASON PASS
       </button>
-      {open ? (
-        <Provider>
-          <SeasonPassModal onClose={() => setOpen(false)} onActivated={() => setOpen(false)} />
-        </Provider>
-      ) : null}
+      {open && mounted
+        ? createPortal(
+            <Provider>
+              <SeasonPassModal onClose={() => setOpen(false)} onActivated={() => setOpen(false)} />
+            </Provider>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

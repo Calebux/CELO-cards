@@ -432,12 +432,13 @@ export default function ActionOrderLandingPage() {
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isCompact ? 726 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
               <div style={{ display:"flex", gap:isCompact ? 16 : 12 }}>
                 <a href="/black-market" style={{
-                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
                   border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",
                   color:"#fff", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
                   boxShadow:"0 0 20px rgba(239,68,68,0.35)", animation:"ko-pulse 2.5s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                  whiteSpace:"nowrap", lineHeight:1,
                 }}>
                   <svg width={isCompact ? 18 : 16} height={isCompact ? 18 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   BLACK MARKET
@@ -447,24 +448,25 @@ export default function ActionOrderLandingPage() {
                 ) : (
                   <div
                     style={{
-                      display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
+                      display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
                       background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
                       border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
                       color:"#fbbf24", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
                       clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
-                      opacity: 0.8,
+                      opacity: 0.8, whiteSpace:"nowrap", lineHeight:1,
                     }}
                   >
                     ⚡ SEASON PASS
                   </div>
                 )}
                 <button onClick={() => setShowHowToPlay(true)} style={{
-                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
                   borderRadius:6, cursor:"pointer", fontFamily:"inherit",
                   color:"#b9e7f4", fontSize:isCompact ? 17 : 13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
                   backdropFilter:"blur(8px)",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                  whiteSpace:"nowrap", lineHeight:1,
                 }}>
                   <svg width={isCompact ? 17 : 14} height={isCompact ? 17 : 14} viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                   HOW TO PLAY
