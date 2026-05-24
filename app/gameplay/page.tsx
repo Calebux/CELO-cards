@@ -629,7 +629,8 @@ export default function Gameplay() {
     if (vsBot) {
       if (upperChamberActive) {
         if (upperChamberRound < 4) {
-          // Advance to the next fighter in Upper Chamber
+          // Advance to the next fighter, briefly show the loading screen,
+          // then return to loadout so the player can rebuild their order.
           advanceUpperChamber(upperChamberRound + 1);
           setRevealedSlots(0);
           setSlotResults([]);
@@ -645,9 +646,8 @@ export default function Gameplay() {
           setShowShareCard(false);
           setPayoutState("idle");
           setPayoutTxHash(null);
-          autoLockOrder();
           setMatchLoading(true);
-          setTimeout(() => setMatchLoading(false), matchLoadingDurationMs);
+          setTimeout(() => router.push("/loadout"), matchLoadingDurationMs);
         } else {
           // All 5 fighters beaten — award 5000 bonus points and return to menu
           addBonusPoints(5000);

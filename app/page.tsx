@@ -26,11 +26,11 @@ export default function ActionOrderLandingPage() {
   const [LandingSeasonPassButtonComponent, setLandingSeasonPassButtonComponent] = useState<LandingSeasonPassButtonComponent | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [howToPlayVariant, setHowToPlayVariant] = useState<"quickstart" | "full">("full");
-  const tournamentPrizeDisplay = isMp ? "120,000 POINTS" : "120,000 G$";
-  const tournamentPrizeLabel = isMp ? "SEASON PRIZE POOL" : "PRIZE POOL";
+  const tournamentPrizeDisplay = "100 USDT";
+  const tournamentPrizeLabel = "TOURNAMENT PRIZE";
   const tournamentRewardCopy = isMp
-    ? "Top finishers earn leaderboard rewards and wallet prizes."
-    : "Top 4 finishers win a G$ stream direct to their wallet — no claim needed.";
+    ? "Top finishers earn leaderboard rewards and a 100 USDT tournament prize."
+    : "Top finishers compete for the 100 USDT tournament prize.";
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {

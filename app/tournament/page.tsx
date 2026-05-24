@@ -209,7 +209,7 @@ export default function WeeklyChallengePage() {
     return name ?? (isMp ? `Player ${p.address.slice(-4).toUpperCase()}` : `${p.address.slice(0, 6)}…${p.address.slice(-4)}`);
   }
 
-  const prizeDisplay = isMp ? "120,000 Points" : "120,000 G$";
+  const prizeDisplay = "100 USDT";
   const qualified = rank !== null && rank <= 1;
 
   return (

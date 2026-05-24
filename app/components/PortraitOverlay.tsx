@@ -18,36 +18,24 @@ export function PortraitOverlay() {
   });
 
   useEffect(() => {
-    // "fromRotation" is true only when called after a genuine orientationchange.
-    // Resize events can fire transiently during page navigation in MiniPay's
-    // WebView (brief landscape dims while the canvas unmounts/remounts).
-    // We must NOT reset dismissed on those — only on genuine physical rotation.
-    function check(fromRotation = false) {
+    function check() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const isPortrait = w < h;
       const isNarrow   = w < 600;
       setShow(isPortrait && isNarrow);
-      // Only reset dismissed when the device genuinely rotates back TO portrait.
-      // Resetting on rotation-to-landscape caused the overlay to re-appear on any
-      // transient resize event that MiniPay WebView fires during page navigation.
-      if (isPortrait && isNarrow && fromRotation) {
-        sessionStorage.removeItem(DISMISSED_KEY);
-        setDismissed(false);
-      }
     }
 
-    // MiniPay WebViews (and some Android browsers) fire orientationchange but
-    // NOT resize on device rotation. We listen to both and delay the check by
-    // 120ms after orientationchange so the viewport dimensions have updated.
+    // MiniPay WebViews (and some Android browsers) can delay viewport updates
+    // around rotation. Re-check after orientation changes, but do not re-arm
+    // the overlay once the player has dismissed it for this session.
     let orientationTimer: ReturnType<typeof setTimeout>;
     function onOrientationChange() {
       clearTimeout(orientationTimer);
-      orientationTimer = setTimeout(() => check(true), 150);
+      orientationTimer = setTimeout(() => check(), 150);
     }
 
     check();
-    // Wrap in arrow so the native Event object is not passed as fromRotation
     const onResize = () => check();
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onOrientationChange);

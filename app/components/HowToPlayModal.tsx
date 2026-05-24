@@ -75,6 +75,12 @@ const FULL_STEPS = [
 
 const QUICK_START_STEPS = [
   {
+    icon: "🎫",
+    title: "Buy A Season Pass",
+    body: "Ranked play runs through the Season Pass. Once active, you can keep playing ranked matches without stopping to pay each time.",
+    color: "#fbbf24",
+  },
+  {
     icon: "🎮",
     title: "Choose Your Fighter",
     body: "Start by picking 1 of 5 fighters. Each one changes your play style through different stats, passives, and a one-time ultimate.",
@@ -91,12 +97,6 @@ const QUICK_START_STEPS = [
     title: "Priority Wins The Slot",
     body: "Each slot resolves at the same time. The card with higher Priority wins the clash and deals Knock damage. Win more slots to win the round.",
     color: "#a855f7",
-  },
-  {
-    icon: "🎫",
-    title: "Buy A Season Pass",
-    body: "Ranked play runs through the Season Pass. Once active, you can keep playing ranked matches without stopping to pay each time.",
-    color: "#fbbf24",
   },
   {
     icon: "🏆",
