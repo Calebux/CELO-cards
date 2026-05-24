@@ -313,7 +313,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: isMp ? 920 : 620, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
+        width: isMp ? 1040 : 620, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",
