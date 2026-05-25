@@ -44,6 +44,14 @@ async function getWeb3Auth(): Promise<any> {
   return initPromise;
 }
 
+export async function primeWeb3AuthConnection(): Promise<void> {
+  const web3auth = await getWeb3Auth();
+  if (!web3auth.connected) {
+    const provider = await web3auth.connect();
+    if (!provider) throw new Error("Web3Auth: no provider after connect");
+  }
+}
+
 export function createWeb3AuthConnector() {
   return createConnector(() => ({
     id: "web3auth",

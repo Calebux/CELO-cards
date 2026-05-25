@@ -10,6 +10,7 @@ import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
 import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
+import { primeWeb3AuthConnection } from "../lib/web3auth";
 
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
@@ -219,7 +220,18 @@ export function LandingWalletSection() {
   const handleSignIn = () => {
     const connector = web3AuthConnector ?? fallbackConnector;
     if (!connector) return;
-    void connectAsync({ connector });
+    void (async () => {
+      try {
+        if (web3AuthConnector && connector.id === web3AuthConnector.id) {
+          await primeWeb3AuthConnection();
+        }
+        await connectAsync({ connector, chainId: celo.id });
+      } catch {
+        if (fallbackConnector && connector.id !== fallbackConnector.id) {
+          await connectAsync({ connector: fallbackConnector, chainId: celo.id }).catch(() => {});
+        }
+      }
+    })();
   };
 
   return (
