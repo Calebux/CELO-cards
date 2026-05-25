@@ -6,6 +6,12 @@ import { celo } from "wagmi/chains";
 import { isMiniPay } from "./minipayRuntime";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
+const DEFAULT_CELO_RPC = "https://forno.celo.org";
+const WEB3AUTH_RPC_TARGET = (() => {
+  const candidate = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL?.trim();
+  if (candidate && /^https?:\/\//i.test(candidate)) return candidate;
+  return DEFAULT_CELO_RPC;
+})();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let web3authInstance: any = null;
@@ -32,7 +38,7 @@ async function getWeb3Auth(): Promise<any> {
     const instance = new Web3AuthClass({
       clientId: CLIENT_ID,
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
-      chains: [{ ...fromViemChain(celo), rpcTarget: process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL ?? "" }],
+      chains: [{ ...fromViemChain(celo), rpcTarget: WEB3AUTH_RPC_TARGET }],
       defaultChainId: `0x${celo.id.toString(16)}`,
     });
 
