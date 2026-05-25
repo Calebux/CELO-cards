@@ -185,12 +185,28 @@ export function HowToPlayModal({ onClose, isMiniPay, variant = "full" }: Props) 
                 aria-label={`Go to step ${i + 1}: ${s.title}`}
                 onClick={() => setStep(i)}
                 style={{
-                  width: i === step ? (isMiniPay ? 30 : 24) : (isMiniPay ? 10 : 8), height: isMiniPay ? 10 : 8, borderRadius: 4,
-                  background: i === step ? current.color : i < step ? `${current.color}50` : "rgba(255,255,255,0.1)",
-                  border: "none", cursor: "pointer", padding: 0,
-                  transition: "all 0.25s",
+                  width: 44,
+                  height: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  flexShrink: 0,
                 }}
-              />
+              >
+                <span
+                  style={{
+                    width: i === step ? (isMiniPay ? 30 : 24) : (isMiniPay ? 10 : 8),
+                    height: isMiniPay ? 10 : 8,
+                    borderRadius: 4,
+                    background: i === step ? current.color : i < step ? `${current.color}50` : "rgba(255,255,255,0.1)",
+                    transition: "all 0.25s",
+                  }}
+                />
+              </button>
             ))}
           </div>
 
