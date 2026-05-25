@@ -369,7 +369,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               ))}
 
               <div style={{
-                width: 148, height: 200, borderRadius: 10, overflow: "hidden",
+                width: isMp ? 196 : 172, height: isMp ? 188 : 184, borderRadius: 10, overflow: "hidden",
                 border: "2px solid rgba(74,222,128,0.7)",
                 animation: existingPlan ? "sp-card-in 0.5s ease forwards" : "sp-card-in 0.4s ease forwards, sp-flip 0.7s ease 0.1s, sp-glow 2s ease 0.8s infinite",
                 position: "relative", flexShrink: 0,
