@@ -251,6 +251,10 @@ export default function CreateMatch() {
   const handleCreateMatch = async () => {
     if (!address) return;
     if (matchType === "vshouse") {
+      if (!hasSeasonPass) {
+        setShowSeasonPassModal(true);
+        return;
+      }
       resetMatch();
       setVsBot(true);
       setMatchMode(toStoreMode(matchType));
@@ -447,8 +451,8 @@ export default function CreateMatch() {
                   <p style={{ fontSize: isCompactPhone ? 13 : 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
 
-                {/* Season Pass callout — ranked only, hidden if user already has a pass */}
-                {matchType === "ranked" && !hasSeasonPass && (
+                {/* Season Pass callout — required for ranked + house event */}
+                {(matchType === "ranked" || matchType === "vshouse") && !hasSeasonPass && (
                   <div style={{
                     marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "10px 14px",
@@ -459,7 +463,11 @@ export default function CreateMatch() {
                       <span style={{ fontSize: 14 }}>⚡</span>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: 1 }}>SEASON PASS</div>
-                        <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>Unlock unlimited ranked matches during your active pass</div>
+                        <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>
+                          {matchType === "vshouse"
+                            ? "Unlock the House event and fight through the full 5/5 streak"
+                            : "Unlock unlimited ranked matches during your active pass"}
+                        </div>
                       </div>
                     </div>
                     <button
@@ -475,7 +483,7 @@ export default function CreateMatch() {
                     </button>
                   </div>
                 )}
-                {matchType === "ranked" && hasSeasonPass && (
+                {(matchType === "ranked" || matchType === "vshouse") && hasSeasonPass && (
                   <div style={{
                     marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
                     padding: "8px 14px",
@@ -484,7 +492,9 @@ export default function CreateMatch() {
                   }}>
                     <span style={{ fontSize: 13 }}>⚡</span>
                     <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>SEASON PASS ACTIVE</div>
-                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>— ranked unlocked</div>
+                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>
+                      — {matchType === "vshouse" ? "house event unlocked" : "ranked unlocked"}
+                    </div>
                   </div>
                 )}
 
