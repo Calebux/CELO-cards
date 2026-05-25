@@ -540,6 +540,7 @@ export default function ActionOrderLandingPage() {
       </div>
       {showHowToPlay && (
         <HowToPlayModal
+          isMiniPay={isMp}
           variant={howToPlayVariant}
           onClose={() => {
             if (howToPlayVariant === "quickstart") {
