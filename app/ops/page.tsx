@@ -359,6 +359,34 @@ export default function OpsPage() {
 
           <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#fbbf24", letterSpacing: 2, textTransform: "uppercase" }}>House Winner Rewards</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                {activity.house.winnerRewardsIssued} issued · ${activity.house.winnerRewardUsdTotal.toFixed(2)}
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: 10, marginBottom: 18 }}>
+              {activity.house.recentWinnerRewards.length === 0 && (
+                <div style={{ fontSize: 13, color: "#94a3b8" }}>No verified 5/5 House winners have been issued codes yet.</div>
+              )}
+              {activity.house.recentWinnerRewards.map((reward) => (
+                <div key={`${reward.matchId}-${reward.rewardCode}`} style={{ padding: "12px 12px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ fontWeight: 800 }}>{reward.playerName ?? shortHash(reward.playerAddress)}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: "#fbbf24", textTransform: "uppercase" }}>${reward.rewardUsd.toFixed(2)}</div>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
+                    Mirror clear · {reward.playerCharacterName} vs {reward.opponentCharacterName}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
+                    {reward.rewardCode} · {new Date(reward.verifiedAt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>Black Market Purchases</div>
               <div style={{ fontSize: 12, color: "#94a3b8" }}>
                 Buyers {activity.blackMarket.uniqueBuyers} · {ptsToDisplay(activity.blackMarket.revenuePoints)} total

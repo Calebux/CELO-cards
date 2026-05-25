@@ -11,8 +11,10 @@ import {
   deleteMatch,
   addToOpenMatches,
   removeFromOpenMatches,
+  removeOpenMatchSummary,
   setActiveMatchForAddress,
   clearActiveMatchForAddress,
+  setOpenMatchSummary,
 } from "../../../lib/redis";
 import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
@@ -22,6 +24,7 @@ import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJ
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
+import type { OpenMatchSummary } from "../../../lib/redis";
 
 const ROUND_GRACE_MS = 30 * 1000; // grace when one player has submitted and the other is reconnecting
 
@@ -35,6 +38,17 @@ function validMode(mode: unknown): mode is MultiplayerMode {
 
 function modeNeedsEntryTx(mode: MultiplayerMode): boolean {
   return mode === "wager" || mode === "ranked";
+}
+
+function buildOpenMatchSummary(matchId: string, match: ServerMatch): OpenMatchSummary {
+  return {
+    id: matchId,
+    hostName: match.host.playerName ?? null,
+    hostAddress: match.host.address ?? null,
+    createdAt: match.createdAt,
+    mode: match.mode,
+    hostCharSelected: !!match.host.charId,
+  };
 }
 
 function validWagerCurrency(currency: unknown): currency is WagerCurrency {
@@ -87,7 +101,10 @@ async function closePreviousHostRoom(address: string, currentMatchId: string): P
 
   closeJoinWindow(previousMatch);
   await setMatch(previousMatchId, previousMatch).catch(() => {});
-  await removeFromOpenMatches(previousMatchId).catch(() => {});
+  await Promise.allSettled([
+    removeFromOpenMatches(previousMatchId),
+    removeOpenMatchSummary(previousMatchId),
+  ]);
 }
 
 // GET — poll match state
@@ -106,7 +123,10 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     !match.joiner.charId &&
     !isJoinWindowOpen(match);
   if (joinInviteExpired) {
-    await removeFromOpenMatches(matchId).catch(() => {});
+    await Promise.allSettled([
+      removeFromOpenMatches(matchId),
+      removeOpenMatchSummary(matchId),
+    ]);
     return NextResponse.json({ error: "Match invite is inactive. Ask the host to resume it first." }, { status: 410 });
   }
 
@@ -185,7 +205,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     !existingMatch.joiner.charId &&
     !isJoinWindowOpen(existingMatch)
   ) {
-    await removeFromOpenMatches(matchId).catch(() => {});
+    await Promise.allSettled([
+      removeFromOpenMatches(matchId),
+      removeOpenMatchSummary(matchId),
+    ]);
     return NextResponse.json({ error: "Match invite is inactive. Ask the host to resume it first." }, { status: 410 });
   }
 
@@ -222,7 +245,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   // Track open/closed state in the lobby list
   if (role === "host") {
-    await addToOpenMatches(matchId).catch(() => {});
+    if (match) {
+      await Promise.allSettled([
+        addToOpenMatches(matchId),
+        setOpenMatchSummary(buildOpenMatchSummary(matchId, match)),
+      ]);
+    }
     // Backup alert path: if keepalive was skipped, notify on first host character registration.
     const notifyKey = `notify:new-match:${matchId}`;
     const shouldNotify = await redis
@@ -238,7 +266,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       }).catch(() => false);
     }
   } else if (role === "joiner") {
-    await removeFromOpenMatches(matchId).catch(() => {});
+    await Promise.allSettled([
+      removeFromOpenMatches(matchId),
+      removeOpenMatchSummary(matchId),
+    ]);
   }
 
   const activeAddress = role === "host" ? match?.host.address : match?.joiner.address;
@@ -326,7 +357,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     // Keep the match visible in open matches while waiting for a joiner
     if (validRole(role) && role === "host" && !match.joiner.charId) {
-      await addToOpenMatches(matchId).catch(() => {});
+      await Promise.allSettled([
+        addToOpenMatches(matchId),
+        setOpenMatchSummary(buildOpenMatchSummary(matchId, match)),
+      ]);
     }
     return NextResponse.json({ ok: true });
   }
@@ -389,7 +423,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
       }
     }
-    await removeFromOpenMatches(matchId).catch(() => {});
+    await Promise.allSettled([
+      removeFromOpenMatches(matchId),
+      removeOpenMatchSummary(matchId),
+    ]);
     if (abortedMatch?.host.address) {
       await clearActiveMatchForAddress(abortedMatch.host.address, matchId).catch(() => {});
     }
@@ -668,6 +705,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (m.joiner.address) {
       await clearActiveMatchForAddress(m.joiner.address, matchId).catch(() => {});
     }
+    await Promise.allSettled([
+      removeFromOpenMatches(matchId),
+      removeOpenMatchSummary(matchId),
+    ]);
   }
 
   if (!saved) {
@@ -681,7 +722,10 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
   const match = await getMatch<ServerMatch>(matchId);
   await deleteMatch(matchId);
-  await removeFromOpenMatches(matchId).catch(() => {});
+  await Promise.allSettled([
+    removeFromOpenMatches(matchId),
+    removeOpenMatchSummary(matchId),
+  ]);
   if (match?.host.address) {
     await clearActiveMatchForAddress(match.host.address, matchId).catch(() => {});
   }

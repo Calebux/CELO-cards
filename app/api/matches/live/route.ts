@@ -2,17 +2,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { getActiveMatchIdForAddress, getMatch, getOpenMatchIds, removeFromOpenMatches } from "../../../lib/redis";
+import {
+  getActiveMatchIdForAddress,
+  getMatch,
+  getOpenMatchIds,
+  getOpenMatchSummaries,
+  removeFromOpenMatches,
+  removeOpenMatchSummary,
+} from "../../../lib/redis";
 import { ServerMatch, isJoinWindowOpen } from "../../../lib/serverMatch";
-
-type LiveMatchSummary = {
-  id: string;
-  hostName: string | null;
-  hostAddress: string | null;
-  createdAt: number;
-  mode: ServerMatch["mode"];
-  hostCharSelected: boolean;
-};
+import type { OpenMatchSummary as LiveMatchSummary } from "../../../lib/redis";
 
 function toLiveMatchSummary(id: string, match: ServerMatch): LiveMatchSummary {
   return {
@@ -32,33 +31,38 @@ export async function GET(req: Request) {
     const ids = await getOpenMatchIds();
     if (!ids.length && !address) return NextResponse.json({ matches: [] });
 
-    const results = await Promise.all(
-      ids.map(async (id) => {
-        const match = await getMatch<ServerMatch>(id);
-        return { id, match };
-      })
-    );
-
     const live: LiveMatchSummary[] = [];
+    const summaries = await getOpenMatchSummaries(ids);
+    const missingIds: string[] = [];
 
-    for (const { id, match } of results) {
-      if (!match) {
-        // Match expired from Redis — clean up the set
-        await removeFromOpenMatches(id).catch(() => {});
-        continue;
+    for (let index = 0; index < ids.length; index += 1) {
+      const id = ids[index];
+      const summary = summaries[index];
+      if (summary) {
+        live.push(summary);
+      } else {
+        missingIds.push(id);
       }
-      // Skip if joiner already joined
-      if (match.joiner.charId) {
-        await removeFromOpenMatches(id).catch(() => {});
-        continue;
-      }
-      // Skip if the host has not explicitly reopened or refreshed the join window
-      if (!isJoinWindowOpen(match)) {
-        await removeFromOpenMatches(id).catch(() => {});
-        continue;
-      }
+    }
 
-      live.push(toLiveMatchSummary(id, match));
+    if (missingIds.length) {
+      const results = await Promise.all(
+        missingIds.map(async (id) => {
+          const match = await getMatch<ServerMatch>(id);
+          return { id, match };
+        })
+      );
+
+      for (const { id, match } of results) {
+        if (!match || match.joiner.charId || !isJoinWindowOpen(match)) {
+          await Promise.allSettled([
+            removeFromOpenMatches(id),
+            removeOpenMatchSummary(id),
+          ]);
+          continue;
+        }
+        live.push(toLiveMatchSummary(id, match));
+      }
     }
 
     if (address) {

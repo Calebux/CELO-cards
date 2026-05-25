@@ -135,11 +135,12 @@ export async function POST(req: NextRequest) {
     previousAiOrderIds: state.previousAiOrderIds,
     roundNumber: state.roundNumber,
   };
+  const aiDifficulty = Math.max(0, Math.min(3, Number(difficulty) || 1)) as 0 | 1 | 2 | 3;
   const resolvedRound = state.roundNumber;
   state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 
   // 3. Server-Side Calculations
-  const aiOrder = generateAIOrder(opponentChar, playerChar, difficulty, roundCtx);
+  const aiOrder = generateAIOrder(opponentChar, playerChar, aiDifficulty, roundCtx);
   state.previousAiOrderIds = aiOrder.map((card) => card.id);
   
   const opts: RoundOptions = {
@@ -175,8 +176,8 @@ export async function POST(req: NextRequest) {
     if (playerWon) {
       // Points calculation logic (mirrors gameStore.ts)
       pointsEarned = 100; // Base win
-      if (difficulty >= 1) pointsEarned += 25; // Difficulty bonus
-      if (difficulty >= 2) pointsEarned += 25;
+      if (aiDifficulty >= 1) pointsEarned += 25; // Difficulty bonus
+      if (aiDifficulty >= 2) pointsEarned += 25;
       if (state.opponentRoundsWon === 0) pointsEarned += 50; // Flawless bonus
     } else {
       pointsEarned = 10; // Participation points
@@ -196,7 +197,7 @@ export async function POST(req: NextRequest) {
       playerName: sanitizedPlayerName,
       playerCharacterId,
       opponentCharacterId,
-      difficulty,
+      difficulty: aiDifficulty,
       wagered,
       outcome: playerWon ? "win" : "loss",
       pointsEarned,

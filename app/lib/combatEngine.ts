@@ -430,6 +430,8 @@ export interface AIRoundContext {
     roundNumber?: number;
 }
 
+type AIDifficulty = 0 | 1 | 2 | 3;
+
 function shuffleCards(cards: Card[]): Card[] {
     const next = [...cards];
     for (let i = next.length - 1; i > 0; i--) {
@@ -483,11 +485,124 @@ function arrangeNormalDifficultyOrder(cards: Card[], previousAiOrderIds: string[
     return arranged;
 }
 
-// difficulty: 0=easy (random), 1=normal (adaptive), 2=hard (optimal + counters)
+function countOrderWins(slots: SlotResult[]): number {
+    return slots.reduce((total, slot) => total + (slot.winner === "opponent" ? 1 : 0), 0);
+}
+
+function buildBossOrders(
+    scoredCards: Card[],
+    energyPool: number,
+    previousAiOrderIds: string[],
+    typeLimit: number,
+): Card[][] {
+    const source = scoredCards.slice(0, 8);
+    const results: Card[][] = [];
+
+    const walk = (
+        picks: Card[],
+        usedEnergy: number,
+        startIndex: number,
+        typeCount: Record<CardType, number>,
+    ) => {
+        if (results.length >= 28) return;
+        if (picks.length === 5) {
+            results.push([...picks]);
+            return;
+        }
+
+        for (let i = startIndex; i < source.length; i++) {
+            const card = source[i];
+            if (usedEnergy + card.energyCost > energyPool) continue;
+            if (typeCount[card.type] >= typeLimit) continue;
+            picks.push(card);
+            typeCount[card.type]++;
+            walk(picks, usedEnergy + card.energyCost, i + 1, typeCount);
+            typeCount[card.type]--;
+            picks.pop();
+        }
+    };
+
+    walk([], 0, 0, { strike: 0, defense: 0, control: 0 });
+
+    if (results.length === 0) {
+        results.push(scoredCards.slice(0, 5));
+    }
+
+    const permutationsFor = (cards: Card[]): Card[][] => {
+        const out: Card[][] = [];
+        const used = Array(cards.length).fill(false);
+        const current: Card[] = [];
+        const recurse = () => {
+            if (out.length >= 14) return;
+            if (current.length === cards.length) {
+                out.push([...current]);
+                return;
+            }
+            for (let i = 0; i < cards.length; i++) {
+                if (used[i]) continue;
+                used[i] = true;
+                current.push(cards[i]);
+                recurse();
+                current.pop();
+                used[i] = false;
+            }
+        };
+        recurse();
+        return out;
+    };
+
+    const allOrders: Card[][] = [];
+    for (const combo of results.slice(0, 6)) {
+        allOrders.push(...permutationsFor(combo));
+    }
+
+    const deduped = new Map<string, Card[]>();
+    for (const order of allOrders) {
+        const key = order.map((card) => card.id).join("|");
+        if (!deduped.has(key)) deduped.set(key, order);
+    }
+
+    const previousKey = previousAiOrderIds.join("|");
+    return Array.from(deduped.values()).filter((order) => order.map((card) => card.id).join("|") !== previousKey);
+}
+
+function scoreBossOrder(
+    order: Card[],
+    aiChar: Character | undefined,
+    playerChar: Character | undefined,
+    roundCtx: AIRoundContext,
+): number {
+    if (!roundCtx.playerOrder || roundCtx.playerOrder.length !== 5) {
+        return order.reduce((score, card, index) => {
+            const antiRepeat = roundCtx.previousAiOrderIds?.[index] === card.id ? -1.2 : 0;
+            return score + card.knock * 1.15 + card.priority * 0.9 + antiRepeat;
+        }, 0);
+    }
+
+    const resolution = resolveRound(roundCtx.playerOrder, order, playerChar, aiChar, {
+        playerLastStand: roundCtx.playerRoundsWon === 0 && roundCtx.opponentRoundsWon >= 1,
+        opponentLastStand: roundCtx.opponentRoundsWon === 0 && roundCtx.playerRoundsWon >= 1,
+    });
+    const repeatedSlots = order.reduce((count, card, index) => (
+        count + (roundCtx.previousAiOrderIds?.[index] === card.id ? 1 : 0)
+    ), 0);
+    const cardValue = order.reduce((sum, card) => sum + card.priority * 0.55 + card.knock * 0.4, 0);
+    const slotWins = countOrderWins(resolution.slots);
+    const roundScore =
+        (resolution.roundWinner === "opponent" ? 120 : resolution.roundWinner === "draw" ? 28 : -48) +
+        slotWins * 16 +
+        (resolution.totalOpponentKnock - resolution.totalPlayerKnock) * 2.4 +
+        cardValue -
+        repeatedSlots * 4;
+
+    return roundScore;
+}
+
+// difficulty: 0=easy (random), 1=normal (adaptive), 2=hard (optimal + counters), 3=boss
 export function generateAIOrder(
     aiChar?: Character,
     playerChar?: Character,
-    difficulty = 1,
+    difficulty: AIDifficulty = 1,
     roundCtx?: AIRoundContext,
 ): Card[] {
     const energyPool = aiChar ? calcEnergyPool(aiChar) : 10;
@@ -546,17 +661,22 @@ export function generateAIOrder(
         score += c.energyCost === 0 ? 2 : c.knock / (c.energyCost + 0.5);
 
         // Counter-type bonus (normal: +2, hard: +4)
-        if (c.type === counterType) score += difficulty === 2 ? 4 : 2;
+        if (c.type === counterType) score += difficulty >= 3 ? 5 : difficulty === 2 ? 4 : 2;
 
         // Mild anti-repeat bias so house rounds do not keep surfacing the same 5 cards.
-        if (previousAiOrderSet.has(c.id)) score -= difficulty === 2 ? 1.2 : 0.8;
+        if (previousAiOrderSet.has(c.id)) score -= difficulty >= 3 ? 1.6 : difficulty === 2 ? 1.2 : 0.8;
 
         // Aggression adjustment
         if (isLosing)  score += c.knock * 0.3;           // prioritise damage when behind
         if (isWinning) score += c.priority * 0.4;        // prioritise priority/safety when ahead
 
         // Hard mode: extra weight on high-priority and high-knock
-        if (difficulty === 2) score += c.priority * 0.3 + c.knock * 0.2;
+        if (difficulty >= 2) score += c.priority * 0.3 + c.knock * 0.2;
+        if (difficulty >= 3) {
+            score += c.priority * 0.45 + c.knock * 0.3;
+            if (c.type === "control") score += 0.8;
+            if (c.id === "disrupt" || c.id === "anticipation" || c.id === "reversal_edge") score += 1.4;
+        }
 
         // Normal mode: small random noise to feel human
         if (difficulty === 1) score += Math.random() * 1.5;
@@ -570,7 +690,7 @@ export function generateAIOrder(
     let usedEnergy = 0;
     const typeCount: Record<string, number> = { strike: 0, defense: 0, control: 0 };
     // Hard mode allows stacking one type; normal enforces variety
-    const typeLimit = difficulty === 2 ? 3 : 2;
+    const typeLimit = difficulty >= 2 ? 3 : 2;
 
     for (const { card } of scored) {
         if (picks.length >= 5) break;
@@ -597,6 +717,28 @@ export function generateAIOrder(
     }
 
     const exactRepeat = previousAiOrderIds.length === picks.length && picks.every((card, index) => card.id === previousAiOrderIds[index]);
+
+    if (difficulty >= 3) {
+        const bossCandidates = buildBossOrders(
+            scored.map(({ card }) => card),
+            energyPool,
+            previousAiOrderIds,
+            3,
+        );
+        const scoredBoss = bossCandidates
+            .map((order) => ({
+                order,
+                score: scoreBossOrder(order, aiChar, playerChar, roundCtx ?? {
+                    playerRoundsWon: 0,
+                    opponentRoundsWon: 0,
+                    previousAiOrderIds,
+                }),
+            }))
+            .sort((a, b) => b.score - a.score);
+        const finalistPool = scoredBoss.slice(0, Math.min(3, scoredBoss.length));
+        const weightedPick = finalistPool[Math.floor(Math.random() * finalistPool.length)] ?? scoredBoss[0];
+        if (weightedPick?.order) return weightedPick.order;
+    }
 
     // Hard keeps strategic order, but still rotates away from exact repeats.
     if (difficulty === 2) {

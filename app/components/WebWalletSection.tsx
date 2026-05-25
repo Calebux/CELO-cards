@@ -9,6 +9,7 @@ import { formatAddress } from "../lib/minipayRuntime";
 import { useGameStore } from "../lib/gameStore";
 import { isMuted } from "../lib/soundManager";
 import { SoundSettings } from "./SoundSettings";
+import { primeWeb3AuthConnection } from "../lib/web3auth";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -109,11 +110,16 @@ export function WebWalletSection() {
         if (!mounted) return null;
         const connected = !!(account && chain);
         const handleSignIn = () => {
-          if (web3AuthConnector) {
-            void connectAsync({ connector: web3AuthConnector });
-          } else {
+          void (async () => {
+            try {
+              if (web3AuthConnector) {
+                await primeWeb3AuthConnection();
+                await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
+                return;
+              }
+            } catch {}
             openConnectModal();
-          }
+          })();
         };
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

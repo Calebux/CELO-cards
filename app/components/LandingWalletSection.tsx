@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useAccount, useBalance, useConnect, useConnectors, useReadContract, useSwitchChain } from "wagmi";
+import React, { useEffect, useRef, useState } from "react";
+import { useAccount, useBalance, useConnect, useConnectors, useDisconnect, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
 import { formatUnits } from "viem";
 import { formatAddress } from "../lib/minipayRuntime";
@@ -10,6 +10,7 @@ import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
 import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
+import { primeWeb3AuthConnection } from "../lib/web3auth";
 
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
@@ -100,11 +101,14 @@ function MuteButton() {
 export function LandingWalletSection() {
   const { address, isConnected } = useAccount();
   const { connectAsync } = useConnect();
+  const { disconnectAsync } = useDisconnect();
   const connectors = useConnectors();
   const { switchChainAsync } = useSwitchChain();
   const { playerName } = useGameStore();
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [showBalances, setShowBalances] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const mp = useMiniPayMode();
 
   const { data: usdtRaw } = useReadContract({
@@ -156,6 +160,24 @@ export function LandingWalletSection() {
       .catch(() => {})
       .finally(() => setAutoConnecting(false));
   }, [mp, isConnected, connectAsync, switchChainAsync]);
+
+  useEffect(() => {
+    if (!showAccountMenu) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowAccountMenu(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showAccountMenu]);
 
   const base: React.CSSProperties = {
     display: "flex",
@@ -219,15 +241,26 @@ export function LandingWalletSection() {
   const handleSignIn = () => {
     const connector = web3AuthConnector ?? fallbackConnector;
     if (!connector) return;
-    void connectAsync({ connector });
+    void (async () => {
+      try {
+        if (web3AuthConnector && connector.id === web3AuthConnector.id) {
+          await primeWeb3AuthConnection();
+        }
+        await connectAsync({ connector, chainId: celo.id });
+      } catch {}
+    })();
+  };
+
+  const handleDisconnect = () => {
+    void disconnectAsync().catch(() => {}).finally(() => setShowAccountMenu(false));
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }} ref={menuRef}>
       <MuteButton />
       {isConnected && address ? <Balances address={address} enabled mp={mp} /> : null}
       <button
-        onClick={isConnected ? () => { window.location.href = "/profile"; } : handleSignIn}
+        onClick={isConnected ? () => setShowAccountMenu((open) => !open) : handleSignIn}
         style={{
           ...base,
           cursor: "pointer",
@@ -254,6 +287,68 @@ export function LandingWalletSection() {
           </div>
         </div>
       </button>
+      {isConnected && !mp && showAccountMenu ? (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            minWidth: 180,
+            padding: 8,
+            borderRadius: 8,
+            border: "1px solid rgba(86,164,203,0.24)",
+            background: "linear-gradient(135deg, rgba(7,12,20,0.97), rgba(17,27,41,0.96))",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.45), 0 0 18px rgba(86,164,203,0.12)",
+            backdropFilter: "blur(12px)",
+            zIndex: 30,
+          }}
+        >
+          <button
+            onClick={() => { setShowAccountMenu(false); window.location.href = "/profile"; }}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 12px",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              color: "#b9e7f4",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 0.6,
+            }}
+          >
+            <span className="material-icons" style={{ fontSize: 16, color: "#56a4cb" }}>person</span>
+            Profile
+          </button>
+          <button
+            onClick={handleDisconnect}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 12px",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              color: "#fca5a5",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 0.6,
+            }}
+          >
+            <span className="material-icons" style={{ fontSize: 16, color: "#ef4444" }}>logout</span>
+            Disconnect
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
