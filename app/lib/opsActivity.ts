@@ -2,6 +2,7 @@ import { CARDS, CHARACTERS } from "./gameData";
 import { redis } from "./redis";
 
 const HOUSE_MATCHES_KEY = "ops:activity:house_matches";
+const HOUSE_WINNER_REWARDS_KEY = "ops:activity:house_winner_rewards";
 const BLACK_MARKET_PURCHASES_KEY = "ops:activity:black_market_purchases";
 const ACTIVITY_TTL_SECONDS = 60 * 60 * 24 * 180;
 const MAX_ACTIVITY_ITEMS = 100;
@@ -19,6 +20,17 @@ export type HouseMatchActivity = {
   playerRoundsWon: number;
   opponentRoundsWon: number;
   completedAt: number;
+};
+
+export type HouseWinnerRewardActivity = {
+  matchId: string;
+  playerAddress: string;
+  playerName: string | null;
+  playerCharacterId: string;
+  opponentCharacterId: string;
+  rewardCode: string;
+  rewardUsd: number;
+  verifiedAt: number;
 };
 
 export type BlackMarketPurchaseActivity = {
@@ -42,6 +54,10 @@ export async function recordHouseMatchActivity(entry: HouseMatchActivity): Promi
   await appendActivity(HOUSE_MATCHES_KEY, entry);
 }
 
+export async function recordHouseWinnerRewardActivity(entry: HouseWinnerRewardActivity): Promise<void> {
+  await appendActivity(HOUSE_WINNER_REWARDS_KEY, entry);
+}
+
 export async function recordBlackMarketPurchaseActivity(entry: BlackMarketPurchaseActivity): Promise<void> {
   await appendActivity(BLACK_MARKET_PURCHASES_KEY, entry);
 }
@@ -50,13 +66,18 @@ export async function getHouseMatchActivity(): Promise<HouseMatchActivity[]> {
   return (await redis.get<HouseMatchActivity[]>(HOUSE_MATCHES_KEY)) ?? [];
 }
 
+export async function getHouseWinnerRewardActivity(): Promise<HouseWinnerRewardActivity[]> {
+  return (await redis.get<HouseWinnerRewardActivity[]>(HOUSE_WINNER_REWARDS_KEY)) ?? [];
+}
+
 export async function getBlackMarketPurchaseActivity(): Promise<BlackMarketPurchaseActivity[]> {
   return (await redis.get<BlackMarketPurchaseActivity[]>(BLACK_MARKET_PURCHASES_KEY)) ?? [];
 }
 
 export async function getOpsActivitySnapshot() {
-  const [houseMatches, purchases] = await Promise.all([
+  const [houseMatches, houseWinnerRewards, purchases] = await Promise.all([
     getHouseMatchActivity(),
+    getHouseWinnerRewardActivity(),
     getBlackMarketPurchaseActivity(),
   ]);
 
@@ -78,6 +99,16 @@ export async function getOpsActivitySnapshot() {
     };
   });
 
+  const recentHouseWinnerRewards = houseWinnerRewards.slice(0, 12).map((reward) => {
+    const playerCharacter = CHARACTERS.find((character) => character.id === reward.playerCharacterId);
+    const opponentCharacter = CHARACTERS.find((character) => character.id === reward.opponentCharacterId);
+    return {
+      ...reward,
+      playerCharacterName: playerCharacter?.name ?? reward.playerCharacterId,
+      opponentCharacterName: opponentCharacter?.name ?? reward.opponentCharacterId,
+    };
+  });
+
   const recentBlackMarketPurchases = purchases.slice(0, 12).map((purchase) => {
     const card = CARDS.find((item) => item.id === purchase.cardId);
     return {
@@ -93,6 +124,9 @@ export async function getOpsActivitySnapshot() {
       wageredMatches: houseMatches.filter((match) => match.wagered).length,
       averagePointsEarned: houseMatches.length > 0 ? housePoints / houseMatches.length : 0,
       recentMatches: recentHouseMatches,
+      winnerRewardsIssued: houseWinnerRewards.length,
+      winnerRewardUsdTotal: houseWinnerRewards.reduce((sum, reward) => sum + reward.rewardUsd, 0),
+      recentWinnerRewards: recentHouseWinnerRewards,
     },
     blackMarket: {
       totalPurchases: purchases.length,

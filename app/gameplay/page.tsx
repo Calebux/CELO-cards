@@ -5,7 +5,7 @@ const MATCH_LOADING_DURATION_MS = 2200;
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { Card, getArenaBackground } from "../lib/gameData";
@@ -26,10 +26,13 @@ import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 const MENU_BG = "/new-assets/gameplay-landing-lite.webp";
 const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const ShareCard = dynamic(() => import("../components/ShareCard").then(m => ({ default: m.ShareCard })), { ssr: false });
+const HouseWinnerModal = dynamic(() => import("../components/HouseWinnerModal").then(m => ({ default: m.HouseWinnerModal })), { ssr: false });
 
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const houseWinnerPreview = searchParams.get("houseWinnerPreview") === "1";
   const storePersist = (useGameStore as typeof useGameStore & {
     persist?: {
       hasHydrated?: () => boolean;
@@ -130,6 +133,10 @@ export default function Gameplay() {
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
   const achievementQueueRef = useRef<{ id: string; name: string; icon: string; label?: string }[]>([]);
   const [showShareCard, setShowShareCard] = useState(false);
+  const [claimingHouseWinner, setClaimingHouseWinner] = useState(false);
+  const [houseWinnerError, setHouseWinnerError] = useState<string | null>(null);
+  const [houseWinnerReward, setHouseWinnerReward] = useState<{ rewardCode: string; rewardUsd: number } | null>(null);
+  const [houseWinnerModalOpen, setHouseWinnerModalOpen] = useState(false);
   const payoutFiredRef = useRef(false);
   const showResultRef = useRef(false);
   const [isShortLandscape, setIsShortLandscape] = useState(false);
@@ -143,6 +150,7 @@ export default function Gameplay() {
   const combatMessage = slotResults.length > 0 ? slotResults[slotResults.length - 1] : null;
 
   useEffect(() => {
+    if (houseWinnerPreview) return;
     // Guard: never redirect if a match is already in progress.
     // matchPhase="combat"/"loadout"/"round-result"/"match-end" means lockOrder
     // already ran — redirecting here would kill mid-match rounds.
@@ -158,7 +166,7 @@ export default function Gameplay() {
     setVsBot(false);
     setMatchMode("vshouse");
     router.replace("/create");
-  }, [matchPhase, playerAddress, resetMatch, router, setMatchMode, setVsBot, vsBot]);
+  }, [houseWinnerPreview, matchPhase, playerAddress, resetMatch, router, setMatchMode, setVsBot, vsBot]);
 
   // Keep showResultRef current so async polling callbacks read the live value.
   useEffect(() => { showResultRef.current = showResult; }, [showResult]);
@@ -260,6 +268,10 @@ export default function Gameplay() {
   }, []);
 
   useEffect(() => {
+    if (houseWinnerPreview) {
+      setResumeChecked(true);
+      return;
+    }
     if (vsBot || !matchId || !playerRole) {
       setResumeChecked(true);
       return;
@@ -317,6 +329,7 @@ export default function Gameplay() {
       cancelled = true;
     };
   }, [
+    houseWinnerPreview,
     matchId,
     matchPhase,
     playerRole,
@@ -332,6 +345,7 @@ export default function Gameplay() {
   ]);
 
   useEffect(() => {
+    if (houseWinnerPreview) return;
     // Wait for Zustand persist hydration before checking — avoids false redirect
     // on hard reload when characters briefly appear null before store loads from localStorage.
     if (!storeHydrated) return;
@@ -340,7 +354,7 @@ export default function Gameplay() {
       const t = setTimeout(() => router.push("/select-character"), 1500);
       return () => clearTimeout(t);
     }
-  }, [storeHydrated, selectedCharacter, opponentCharacter, router, resumeChecked, vsBot, matchId, playerRole]);
+  }, [houseWinnerPreview, storeHydrated, selectedCharacter, opponentCharacter, router, resumeChecked, vsBot, matchId, playerRole]);
 
   useEffect(() => {
     if (matchPhase === "match-end") {
@@ -624,7 +638,7 @@ export default function Gameplay() {
     if (quitArmTimerRef.current) clearTimeout(quitArmTimerRef.current);
   }, []);
 
-  const handleNextOpponent = useCallback(() => {
+  const handleNextOpponent = useCallback(async () => {
     playSound("click");
     if (vsBot) {
       if (upperChamberActive) {
@@ -649,10 +663,37 @@ export default function Gameplay() {
           setMatchLoading(true);
           setTimeout(() => router.push("/loadout"), matchLoadingDurationMs);
         } else {
-          // All 5 fighters beaten — award 5000 bonus points and return to menu
-          addBonusPoints(5000);
-          resetMatch();
-          router.push("/");
+          if (houseWinnerReward) {
+            setHouseWinnerModalOpen(true);
+            return;
+          }
+          if (!selectedCharacter || !opponentCharacter || !matchId) return;
+          setClaimingHouseWinner(true);
+          setHouseWinnerError(null);
+          try {
+            const res = await fetch("/api/house-winner", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                matchId,
+                playerAddress: address ?? playerAddress,
+                playerName,
+                playerCharacterId: selectedCharacter.id,
+                opponentCharacterId: opponentCharacter.id,
+              }),
+            });
+            const data = await res.json().catch(() => ({})) as { rewardCode?: string; rewardUsd?: number; error?: string };
+            if (!res.ok || !data.rewardCode || !data.rewardUsd) {
+              throw new Error(data.error ?? "Could not verify this House win right now.");
+            }
+            addBonusPoints(5000);
+            setHouseWinnerReward({ rewardCode: data.rewardCode, rewardUsd: data.rewardUsd });
+            setHouseWinnerModalOpen(true);
+          } catch (err) {
+            setHouseWinnerError(err instanceof Error ? err.message : "Could not verify this House win right now.");
+          } finally {
+            setClaimingHouseWinner(false);
+          }
         }
         return;
       }
@@ -683,7 +724,7 @@ export default function Gameplay() {
     // Re-show loading screen
     setMatchLoading(true);
     setTimeout(() => setMatchLoading(false), matchLoadingDurationMs);
-  }, [addBonusPoints, advanceUpperChamber, autoLockOrder, matchLoadingDurationMs, resetMatch, router, setMatchMode, setVsBot, startMatch, upperChamberActive, upperChamberRound, vsBot]);
+  }, [addBonusPoints, address, advanceUpperChamber, autoLockOrder, houseWinnerReward, matchId, matchLoadingDurationMs, opponentCharacter, playerAddress, playerName, resetMatch, router, selectedCharacter, setMatchMode, setVsBot, startMatch, upperChamberActive, upperChamberRound, vsBot]);
 
   const player = selectedCharacter;
   const opponent = opponentCharacter;
@@ -713,6 +754,18 @@ export default function Gameplay() {
   const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 
   if (!selectedCharacter || !opponentCharacter) {
+    if (houseWinnerPreview) {
+      return (
+        <div style={{ position: "fixed", inset: 0, background: "#050810" }}>
+          <HouseWinnerModal
+            rewardCode="HOUSE-5X5WIN"
+            rewardUsd={5}
+            isMiniPay={isMp}
+            onClose={() => router.push("/")}
+          />
+        </div>
+      );
+    }
     // After quit, resetMatch() sets matchPhase→"idle" before navigation fires.
     // Show plain black rather than the VS loading screen so it doesn't flash
     // in portrait (MatchLoadingScreen has no landscape rotation outside the canvas).
@@ -1714,7 +1767,7 @@ export default function Gameplay() {
                       >
                         {upperChamberActive
                           ? upperChamberRound >= 4
-                            ? "CLAIM 5000 PTS ★"
+                            ? (claimingHouseWinner ? "VERIFYING..." : houseWinnerReward ? "SHOW WINNER CODE ★" : "CLAIM 5000 PTS ★")
                             : `FIGHT ${upperChamberRound + 2}/5 ▶`
                           : "NEXT ▶"}
                       </button>
@@ -1732,6 +1785,11 @@ export default function Gameplay() {
                       MENU
                     </button>
                   </div>
+                  {houseWinnerError && (
+                    <div style={{ marginTop: 12, fontSize: 11, color: "#fca5a5", textAlign: "center" }}>
+                      {houseWinnerError}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1746,6 +1804,16 @@ export default function Gameplay() {
             playerRounds={playerRoundsWon}
             opponentRounds={opponentRoundsWon}
             onClose={() => setShowShareCard(false)}
+          />
+        )}
+        {houseWinnerReward && houseWinnerModalOpen && (
+          <HouseWinnerModal
+            rewardCode={houseWinnerReward.rewardCode}
+            rewardUsd={houseWinnerReward.rewardUsd}
+            isMiniPay={isMp}
+            onClose={() => {
+              setHouseWinnerModalOpen(false);
+            }}
           />
         )}
 
