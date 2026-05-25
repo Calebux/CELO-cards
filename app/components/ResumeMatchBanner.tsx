@@ -1,13 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
 import { useGameStore } from "../lib/gameStore";
 
 export function ResumeMatchBanner({ isMiniPay }: { isMiniPay: boolean }) {
-  const router = useRouter();
   const { address } = useAccount();
   const matchPhase = useGameStore((state) => state.matchPhase);
   const matchId = useGameStore((state) => state.matchId);
@@ -31,7 +29,7 @@ export function ResumeMatchBanner({ isMiniPay }: { isMiniPay: boolean }) {
     <button
       onClick={() => {
         if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
-        router.push(effectiveResumeRoute);
+        window.location.href = effectiveResumeRoute;
       }}
       style={{
         position: "absolute",

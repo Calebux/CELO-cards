@@ -26,10 +26,8 @@ export default function ActionOrderLandingPage() {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [howToPlayVariant, setHowToPlayVariant] = useState<"quickstart" | "full">("full");
   const tournamentPrizeDisplay = "100 USDT";
-  const tournamentPrizeLabel = "TOURNAMENT PRIZE";
-  const tournamentRewardCopy = isMp
-    ? "Top finishers earn leaderboard rewards and a 100 USDT tournament prize."
-    : "Top finishers compete for the 100 USDT tournament prize.";
+  const tournamentPrizeLabel = "POOL PRIZE";
+  const tournamentRewardCopy = "Beat our House AI in the full 5/5 streak to claim from the 100 USDT pool prize.";
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {
@@ -365,7 +363,7 @@ export default function ActionOrderLandingPage() {
               {/* Center: live season badge — absolutely centered */}
               <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", display:"flex", alignItems:"center", gap:isMp ? 10 : 8, padding:isMp ? "8px 22px" : "6px 18px", border:"1px solid rgba(86,164,203,0.28)", borderRadius:4, background:"rgba(86,164,203,0.07)" }}>
                 <div style={{ width:isMp ? 7 : 6, height:isMp ? 7 : 6, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 6px #4ade80", animation:"ko-dot-pulse 2s ease-in-out infinite" }} />
-                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:isMp ? 2.2 : 2, color:"#b9e7f4", textTransform:"uppercase" }}>SEASON 1 · ORDER ASCENSION · LIVE</span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:isMp ? 2.2 : 2, color:"#b9e7f4", textTransform:"uppercase" }}>SEASON 2 · RISE OF THE AGENTS · LIVE</span>
               </div>
 
               {/* Right: wallet */}
@@ -384,11 +382,11 @@ export default function ActionOrderLandingPage() {
             }}>
               <span style={{ fontSize:isMp ? 24 : 22 }}>🏆</span>
               <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>TOURNAMENT LIVE</span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>HOUSE BOSS LIVE</span>
                 <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>{tournamentPrizeDisplay} <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>{tournamentPrizeLabel}</span></span>
               </div>
               <div style={{ width:1, height:isMp ? 36 : 32, background:"rgba(251,204,92,0.25)" }} />
-              <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
+              <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>BEAT THE HOUSE →</span>
             </a>
 
             {/* ── G$ Claim Banner — hidden in MiniPay (USDT-only env) */}
@@ -425,7 +423,7 @@ export default function ActionOrderLandingPage() {
 
             <a className="ko-nav-btn ko-btn-tournament" href="/tournament">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
-              <span className="ko-btn-label">TOURNAMENT</span>
+                <span className="ko-btn-label">HOUSE EVENT</span>
             </a>
 
             <a className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
@@ -504,7 +502,7 @@ export default function ActionOrderLandingPage() {
               <MiniPayImage className="ko-card-img" src="/new-assets/fighters-energy-sm.webp" alt="Season 1" minipayWidth={420} minipayQuality={75} />
               <div className="ko-card-title">
                 <p style={{ color:"#56a4cb", fontSize:isMp ? 11 : 10, letterSpacing:1.5, textTransform:"uppercase", marginBottom:3 }}>LATEST</p>
-                <p>SEASON 1: ORDER ASCENSION</p>
+                <p>SEASON 2: RISE OF THE AGENTS</p>
                 <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11 }}>NOW LIVE!</p>
               </div>
             </div>
@@ -515,11 +513,11 @@ export default function ActionOrderLandingPage() {
             <div style={{ position:"absolute", left:isMp ? 1088 : 1130, top:isMp ? 460 : 435, width:isMp ? 280 : 237, zIndex:15,
               background:"linear-gradient(135deg, rgba(40,28,5,0.7), rgba(5,20,10,0.7))",
               border:"1px solid rgba(251,204,92,0.3)", borderRadius:6, padding:isMp ? "18px 16px" : "16px 14px" }}>
-              <p style={{ color:"#fbbf24", fontSize:isMp ? 10 : 9, fontWeight:800, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>🏆 TOURNAMENT LIVE</p>
+              <p style={{ color:"#fbbf24", fontSize:isMp ? 10 : 9, fontWeight:800, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>🏆 HOUSE BOSS LIVE</p>
               <p style={{ color:"#fff", fontSize:isMp ? 18 : 16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>{tournamentPrizeDisplay}<br/><span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>{tournamentPrizeLabel}</span></p>
               <div style={{ height:1, background:"rgba(251,204,92,0.2)", margin:"8px 0" }} />
               <p style={{ color:"#9ca3af", fontSize:isMp ? 12 : 11, lineHeight:1.5, marginBottom:6 }}>{tournamentRewardCopy}</p>
-              <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:0.5 }}>Register on the tournament page →</p>
+              <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:0.5 }}>Beat the 5/5 House streak to qualify →</p>
             </div>
 
             <div className="ko-scrollbar-track" />
