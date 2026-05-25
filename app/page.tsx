@@ -1,51 +1,35 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useGameStore } from './lib/gameStore';
-import { hydrateActiveMatchResume, useActiveMatchResume } from './lib/activeMatch';
 import { MiniPayImage } from './components/MiniPayImage';
 import { useMiniPayMode } from './lib/premiumPayments';
-import { useAccount } from 'wagmi';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
+import { useGameStore } from './lib/gameStore';
 
-const WalletSection = dynamic(() => import('./components/WalletSection').then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
-const SeasonPassModal = dynamic(() => import('./components/SeasonPassModal').then(m => ({ default: m.SeasonPassModal })), { ssr: false });
+const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
+
+type LandingWalletHudComponent = React.ComponentType<{ isMiniPay: boolean }>;
+type LandingSeasonPassButtonComponent = React.ComponentType<{ isCompact: boolean; isMiniPay: boolean }>;
 
 export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
+  const hasSeenTutorial = useGameStore((s) => s.hasSeenTutorial);
+  const setHasSeenTutorial = useGameStore((s) => s.setHasSeenTutorial);
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
-  const { playerPoints, winStreak, matchPhase, matchId, playerRole, selectedCharacter, vsBot } = useGameStore();
-  const { selectCharacter, startMatch, autoLockOrder } = useGameStore();
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
+  const [showDeferredWalletUi, setShowDeferredWalletUi] = useState(false);
+  const [LandingWalletHudComponent, setLandingWalletHudComponent] = useState<LandingWalletHudComponent | null>(null);
+  const [LandingSeasonPassButtonComponent, setLandingSeasonPassButtonComponent] = useState<LandingSeasonPassButtonComponent | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
-  const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
-  const { address } = useAccount();
-  const serverResumeMatch = useActiveMatchResume(address);
-
-  const resumeRoute = useMemo(() => {
-    if (!selectedCharacter && matchPhase !== "idle") return "/select-character";
-    if (matchPhase === "combat" || matchPhase === "round-result") return "/gameplay";
-    if (matchPhase === "loadout") return "/loadout";
-    if (matchPhase === "lobby") return "/select-character";
-    if (matchPhase === "waiting-for-opponent" && matchId) return "/select-character";
-    return null;
-  }, [matchId, matchPhase, selectedCharacter]);
-
-  const effectiveResumeRoute = serverResumeMatch?.route ?? resumeRoute ?? null;
-
-  const handleResume = () => {
-    if (serverResumeMatch) hydrateActiveMatchResume(serverResumeMatch);
-    if (effectiveResumeRoute) router.push(effectiveResumeRoute);
-  };
-
-
+  const [howToPlayVariant, setHowToPlayVariant] = useState<"quickstart" | "full">("full");
+  const tournamentPrizeDisplay = "100 USDT";
+  const tournamentPrizeLabel = "TOURNAMENT PRIZE";
+  const tournamentRewardCopy = isMp
+    ? "Top finishers earn leaderboard rewards and a 100 USDT tournament prize."
+    : "Top finishers compete for the 100 USDT tournament prize.";
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {
@@ -64,11 +48,46 @@ export default function ActionOrderLandingPage() {
   }, []);
 
   useEffect(() => {
-    // Re-run when showLoader changes: the canvas is only in the DOM after the
-    // loading screen disappears, so the scale calculation must run again then.
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    let cancelled = false;
+    const show = () => {
+      void Promise.all([
+        import('./components/LandingWalletHud'),
+        import('./components/LandingSeasonPassButton'),
+      ]).then(([walletHud, seasonPass]) => {
+        if (cancelled) return;
+        setLandingWalletHudComponent(() => walletHud.LandingWalletHud);
+        setLandingSeasonPassButtonComponent(() => seasonPass.LandingSeasonPassButton);
+        setShowDeferredWalletUi(true);
+      }).catch(() => {});
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(show, { timeout: 1800 });
+      return () => {
+        cancelled = true;
+        idleWindow.cancelIdleCallback?.(handle);
+      };
+    }
+
+    const timeout = window.setTimeout(show, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    // The root layout already computes --ao-tr before first paint. Only
+    // do one deferred correction plus later viewport updates. MiniPay's
+    // WebView can settle to its final size after the prepaint script runs.
     if (showLoader) return;
     const scale = () => {
-      if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
@@ -84,42 +103,34 @@ export default function ActionOrderLandingPage() {
         const ty = (vh - DESIGN_H * s) / 2;
         transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
-      wrapRef.current.style.transform = transform;
+      document.documentElement.style.setProperty("--ao-tr", transform);
     };
-    scale();
+    const raf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scale);
+    });
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    viewport?.addEventListener("resize", scale);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", scale);
+      viewport?.removeEventListener("resize", scale);
+    };
   }, [showLoader]);
 
   useEffect(() => {
-    type IdleWindow = Window & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-
-    const idleWindow = window as IdleWindow;
-    const prefetch = () => {
-      void router.prefetch("/create");
-      void router.prefetch("/join");
-      void router.prefetch("/loadout");
-      void router.prefetch("/gameplay");
-    };
-
-    if (idleWindow.requestIdleCallback) {
-      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1500 });
-      return () => idleWindow.cancelIdleCallback?.(handle);
-    }
-
-    const timeout = window.setTimeout(prefetch, 900);
+    if (showLoader || hasSeenTutorial) return;
+    const timeout = window.setTimeout(() => {
+      setHowToPlayVariant("quickstart");
+      setShowHowToPlay(true);
+    }, 500);
     return () => window.clearTimeout(timeout);
-  }, [router]);
+  }, [hasSeenTutorial, showLoader]);
 
   if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 
   return (
     <>
-      <title>Action Order</title>
-      <link rel="preload" as="image" href="/new-assets/landing-hero.webp" fetchPriority="high" type="image/webp" />
       <style>{`
         .ko-land-page-wrapper {
           width: 1440px;
@@ -331,11 +342,11 @@ export default function ActionOrderLandingPage() {
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
-        <div ref={wrapRef} className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
+        <div className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
           <div className="ko-land-page">
 
-            {/* Background — WebP served to all browsers; MiniPay gets /_next/image optimized version */}
-            <MiniPayImage className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" minipayWidth={1280} minipayQuality={58} priority />
+            {/* LCP hero — serve the already-optimized WebP directly to avoid image optimizer overhead on first paint. */}
+            <img className="ko-bg-image" src="/new-assets/landing-hero.webp" alt="background" loading="eager" decoding="async" fetchPriority="high" />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, rgba(5,8,18,0.82) 0%, rgba(5,8,18,0.22) 22%, rgba(5,8,18,0.22) 78%, rgba(5,8,18,0.82) 100%)", zIndex:1, pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(5,8,18,0.85) 0%, transparent 12%, transparent 82%, rgba(5,8,18,0.9) 100%)", zIndex:1, pointerEvents:"none" }} />
 
@@ -358,8 +369,9 @@ export default function ActionOrderLandingPage() {
               </div>
 
               {/* Right: wallet */}
-              <WalletSection />
+              <div style={{ width: isMp ? 320 : 220, height: isMp ? 54 : 40 }} />
             </div>
+            {showDeferredWalletUi && LandingWalletHudComponent ? <LandingWalletHudComponent isMiniPay={isMp} /> : null}
 
             {/* ── Tournament Live Banner — centered, blinking ───────── */}
             <a href="/tournament" style={{
@@ -373,7 +385,7 @@ export default function ActionOrderLandingPage() {
               <span style={{ fontSize:isMp ? 24 : 22 }}>🏆</span>
               <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>TOURNAMENT LIVE</span>
-                <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>120,000 G$ <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>PRIZE POOL</span></span>
+                <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>{tournamentPrizeDisplay} <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>{tournamentPrizeLabel}</span></span>
               </div>
               <div style={{ width:1, height:isMp ? 36 : 32, background:"rgba(251,204,92,0.25)" }} />
               <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>REGISTER →</span>
@@ -381,7 +393,7 @@ export default function ActionOrderLandingPage() {
 
             {/* ── G$ Claim Banner — hidden in MiniPay (USDT-only env) */}
             {!isMp && (
-            <Link href="/profile" style={{
+            <a href="/profile" style={{
               position:"absolute", left:36, top:72, width:180, zIndex:15,
               display:"flex", alignItems:"center", gap:8,
               padding:"7px 14px",
@@ -396,103 +408,80 @@ export default function ActionOrderLandingPage() {
                 <div style={{ fontSize:8, fontWeight:800, letterSpacing:2, color:"#00C58E", textTransform:"uppercase", lineHeight:1 }}>GOODDOLLAR UBI</div>
                 <div style={{ fontSize:10, fontWeight:700, color:"rgba(0,197,142,0.85)", lineHeight:1.4 }}>Claim your G$ →</div>
               </div>
-            </Link>
+            </a>
             )}
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
-            {effectiveResumeRoute && (
-              <button
-                onClick={handleResume}
-                style={{
-                position: "absolute", left: "50%", transform: "translateX(-50%)", top: isMp ? 126 : 118, zIndex: 16,
-                display: "flex", alignItems: "center", gap: 10, padding: isMp ? "10px 18px" : "8px 16px",
-                background: "linear-gradient(135deg, rgba(6,168,249,0.18), rgba(6,168,249,0.08))",
-                border: "1px solid rgba(6,168,249,0.45)", borderRadius: 6, textDecoration: "none",
-                boxShadow: "0 0 14px rgba(6,168,249,0.28)",
-                fontFamily: "inherit",
-                cursor: "pointer",
-              }}
-              >
-                <span style={{ fontSize: isMp ? 12 : 11, fontWeight: 800, letterSpacing: 1.4, color: "#7dd3fc", textTransform: "uppercase" }}>Match in progress</span>
-                <span style={{ fontSize: isMp ? 12 : 11, fontWeight: 700, letterSpacing: 1.2, color: "#fff", textTransform: "uppercase" }}>Tap to Resume</span>
-              </button>
-            )}
-
             {/* ── Left Nav ─────────────────────────────────────────── */}
-            <Link className="ko-nav-btn ko-btn-create" href="/create">
+            <a className="ko-nav-btn ko-btn-create" href="/create">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
               <span className="ko-btn-label">CREATE MATCH</span>
-            </Link>
+            </a>
 
-            <Link className="ko-nav-btn ko-btn-join" href="/join">
+            <a className="ko-nav-btn ko-btn-join" href="/join">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span className="ko-btn-label">JOIN MATCH</span>
-            </Link>
+            </a>
 
             <a className="ko-nav-btn ko-btn-tournament" href="/tournament">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
               <span className="ko-btn-label">TOURNAMENT</span>
             </a>
 
-            <Link className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
+            <a className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
               <span className="ko-btn-label">LEADERBOARD</span>
-            </Link>
+            </a>
 
-            <Link className="ko-nav-btn ko-btn-profile" href="/profile">
+            <a className="ko-nav-btn ko-btn-profile" href="/profile">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               <span className="ko-btn-label">PROFILE</span>
-            </Link>
+            </a>
 
-            <div className="ko-points-badge" style={{ top: isCompact ? 656 : 596 }}>
-              <span style={{ fontSize:isMp ? 18 : 16, flexShrink:0 }}>⚡</span>
-              <div style={{ display:"flex", flexDirection:"column" }}>
-                <span className="ko-points-label">Total Points</span>
-                <span className="ko-points-value">{playerPoints.toLocaleString()}</span>
-              </div>
-              {winStreak > 1 && (
-                <>
-                  <div style={{ width:1, height:24, background:"rgba(168,85,247,0.3)", marginLeft:8, marginRight:8 }} />
-                  <div style={{ display:"flex", flexDirection:"column" }}>
-                    <span className="ko-points-label" style={{ color: "#f97316" }}>Win Streak</span>
-                    <span className="ko-points-value" style={{ color: "#f97316", textShadow: "0 0 12px rgba(249,115,22,0.6)" }}>🔥 {winStreak}</span>
-                  </div>
-                </>
-              )}
-            </div>
+            <LandingProgressBadge isCompact={isCompact} />
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isCompact ? 726 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
               <div style={{ display:"flex", gap:isCompact ? 16 : 12 }}>
-                <Link href="/black-market" style={{
-                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
+                <a href="/black-market" style={{
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
                   border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",
                   color:"#fff", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
                   boxShadow:"0 0 20px rgba(239,68,68,0.35)", animation:"ko-pulse 2.5s ease-in-out infinite",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                  whiteSpace:"nowrap", lineHeight:1,
                 }}>
                   <svg width={isCompact ? 18 : 16} height={isCompact ? 18 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   BLACK MARKET
-                </Link>
-                <button onClick={() => setShowSeasonPassModal(true)} style={{
-                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
-                  background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
-                  border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
-                  color:"#fbbf24", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
-                  animation:"ko-tournament-blink 1.4s ease-in-out infinite",
-                  clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
-                  cursor:"pointer", fontFamily:"inherit",
-                }}>
-                  ⚡ SEASON PASS
-                </button>
-                <button onClick={() => setShowHowToPlay(true)} style={{
-                  display:"flex", alignItems:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
+                </a>
+                {showDeferredWalletUi && LandingSeasonPassButtonComponent ? (
+                  <LandingSeasonPassButtonComponent isCompact={isCompact} isMiniPay={isMp} />
+                ) : (
+                  <div
+                    style={{
+                      display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
+                      background:"linear-gradient(135deg, rgba(40,28,5,0.95), rgba(80,55,0,0.88))",
+                      border:"1.5px solid rgba(251,204,92,0.85)", borderRadius:6,
+                      color:"#fbbf24", fontSize:isCompact ? 17 : 13, fontWeight:800, letterSpacing:2, textTransform:"uppercase",
+                      clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                      opacity: 0.8, whiteSpace:"nowrap", lineHeight:1,
+                    }}
+                  >
+                    ⚡ SEASON PASS
+                  </div>
+                )}
+                <button onClick={() => {
+                  setHowToPlayVariant("full");
+                  setShowHowToPlay(true);
+                }} style={{
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
                   background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
                   borderRadius:6, cursor:"pointer", fontFamily:"inherit",
                   color:"#b9e7f4", fontSize:isCompact ? 17 : 13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
                   backdropFilter:"blur(8px)",
                   clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
+                  whiteSpace:"nowrap", lineHeight:1,
                 }}>
                   <svg width={isCompact ? 17 : 14} height={isCompact ? 17 : 14} viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                   HOW TO PLAY
@@ -527,9 +516,9 @@ export default function ActionOrderLandingPage() {
               background:"linear-gradient(135deg, rgba(40,28,5,0.7), rgba(5,20,10,0.7))",
               border:"1px solid rgba(251,204,92,0.3)", borderRadius:6, padding:isMp ? "18px 16px" : "16px 14px" }}>
               <p style={{ color:"#fbbf24", fontSize:isMp ? 10 : 9, fontWeight:800, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>🏆 TOURNAMENT LIVE</p>
-              <p style={{ color:"#fff", fontSize:isMp ? 18 : 16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>120,000 G$<br/><span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>PRIZE POOL</span></p>
+              <p style={{ color:"#fff", fontSize:isMp ? 18 : 16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>{tournamentPrizeDisplay}<br/><span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>{tournamentPrizeLabel}</span></p>
               <div style={{ height:1, background:"rgba(251,204,92,0.2)", margin:"8px 0" }} />
-              <p style={{ color:"#9ca3af", fontSize:isMp ? 12 : 11, lineHeight:1.5, marginBottom:6 }}>Top 4 finishers win a G$ stream direct to their wallet — no claim needed.</p>
+              <p style={{ color:"#9ca3af", fontSize:isMp ? 12 : 11, lineHeight:1.5, marginBottom:6 }}>{tournamentRewardCopy}</p>
               <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:0.5 }}>Register on the tournament page →</p>
             </div>
 
@@ -539,17 +528,20 @@ export default function ActionOrderLandingPage() {
 
           </div>
 
-          {/* Footer */}
-          <div style={{ marginTop:"20px", padding:isMp ? "26px 0" : "24px 0", borderTop:"1px solid rgba(86,164,203,0.2)", display:"flex", flexWrap:"wrap", justifyContent:"center", gap:isMp ? "34px" : "30px", width:"1440px", color:"rgba(185,231,244,0.5)", fontSize:isMp ? "14px" : "13px", textTransform:"uppercase", letterSpacing:"1px" }}>
-            <Link href="/terms"   style={{ textDecoration:"none", color:"inherit" }}>Terms of Service</Link>
-            <Link href="/privacy" style={{ textDecoration:"none", color:"inherit" }}>Privacy Policy</Link>
-            <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none", color:"inherit" }}>Support</a>
-            <Link href="/stats"   style={{ textDecoration:"none", color:"inherit" }}>Stats</Link>
-          </div>
         </div>
       </div>
-      {showHowToPlay && <HowToPlayModal onClose={() => setShowHowToPlay(false)} />}
-      {showSeasonPassModal && <SeasonPassModal onClose={() => setShowSeasonPassModal(false)} onActivated={() => setShowSeasonPassModal(false)} />}
+      {showHowToPlay && (
+        <HowToPlayModal
+          isMiniPay={isMp}
+          variant={howToPlayVariant}
+          onClose={() => {
+            if (howToPlayVariant === "quickstart") {
+              setHasSeenTutorial(true);
+            }
+            setShowHowToPlay(false);
+          }}
+        />
+      )}
     </>
   );
 }

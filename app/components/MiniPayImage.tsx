@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
-import { isMiniPay } from "../lib/minipay";
+import { isMiniPay } from "../lib/minipayRuntime";
 import { useMobileViewportMode } from "../lib/mobile";
 
 type MiniPayImageProps = ImgHTMLAttributes<HTMLImageElement> & {

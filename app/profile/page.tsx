@@ -394,14 +394,14 @@ export default function ProfilePage() {
               ) : (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 3 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.5 }}>
-                    {playerName || (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
+                    {playerName || (isMp ? "MINIPAY PLAYER" : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
                   </div>
                   <button onClick={() => { setNameInput(playerName); setEditingName(true); }} title="Edit name" style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 12, padding: 0, lineHeight: 1 }}>✏️</button>
                 </div>
               )}
 
               <div style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>
-                {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "NOT CONNECTED"}
+                {address ? (isMp ? "Linked via MiniPay" : `${address.slice(0, 6)}…${address.slice(-4)}`) : "NOT CONNECTED"}
               </div>
               {address && (
                 <button
@@ -779,6 +779,31 @@ export default function ProfilePage() {
                 )}
               </div>
             )}
+
+            <div style={{
+              backgroundColor: "rgba(15,23,42,0.55)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 8,
+              padding: "14px 16px",
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#94a3b8", textTransform: "uppercase", marginBottom: 10 }}>
+                Legal & Support
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "#b9e7f4", textDecoration: "none", fontSize: 11, fontWeight: 600 }}>
+                  Terms of Service
+                </a>
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "#b9e7f4", textDecoration: "none", fontSize: 11, fontWeight: 600 }}>
+                  Privacy Policy
+                </a>
+                <a href="https://t.me/actionorder" target="_blank" rel="noopener noreferrer" style={{ color: "#56a4cb", textDecoration: "none", fontSize: 11, fontWeight: 600 }}>
+                  Support
+                </a>
+                <a href="/stats" target="_blank" rel="noopener noreferrer" style={{ color: "#94a3b8", textDecoration: "none", fontSize: 11, fontWeight: 600 }}>
+                  Stats
+                </a>
+              </div>
+            </div>
 
           </div>
 

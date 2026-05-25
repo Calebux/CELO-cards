@@ -253,7 +253,7 @@ export const useGameStore = create<GameState>()(
         set({
             opponentCharacter: opponent,
             playerDeck: deck,
-            matchPhase: "lobby",
+            matchPhase: "loadout",
             matchMode: "vshouse",
             roundNumber: 1,
             playerRoundsWon: 0,
@@ -538,9 +538,16 @@ export const useGameStore = create<GameState>()(
     },
 
     lockOrder: async () => {
-        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed } = get();
+        const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed, upperChamberActive, upperChamberRound } = get();
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
-        const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
+        const difficulty: 0 | 1 | 2 =
+            upperChamberActive && upperChamberRound >= 4
+                ? 2
+                : aiDifficulty === 0
+                    ? 0
+                    : winStreak >= 2
+                        ? 2
+                        : aiDifficulty;
 
         if (!playerRole) {
             // VS House path — use server-side resolution
@@ -614,9 +621,16 @@ export const useGameStore = create<GameState>()(
     },
 
     autoLockOrder: async () => {
-        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed } = get();
+        const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed, upperChamberActive, upperChamberRound } = get();
         const autoOrder = playerDeck.slice(0, 5);
-        const difficulty: 0 | 1 | 2 = aiDifficulty === 0 ? 0 : winStreak >= 2 ? 2 : aiDifficulty;
+        const difficulty: 0 | 1 | 2 =
+            upperChamberActive && upperChamberRound >= 4
+                ? 2
+                : aiDifficulty === 0
+                    ? 0
+                    : winStreak >= 2
+                        ? 2
+                        : aiDifficulty;
 
         if (!playerRole) {
             // VS House path — use server-side resolution

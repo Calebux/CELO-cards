@@ -5,11 +5,11 @@ import dynamic from "next/dynamic";
 import { useAccount, useBalance, useConnect, useReadContract, useSwitchChain } from "wagmi";
 import { celo } from "wagmi/chains";
 import { formatUnits } from "viem";
-import { getMiniPayConnector, isMiniPay, formatAddress } from "../lib/minipay";
+import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
 import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
-import { useMiniPayMode } from "../lib/premiumPayments";
+import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
 
 const WebWalletSection = dynamic(() => import("./WebWalletSection").then(m => ({ default: m.WebWalletSection })), { ssr: false });
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
@@ -95,7 +95,6 @@ function MuteButton() {
   );
 }
 
-const DEPOSIT_DEEPLINK = "https://minipay.opera.com/add_cash";
 const LOW_BALANCE_THRESHOLD = 0.50; // USDT
 
 export function WalletSection() {
@@ -179,13 +178,17 @@ export function WalletSection() {
   }
 
   if (mp && isConnected && address) {
+    const primaryIdentity = playerName || "MINIPAY PLAYER";
+    const secondaryIdentity = playerName
+      ? "MiniPay ready"
+      : "Set username in Profile";
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
         {showBalances ? <Balances address={address} enabled={showBalances} mp={mp} /> : null}
         {isLowBalance && (
           <a
-            href={DEPOSIT_DEEPLINK}
+            href={MINIPAY_DEPOSIT_DEEPLINK}
             style={{
               display: "flex", alignItems: "center", gap: 5,
               padding: "6px 12px",
@@ -206,7 +209,8 @@ export function WalletSection() {
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
             <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>MINIPAY</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>{playerName || formatAddress(address)}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.4 }}>{primaryIdentity}</div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.6, lineHeight: 1.2 }}>{secondaryIdentity}</div>
           </div>
         </div>
       </div>

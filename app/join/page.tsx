@@ -392,13 +392,13 @@ function JoinMatchContent() {
                 {!address ? "lock" : joining ? "hourglass_top" : "sports_kabaddi"}
               </span>
               <span className="ko-btn-text" style={{ fontSize: 15, fontWeight: 700, textTransform: "uppercase", letterSpacing: 6, color: "#fff" }}>
-                {!address ? "Connect Wallet" : joining ? "Joining…" : "Enter Arena"}
+                {!address ? (isMp ? "Loading Wallet" : "Connect Wallet") : joining ? "Joining…" : "Enter Arena"}
               </span>
               {address && !joining && <span className="material-icons ko-btn-icon" style={{ fontSize: 18 }}>arrow_forward_ios</span>}
             </button>
             {!address && (
               <p style={{ fontSize: 10, color: "#56a4cb", textAlign: "center", marginTop: 8, letterSpacing: 1, textTransform: "uppercase" }}>
-                Use the Connect button in the top right ↗
+                {isMp ? "Waiting for MiniPay wallet…" : "Use the Connect button in the top right ↗"}
               </p>
             )}
 

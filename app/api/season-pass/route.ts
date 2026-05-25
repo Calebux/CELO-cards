@@ -5,6 +5,7 @@ import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../../lib/seasonPassContract";
+import { SEASON_PLANS, type SeasonPlan } from "../../lib/seasonPassPlans";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -17,14 +18,6 @@ const publicClient = createPublicClient({
   transport: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
 });
 
-// G$ has 18 decimals; USDT has 6 decimals on Celo
-export const SEASON_PLANS = {
-  weekly:  { days: 7,  priceWei: "500000000000000000",    priceCelo: "0.5",  priceGdollar: "1000000000000000000000",  priceGdollarDisplay: "1000",  priceUsdt: "40000",    label: "7 Days"  },
-  monthly: { days: 30, priceWei: "1500000000000000000",   priceCelo: "1.5",  priceGdollar: "3000000000000000000000",  priceGdollarDisplay: "3000",  priceUsdt: "130000",   label: "30 Days" },
-  season:  { days: 90, priceWei: "3500000000000000000",   priceCelo: "3.5",  priceGdollar: "7000000000000000000000",  priceGdollarDisplay: "7000",  priceUsdt: "300000",   label: "90 Days" },
-} as const;
-
-export type SeasonPlan = keyof typeof SEASON_PLANS;
 type SeasonPassRecord = { expiry: number; plan: SeasonPlan; txHash?: string };
 
 function passKey(address: string) {

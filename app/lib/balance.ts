@@ -7,6 +7,7 @@ import { celo } from "viem/chains";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "./seasonPassContract";
 import { MATCH_REGISTRY, MATCH_REGISTRY_ACTIVE, MATCH_REGISTRY_ABI } from "./matchRegistry";
 import { ServerMatch } from "./serverMatch";
+import type { ServerMatchRecord } from "./leaderboard";
 
 export const BALANCE_POLICY = {
   currentVersion: "Season 1.3",
@@ -35,10 +36,37 @@ export type BalanceWatchItem = {
 type OpsAudienceMetrics = {
   totalPlayers: number;
   dailyPlayers: number;
+  weeklyPlayers: number;
+  monthlyPlayers: number;
   transactions: number;
+  transactions24h: number;
+  transactions7d: number;
+  transactions30d: number;
+  trackedVolumeUsdt: number;
+  trackedVolumeCelo: number;
+  trackedVolumeGdollar: number;
+};
+
+type RetentionMetrics = {
+  d1Rate: number;
+  d7Rate: number;
+  d30Rate: number;
+  d1Eligible: number;
+  d7Eligible: number;
+  d30Eligible: number;
+};
+
+type TransactionHealthMetrics = {
+  sampledTransactions: number;
+  successfulTransactions: number;
+  failedTransactions: number;
+  pendingTransactions: number;
+  failedRate: number;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const TX_HEALTH_CACHE_KEY = "ops:stats:tx-health:v1";
+const TX_HEALTH_CACHE_SECONDS = 10 * 60;
 
 function addAddress(target: Set<string>, address: string | null | undefined) {
   const normalized = address?.trim().toLowerCase();
@@ -61,6 +89,8 @@ async function scanKeys(pattern: string): Promise<string[]> {
 async function getAudienceMetrics(): Promise<OpsAudienceMetrics> {
   const now = Date.now();
   const dailyCutoff = now - DAY_MS;
+  const weeklyCutoff = now - 7 * DAY_MS;
+  const monthlyCutoff = now - 30 * DAY_MS;
 
   const [
     leaderboard,
@@ -78,27 +108,66 @@ async function getAudienceMetrics(): Promise<OpsAudienceMetrics> {
 
   const totalPlayers = new Set<string>();
   const dailyPlayers = new Set<string>();
+  const weeklyPlayers = new Set<string>();
+  const monthlyPlayers = new Set<string>();
   const transactions = new Set<string>();
+  const transactions24h = new Set<string>();
+  const transactions7d = new Set<string>();
+  const transactions30d = new Set<string>();
+  let trackedVolumeUsdt = 0;
+  let trackedVolumeCelo = 0;
+  let trackedVolumeGdollar = 0;
+
+  const addTransaction = (txHash: string | null | undefined, timestamp: number) => {
+    const normalized = txHash?.trim().toLowerCase();
+    if (!normalized) return;
+    transactions.add(normalized);
+    if (timestamp >= dailyCutoff) transactions24h.add(normalized);
+    if (timestamp >= weeklyCutoff) transactions7d.add(normalized);
+    if (timestamp >= monthlyCutoff) transactions30d.add(normalized);
+  };
+
+  const addTrackedVolume = (currency: string | null | undefined, rawAmount: string | null | undefined) => {
+    if (!currency || !rawAmount) return;
+    const amount = Number(rawAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    if (currency === "usdt") trackedVolumeUsdt += amount / 1_000_000;
+    if (currency === "celo") trackedVolumeCelo += amount / 1e18;
+    if (currency === "gdollar") trackedVolumeGdollar += amount / 1e18;
+    if (currency === "cusd") trackedVolumeUsdt += amount / 1e18;
+  };
 
   for (const entry of Object.values(leaderboard.casual)) {
     addAddress(totalPlayers, entry.address);
     if (entry.lastSeen >= dailyCutoff) addAddress(dailyPlayers, entry.address);
+    if (entry.lastSeen >= weeklyCutoff) addAddress(weeklyPlayers, entry.address);
+    if (entry.lastSeen >= monthlyCutoff) addAddress(monthlyPlayers, entry.address);
   }
 
   for (const entry of Object.values(leaderboard.ranked)) {
     addAddress(totalPlayers, entry.address);
     if (entry.lastSeen >= dailyCutoff) addAddress(dailyPlayers, entry.address);
+    if (entry.lastSeen >= weeklyCutoff) addAddress(weeklyPlayers, entry.address);
+    if (entry.lastSeen >= monthlyCutoff) addAddress(monthlyPlayers, entry.address);
   }
 
   for (const match of houseMatches) {
     addAddress(totalPlayers, match.playerAddress);
     if (match.completedAt >= dailyCutoff) addAddress(dailyPlayers, match.playerAddress);
+    if (match.completedAt >= weeklyCutoff) addAddress(weeklyPlayers, match.playerAddress);
+    if (match.completedAt >= monthlyCutoff) addAddress(monthlyPlayers, match.playerAddress);
   }
 
   for (const purchase of purchases) {
     addAddress(totalPlayers, purchase.address);
     if (purchase.purchasedAt >= dailyCutoff) addAddress(dailyPlayers, purchase.address);
-    if (purchase.txHash) transactions.add(purchase.txHash.toLowerCase());
+    if (purchase.purchasedAt >= weeklyCutoff) addAddress(weeklyPlayers, purchase.address);
+    if (purchase.purchasedAt >= monthlyCutoff) addAddress(monthlyPlayers, purchase.address);
+    addTransaction(purchase.txHash, purchase.purchasedAt);
+    if (purchase.currency === "usdt") trackedVolumeUsdt += purchase.pricePoints / 1000 * 0.08;
+    if (purchase.currency === "celo") trackedVolumeCelo += purchase.pricePoints / 1000;
+    if (purchase.currency === "gdollar") trackedVolumeGdollar += purchase.pricePoints * 0.08;
   }
 
   for (const key of seasonPassKeys) {
@@ -120,15 +189,164 @@ async function getAudienceMetrics(): Promise<OpsAudienceMetrics> {
       addAddress(dailyPlayers, match.host.address);
       addAddress(dailyPlayers, match.joiner.address);
     }
+    if (match.lastActivity >= weeklyCutoff) {
+      addAddress(weeklyPlayers, match.host.address);
+      addAddress(weeklyPlayers, match.joiner.address);
+    }
+    if (match.lastActivity >= monthlyCutoff) {
+      addAddress(monthlyPlayers, match.host.address);
+      addAddress(monthlyPlayers, match.joiner.address);
+    }
     if (match.hostWagerTx) transactions.add(match.hostWagerTx.toLowerCase());
     if (match.joinerWagerTx) transactions.add(match.joinerWagerTx.toLowerCase());
+    addTransaction(match.hostWagerTx, match.lastActivity);
+    addTransaction(match.joinerWagerTx, match.lastActivity);
+    addTrackedVolume(match.hostWagerCurrency, match.hostWagerAmount);
+    addTrackedVolume(match.joinerWagerCurrency, match.joinerWagerAmount);
   }
 
   return {
     totalPlayers: totalPlayers.size,
     dailyPlayers: dailyPlayers.size,
+    weeklyPlayers: weeklyPlayers.size,
+    monthlyPlayers: monthlyPlayers.size,
     transactions: transactions.size,
+    transactions24h: transactions24h.size,
+    transactions7d: transactions7d.size,
+    transactions30d: transactions30d.size,
+    trackedVolumeUsdt,
+    trackedVolumeCelo,
+    trackedVolumeGdollar,
   };
+}
+
+async function getRetentionMetrics(): Promise<RetentionMetrics> {
+  const now = Date.now();
+  const historyKeys = await scanKeys("history:0x*");
+  const histories = await Promise.all(historyKeys.map((key) => redis.get<ServerMatchRecord[]>(key)));
+
+  let d1Eligible = 0;
+  let d1Returned = 0;
+  let d7Eligible = 0;
+  let d7Returned = 0;
+  let d30Eligible = 0;
+  let d30Returned = 0;
+
+  for (const records of histories) {
+    if (!records?.length) continue;
+    const timestamps = records
+      .map((record) => Date.parse(record.date))
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+
+    if (!timestamps.length) continue;
+    const firstSeen = timestamps[0];
+
+    if (now - firstSeen >= DAY_MS) {
+      d1Eligible += 1;
+      if (timestamps.some((ts) => ts >= firstSeen + DAY_MS)) d1Returned += 1;
+    }
+
+    if (now - firstSeen >= 7 * DAY_MS) {
+      d7Eligible += 1;
+      if (timestamps.some((ts) => ts >= firstSeen + 7 * DAY_MS)) d7Returned += 1;
+    }
+
+    if (now - firstSeen >= 30 * DAY_MS) {
+      d30Eligible += 1;
+      if (timestamps.some((ts) => ts >= firstSeen + 30 * DAY_MS)) d30Returned += 1;
+    }
+  }
+
+  return {
+    d1Rate: d1Eligible > 0 ? d1Returned / d1Eligible : 0,
+    d7Rate: d7Eligible > 0 ? d7Returned / d7Eligible : 0,
+    d30Rate: d30Eligible > 0 ? d30Returned / d30Eligible : 0,
+    d1Eligible,
+    d7Eligible,
+    d30Eligible,
+  };
+}
+
+async function getTransactionHealthMetrics(): Promise<TransactionHealthMetrics> {
+  const cached = await redis.get<TransactionHealthMetrics>(TX_HEALTH_CACHE_KEY).catch(() => null);
+  if (cached) return cached;
+
+  const [purchases, matchKeys, seasonPassKeys] = await Promise.all([
+    getBlackMarketPurchaseActivity(),
+    scanKeys("match:*"),
+    scanKeys("season-pass:0x*"),
+  ]);
+
+  const matchRecords = await Promise.all(matchKeys.map((key) => redis.get<ServerMatch>(key)));
+  const seasonPassRecords = await Promise.all(
+    seasonPassKeys.map((key) => redis.get<{ txHash?: string }>(key))
+  );
+
+  const txByHash = new Map<string, number>();
+  const addSample = (txHash: string | null | undefined, timestamp: number) => {
+    const normalized = txHash?.trim().toLowerCase();
+    if (!normalized) return;
+    const existing = txByHash.get(normalized) ?? 0;
+    txByHash.set(normalized, Math.max(existing, timestamp));
+  };
+
+  for (const purchase of purchases) addSample(purchase.txHash, purchase.purchasedAt);
+  for (const match of matchRecords) {
+    if (!match) continue;
+    addSample(match.hostWagerTx, match.lastActivity);
+    addSample(match.joinerWagerTx, match.lastActivity);
+  }
+  for (const record of seasonPassRecords) {
+    if (record?.txHash) addSample(record.txHash, 0);
+  }
+
+  const sampleTxs = [...txByHash.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 80)
+    .map(([txHash]) => txHash as `0x${string}`);
+
+  if (sampleTxs.length === 0) {
+    return {
+      sampledTransactions: 0,
+      successfulTransactions: 0,
+      failedTransactions: 0,
+      pendingTransactions: 0,
+      failedRate: 0,
+    };
+  }
+
+  const celoClient = createPublicClient({ chain: celo, transport: http() });
+  let successfulTransactions = 0;
+  let failedTransactions = 0;
+  let pendingTransactions = 0;
+
+  const receipts = await Promise.all(
+    sampleTxs.map((txHash) =>
+      celoClient.getTransactionReceipt({ hash: txHash }).then(
+        (receipt) => receipt.status,
+        () => null
+      )
+    )
+  );
+
+  for (const status of receipts) {
+    if (status === "success") successfulTransactions += 1;
+    else if (status === "reverted") failedTransactions += 1;
+    else pendingTransactions += 1;
+  }
+
+  const resolvedTransactions = successfulTransactions + failedTransactions;
+  const metrics = {
+    sampledTransactions: sampleTxs.length,
+    successfulTransactions,
+    failedTransactions,
+    pendingTransactions,
+    failedRate: resolvedTransactions > 0 ? failedTransactions / resolvedTransactions : 0,
+  };
+
+  await redis.set(TX_HEALTH_CACHE_KEY, metrics, { ex: TX_HEALTH_CACHE_SECONDS }).catch(() => {});
+  return metrics;
 }
 
 export function buildBalanceWatchlist(snapshot: RankedDashboardSnapshot): BalanceWatchItem[] {
@@ -183,11 +401,13 @@ async function getOnChainStats() {
 }
 
 export async function getBalanceDashboard() {
-  const [snapshot, activity, audience, onChain] = await Promise.all([
+  const [snapshot, activity, audience, onChain, retention, transactionHealth] = await Promise.all([
     getRankedDashboardSnapshot(),
     getOpsActivitySnapshot(),
     getAudienceMetrics(),
     getOnChainStats(),
+    getRetentionMetrics(),
+    getTransactionHealthMetrics(),
   ]);
   return {
     snapshot,
@@ -196,5 +416,7 @@ export async function getBalanceDashboard() {
     activity,
     audience,
     onChain,
+    retention,
+    transactionHealth,
   };
 }

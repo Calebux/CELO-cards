@@ -9,7 +9,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
-import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -177,7 +177,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     }
 
     if (!connected || !activeAddress) {
-      throw new Error("Connect your wallet first.");
+      throw new Error(isMp ? "MiniPay wallet is still loading. Try again in a moment." : "Connect your wallet first.");
     }
 
     if (activeChainId !== celo.id) {
@@ -313,7 +313,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: isMp ? 760 : 520, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
+        width: isMp ? 620 : 620, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",
@@ -369,7 +369,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               ))}
 
               <div style={{
-                width: 148, height: 200, borderRadius: 10, overflow: "hidden",
+                width: isMp ? 196 : 172, height: isMp ? 188 : 184, borderRadius: 10, overflow: "hidden",
                 border: "2px solid rgba(74,222,128,0.7)",
                 animation: existingPlan ? "sp-card-in 0.5s ease forwards" : "sp-card-in 0.4s ease forwards, sp-flip 0.7s ease 0.1s, sp-glow 2s ease 0.8s infinite",
                 position: "relative", flexShrink: 0,
@@ -445,7 +445,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
-                onClick={() => window.open("https://minipay.opera.com/add_cash", "_blank")}
+                onClick={() => window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank")}
                 style={{
                   padding: isMp ? "36px 32px" : "12px 32px", borderRadius: 7,
                   background: "linear-gradient(135deg, #26a17b22, #26a17b44)",
@@ -502,6 +502,11 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             {!isMp && (
               <div style={{ padding: "10px 24px 0", fontSize: 11, lineHeight: 1.45, color: "rgba(148,163,184,0.92)" }}>
                 Web season passes support <span style={{ color: "#56a4cb", fontWeight: 700 }}>CELO</span> or <span style={{ color: "#00C58E", fontWeight: 700 }}>G$</span>.
+              </div>
+            )}
+            {isMp && (
+              <div style={{ padding: "10px 24px 0", fontSize: 11, lineHeight: 1.45, color: "rgba(148,163,184,0.92)" }}>
+                {MINIPAY_STABLECOIN_EXPLAINER}
               </div>
             )}
 

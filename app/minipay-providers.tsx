@@ -7,7 +7,6 @@ import { WagmiProvider, createConfig, custom, fallback, http } from "wagmi";
 import { celo } from "wagmi/chains";
 import { getMiniPayProvider, miniPayConnector } from "./lib/minipay";
 import { WalletSync } from "./lib/wallet";
-import { PortraitOverlay } from "./components/PortraitOverlay";
 import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
 
 // Heavy modals — load after initial paint
@@ -51,7 +50,6 @@ export function MiniPayProviders({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={miniPayConfig}>
       <QueryClientProvider client={queryClient}>
         <WalletSync />
-        <PortraitOverlay />
         <DeferredGlobalOverlays>
           <DailyReward />
           <UsernameModal />

@@ -295,7 +295,7 @@ export default function Leaderboard() {
                               </span>
                             )}
                           </div>
-                          {displayName && (
+                          {displayName && !isMp && (
                             <span style={{ fontSize: isCompact ? 13 : 10, color: "#475569", fontFamily: "monospace", letterSpacing: 0.3 }}>
                               {truncateAddress(p.address)}
                             </span>

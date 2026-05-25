@@ -3,45 +3,15 @@
 import { toHex, createWalletClient, custom, encodeFunctionData, type EIP1193Provider } from "viem";
 import { celo } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
+import {
+  formatAddress,
+  getMiniPayProvider,
+  isMiniPay,
+  persistMiniPayDetection,
+  type MiniPayProvider,
+} from "./minipayRuntime";
 
-type MiniPayProvider = EIP1193Provider & {
-  isMiniPay?: boolean;
-};
-
-const CELO_CHAIN_HEX = "0xa4ec";
-const MINIPAY_STORAGE_KEY = "ao:minipay";
-
-function persistMiniPayDetection() {
-  if (typeof document !== "undefined") {
-    document.documentElement.dataset.minipay = "1";
-  }
-  if (typeof window !== "undefined") {
-    try {
-      window.sessionStorage.setItem(MINIPAY_STORAGE_KEY, "1");
-    } catch {}
-    try {
-      window.localStorage.setItem(MINIPAY_STORAGE_KEY, "1");
-    } catch {}
-  }
-}
-
-function hasMiniPayRuntimeHint(): boolean {
-  if (typeof document !== "undefined" && document.documentElement.dataset.minipay === "1") {
-    return true;
-  }
-  if (typeof navigator !== "undefined" && /MiniPay/i.test(navigator.userAgent)) {
-    return true;
-  }
-  if (typeof window !== "undefined") {
-    try {
-      if (window.sessionStorage.getItem(MINIPAY_STORAGE_KEY) === "1") return true;
-    } catch {}
-    try {
-      if (window.localStorage.getItem(MINIPAY_STORAGE_KEY) === "1") return true;
-    } catch {}
-  }
-  return false;
-}
+export { formatAddress, getMiniPayProvider, isMiniPay } from "./minipayRuntime";
 
 function shouldRetryMiniPayNativeSend(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -54,42 +24,10 @@ function shouldRetryMiniPayNativeSend(error: unknown): boolean {
   );
 }
 
-export function isMiniPay(): boolean {
-  if (typeof window === "undefined") return false;
-  // window.ethereum check — most accurate once provider is injected
-  if ((window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay) {
-    persistMiniPayDetection();
-    return true;
-  }
-  // Fallbacks: server/client UA hints plus sticky session/local storage.
-  const hinted = hasMiniPayRuntimeHint();
-  if (hinted) {
-    persistMiniPayDetection();
-  }
-  return hinted;
-}
-
-export function getMiniPayProvider(): MiniPayProvider | undefined {
-  if (typeof window === "undefined") return undefined;
-  const provider = window.ethereum as MiniPayProvider | undefined;
-  if (provider?.isMiniPay) {
-    persistMiniPayDetection();
-    return provider;
-  }
-  // Fallback: isMiniPay flag can be missing on first paint if the WebView injects
-  // window.ethereum asynchronously. If runtime hints confirm MiniPay (UA header
-  // or server-set data-minipay="1"), use window.ethereum directly — there are no
-  // third-party wallet extensions inside MiniPay's WebView.
-  if (provider && hasMiniPayRuntimeHint()) {
-    return provider;
-  }
-  return undefined;
-}
-
 export function getMiniPayWalletClient() {
   const provider = getMiniPayProvider();
   if (!provider) throw new Error("MiniPay wallet not available.");
-  return createWalletClient({ chain: celo, transport: custom(provider) });
+  return createWalletClient({ chain: celo, transport: custom(provider as EIP1193Provider) });
 }
 
 export function getMiniPayWriteOverrides() {
@@ -222,8 +160,4 @@ export async function sendMiniPayErc20Transfer(args: {
     data: transferData,
     gas: args.gas ?? 100000n,
   });
-}
-
-export function formatAddress(address: string): string {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }

@@ -3,7 +3,7 @@
 
 import { createConnector } from "wagmi";
 import { celo } from "wagmi/chains";
-import { isMiniPay } from "./minipay";
+import { isMiniPay } from "./minipayRuntime";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
 

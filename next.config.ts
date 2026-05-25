@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    // MiniPayImage uses a small fixed set of quality values. Next's image
+    // optimizer returns 400 for qualities outside the allowed list.
+    qualities: [46, 48, 50, 52, 54, 56, 58, 60, 75],
     // MiniPayImage requests /_next/image with widths derived from minipayWidth.
     // All 12 direct minipayWidth values < 640 are listed first (these are used
     // in the src attr — must succeed). Remaining 13 slots cover the most common
@@ -25,6 +28,13 @@ const nextConfig: NextConfig = {
       390, 420, 480, 510, 540,
     ],
     deviceSizes: [640, 720, 750, 760, 828, 960, 1080, 1140, 1200, 1280, 1440, 1920, 2048, 3840],
+  },
+  webpack(config) {
+    config.resolve ??= {};
+    config.resolve.alias ??= {};
+    config.resolve.alias["@react-native-async-storage/async-storage"] = false;
+    config.resolve.alias["pino-pretty"] = false;
+    return config;
   },
   async headers() {
     return [

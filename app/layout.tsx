@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
 import { headers } from "next/headers";
-import "./globals.css";
+import { GLOBAL_CSS } from "./lib/globalCss";
+import { AppProviders } from "./components/AppProviders";
 // Material Icons moved to globals.css as self-hosted @font-face with font-display:swap
 // (was: package import that loaded all 5 variants with font-display:block — render-blocking)
-
-// Separate chunks: MiniPay gets wagmi-only bundle, web gets full RainbowKit/WalletConnect bundle
-const Providers = dynamic(() => import("./providers").then(m => ({ default: m.Providers })));
-const MiniPayProviders = dynamic(() => import("./minipay-providers").then(m => ({ default: m.MiniPayProviders })));
 
 export const metadata: Metadata = {
   title: {
@@ -41,9 +37,11 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const ua = (await headers()).get("user-agent") ?? "";
+  const requestHeaders = await headers();
+  const ua = requestHeaders.get("user-agent") ?? "";
+  const matchedPath = requestHeaders.get("x-matched-path") ?? requestHeaders.get("next-url");
   const isMiniPayUA = /MiniPay/i.test(ua);
-  const ProviderComponent = isMiniPayUA ? MiniPayProviders : Providers;
+  const shouldWrapWithProviders = matchedPath !== "/";
 
   return (
     <html lang="en" data-minipay={isMiniPayUA ? "1" : undefined}>
@@ -85,16 +83,13 @@ export default async function RootLayout({
         <link rel="preload" href="/new-assets/landing-hero.webp" as="image" type="image/webp" fetchPriority="high" />
         {/* Material Icons font — preload so it starts alongside HTML, not after CSS parses */}
         <link rel="preload" href="/material-icons.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
-        {/* Google Fonts (Inter) — used by RainbowKit. Preconnect cuts DNS+TLS
-            from the critical path so the font sheet arrives ~300ms sooner. */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
         {/* Warm up Alchemy RPC connection before wagmi makes its first call */}
         <link rel="dns-prefetch" href="https://celo-mainnet.g.alchemy.com" />
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-        <ProviderComponent>{children}</ProviderComponent>
+        {shouldWrapWithProviders ? <AppProviders isMiniPayUA={isMiniPayUA}>{children}</AppProviders> : children}
       </body>
     </html>
   );

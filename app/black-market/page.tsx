@@ -22,7 +22,7 @@ import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { MiniPayImage } from "../components/MiniPayImage";
-import { getInitialMiniPayMode, getPremiumPaymentOptions, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -156,7 +156,7 @@ export default function BlackMarket() {
     }
 
     if (!connected || !activeAddress) {
-      throw new Error("Connect your wallet first.");
+      throw new Error(isMp ? "MiniPay wallet is still loading. Try again in a moment." : "Connect your wallet first.");
     }
 
     if (activeChainId !== celo.id) {
@@ -324,7 +324,7 @@ export default function BlackMarket() {
               <span style={{ fontSize: 12, color: "#f87171", flex: 1 }}>{buyError}</span>
               {isMp && (
                 <a
-                  href="https://minipay.opera.com/add_cash"
+                  href={MINIPAY_DEPOSIT_DEEPLINK}
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     padding: "6px 14px", flexShrink: 0,
@@ -352,6 +352,11 @@ export default function BlackMarket() {
                     <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1", maxWidth: 620 }}>
                       Rare black market cards you can buy, own permanently, and attune once unlocked.
                     </div>
+                    {isMp && (
+                      <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8", maxWidth: 620, lineHeight: 1.45 }}>
+                        {MINIPAY_STABLECOIN_EXPLAINER}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -492,7 +497,7 @@ export default function BlackMarket() {
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 800, color: "#56a4cb", letterSpacing: 2.4, textTransform: "uppercase" }}>Normal Card Forge</div>
                     <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1", maxWidth: 760, lineHeight: 1.45 }}>
-                      Normal cards build mastery through use. When a card hits the full forge path, it will show <span style={{ color: "#fbbf24", fontWeight: 800 }}>FORGE READY</span> here before paid ascension goes live.
+                      Normal cards build mastery through use. When a card hits the full forge path, it will show <span style={{ color: "#fbbf24", fontWeight: 800 }}>FORGE READY</span> here for ascension tracking.
                     </div>
                   </div>
                   <div style={{ minWidth: 180, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(251,191,36,0.18)", background: "rgba(251,191,36,0.08)", fontSize: 11, color: "#f8fafc", lineHeight: 1.45 }}>

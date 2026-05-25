@@ -1,0 +1,259 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useAccount, useBalance, useConnect, useConnectors, useReadContract, useSwitchChain } from "wagmi";
+import { celo } from "wagmi/chains";
+import { formatUnits } from "viem";
+import { formatAddress } from "../lib/minipayRuntime";
+import { getMiniPayConnector, isMiniPay } from "../lib/minipay";
+import { isMuted } from "../lib/soundManager";
+import { useGameStore } from "../lib/gameStore";
+import { SoundSettings } from "./SoundSettings";
+import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
+
+const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
+const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
+const LOW_BALANCE_THRESHOLD = 0.50;
+
+function BalanceChip({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 5,
+      padding: "5px 10px",
+      background: `${color}0f`,
+      border: `1px solid ${color}30`,
+      borderRadius: 5,
+      whiteSpace: "nowrap",
+    }}>
+      <div style={{ width: 5, height: 5, borderRadius: "50%", background: color, boxShadow: `0 0 5px ${color}` }} />
+      <span style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: 0.5 }}>{value}</span>
+      <span style={{ fontSize: 9, fontWeight: 600, color: "#4b5563", letterSpacing: 0.5 }}>{label}</span>
+    </div>
+  );
+}
+
+function Balances({ address, enabled, mp }: { address: `0x${string}`; enabled: boolean; mp: boolean }) {
+  const { data: celoBalance } = useBalance({
+    address,
+    chainId: celo.id,
+    query: { enabled: !!address && enabled && !mp },
+  });
+  const { data: token2 } = useReadContract({
+    address: mp ? USDT_CONTRACT : GDOLLAR_CONTRACT,
+    abi: BALANCE_ABI,
+    functionName: "balanceOf",
+    args: [address],
+    chainId: celo.id,
+    query: { enabled: !!address && enabled },
+  });
+
+  const celoVal = celoBalance ? parseFloat(formatUnits(celoBalance.value, 18)).toFixed(3) : "—";
+  const token2Val = token2 ? parseFloat(formatUnits(token2, mp ? 6 : 18)).toFixed(mp ? 2 : 0) : "—";
+
+  return (
+    <>
+      {!mp ? <BalanceChip label="CELO" value={celoVal} color="#FBCC5C" /> : null}
+      <BalanceChip label={mp ? "USDT" : "G$"} value={token2Val} color={mp ? "#26a17b" : "#00C58E"} />
+    </>
+  );
+}
+
+function MuteButton() {
+  const [muted, setMutedState] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const isMp = useMiniPayMode();
+
+  useEffect(() => {
+    setMutedState(isMuted());
+    const handler = (e: Event) => setMutedState((e as CustomEvent<{ muted: boolean }>).detail.muted);
+    window.addEventListener("ao-mute-change", handler);
+    return () => window.removeEventListener("ao-mute-change", handler);
+  }, []);
+
+  return (
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        title="Sound settings"
+        style={{
+          background: "rgba(86,164,203,0.08)",
+          border: "1px solid rgba(86,164,203,0.25)",
+          borderRadius: 6,
+          cursor: "pointer",
+          padding: isMp ? "16px 14px" : "5px 8px",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          transition: "all 0.2s",
+        }}
+      >
+        <span className="material-icons" style={{ fontSize: 16, color: muted ? "#ef4444" : "#56a4cb", lineHeight: 1 }}>
+          {muted ? "volume_off" : "volume_up"}
+        </span>
+      </button>
+      {showModal ? <SoundSettings onClose={() => setShowModal(false)} /> : null}
+    </>
+  );
+}
+
+export function LandingWalletSection() {
+  const { address, isConnected } = useAccount();
+  const { connectAsync } = useConnect();
+  const connectors = useConnectors();
+  const { switchChainAsync } = useSwitchChain();
+  const { playerName } = useGameStore();
+  const [autoConnecting, setAutoConnecting] = useState(false);
+  const [showBalances, setShowBalances] = useState(false);
+  const mp = useMiniPayMode();
+
+  const { data: usdtRaw } = useReadContract({
+    address: USDT_CONTRACT,
+    abi: BALANCE_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: celo.id,
+    query: { enabled: !!address && mp && isConnected },
+  });
+  const usdtFloat = usdtRaw !== undefined ? parseFloat(formatUnits(usdtRaw, 6)) : null;
+  const isLowBalance = mp && usdtFloat !== null && usdtFloat < LOW_BALANCE_THRESHOLD;
+
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setShowBalances(false);
+      return;
+    }
+    if (!mp) {
+      setShowBalances(true);
+      return;
+    }
+
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(() => setShowBalances(true), { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(() => setShowBalances(true), 900);
+    return () => window.clearTimeout(timeout);
+  }, [address, isConnected, mp]);
+
+  useEffect(() => {
+    if (!mp || isConnected) return;
+    setAutoConnecting(true);
+    const connector = getMiniPayConnector();
+    connectAsync({ connector, chainId: celo.id })
+      .then(async (result) => {
+        if (result.chainId !== celo.id) {
+          await switchChainAsync({ chainId: celo.id }).catch(() => {});
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAutoConnecting(false));
+  }, [mp, isConnected, connectAsync, switchChainAsync]);
+
+  const base: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    border: "1.5px solid #56a4cb",
+    borderRadius: 6,
+    padding: mp ? "16px 18px" : "8px 18px",
+    backdropFilter: "blur(10px)",
+    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
+    boxShadow: "0 0 16px rgba(86,164,203,0.3), inset 0 0 20px rgba(86,164,203,0.07)",
+    fontFamily: "var(--font-space-grotesk), sans-serif",
+  };
+
+  if (mp && !isConnected) {
+    if (autoConnecting) return null;
+    return null;
+  }
+
+  if (mp && isConnected && address) {
+    const primaryIdentity = playerName || "MINIPAY PLAYER";
+    const secondaryIdentity = playerName ? "MiniPay ready" : "Set username in Profile";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <MuteButton />
+        {showBalances ? <Balances address={address} enabled={showBalances} mp={mp} /> : null}
+        {isLowBalance ? (
+          <a
+            href={MINIPAY_DEPOSIT_DEEPLINK}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 12px",
+              background: "rgba(251,191,36,0.12)",
+              border: "1px solid rgba(251,191,36,0.45)",
+              borderRadius: 6,
+              color: "#fbbf24",
+              fontSize: 11, fontWeight: 800, letterSpacing: 1.2,
+              textTransform: "uppercase", textDecoration: "none",
+              boxShadow: "0 0 10px rgba(251,191,36,0.2)",
+            }}
+          >
+            <span className="material-icons" style={{ fontSize: 13 }}>add_circle</span>
+            Deposit
+          </a>
+        ) : null}
+        <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+          <div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>MINIPAY</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.4 }}>{primaryIdentity}</div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.6, lineHeight: 1.2 }}>{secondaryIdentity}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const web3AuthConnector = connectors.find((connector) => connector.id === "web3auth");
+  const fallbackConnector = connectors.find((connector) => connector.id === "injected") ?? connectors[0];
+
+  const handleSignIn = () => {
+    const connector = web3AuthConnector ?? fallbackConnector;
+    if (!connector) return;
+    void connectAsync({ connector });
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <MuteButton />
+      {isConnected && address ? <Balances address={address} enabled mp={mp} /> : null}
+      <button
+        onClick={isConnected ? () => { window.location.href = "/profile"; } : handleSignIn}
+        style={{
+          ...base,
+          cursor: "pointer",
+          background: isConnected
+            ? "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))"
+            : "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",
+        }}
+      >
+        <div
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: isConnected ? "#4ade80" : "#56a4cb",
+            boxShadow: `0 0 6px ${isConnected ? "#4ade80" : "#56a4cb"}`,
+          }}
+        />
+        <div>
+          <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
+            {isConnected ? "CELO WALLET" : "CONNECT"}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
+            {isConnected && address ? (playerName || formatAddress(address)) : "SIGN IN"}
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
