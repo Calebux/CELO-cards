@@ -226,11 +226,7 @@ export function LandingWalletSection() {
           await primeWeb3AuthConnection();
         }
         await connectAsync({ connector, chainId: celo.id });
-      } catch {
-        if (fallbackConnector && connector.id !== fallbackConnector.id) {
-          await connectAsync({ connector: fallbackConnector, chainId: celo.id }).catch(() => {});
-        }
-      }
+      } catch {}
     })();
   };
 
