@@ -6,6 +6,24 @@ type MiniPayProvider = EIP1193Provider & {
 
 const MINIPAY_STORAGE_KEY = "ao:minipay";
 
+function clearPersistedMiniPayHint() {
+  if (typeof document !== "undefined") {
+    delete document.documentElement.dataset.minipay;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.removeItem(MINIPAY_STORAGE_KEY);
+    } catch {}
+    try {
+      window.localStorage.removeItem(MINIPAY_STORAGE_KEY);
+    } catch {}
+  }
+}
+
+function hasMiniPayUserAgent(): boolean {
+  return typeof navigator !== "undefined" && /MiniPay/i.test(navigator.userAgent);
+}
+
 export function persistMiniPayDetection() {
   if (typeof document !== "undefined") {
     document.documentElement.dataset.minipay = "1";
@@ -24,18 +42,7 @@ export function hasMiniPayRuntimeHint(): boolean {
   if (typeof document !== "undefined" && document.documentElement.dataset.minipay === "1") {
     return true;
   }
-  if (typeof navigator !== "undefined" && /MiniPay/i.test(navigator.userAgent)) {
-    return true;
-  }
-  if (typeof window !== "undefined") {
-    try {
-      if (window.sessionStorage.getItem(MINIPAY_STORAGE_KEY) === "1") return true;
-    } catch {}
-    try {
-      if (window.localStorage.getItem(MINIPAY_STORAGE_KEY) === "1") return true;
-    } catch {}
-  }
-  return false;
+  return hasMiniPayUserAgent();
 }
 
 export function isMiniPay(): boolean {
@@ -47,6 +54,8 @@ export function isMiniPay(): boolean {
   const hinted = hasMiniPayRuntimeHint();
   if (hinted) {
     persistMiniPayDetection();
+  } else {
+    clearPersistedMiniPayHint();
   }
   return hinted;
 }
@@ -61,6 +70,7 @@ export function getMiniPayProvider(): MiniPayProvider | undefined {
   if (provider && hasMiniPayRuntimeHint()) {
     return provider;
   }
+  clearPersistedMiniPayHint();
   return undefined;
 }
 
