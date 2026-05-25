@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 // Portraits + hero images cover the first things the player sees.
 // Card images are handled later by MatchLoadingScreen during the match wait.
 const ASSETS = [
+  "/icon.png",
   "/new-assets/landing-hero.webp",
   "/new-assets/fighters-energy-sm.webp",
   "/characters/characters/Adobe Express - file (4).webp",
@@ -138,11 +139,27 @@ export function GameLoadingScreen({ onDone }: Props) {
 
       {/* Logo block */}
       <div style={{ textAlign: "center", marginBottom: "6vh", animation: "gl-float 3s ease-in-out infinite" }}>
-        {/* Accent bars */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18, marginBottom: 16 }}>
-          <div style={{ width: 4, height: "5vh", minHeight: 32, maxHeight: 56, background: "linear-gradient(to bottom, transparent, #56a4cb)", borderRadius: 2 }} />
-          <div style={{ width: 6, height: "7vh", minHeight: 44, maxHeight: 70, background: "#56a4cb", borderRadius: 3, boxShadow: "0 0 20px #56a4cb, 0 0 40px rgba(86,164,203,0.4)" }} />
-          <div style={{ width: 4, height: "5vh", minHeight: 32, maxHeight: 56, background: "linear-gradient(to bottom, #56a4cb, transparent)", borderRadius: 2 }} />
+        <div
+          style={{
+            width: "clamp(88px, 16vw, 146px)",
+            height: "clamp(88px, 16vw, 146px)",
+            margin: "0 auto 16px",
+            borderRadius: 22,
+            overflow: "hidden",
+            border: "1.5px solid rgba(86,164,203,0.35)",
+            boxShadow: "0 0 26px rgba(86,164,203,0.28), 0 0 54px rgba(86,164,203,0.18)",
+            background: "rgba(9,18,34,0.92)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 8,
+          }}
+        >
+          <img
+            src="/icon.png"
+            alt="Action Order logo"
+            style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          />
         </div>
 
         <div style={{ fontSize: "clamp(22px, 5vw, 38px)", fontWeight: 900, letterSpacing: "0.18em", color: "#ffffff", textTransform: "uppercase", lineHeight: 1, textShadow: "0 0 30px rgba(86,164,203,0.5)" }}>
