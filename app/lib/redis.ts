@@ -99,11 +99,25 @@ export const redis: RedisLike = isRedisConfigured
 
 const MATCH_ARCHIVE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days — long owner resume window without permanent garbage
 const OPEN_MATCHES_KEY = "open_matches";
+const OPEN_MATCH_SUMMARY_PREFIX = "open_match_summary:";
 const ACTIVE_MATCH_BY_ADDRESS_PREFIX = "active_match_by_address:";
 
 function activeMatchAddressKey(address: string): string {
   return `${ACTIVE_MATCH_BY_ADDRESS_PREFIX}${address.toLowerCase()}`;
 }
+
+function openMatchSummaryKey(matchId: string): string {
+  return `${OPEN_MATCH_SUMMARY_PREFIX}${matchId}`;
+}
+
+export type OpenMatchSummary = {
+  id: string;
+  hostName: string | null;
+  hostAddress: string | null;
+  createdAt: number;
+  mode: "wager" | "ranked" | "tournament";
+  hostCharSelected: boolean;
+};
 
 export async function getMatch<T>(matchId: string): Promise<T | null> {
   return redis.get<T>(`match:${matchId}`);
@@ -114,7 +128,7 @@ export async function setMatch<T>(matchId: string, match: T): Promise<void> {
 }
 
 export async function deleteMatch(matchId: string): Promise<void> {
-  await redis.del(`match:${matchId}`);
+  await redis.del(`match:${matchId}`, openMatchSummaryKey(matchId));
 }
 
 // Track open (waiting-for-joiner) matches in a Redis set
@@ -129,6 +143,23 @@ export async function removeFromOpenMatches(matchId: string): Promise<void> {
 export async function getOpenMatchIds(): Promise<string[]> {
   const members = await redis.smembers(OPEN_MATCHES_KEY);
   return (members ?? []) as string[];
+}
+
+export async function setOpenMatchSummary(summary: OpenMatchSummary): Promise<void> {
+  await redis.set(openMatchSummaryKey(summary.id), summary, { ex: MATCH_ARCHIVE_TTL_SECONDS });
+}
+
+export async function getOpenMatchSummary(matchId: string): Promise<OpenMatchSummary | null> {
+  return redis.get<OpenMatchSummary>(openMatchSummaryKey(matchId));
+}
+
+export async function getOpenMatchSummaries(matchIds: string[]): Promise<(OpenMatchSummary | null)[]> {
+  if (!matchIds.length) return [];
+  return redis.mget<OpenMatchSummary>(...matchIds.map(openMatchSummaryKey));
+}
+
+export async function removeOpenMatchSummary(matchId: string): Promise<void> {
+  await redis.del(openMatchSummaryKey(matchId));
 }
 
 export async function setActiveMatchForAddress(address: string, matchId: string): Promise<void> {

@@ -38,6 +38,7 @@ export function useActiveMatchResume(address?: string): ActiveMatchResume | null
 
   useEffect(() => {
     let cancelled = false;
+    let timer: number | null = null;
     if (!address) {
       setMatch(null);
       return;
@@ -56,18 +57,27 @@ export function useActiveMatchResume(address?: string): ActiveMatchResume | null
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refresh();
     };
+    const scheduleRefresh = () => {
+      if (cancelled) return;
+      if (timer) window.clearTimeout(timer);
+      const delay = document.visibilityState === "visible" ? 10_000 : 30_000;
+      timer = window.setTimeout(() => {
+        refresh();
+        scheduleRefresh();
+      }, delay);
+    };
 
     // Delay first fetch by 1.5s — pushes it outside the PageSpeed measurement window
     // and avoids competing with critical JS during the hydration phase.
     const initTimeout = window.setTimeout(refresh, 1500);
-    const intervalId = window.setInterval(refresh, 10_000);
+    scheduleRefresh();
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       cancelled = true;
       window.clearTimeout(initTimeout);
-      window.clearInterval(intervalId);
+      if (timer) window.clearTimeout(timer);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };

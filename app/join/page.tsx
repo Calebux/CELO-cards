@@ -52,25 +52,52 @@ function JoinMatchContent() {
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetch_ = () => fetch("/api/online").then(r => r.json()).then((d: { online: number }) => setOnlineCount(d.online)).catch(() => {});
+    let cancelled = false;
+    let timer: number | null = null;
+    const nextDelay = () => (document.visibilityState === "visible" ? 20_000 : 60_000);
+    const fetch_ = () => {
+      void fetch("/api/online")
+        .then(r => r.json())
+        .then((d: { online: number }) => {
+          if (!cancelled) setOnlineCount(d.online);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) timer = window.setTimeout(fetch_, nextDelay());
+        });
+    };
     fetch_();
-    const id = setInterval(fetch_, 20_000);
-    return () => clearInterval(id);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
-  // Fetch live matches and refresh every 5s
+  // Fetch live matches and back off when the tab is hidden.
   useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+    const nextDelay = () => (document.visibilityState === "visible" ? 5000 : 15_000);
     const fetchLive = () => {
       const qs = address ? `?address=${encodeURIComponent(address)}` : "";
-      fetch(`/api/matches/live${qs}`)
+      void fetch(`/api/matches/live${qs}`)
         .then(r => r.json())
-        .then((d: { matches: LiveMatch[] }) => setLiveMatches(d.matches ?? []))
+        .then((d: { matches: LiveMatch[] }) => {
+          if (!cancelled) setLiveMatches(d.matches ?? []);
+        })
         .catch(() => {})
-        .finally(() => setLoadingLive(false));
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingLive(false);
+            timer = window.setTimeout(fetchLive, nextDelay());
+          }
+        });
     };
     fetchLive();
-    const id = setInterval(fetchLive, 5000);
-    return () => clearInterval(id);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [address]);
 
   useEffect(() => {
