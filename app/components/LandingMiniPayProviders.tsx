@@ -1,10 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, custom, fallback, http } from "wagmi";
 import { celo } from "wagmi/chains";
 import { getMiniPayProvider, miniPayConnector } from "../lib/minipay";
 import { WalletSync } from "../lib/wallet";
+
+const UsernameModal = dynamic(() => import("./UsernameModal").then(m => ({ default: m.UsernameModal })), { ssr: false });
 
 const miniPayTransport = fallback([
   custom({
@@ -36,6 +39,7 @@ export function LandingMiniPayProviders({ children }: { children: React.ReactNod
     <WagmiProvider config={miniPayConfig}>
       <QueryClientProvider client={queryClient}>
         <WalletSync />
+        <UsernameModal />
         {children}
       </QueryClientProvider>
     </WagmiProvider>

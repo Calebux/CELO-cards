@@ -108,6 +108,7 @@ export function LandingWalletSection() {
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [showBalances, setShowBalances] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const mp = useMiniPayMode();
 
@@ -255,6 +256,16 @@ export function LandingWalletSection() {
     void disconnectAsync().catch(() => {}).finally(() => setShowAccountMenu(false));
   };
 
+  const handleCopyAddress = () => {
+    if (!address || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+    void navigator.clipboard.writeText(address)
+      .then(() => {
+        setCopiedAddress(true);
+        window.setTimeout(() => setCopiedAddress(false), 1600);
+      })
+      .catch(() => {});
+  };
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }} ref={menuRef}>
       <MuteButton />
@@ -303,6 +314,36 @@ export function LandingWalletSection() {
             zIndex: 30,
           }}
         >
+          <button
+            onClick={handleCopyAddress}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              padding: "10px 12px",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              color: "#b9e7f4",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="material-icons" style={{ fontSize: 16, color: "#56a4cb" }}>content_copy</span>
+              {copiedAddress ? "Address copied" : "Copy wallet address"}
+            </span>
+            {address ? (
+              <span style={{ fontSize: 11, color: "#64748b", letterSpacing: 0.3 }}>
+                {formatAddress(address)}
+              </span>
+            ) : null}
+          </button>
           <button
             onClick={() => { setShowAccountMenu(false); window.location.href = "/profile"; }}
             style={{

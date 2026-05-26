@@ -18,6 +18,8 @@ export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
   const hasSeenTutorial = useGameStore((s) => s.hasSeenTutorial);
   const setHasSeenTutorial = useGameStore((s) => s.setHasSeenTutorial);
+  const playerAddress = useGameStore((s) => s.playerAddress);
+  const playerName = useGameStore((s) => s.playerName);
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
   const [showDeferredWalletUi, setShowDeferredWalletUi] = useState(false);
@@ -118,12 +120,19 @@ export default function ActionOrderLandingPage() {
 
   useEffect(() => {
     if (showLoader || hasSeenTutorial) return;
+    if (playerAddress && !playerName) return;
     const timeout = window.setTimeout(() => {
       setHowToPlayVariant("quickstart");
       setShowHowToPlay(true);
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [hasSeenTutorial, showLoader]);
+  }, [hasSeenTutorial, playerAddress, playerName, showLoader]);
+
+  useEffect(() => {
+    if (playerAddress && !playerName && showHowToPlay) {
+      setShowHowToPlay(false);
+    }
+  }, [playerAddress, playerName, showHowToPlay]);
 
   if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 
