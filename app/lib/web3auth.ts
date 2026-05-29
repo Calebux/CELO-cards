@@ -127,14 +127,17 @@ export function createWeb3AuthConnector() {
     },
 
     async isAuthorized() {
-      // Do NOT call getWeb3Auth() here — wagmi invokes isAuthorized() on every
-      // connector at startup. If we called getWeb3Auth(), it would trigger the
-      // dynamic import of @web3auth/modal, loading 1.3MB from auth.web3auth.io
-      // on every page load. Instead, return false unless the SDK is already
-      // initialised (user connected in this session).
       if (typeof window === "undefined") return false;
       if (isMiniPay()) return false;
-      return web3authInstance?.connected ?? false;
+      if (web3authInstance?.connected) return true;
+      if (!hasWeb3AuthSessionHint()) return false;
+      try {
+        const web3auth = await getWeb3Auth();
+        return Boolean(web3auth.connected && web3auth.provider);
+      } catch {
+        clearWeb3AuthSessionHint();
+        return false;
+      }
     },
 
     onAccountsChanged() {},

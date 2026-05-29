@@ -14,6 +14,8 @@ import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLI
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
+const MOBILE_MODAL_W = 900;
+const MOBILE_MODAL_H = 620;
 const USDT_ABI = [
   { name: "transfer", type: "function", stateMutability: "nonpayable",
     inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
@@ -84,6 +86,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
   const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [isMobileModal, setIsMobileModal] = useState(false);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
   const [currency, setCurrency] = useState<Currency>(() => getInitialMiniPayMode() ? "usdt" : "celo");
@@ -100,31 +103,47 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     if (isMp && currency !== "usdt") setCurrency("usdt");
   }, [currency, isMp]);
 
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const update = () => setIsMobileModal(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
   useLayoutEffect(() => {
-    if (!isMp) return;
+    const useMobileFrame = isMp || isMobileModal;
+    if (!useMobileFrame) return;
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
+      const frameW = MOBILE_MODAL_W;
+      const frameH = MOBILE_MODAL_H;
       let transform: string;
       if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        const s = Math.min(vw / frameH, vh / frameW);
+        const tx = vw / 2 + (frameH * s) / 2;
+        const ty = vh / 2 - (frameW * s) / 2;
         transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
       } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
+        const s = Math.min(vw / frameW, vh / frameH);
+        const tx = (vw - frameW * s) / 2;
+        const ty = (vh - frameH * s) / 2;
         transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
       wrapRef.current.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [isMp]);
+    viewport?.addEventListener("resize", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      viewport?.removeEventListener("resize", scale);
+    };
+  }, [isMobileModal, isMp]);
 
   // Check for an existing active pass when the modal opens
   useEffect(() => {
@@ -296,6 +315,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   }, [currency, ensureWalletReady, isMp, plan, pollAndRegister, sendTransactionAsync, writeContractAsync]);
 
   const expiryDate = expiry ? new Date(expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+  const useMobileFrame = isMp || isMobileModal;
 
   return (
     <div style={{
@@ -303,8 +323,8 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={isMp ? {
-        width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0,
+      <div ref={wrapRef} style={useMobileFrame ? {
+        width: MOBILE_MODAL_W, height: MOBILE_MODAL_H, position: "absolute", top: 0, left: 0,
         transformOrigin: "top left",
         transform: "var(--ao-tr)",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -313,7 +333,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: isMp ? 620 : 620, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
+        width: 620, maxWidth: useMobileFrame ? "none" : "calc(100vw - 28px)", borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",
