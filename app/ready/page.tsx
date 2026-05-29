@@ -58,10 +58,24 @@ function ReadyYourDeck() {
         transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
       wrapRef.current.style.transform = transform;
+      document.documentElement.style.setProperty("--ao-tr", transform);
     };
+    const raf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scale);
+    });
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
   }, []);
 
   // Keepalive — register match in Redis and keep it alive while host waits
