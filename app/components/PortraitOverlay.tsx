@@ -6,19 +6,48 @@ import { useEffect, useState } from "react";
  *  rather than matchMedia so it works reliably in MiniPay WebViews.
  *  Tapping "Play anyway" dismisses the overlay. */
 const DISMISSED_KEY = "ao-portrait-dismissed";
+const GAMEPLAY_ROUTES = new Set(["/gameplay", "/loadout", "/lobby", "/select-character", "/ready"]);
+
+function hasDismissedPortraitOverlay() {
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.sessionStorage.getItem(DISMISSED_KEY) === "1") return true;
+  } catch {}
+  try {
+    if (window.localStorage.getItem(DISMISSED_KEY) === "1") return true;
+  } catch {}
+  return false;
+}
+
+function persistPortraitOverlayDismissal() {
+  try {
+    window.sessionStorage.setItem(DISMISSED_KEY, "1");
+  } catch {}
+  try {
+    window.localStorage.setItem(DISMISSED_KEY, "1");
+  } catch {}
+}
 
 export function PortraitOverlay() {
   const [show, setShow] = useState(false);
-  // Initialise from sessionStorage so dismissal survives round transitions
+  // Initialise from storage so dismissal survives round transitions
   // (MiniPay WebView can briefly fire a resize with landscape dims during
   // page navigation, which would otherwise reset dismissed → overlay flashes).
   const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !!sessionStorage.getItem(DISMISSED_KEY);
+    return hasDismissedPortraitOverlay();
   });
 
   useEffect(() => {
     function check() {
+      if (hasDismissedPortraitOverlay()) {
+        setDismissed(true);
+        setShow(false);
+        return;
+      }
+      if (GAMEPLAY_ROUTES.has(window.location.pathname)) {
+        setShow(false);
+        return;
+      }
       const w = window.innerWidth;
       const h = window.innerHeight;
       const isPortrait = w < h;
@@ -107,8 +136,9 @@ export function PortraitOverlay() {
       {/* Dismiss button */}
       <button
         onClick={() => {
-          sessionStorage.setItem(DISMISSED_KEY, "1");
+          persistPortraitOverlayDismissal();
           setDismissed(true);
+          setShow(false);
         }}
         style={{
           background: "none", border: "1px solid rgba(86,164,203,0.2)",
