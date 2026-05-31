@@ -27,6 +27,12 @@ export function HouseWinnerModal({ rewardCode, rewardUsd, isMiniPay = false, onC
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const copyCode = () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+      return;
+    }
+
     void navigator.clipboard.writeText(rewardCode).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);

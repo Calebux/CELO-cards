@@ -50,6 +50,7 @@ function JoinMatchContent() {
   const [loadingLive, setLoadingLive] = useState(true);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  const safeTop = "env(safe-area-inset-top)";
 
   useEffect(() => {
     let cancelled = false;
@@ -205,7 +206,7 @@ function JoinMatchContent() {
         <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase", fontFamily: "var(--font-space-grotesk), sans-serif" }}>ACTION ORDER</span>
@@ -216,7 +217,7 @@ function JoinMatchContent() {
 
         {/* Live matches sidebar */}
         <div style={{
-          position: "absolute", right: 64, top: 84, bottom: 20,
+          position: "absolute", right: 64, top: `calc(${safeTop} + 84px)`, bottom: 20,
           width: 320,
           display: "flex", flexDirection: "column",
           background: "linear-gradient(135deg, rgba(15,12,5,0.94), rgba(40,28,5,0.9))",

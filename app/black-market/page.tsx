@@ -83,6 +83,7 @@ export default function BlackMarket() {
   const { sendTransactionAsync } = useSendTransaction();
   const { connectAsync } = useConnect();
   const { switchChainAsync } = useSwitchChain();
+  const safeTop = "env(safe-area-inset-top)";
 
   const marketCards = CARDS.filter((c) => c.isPremium);
   const paymentOptions = getPremiumPaymentOptions(isMp);
@@ -248,7 +249,7 @@ export default function BlackMarket() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(86,0,0,0.1) 0%, rgba(0,0,0,0.95) 100%)", pointerEvents: "none" }} />
 
         {/* Top bar */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(255,0,0,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,0,0,0.8)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(255,0,0,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,0,0,0.8)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
             <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
@@ -268,7 +269,7 @@ export default function BlackMarket() {
         </div>
 
         {/* Content */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 32, gap: 28 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 68px)`, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 32, gap: 28 }}>
 
           <div style={{ textAlign: "center" }}>
             <h1 style={{ fontSize: 52, fontWeight: 900, color: ACCENT, textTransform: "uppercase", letterSpacing: -2, margin: 0, lineHeight: 1, textShadow: "0 0 40px rgba(239,68,68,0.4)" }}>

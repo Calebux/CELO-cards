@@ -721,10 +721,16 @@ export default function ProfilePage() {
                     <button
                       onClick={() => {
                         const code = referralData?.code ?? addressToCode(address);
+                        if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+                          setReferralCopied(true);
+                          setTimeout(() => setReferralCopied(false), 2000);
+                          return;
+                        }
+
                         void navigator.clipboard.writeText(code).then(() => {
                           setReferralCopied(true);
                           setTimeout(() => setReferralCopied(false), 2000);
-                        });
+                        }).catch(() => {});
                       }}
                       style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit" }}
                     >

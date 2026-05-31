@@ -55,6 +55,7 @@ export default function PublicProfileClient({ address }: Props) {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const safeTop = "env(safe-area-inset-top)";
 
   const isValidAddress = /^0x[0-9a-fA-F]{40}$/.test(address);
   const shortAddr = isValidAddress ? `${address.slice(0, 6)}...${address.slice(-4)}` : address;
@@ -117,6 +118,7 @@ export default function PublicProfileClient({ address }: Props) {
 
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   const copyLink = () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
     void navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -137,7 +139,7 @@ export default function PublicProfileClient({ address }: Props) {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(86,164,203,0.06) 0%,transparent 60%)" }} />
 
         {/* Nav */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(10px)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(10px)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <button onClick={() => router.push("/")} style={{ background: "none", border: "none", color: "#56a4cb", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>← Home</button>
             <div style={{ fontSize: 11, fontWeight: 900, color: "#e2e8f0", letterSpacing: 2 }}>PLAYER PROFILE</div>
@@ -148,7 +150,7 @@ export default function PublicProfileClient({ address }: Props) {
         </div>
 
         {/* Content */}
-        <div style={{ position: "absolute", top: 64, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 32px", overflowY: "auto" }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 64px)`, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 32px", overflowY: "auto" }}>
           {loading && (
             <div style={{ color: "#6b7280", fontSize: 13, marginTop: 80 }}>Loading profile...</div>
           )}

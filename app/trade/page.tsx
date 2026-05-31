@@ -31,6 +31,7 @@ export default function TradePage() {
   const [selectedOfferedCard, setSelectedOfferedCard] = useState<string | null>(null);
   const [selectedRequestedCard, setSelectedRequestedCard] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const safeTop = "env(safe-area-inset-top)";
 
   const ownedPremiumCards = CARDS.filter(c => c.isPremium && unlockedPremiumCards.includes(c.id));
   const allPremiumCards = CARDS.filter(c => c.isPremium);
@@ -165,7 +166,7 @@ export default function TradePage() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(86,164,203,0.08) 0%,transparent 60%)" }} />
 
         {/* Nav */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(10px)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(10px)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <button onClick={() => router.push("/profile")} style={{ background: "none", border: "none", color: "#56a4cb", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>← Profile</button>
             <div style={{ fontSize: 13, fontWeight: 900, color: "#e2e8f0", letterSpacing: 2 }}>CARD TRADING</div>
@@ -174,7 +175,7 @@ export default function TradePage() {
         </div>
 
         {/* Main */}
-        <div style={{ position: "absolute", top: 64, left: 0, right: 0, bottom: 0, padding: "24px 40px", overflowY: "auto" }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 64px)`, left: 0, right: 0, bottom: 0, padding: "24px 40px", overflowY: "auto" }}>
           {!address ? (
             <div style={{ textAlign: "center", color: "#6b7280", marginTop: 80, fontSize: 13 }}>Connect your wallet to trade cards.</div>
           ) : (

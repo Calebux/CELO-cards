@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const { playerName, setPlayerName } = useGameStore();
   const [nameVal, setNameVal] = useState("");
+  const safeTop = "env(safe-area-inset-top)";
 
   useEffect(() => {
     setMutedState(isMuted());
@@ -79,7 +80,7 @@ export default function SettingsPage() {
         <div style={{ position: "absolute", inset: 0, background: "rgba(5,5,5,0.85)", pointerEvents: "none" }} />
 
         {/* Top bar */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>

@@ -428,8 +428,8 @@ export default function SelectCharacter() {
             @keyframes scPulse { 0%,100%{opacity:0.3;transform:scale(0.85)} 50%{opacity:1;transform:scale(1)} }
             @keyframes scFlashIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
           `}</style>
-          <div className="absolute" style={{ inset: "-77.8px -26.54px", background: `radial-gradient(ellipse at center, ${joinFlash ? "rgba(74,222,128,0.25)" : "rgba(86,164,203,0.15)"} 0%, transparent 70%)`, transition: "background 0.5s" }} />
-          <div className="absolute inset-0" style={{ backdropFilter: "blur(4.219px)", backgroundColor: joinFlash ? "rgba(74,222,128,0.04)" : "rgba(185,231,244,0.05)", transition: "background-color 0.5s" }} />
+          <div className="absolute" style={{ inset: "-77.8px -26.54px", background: `radial-gradient(ellipse at center, ${vsBot ? "rgba(0,197,142,0.22)" : joinFlash ? "rgba(74,222,128,0.25)" : "rgba(86,164,203,0.15)"} 0%, transparent 70%)`, transition: "background 0.5s" }} />
+          <div className="absolute inset-0" style={{ backdropFilter: "blur(4.219px)", backgroundColor: vsBot ? "rgba(0,197,142,0.05)" : joinFlash ? "rgba(74,222,128,0.04)" : "rgba(185,231,244,0.05)", transition: "background-color 0.5s" }} />
 
           {/* Join flash notification */}
           {joinFlash && (
@@ -442,15 +442,33 @@ export default function SelectCharacter() {
             </div>
           )}
 
-          {!joinFlash && (
+          {!joinFlash && !vsBot && (
             <div className="absolute flex items-center gap-[5.625px]" style={{ top: 11.25, right: 11.25 }}>
               <span className="font-bold uppercase" style={{ fontSize: 7.031, letterSpacing: 0.703, color: "rgba(255,255,255,0.6)" }}>Latency</span>
               <span className="font-bold text-[#b9e7f4]" style={{ fontSize: 7.031 }}>24ms</span>
             </div>
           )}
+          {vsBot && (
+            <div className="absolute flex items-center gap-[5.625px]" style={{ top: 11.25, right: 11.25 }}>
+              <span className="font-bold uppercase" style={{ fontSize: 7.031, letterSpacing: 0.703, color: "rgba(255,255,255,0.6)" }}>House AI</span>
+              <span className="font-bold text-[#00C58E]" style={{ fontSize: 7.031 }}>READY</span>
+            </div>
+          )}
 
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-[12px]" style={{ marginTop: -5.63 }}>
-            {!opponentJoined ? (
+            {vsBot ? (
+              <>
+                <span className="material-icons not-italic" style={{ fontSize: 30, color: "#00C58E", textShadow: "0 0 12px rgba(0,197,142,0.45)" }}>
+                  smart_toy
+                </span>
+                <span className="font-bold uppercase tracking-[1.6875px] text-center" style={{ fontSize: 13, color: "#00C58E", lineHeight: 1.25 }}>
+                  House AI<br />ready
+                </span>
+                <span className="font-bold uppercase tracking-[1.2px] text-center" style={{ fontSize: 8.5, color: "rgba(255,255,255,0.45)" }}>
+                  5-fight streak
+                </span>
+              </>
+            ) : !opponentJoined ? (
               <>
                 <div style={{ display: "flex", gap: 5 }}>
                   {[0, 0.3, 0.6].map((delay, i) => (
@@ -474,14 +492,14 @@ export default function SelectCharacter() {
           </div>
 
           <div className="absolute flex items-center justify-center" style={{ left: 78.05, top: 221.2, width: 56.25, height: 56.25 }}>
-            <span className="material-icons not-italic" style={{ fontSize: 25.313, color: opponentJoined ? "#4ade80" : "#b9e7f4" }}>
-              {opponentJoined ? "person" : "visibility_off"}
+            <span className="material-icons not-italic" style={{ fontSize: 25.313, color: vsBot ? "#00C58E" : opponentJoined ? "#4ade80" : "#b9e7f4" }}>
+              {vsBot ? "smart_toy" : opponentJoined ? "person" : "visibility_off"}
             </span>
           </div>
 
           <div className="absolute" style={{ left: 39.52, top: 316.82 }}>
-            <span className="font-bold uppercase" style={{ fontSize: 8.438, letterSpacing: 0.844, color: opponentJoined ? "#4ade80" : "#b9e7f4" }}>
-              {opponentJoined ? "Connected" : ""}
+            <span className="font-bold uppercase" style={{ fontSize: 8.438, letterSpacing: 0.844, color: vsBot ? "#00C58E" : opponentJoined ? "#4ade80" : "#b9e7f4" }}>
+              {vsBot ? "Solo Event" : opponentJoined ? "Connected" : ""}
             </span>
           </div>
 

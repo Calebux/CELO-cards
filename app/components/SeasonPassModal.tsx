@@ -465,7 +465,13 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
-                onClick={() => window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank")}
+                onClick={() => {
+                  if (isMp) {
+                    window.location.href = MINIPAY_DEPOSIT_DEEPLINK;
+                    return;
+                  }
+                  window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank", "noopener,noreferrer");
+                }}
                 style={{
                   padding: isMp ? "36px 32px" : "12px 32px", borderRadius: 7,
                   background: "linear-gradient(135deg, #26a17b22, #26a17b44)",

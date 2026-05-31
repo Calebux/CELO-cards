@@ -428,7 +428,7 @@ export default function ActionOrderLandingPage() {
             <LandingProgressBadge isCompact={isCompact} />
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
-            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isCompact ? 726 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:726, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
               <div style={{ display:"flex", gap:isCompact ? 16 : 12 }}>
                 <a href="/black-market" style={{
                   display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",

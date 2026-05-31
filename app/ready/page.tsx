@@ -38,6 +38,7 @@ function ReadyYourDeck() {
   const matchMode      = useGameStore((s) => s.matchMode);
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   const resetMatch     = useGameStore((s) => s.resetMatch);
+  const safeTop = "env(safe-area-inset-top)";
 
   useEffect(() => {
     const scale = () => {
@@ -114,10 +115,17 @@ function ReadyYourDeck() {
 
   const matchId = storeMatchId ?? "AO-????-X";
 
+  const copyText = async (text: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    }
+  };
+
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(matchId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    void copyText(matchId).finally(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
   };
 
   const handleShareLink = () => {
@@ -125,7 +133,7 @@ function ReadyYourDeck() {
     if (typeof navigator !== "undefined" && navigator.share) {
       navigator.share({ title: "Action Order", text: `Join my match! Code: ${matchId}`, url: link }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(link);
+      void copyText(link);
     }
     setLinkShared(true);
     setTimeout(() => setLinkShared(false), 2000);
@@ -157,7 +165,7 @@ function ReadyYourDeck() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.88) 0%, rgba(5,8,18,0.78) 50%, rgba(5,5,5,0.88) 100%)", pointerEvents: "none" }} />
 
         {/* ── Top Bar ── */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => void handleExit()} style={{ background: "none", border: "none", cursor: exiting ? "default" : "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0, opacity: exiting ? 0.7 : 1 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>

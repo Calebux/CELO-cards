@@ -159,7 +159,7 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     if (!canvas) return;
     canvas.toBlob(async (blob) => {
       if (!blob) { handleDownload(); return; }
-      if (navigator.share && navigator.canShare) {
+      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
         const file = new File([blob], `action-order-${won ? "victory" : "defeat"}.png`, { type: "image/png" });
         if (navigator.canShare({ files: [file] })) {
           try {
@@ -182,7 +182,9 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     const emoji = won ? "🏆" : "⚔️";
     const score = `${playerRounds}-${opponentRounds}`;
     const tweet = `${emoji} Just ${won ? "won" : "lost"} ${score} as ${playerChar.name} vs ${opponentChar.name} on Action Order!\n\nOn-chain card game on @Celo 🎮\n#ActionOrder #Celo`;
-    window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank", "noopener");
+    if (typeof window !== "undefined") {
+      window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank", "noopener");
+    }
   };
 
   return (

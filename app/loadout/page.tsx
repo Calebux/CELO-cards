@@ -1228,7 +1228,7 @@ export default function Loadout() {
         {/* Cover the old baked-in deck loadout from BG_MAIN */}
         <div style={{
           position: "absolute",
-          left: 200, top: isShortLandscape ? 580 : 600,
+          left: 200, top: isShortLandscape ? 576 : 592,
           width: 1100, height: 230,
           backgroundColor: "#0b0f1a",
           zIndex: 9,
@@ -1237,7 +1237,7 @@ export default function Loadout() {
         {/* ═══════════════ Bottom Deck Loadout ═══════════════ */}
         <div style={{
           position: "absolute",
-          left: 250, top: isShortLandscape ? 585 : 605,
+          left: 250, top: isShortLandscape ? 581 : 597,
           width: 1000, height: 220,
           backgroundColor: "rgba(15, 25, 40, 0.95)",
           border: "2px solid rgba(90, 191, 230, 0.4)",
