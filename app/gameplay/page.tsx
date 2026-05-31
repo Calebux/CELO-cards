@@ -127,7 +127,6 @@ export default function Gameplay() {
   const [opponentLeft, setOpponentLeft] = useState(false);
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
-  const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
   const [matchLoading, setMatchLoading] = useState(true);
   const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
@@ -443,13 +442,9 @@ export default function Gameplay() {
       if (result.winner === "player") {
         setPlayerStreak(s => { const next = s + 1; if (next >= 3) setComboBanner("player"); return next; });
         setOpponentStreak(0);
-        setMomentum(m => Math.min(5, m + 1));
       } else if (result.winner === "opponent") {
         setOpponentStreak(s => { const next = s + 1; if (next >= 3) setComboBanner("opponent"); return next; });
         setPlayerStreak(0);
-        setMomentum(m => Math.max(0, m - 1));
-      } else {
-        setMomentum(m => Math.max(0, m - 1));
       }
       if (result.isCrit) { setCritBanner("player"); setTimeout(() => setCritBanner(null), 1200); }
       if (result.isOpponentCrit) { setCritBanner("opponent"); setTimeout(() => setCritBanner(null), 1200); }
@@ -514,7 +509,6 @@ export default function Gameplay() {
     setTotalOpponentKnock(0);
     setPlayerStreak(0);
     setOpponentStreak(0);
-    setMomentum(0);
     setCritBanner(null);
     setComboBanner(null);
     nextRound();
@@ -653,7 +647,6 @@ export default function Gameplay() {
           setTotalOpponentKnock(0);
           setPlayerStreak(0);
           setOpponentStreak(0);
-          setMomentum(0);
           setCritBanner(null);
           setComboBanner(null);
           setShowBreakdown(false);
@@ -711,7 +704,6 @@ export default function Gameplay() {
     setTotalOpponentKnock(0);
     setPlayerStreak(0);
     setOpponentStreak(0);
-    setMomentum(0);
     setCritBanner(null);
     setComboBanner(null);
     setShowBreakdown(false);
@@ -967,21 +959,6 @@ export default function Gameplay() {
             )}
           </div>
         )}
-
-        {/* Momentum bar */}
-        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 106 : 88}px)`, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: isCompactPhone ? 4 : 6 }}>
-          <span style={{ fontSize: isCompactPhone ? 8 : 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
-          <div style={{ display: "flex", gap: 3 }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} style={{
-                width: isCompactPhone ? 15 : 18, height: 8, borderRadius: 2,
-                background: i < momentum ? "#4ade80" : "rgba(255,255,255,0.1)",
-                boxShadow: i < momentum ? "0 0 6px #4ade80" : "none",
-                transition: "all 0.3s ease",
-              }} />
-            ))}
-          </div>
-        </div>
 
         {/* Bottom Left Controls */}
         <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, left: isCompactPhone ? 20 : 32, zIndex: 20, display: "flex", gap: 12 }}>

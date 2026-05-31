@@ -1310,23 +1310,24 @@ export default function Loadout() {
                 <div
                   style={{
                     marginTop: 6,
-                    maxWidth: isCompactPhone ? 205 : 160,
-                    fontSize: isCompactPhone ? 11 : 9,
-                    lineHeight: 1.22,
+                    width: isCompactPhone ? 148 : 160,
+                    maxWidth: isCompactPhone ? 148 : 160,
+                    fontSize: isCompactPhone ? 10 : 9,
+                    lineHeight: 1.18,
                     color: "#94a3b8",
                     display: "-webkit-box",
-                    WebkitLineClamp: 3,
+                    WebkitLineClamp: isCompactPhone ? 2 : 3,
                     WebkitBoxOrient: "vertical",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "normal",
-                    minHeight: isCompactPhone ? 42 : 30,
+                    overflowWrap: "anywhere",
+                    minHeight: isCompactPhone ? 25 : 30,
                   }}
                 >
-                  <span style={{ color: "#7dd3fc", fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
+                  <span style={{ display: "block", color: "#7dd3fc", fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
                     {selectedCharacter?.name ?? "Starter"} {selectedArchetype.label}
                   </span>
-                  {" "}
                   {compactPresetWhy(selectedArchetype.why)}
                 </div>
               )}
@@ -1394,10 +1395,10 @@ export default function Loadout() {
             style={{
               position: "absolute",
               right: 20,
-              top: 46,
-              width: isCompactPhone ? 138 : 126,
-              minHeight: isCompactPhone ? 132 : 122,
-              padding: isCompactPhone ? "10px 10px 12px" : "9px 9px 11px",
+              top: isCompactPhone ? 38 : 44,
+              width: isCompactPhone ? 128 : 126,
+              minHeight: isCompactPhone ? 116 : 122,
+              padding: isCompactPhone ? "8px 9px 9px" : "9px 9px 11px",
               borderRadius: 12,
               background: "linear-gradient(135deg, rgba(10,16,28,0.96), rgba(15,23,42,0.92))",
               border: "1px solid rgba(251,191,36,0.24)",
@@ -1406,14 +1407,14 @@ export default function Loadout() {
               display: "flex",
               flexDirection: "column",
               alignItems: "stretch",
-              gap: 8,
+              gap: isCompactPhone ? 6 : 8,
             }}
           >
             <div>
               <div style={{ fontSize: 9, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.6, textTransform: "uppercase" }}>
                 Attunement
               </div>
-              <div style={{ marginTop: 4, fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.15 }}>
+              <div style={{ marginTop: isCompactPhone ? 2 : 4, fontSize: isCompactPhone ? 10 : 10, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.15 }}>
                 {attunedCardIds.length} / 2 active
               </div>
             </div>
@@ -1426,8 +1427,8 @@ export default function Loadout() {
                   <div
                     key={slot}
                     style={{
-                      minHeight: isCompactPhone ? 38 : 36,
-                      padding: "7px 8px",
+                      minHeight: isCompactPhone ? 32 : 36,
+                      padding: isCompactPhone ? "5px 7px" : "7px 8px",
                       borderRadius: 8,
                       background: attunedCard ? "rgba(251,191,36,0.14)" : "rgba(255,255,255,0.04)",
                       border: attunedCard ? "1px solid rgba(251,191,36,0.34)" : "1px solid rgba(148,163,184,0.16)",
@@ -1462,7 +1463,7 @@ export default function Loadout() {
 
             <div
               style={{
-                padding: "6px 8px",
+                padding: isCompactPhone ? "5px 7px" : "6px 8px",
                 borderRadius: 8,
                 border: "1px solid rgba(251,191,36,0.24)",
                 background: "rgba(251,191,36,0.1)",

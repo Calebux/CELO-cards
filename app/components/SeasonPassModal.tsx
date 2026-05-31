@@ -173,6 +173,10 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const availableCurrencies = getPremiumPaymentOptions(isMp);
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
+  const useMobileFrame = isMp || isMobileModal;
+  const modalWidth = useMobileFrame ? 540 : 620;
+  const touchButtonHeight = isMp ? 48 : undefined;
+  const touchButtonPadding = isMp ? "0 18px" : undefined;
 
   const ensureWalletReady = useCallback(async () => {
     if (isMiniPay()) {
@@ -315,7 +319,6 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   }, [currency, ensureWalletReady, isMp, plan, pollAndRegister, sendTransactionAsync, writeContractAsync]);
 
   const expiryDate = expiry ? new Date(expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
-  const useMobileFrame = isMp || isMobileModal;
 
   return (
     <div style={{
@@ -333,12 +336,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: 620, maxWidth: useMobileFrame ? "none" : "calc(100vw - 28px)", borderRadius: 14,
+        width: modalWidth, maxWidth: useMobileFrame ? "none" : "calc(100vw - 28px)", borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",
         overflow: "hidden",
-      }}>
+          }}>
         {/* Header */}
         <div style={{
           padding: "20px 24px 16px",
@@ -353,7 +356,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               Play Ranked. No Fees.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? "24px" : "8px 10px", minWidth: isMp ? 92 : 40, minHeight: isMp ? 92 : 40, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? 0 : "8px 10px", width: isMp ? 48 : undefined, height: isMp ? 48 : undefined, minWidth: isMp ? 48 : 40, minHeight: isMp ? 48 : 40, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
         {step === "checking" ? (
@@ -431,7 +434,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => { setStep("idle"); setExistingPlan(null); }}
                 style={{
-                  padding: isMp ? "36px 32px" : "9px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "9px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.35)",
                   cursor: "pointer", fontSize: 11, fontWeight: 800, letterSpacing: 1.5,
                   textTransform: "uppercase", color: "#fbbf24", fontFamily: "inherit",
@@ -442,7 +445,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => { onActivated?.(); onClose(); }}
                 style={{
-                  padding: isMp ? "38px 32px" : "12px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "linear-gradient(135deg, #22c55e, #16a34a)",
                   border: "none", cursor: "pointer",
                   fontSize: 14, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase",
@@ -473,7 +476,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                   window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank", "noopener,noreferrer");
                 }}
                 style={{
-                  padding: isMp ? "36px 32px" : "12px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "linear-gradient(135deg, #26a17b22, #26a17b44)",
                   border: "1.5px solid #26a17b",
                   cursor: "pointer", fontSize: 13, fontWeight: 800, letterSpacing: 2,
@@ -486,7 +489,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => setStep("idle")}
                 style={{
-                  padding: isMp ? "36px 32px" : "10px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "10px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.25)",
                   cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
                   textTransform: "uppercase", color: "rgba(185,231,244,0.6)", fontFamily: "inherit",
@@ -512,7 +515,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                   key={c.key}
                   onClick={() => setCurrency(c.key)}
                   style={{
-                    flex: 1, padding: isMp ? "38px 8px" : "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                    flex: 1, padding: isMp ? "0 8px" : "8px", minHeight: isMp ? 42 : undefined, borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
                     border: `1.5px solid ${isActive ? c.color : "rgba(86,164,203,0.15)"}`,
                     background: isActive ? `${c.color}1a` : "rgba(255,255,255,0.02)",
                     fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
@@ -547,7 +550,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                     key={p.id}
                     onClick={() => setSelectedPlan(p.id)}
                     style={{
-                      flex: 1, padding: isMp ? "36px 10px" : "14px 10px", borderRadius: 8, cursor: "pointer",
+                      flex: 1, padding: isMp ? "14px 8px" : "14px 10px", minHeight: isMp ? 86 : undefined, borderRadius: 8, cursor: "pointer",
                       border: `1.5px solid ${selectedPlan === p.id ? p.color : "rgba(86,164,203,0.15)"}`,
                       backgroundColor: selectedPlan === p.id ? `${p.color}12` : "rgba(255,255,255,0.02)",
                       boxShadow: selectedPlan === p.id ? `0 0 16px ${p.color}30` : "none",
@@ -618,7 +621,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 disabled={!address || step === "waiting-tx" || step === "confirming" || step === "registering"}
                 onClick={handlePurchase}
                 style={{
-                  width: "100%", padding: isMp ? "36px" : "14px", borderRadius: 8, cursor: "pointer",
+                  width: "100%", padding: isMp ? touchButtonPadding : "14px", minHeight: touchButtonHeight, borderRadius: 8, cursor: "pointer",
                   background: `linear-gradient(135deg, ${plan.color}22, ${plan.color}44)`,
                   border: `1.5px solid ${plan.color}`,
                   boxShadow: `0 0 20px ${plan.color}30`,
