@@ -138,10 +138,14 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     scale();
     const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
     viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
     return () => {
       window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
       viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
     };
   }, [isMobileModal, isMp]);
 

@@ -4,7 +4,7 @@ const STUCK_GAME_TIMEOUT_MS = 90_000;
 const MATCH_LOADING_DURATION_MS = 2200;
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
@@ -371,10 +371,11 @@ export default function Gameplay() {
 
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-      setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
-      setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
+    const viewport = window.visualViewport;
+    const vw = viewport?.width ?? window.innerWidth;
+    const vh = viewport?.height ?? window.innerHeight;
+    setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
+    setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
     const isPortrait = vh > vw;
     let transform: string;
     if (isPortrait) {
@@ -391,10 +392,19 @@ export default function Gameplay() {
     wrapRef.current.style.transform = transform;
   }, [isMp]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyScale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", applyScale);
-    return () => window.removeEventListener("resize", applyScale);
+    window.addEventListener("orientationchange", applyScale);
+    viewport?.addEventListener("resize", applyScale);
+    viewport?.addEventListener("scroll", applyScale);
+    return () => {
+      window.removeEventListener("resize", applyScale);
+      window.removeEventListener("orientationchange", applyScale);
+      viewport?.removeEventListener("resize", applyScale);
+      viewport?.removeEventListener("scroll", applyScale);
+    };
   }, [applyScale]);
 
   // Prefetch next screen so round transitions are less sensitive to poor network.

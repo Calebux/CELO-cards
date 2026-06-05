@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
@@ -155,11 +155,12 @@ export default function CreateMatch() {
       .catch(() => {});
   }, [address, isMp]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const viewport = window.visualViewport;
+      const vw = viewport?.width ?? window.innerWidth;
+      const vh = viewport?.height ?? window.innerHeight;
       setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
       setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
       const isPortrait = vh > vw;
@@ -178,8 +179,17 @@ export default function CreateMatch() {
       wrapRef.current.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
   }, [isMp]);
 
   useEffect(() => {

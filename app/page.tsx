@@ -88,8 +88,9 @@ export default function ActionOrderLandingPage() {
     // WebView can settle to its final size after the prepaint script runs.
     if (showLoader) return;
     const scale = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const viewport = window.visualViewport;
+      const vw = viewport?.width ?? window.innerWidth;
+      const vh = viewport?.height ?? window.innerHeight;
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -110,11 +111,15 @@ export default function ActionOrderLandingPage() {
     });
     const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
     viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
     return () => {
       window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
       viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
     };
   }, [showLoader]);
 

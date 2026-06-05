@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "../lib/gameStore";
 import { CHARACTERS } from "../lib/gameData";
@@ -72,11 +72,12 @@ export default function SelectCharacter() {
     ...GREY_PORTRAITS.map((src) => ({ src, grey: true, charIdx: -1, isLocked: true })),
   ];
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const viewport = window.visualViewport;
+      const vw = viewport?.width ?? window.innerWidth;
+      const vh = viewport?.height ?? window.innerHeight;
       setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
       const isPortrait = vh > vw;
       let transform: string;
@@ -94,8 +95,17 @@ export default function SelectCharacter() {
       wrapRef.current.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
   }, [isMp]);
 
   useEffect(() => {

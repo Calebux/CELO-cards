@@ -36,22 +36,38 @@ export default function TradePage() {
   const ownedPremiumCards = CARDS.filter(c => c.isPremium && unlockedPremiumCards.includes(c.id));
   const allPremiumCards = CARDS.filter(c => c.isPremium);
 
-  // Scale to viewport
+  // Match the game canvas orientation on phones/MiniPay: rotate the
+  // landscape layout into portrait viewports instead of shrinking it upright.
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
     const update = () => {
-      const sx = window.innerWidth / DESIGN_W;
-      const sy = window.innerHeight / DESIGN_H;
-      const s = Math.min(sx, sy);
-      el.style.transform = `scale(${s})`;
-      el.style.transformOrigin = "top left";
-      el.style.width = `${DESIGN_W}px`;
-      el.style.height = `${DESIGN_H}px`;
+      if (!wrapRef.current) return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     update();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    viewport?.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      viewport?.removeEventListener("resize", update);
+    };
   }, []);
 
   // Check for pending trade grants
@@ -160,7 +176,7 @@ export default function TradePage() {
 
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#000" }}>
-      <div ref={wrapRef}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
         {/* Background */}
         <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${BG_IMAGE})`, backgroundSize: "cover", backgroundPosition: "center", filter: "brightness(0.3)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(86,164,203,0.08) 0%,transparent 60%)" }} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
@@ -31,7 +31,7 @@ export function UsernameModal() {
     return () => query.removeEventListener("change", update);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const scale = () => {
@@ -57,10 +57,14 @@ export function UsernameModal() {
     scale();
     const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
     viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
     return () => {
       window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
       viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
     };
   }, [isMobileModal, show]);
 
@@ -126,7 +130,7 @@ export function UsernameModal() {
       backdropFilter: "blur(10px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={{ width: isMobileModal ? MOBILE_MODAL_W : DESIGN_W, height: isMobileModal ? MOBILE_MODAL_H : DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
+      <div ref={wrapRef} style={{ width: isMobileModal ? MOBILE_MODAL_W : DESIGN_W, height: isMobileModal ? MOBILE_MODAL_H : DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "translate(-9999px, -9999px) scale(0.001)" }}>
         <div style={{
           position: "relative", width: 420,
           background: "rgba(12,18,36,0.97)",

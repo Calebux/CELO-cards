@@ -7,7 +7,7 @@ import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_H, DESIGN_W } from "../lib/designConstants";
-import { useMobileViewportMode } from "../lib/mobile";
+import { useGameFrameScale, useMobileViewportMode } from "../lib/mobile";
 import { useMiniPayMode } from "../lib/premiumPayments";
 
 type WinnerRow = {
@@ -38,7 +38,6 @@ function fallbackName(address: string, isMiniPay: boolean) {
 export default function HouseBossChallengePage() {
   const isMp = useMiniPayMode();
   const isMobileViewport = useMobileViewportMode();
-  const outerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address } = useAccount();
@@ -79,28 +78,7 @@ export default function HouseBossChallengePage() {
     },
   ];
 
-  useEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current || !outerRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        wrapRef.current.style.transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        wrapRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [isMp]);
+  useGameFrameScale(wrapRef);
 
   const fetchChallenge = useCallback(() => {
     setLoading(true);
@@ -128,7 +106,7 @@ export default function HouseBossChallengePage() {
   const totalWinners = data?.totalWinners ?? 0;
 
   return (
-    <div ref={outerRef} style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
         {isMp || isMobileViewport ? (
           <MiniPayImage

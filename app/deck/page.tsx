@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 
 const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
@@ -35,30 +36,7 @@ export default function DeckPage() {
     const [activeTab, setActiveTab] = useState<Tab>("STRIKE");
     const safeTop = "env(safe-area-inset-top)";
 
-    useEffect(() => {
-        const scale = () => {
-            if (!wrapRef.current) return;
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const isPortrait = vh > vw;
-            let transform: string;
-            if (isPortrait) {
-                const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-                const tx = vw / 2 + (DESIGN_H * s) / 2;
-                const ty = vh / 2 - (DESIGN_W * s) / 2;
-                transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-            } else {
-                const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-                const tx = (vw - DESIGN_W * s) / 2;
-                const ty = (vh - DESIGN_H * s) / 2;
-                transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-            }
-            wrapRef.current.style.transform = transform;
-        };
-        scale();
-        window.addEventListener("resize", scale);
-        return () => window.removeEventListener("resize", scale);
-    }, []);
+    useGameFrameScale(wrapRef);
 
     const cards = activeTab === "STRIKE" ? STRIKE_CARDS
         : activeTab === "CONTROL" ? CONTROL_CARDS

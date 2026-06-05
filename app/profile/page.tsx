@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
@@ -57,7 +57,9 @@ export default function ProfilePage() {
   const { address } = useAccount();
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
-  const [isCompactPhone, setIsCompactPhone] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(
+    typeof window !== "undefined" ? Math.min(window.innerWidth, window.innerHeight) <= 430 : false
+  );
 
   const {
     playerPoints,
@@ -100,6 +102,8 @@ export default function ProfilePage() {
   const previewCard = previewCardId ? ownedCards.find((card) => card.id === previewCardId) ?? null : null;
   const highestMasteryTier = getHighestMasteryTier(cardPerformance);
   const masteredCardCount = getMasteredCardCount(cardPerformance);
+  const isProfileCompact = isMp || isCompactPhone;
+  const showReferralAndStreaks = !isProfileCompact;
 
   useEffect(() => {
     if (!address) {
@@ -155,12 +159,12 @@ export default function ProfilePage() {
 
   // Fetch streak on load
   useEffect(() => {
-    if (!address) return;
+    if (!address || !showReferralAndStreaks) return;
     fetch(`/api/streak?address=${address.toLowerCase()}`)
       .then(r => r.ok ? r.json() as Promise<{ count: number; longestStreak: number }> : null)
       .then(data => { if (data) setStreak(data); })
       .catch(() => {});
-  }, [address]);
+  }, [address, showReferralAndStreaks]);
 
   const checkInStreak = useCallback(async () => {
     if (!address || streakChecking) return;
@@ -188,12 +192,12 @@ export default function ProfilePage() {
 
   // Fetch referral data on load
   useEffect(() => {
-    if (!address) return;
+    if (!address || !showReferralAndStreaks) return;
     fetch(`/api/referral?address=${address.toLowerCase()}`)
       .then(r => r.ok ? r.json() as Promise<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
       .then(data => { if (data) setReferralData(data); })
       .catch(() => {});
-  }, [address]);
+  }, [address, showReferralAndStreaks]);
 
   const submitReferral = useCallback(async () => {
     if (!address || referralSubmitting || !referralInput.trim()) return;
@@ -291,7 +295,7 @@ export default function ProfilePage() {
     if (address) syncAchievements(address);
   }, [address, syncAchievements]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
@@ -313,8 +317,17 @@ export default function ProfilePage() {
       wrapRef.current.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
   }, []);
 
   // Use the higher of local vs server (server may have data from other devices)
@@ -360,17 +373,17 @@ export default function ProfilePage() {
         </div>
 
         {/* Main layout — 3 columns, pinned below nav, no scroll */}
-        <div style={{ position: "absolute", left: "50%", top: `calc(${safeTop} + 80px)`, bottom: `calc(${safeBottom} + 12px)`, transform: "translateX(-50%)", width: isCompactPhone ? 1330 : 1300, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", paddingRight: 8 }}>
+        <div style={{ position: "absolute", left: "50%", top: `calc(${safeTop} + 80px)`, bottom: `calc(${safeBottom} + 12px)`, transform: "translateX(-50%)", width: isProfileCompact ? 1220 : 1300, display: "flex", gap: isProfileCompact ? 24 : 20, alignItems: "flex-start", overflowY: "auto", paddingRight: 8 }}>
 
           {/* ── Col 1: Identity + G$ + Stats ── */}
-          <div style={{ width: 230, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ width: isProfileCompact ? 300 : 230, flexShrink: 0, display: "flex", flexDirection: "column", gap: isProfileCompact ? 16 : 14 }}>
 
             {/* Identity card */}
-            <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: "1.5px solid rgba(86,164,203,0.3)", borderRadius: 8, backdropFilter: "blur(8px)", padding: "20px 18px", textAlign: "center", boxShadow: "0 0 20px rgba(86,164,203,0.1)" }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${rank.color}33, transparent)`, border: `2px solid ${rank.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-                <span className="material-icons" style={{ fontSize: 24, color: rank.color }}>person</span>
+            <div style={{ backgroundColor: "rgba(15,23,42,0.6)", border: "1.5px solid rgba(86,164,203,0.3)", borderRadius: 8, backdropFilter: "blur(8px)", padding: isProfileCompact ? "26px 22px" : "20px 18px", textAlign: "center", boxShadow: "0 0 20px rgba(86,164,203,0.1)" }}>
+              <div style={{ width: isProfileCompact ? 70 : 52, height: isProfileCompact ? 70 : 52, borderRadius: "50%", background: `linear-gradient(135deg, ${rank.color}33, transparent)`, border: `2px solid ${rank.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                <span className="material-icons" style={{ fontSize: isProfileCompact ? 32 : 24, color: rank.color }}>person</span>
               </div>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: rank.color, textTransform: "uppercase", marginBottom: 5 }}>{rank.label}</div>
+              <div style={{ fontSize: isProfileCompact ? 12 : 9, fontWeight: 700, letterSpacing: 2.5, color: rank.color, textTransform: "uppercase", marginBottom: 5 }}>{rank.label}</div>
 
               {editingName ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 3, alignItems: "center" }}>
@@ -393,29 +406,29 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 3 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.5 }}>
+                  <div style={{ fontSize: isProfileCompact ? 20 : 13, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.5, maxWidth: isProfileCompact ? 220 : 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {playerName || (isMp ? "MINIPAY PLAYER" : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
                   </div>
-                  <button onClick={() => { setNameInput(playerName); setEditingName(true); }} title="Edit name" style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 12, padding: 0, lineHeight: 1 }}>✏️</button>
+                  <button onClick={() => { setNameInput(playerName); setEditingName(true); }} title="Edit name" style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: isProfileCompact ? 18 : 12, padding: 0, lineHeight: 1 }}>✏️</button>
                 </div>
               )}
 
-              <div style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>
+              <div style={{ fontSize: isProfileCompact ? 12 : 10, color: "#475569", fontFamily: "monospace" }}>
                 {address ? (isMp ? "Linked via MiniPay" : `${address.slice(0, 6)}…${address.slice(-4)}`) : "NOT CONNECTED"}
               </div>
               {address && (
                 <button
                   onClick={() => router.push(`/profile/${address}`)}
-                  style={{ marginTop: 8, padding: "4px 12px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.25)", fontSize: 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}
+                  style={{ marginTop: 10, padding: isProfileCompact ? "9px 16px" : "4px 12px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.25)", fontSize: isProfileCompact ? 11 : 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}
                 >
                   🔗 Public Profile
                 </button>
               )}
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <div style={{ fontSize: 24, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>
+                <div style={{ fontSize: isProfileCompact ? 36 : 24, fontWeight: 900, color: rank.color, textShadow: `0 0 14px ${rank.color}80` }}>
                   {displayPoints.toLocaleString()}
                 </div>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginTop: 3 }}>TOTAL POINTS</div>
+                <div style={{ fontSize: isProfileCompact ? 11 : 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginTop: 3 }}>TOTAL POINTS</div>
               </div>
             </div>
 
@@ -427,18 +440,18 @@ export default function ProfilePage() {
               <div style={{
                 backgroundColor: passInfo?.active ? "rgba(40,28,5,0.6)" : "rgba(15,23,42,0.55)",
                 border: `1px solid ${passInfo?.active ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.06)"}`,
-                borderRadius: 8, padding: "14px 16px",
+                borderRadius: 8, padding: isProfileCompact ? "20px 20px" : "14px 16px",
                 boxShadow: passInfo?.active ? "0 0 16px rgba(251,191,36,0.1)" : "none",
               }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase" }}>⚡ Season Pass</div>
+                  <div style={{ fontSize: isProfileCompact ? 12 : 9, fontWeight: 700, letterSpacing: 2, color: "#fbbf24", textTransform: "uppercase" }}>⚡ Season Pass</div>
                   {passInfo?.active && (
                     <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "#4ade80", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 3, padding: "1px 6px", textTransform: "uppercase" }}>ACTIVE</div>
                   )}
                 </div>
                 {passInfo?.active ? (
                   <>
-                    <div style={{ fontSize: 10, color: "#b9e7f4", marginBottom: 3, textTransform: "capitalize" }}>
+                    <div style={{ fontSize: isProfileCompact ? 14 : 10, color: "#b9e7f4", marginBottom: 3, textTransform: "capitalize" }}>
                       {passInfo.plan} pass
                     </div>
                     {passInfo.expiry && (
@@ -448,17 +461,17 @@ export default function ProfilePage() {
                     )}
                   </>
                 ) : (
-                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 10, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: isProfileCompact ? 13 : 10, color: "#6b7280", marginBottom: 10, lineHeight: 1.5 }}>
                     Unlock ranked play and stay eligible for leaderboard rewards.
                   </div>
                 )}
                 <button
                   onClick={() => setShowSeasonPassModal(true)}
                   style={{
-                    width: "100%", padding: "6px 0", borderRadius: 5, cursor: "pointer",
+                    width: "100%", padding: isProfileCompact ? "11px 0" : "6px 0", borderRadius: 5, cursor: "pointer",
                     background: passInfo?.active ? "rgba(251,191,36,0.1)" : "rgba(251,191,36,0.08)",
                     border: "1px solid rgba(251,191,36,0.35)",
-                    fontSize: 9, fontWeight: 800, color: "#fbbf24",
+                    fontSize: isProfileCompact ? 12 : 9, fontWeight: 800, color: "#fbbf24",
                     letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit",
                   }}
                 >
@@ -468,7 +481,7 @@ export default function ProfilePage() {
             )}
 
             {/* Daily Streak */}
-            {address && (
+            {address && showReferralAndStreaks && (
               <div style={{
                 backgroundColor: "rgba(15,23,42,0.55)",
                 border: streak && streak.count >= 3 ? "1px solid rgba(249,115,22,0.35)" : "1px solid rgba(255,255,255,0.06)",
@@ -514,83 +527,97 @@ export default function ProfilePage() {
 
           {/* ── Col 2: Achievements + Owned Cards ── */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1.5px solid #b9e7f4", borderRadius: 8, backdropFilter: "blur(6px)", padding: "22px 22px 18px", boxShadow: "0 0 20px rgba(185,231,244,0.15)", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1.5, backgroundColor: "#56a4cb" }} />
+            {!isProfileCompact && (
+              <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1.5px solid #b9e7f4", borderRadius: 8, backdropFilter: "blur(6px)", padding: "22px 22px 18px", boxShadow: "0 0 20px rgba(185,231,244,0.15)", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1.5, backgroundColor: "#56a4cb" }} />
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <div>
-                  <h2 style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: 0 }}>Achievements</h2>
-                  <p style={{ fontSize: 10, color: "#94a3b8", margin: "3px 0 0", letterSpacing: 0.5 }}>{unlockedCount} / {achievements.length} unlocked</p>
-                </div>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#56a4cb", textTransform: "uppercase", padding: "4px 10px", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4 }}>
-                  {Math.round((unlockedCount / achievements.length) * 100)}% complete
-                </div>
-              </div>
-
-              <div style={{ height: 3, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, marginBottom: 18, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${(unlockedCount / achievements.length) * 100}%`, background: "linear-gradient(90deg, #56a4cb, #b9e7f4)", borderRadius: 2, transition: "width 0.6s ease" }} />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-                {achievements.map((a) => (
-                  <div key={a.id} style={{ backgroundColor: a.unlocked ? `${a.color}12` : "rgba(255,255,255,0.03)", border: `1px solid ${a.unlocked ? a.color + "50" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: "12px 10px", textAlign: "center", opacity: a.unlocked ? 1 : 0.45, transition: "all 0.2s", position: "relative" }}>
-                    {a.unlocked && (
-                      <div style={{ position: "absolute", top: 5, right: 5 }}>
-                        <span className="material-icons" style={{ fontSize: 10, color: a.color }}>check_circle</span>
-                      </div>
-                    )}
-                    <div style={{ fontSize: 22, marginBottom: 6, filter: a.unlocked ? "none" : "grayscale(1)" }}>{a.icon}</div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: a.unlocked ? "#f1f5f9" : "#475569", letterSpacing: 0.5, marginBottom: 3 }}>{a.name}</div>
-                    <div style={{ fontSize: 8, color: "#475569", lineHeight: "11px" }}>{a.description}</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <div>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: 0 }}>Achievements</h2>
+                    <p style={{ fontSize: 10, color: "#94a3b8", margin: "3px 0 0", letterSpacing: 0.5 }}>{unlockedCount} / {achievements.length} unlocked</p>
                   </div>
-                ))}
-              </div>
-
-              {displayPlayed === 0 && (
-                <div style={{ marginTop: 16, padding: "14px", background: "rgba(86,164,203,0.06)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 11, color: "#64748b", lineHeight: "17px" }}>Play your first match to unlock achievements and start tracking your stats.</div>
-                  <button onClick={() => router.push("/create")} style={{ marginTop: 8, background: "linear-gradient(135deg, #56a4cb, #b9e7f4)", border: "none", borderRadius: 6, padding: "7px 18px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer", letterSpacing: 1 }}>PLAY NOW</button>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#56a4cb", textTransform: "uppercase", padding: "4px 10px", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4 }}>
+                    {Math.round((unlockedCount / achievements.length) * 100)}% complete
+                  </div>
                 </div>
-              )}
 
-              <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
-                <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
-                <button onClick={() => router.push("/history")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#56a4cb", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}>
-                  MATCH HISTORY ({matchHistory.length})
-                </button>
-                <div style={{ width: 1, height: 12, backgroundColor: "#1e293b" }} />
-                <button onClick={() => router.push("/")} className="ko-btn ko-btn-secondary" style={{ padding: "6px 14px" }}>
-                  <span className="material-icons ko-btn-icon" style={{ fontSize: 14, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
-                  <span className="ko-btn-text" style={{ fontSize: 11, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
-                </button>
-                <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
+                <div style={{ height: 3, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, marginBottom: 18, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(unlockedCount / achievements.length) * 100}%`, background: "linear-gradient(90deg, #56a4cb, #b9e7f4)", borderRadius: 2, transition: "width 0.6s ease" }} />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                  {achievements.map((a) => (
+                    <div key={a.id} style={{ backgroundColor: a.unlocked ? `${a.color}12` : "rgba(255,255,255,0.03)", border: `1px solid ${a.unlocked ? a.color + "50" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: "12px 10px", textAlign: "center", opacity: a.unlocked ? 1 : 0.45, transition: "all 0.2s", position: "relative" }}>
+                      {a.unlocked && (
+                        <div style={{ position: "absolute", top: 5, right: 5 }}>
+                          <span className="material-icons" style={{ fontSize: 10, color: a.color }}>check_circle</span>
+                        </div>
+                      )}
+                      <div style={{ fontSize: 22, marginBottom: 6, filter: a.unlocked ? "none" : "grayscale(1)" }}>{a.icon}</div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: a.unlocked ? "#f1f5f9" : "#475569", letterSpacing: 0.5, marginBottom: 3 }}>{a.name}</div>
+                      <div style={{ fontSize: 8, color: "#475569", lineHeight: "11px" }}>{a.description}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {displayPlayed === 0 && (
+                  <div style={{ marginTop: 16, padding: "14px", background: "rgba(86,164,203,0.06)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#64748b", lineHeight: "17px" }}>Play your first match to unlock achievements and start tracking your stats.</div>
+                    <button onClick={() => router.push("/create")} style={{ marginTop: 8, background: "linear-gradient(135deg, #56a4cb, #b9e7f4)", border: "none", borderRadius: 6, padding: "7px 18px", color: "#000", fontSize: 11, fontWeight: 800, cursor: "pointer", letterSpacing: 1 }}>PLAY NOW</button>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
+                  <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
+                  <button onClick={() => router.push("/history")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#56a4cb", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}>
+                    MATCH HISTORY ({matchHistory.length})
+                  </button>
+                  <div style={{ width: 1, height: 12, backgroundColor: "#1e293b" }} />
+                  <button onClick={() => router.push("/")} className="ko-btn ko-btn-secondary" style={{ padding: "6px 14px" }}>
+                    <span className="material-icons ko-btn-icon" style={{ fontSize: 14, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+                    <span className="ko-btn-text" style={{ fontSize: 11, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
+                  </button>
+                  <div style={{ flex: 1, height: 1, backgroundColor: "#1e293b" }} />
+                </div>
               </div>
-            </div>
+            )}
 
-            <div style={{ marginTop: 14, backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(251,191,36,0.22)", borderRadius: 8, padding: "14px 16px" }}>
+            {isProfileCompact && (
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, backgroundColor: "rgba(15,23,42,0.45)", border: "1px solid rgba(86,164,203,0.18)", borderRadius: 8, padding: "12px 16px" }}>
+                <button onClick={() => router.push("/history")} style={{ flex: 1, minHeight: 44, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.28)", borderRadius: 6, cursor: "pointer", fontSize: 12, color: "#56a4cb", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit", fontWeight: 800 }}>
+                  Match History ({matchHistory.length})
+                </button>
+                <button onClick={() => router.push("/")} className="ko-btn ko-btn-secondary" style={{ minHeight: 44, padding: "0 18px" }}>
+                  <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
+                  <span className="ko-btn-text" style={{ fontSize: 12, letterSpacing: 1.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase" }}>Back</span>
+                </button>
+              </div>
+            )}
+
+            <div style={{ marginTop: isProfileCompact ? 0 : 14, backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(251,191,36,0.22)", borderRadius: 8, padding: isProfileCompact ? "18px 18px" : "14px 16px" }}>
               <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(3, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: 10 }}>
                 {[
                   { label: "Attuned", value: `${attunedCardIds.length}/2`, color: "#fbbf24" },
                   { label: "Highest Tier", value: highestMasteryTier > 0 ? `T${highestMasteryTier}` : "—", color: "#56a4cb" },
                   { label: "Mastered Cards", value: String(masteredCardCount), color: "#e2e8f0" },
                 ].map((entry) => (
-                  <div key={entry.label} style={{ borderRadius: 8, border: "1px solid rgba(148,163,184,0.16)", background: "rgba(2,6,23,0.46)", padding: "10px 12px" }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.8, color: "#64748b", textTransform: "uppercase" }}>{entry.label}</div>
-                    <div style={{ marginTop: 6, fontSize: isCompactPhone ? 17 : 18, fontWeight: 900, color: entry.color }}>{entry.value}</div>
+                  <div key={entry.label} style={{ borderRadius: 8, border: "1px solid rgba(148,163,184,0.16)", background: "rgba(2,6,23,0.46)", padding: isProfileCompact ? "14px 16px" : "10px 12px" }}>
+                    <div style={{ fontSize: isProfileCompact ? 11 : 9, fontWeight: 700, letterSpacing: 1.8, color: "#64748b", textTransform: "uppercase" }}>{entry.label}</div>
+                    <div style={{ marginTop: 6, fontSize: isProfileCompact ? 24 : 18, fontWeight: 900, color: entry.color }}>{entry.value}</div>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Owned cards — full width under achievements */}
-            <div style={{ marginTop: 14, backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: "16px 16px" }}>
+            <div style={{ marginTop: 14, backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: isProfileCompact ? "20px 20px" : "16px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#f87171", textTransform: "uppercase" }}>
+                <div style={{ fontSize: isProfileCompact ? 13 : 10, fontWeight: 700, letterSpacing: 2, color: "#f87171", textTransform: "uppercase" }}>
                   Black Market Cards
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ fontSize: 10, color: "#64748b" }}>{ownedCards.length} owned</div>
-                  <button onClick={() => router.push("/trade")} style={{ background: "none", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontSize: 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}>TRADE →</button>
+                  <div style={{ fontSize: isProfileCompact ? 12 : 10, color: "#64748b" }}>{ownedCards.length} owned</div>
+                  <button onClick={() => router.push("/trade")} style={{ background: "none", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 4, padding: isProfileCompact ? "7px 12px" : "2px 8px", cursor: "pointer", fontSize: isProfileCompact ? 11 : 8, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", letterSpacing: 1 }}>TRADE →</button>
                 </div>
               </div>
 
@@ -606,7 +633,7 @@ export default function ProfilePage() {
                   </button>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: isCompactPhone ? "repeat(4, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: isCompactPhone ? 12 : 8, justifyItems: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: isProfileCompact ? "repeat(4, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: isProfileCompact ? 14 : 8, justifyItems: "center" }}>
                   {ownedCards.map((card) => {
                     const isAttuned = attunedCardIds.includes(card.id);
                     const masteryTier = getCardMasterySnapshot(cardPerformance[card.id] ?? null).tier;
@@ -618,7 +645,7 @@ export default function ProfilePage() {
                       key={card.id}
                       title={card.name}
                       style={{
-                        width: isCompactPhone ? 98 : 82,
+                        width: isProfileCompact ? 114 : 82,
                         borderRadius: 6,
                         overflow: "hidden",
                         border: `1.5px solid ${card.color}`,
@@ -635,15 +662,15 @@ export default function ProfilePage() {
                       />
                       <MiniPayImage src={card.image} alt={card.name} minipayWidth={280} minipayQuality={48} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))", padding: "10px 6px 5px", textAlign: "center" }}>
-                        <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.35, lineHeight: 1.2 }}>{card.name}</div>
+                        <div style={{ fontSize: isProfileCompact ? 9 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: 0.35, lineHeight: 1.2 }}>{card.name}</div>
                       </div>
-                      <div style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.72)", borderRadius: "50%", width: 17, height: 17, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: card.color }}>{card.knock}</span>
+                      <div style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.72)", borderRadius: "50%", width: isProfileCompact ? 22 : 17, height: isProfileCompact ? 22 : 17, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: isProfileCompact ? 10 : 8, fontWeight: 800, color: card.color }}>{card.knock}</span>
                       </div>
                       <div style={{ position: "absolute", left: 0, right: 0, top: 4, display: "flex", justifyContent: "center" }}>
                         <span
                           style={{
-                            fontSize: 7,
+                            fontSize: isProfileCompact ? 8 : 7,
                             fontWeight: 800,
                             letterSpacing: 1.1,
                             color: isAttuned || masteryTier > 0 ? "#fbbf24" : "#cbd5e1",
@@ -682,11 +709,11 @@ export default function ProfilePage() {
           </div>
 
           {/* ── Col 3: Match Stats + Referrals ── */}
-          <div style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ width: isProfileCompact ? 260 : 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
 
             {/* Stats */}
-            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "16px 16px" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: 10 }}>Match Stats</div>
+            <div style={{ backgroundColor: "rgba(15,23,42,0.55)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: isProfileCompact ? "20px 20px" : "16px 16px" }}>
+              <div style={{ fontSize: isProfileCompact ? 12 : 9, fontWeight: 700, letterSpacing: 2, color: "#475569", textTransform: "uppercase", marginBottom: isProfileCompact ? 14 : 10 }}>Match Stats</div>
               {[
                 { label: "Played",      value: displayPlayed,  color: "#94a3b8" },
                 { label: "Wins",        value: displayWins,    color: "#4ade80" },
@@ -695,16 +722,16 @@ export default function ProfilePage() {
                 { label: "Streak",      value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
                 { label: "Best Streak", value: maxWinStreak,   color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
                 { label: "Pts Earned",  value: displayPoints > 0 ? `+${displayPoints.toLocaleString()}` : "—", color: "#fbbf24" },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>{label}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color }}>{value}</span>
+              ].filter(({ label }) => showReferralAndStreaks || (label !== "Streak" && label !== "Best Streak")).map(({ label, value, color }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: isProfileCompact ? "10px 0" : "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span style={{ fontSize: isProfileCompact ? 13 : 10, color: "#6b7280", fontWeight: 500 }}>{label}</span>
+                  <span style={{ fontSize: isProfileCompact ? 18 : 12, fontWeight: 700, color }}>{value}</span>
                 </div>
               ))}
             </div>
 
             {/* Referral */}
-            {address && (
+            {address && showReferralAndStreaks && (
               <div style={{
                 backgroundColor: "rgba(15,23,42,0.55)",
                 border: "1px solid rgba(86,164,203,0.25)",

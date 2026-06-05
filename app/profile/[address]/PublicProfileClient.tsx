@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+import { useMiniPayMode } from "../../lib/premiumPayments";
 
 const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
@@ -47,6 +48,7 @@ type Props = { address: string };
 
 export default function PublicProfileClient({ address }: Props) {
   const router = useRouter();
+  const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const [entry, setEntry] = useState<LeaderboardEntry | null>(null);
@@ -55,27 +57,49 @@ export default function PublicProfileClient({ address }: Props) {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isCompactPhone, setIsCompactPhone] = useState(
+    typeof window !== "undefined" ? Math.min(window.innerWidth, window.innerHeight) <= 430 : false
+  );
   const safeTop = "env(safe-area-inset-top)";
+  const showStreak = !(isMp || isCompactPhone);
 
   const isValidAddress = /^0x[0-9a-fA-F]{40}$/.test(address);
   const shortAddr = isValidAddress ? `${address.slice(0, 6)}...${address.slice(-4)}` : address;
 
-  // Scale to viewport
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
+  // Scale to viewport using the same rotated game frame as other mobile pages.
+  useLayoutEffect(() => {
     const update = () => {
-      const sx = window.innerWidth / DESIGN_W;
-      const sy = window.innerHeight / DESIGN_H;
-      const s = Math.min(sx, sy);
-      el.style.transform = `scale(${s})`;
-      el.style.transformOrigin = "top left";
-      el.style.width = `${DESIGN_W}px`;
-      el.style.height = `${DESIGN_H}px`;
+      if (!wrapRef.current) return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      setIsCompactPhone(Math.min(vw, vh) <= 430);
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
     };
     update();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
   }, []);
 
   useEffect(() => {
@@ -88,7 +112,7 @@ export default function PublicProfileClient({ address }: Props) {
         const [lbRes, achRes, strRes] = await Promise.all([
           fetch(`/api/leaderboard?tab=casual&limit=200`),
           fetch(`/api/achievements?address=${addr}`),
-          fetch(`/api/streak?address=${addr}`),
+          showStreak ? fetch(`/api/streak?address=${addr}`) : Promise.resolve(null),
         ]);
 
         if (lbRes.ok) {
@@ -104,7 +128,7 @@ export default function PublicProfileClient({ address }: Props) {
           setUnlockedAchievements(unlockedIds);
         }
 
-        if (strRes.ok) {
+        if (strRes?.ok) {
           const s = await strRes.json() as { count: number; longestStreak: number };
           setStreak(s);
         }
@@ -114,7 +138,7 @@ export default function PublicProfileClient({ address }: Props) {
     };
 
     void loadData();
-  }, [address, isValidAddress]);
+  }, [address, isValidAddress, showStreak]);
 
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   const copyLink = () => {
@@ -133,7 +157,7 @@ export default function PublicProfileClient({ address }: Props) {
 
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#000" }}>
-      <div ref={wrapRef}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "translate(-9999px, -9999px) scale(0.001)" }}>
         {/* Background */}
         <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.25)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(86,164,203,0.06) 0%,transparent 60%)" }} />
@@ -183,13 +207,13 @@ export default function PublicProfileClient({ address }: Props) {
               </div>
 
               {/* Stats grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: showStreak ? "repeat(4, 1fr)" : "repeat(3, 1fr)", gap: 10 }}>
                 {[
                   { label: "Points", value: entry.points.toLocaleString(), color: rank.color },
                   { label: "Wins", value: wins, color: "#4ade80" },
                   { label: "Win Rate", value: winRate(wins, played), color: "#b9e7f4" },
                   { label: "Streak", value: streak ? `🔥 ${streak.count}d` : "—", color: "#f97316" },
-                ].map(({ label, value, color }) => (
+                ].filter(({ label }) => showStreak || label !== "Streak").map(({ label, value, color }) => (
                   <div key={label} style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "14px 10px", textAlign: "center" }}>
                     <div style={{ fontSize: 18, fontWeight: 900, color }}>{value}</div>
                     <div style={{ fontSize: 8, color: "#475569", marginTop: 3, textTransform: "uppercase", letterSpacing: 1.5 }}>{label}</div>

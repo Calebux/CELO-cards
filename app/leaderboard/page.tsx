@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -54,33 +55,17 @@ export default function Leaderboard() {
   const [fetchError, setFetchError] = useState(false);
   const safeTop = "env(safe-area-inset-top)";
 
-  useEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      wrapRef.current.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, []);
+  useGameFrameScale(wrapRef);
 
   useEffect(() => {
-    setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+    const sync = () => setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("orientationchange", sync);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("orientationchange", sync);
+    };
   }, []);
 
   const loadLeaderboard = () => {

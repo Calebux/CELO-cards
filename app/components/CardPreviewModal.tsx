@@ -6,6 +6,7 @@ import { Card } from "../lib/gameData";
 import type { CardPerformanceStats } from "../lib/cardProgress";
 import { getCardMasteryPerkCopy, getCardMasterySnapshot, getNextUnlockCopy } from "../lib/cardMastery";
 import { useMiniPayMode } from "../lib/premiumPayments";
+import { useMobileViewportMode } from "../lib/mobile";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 
 interface CardPreviewModalProps {
@@ -47,10 +48,14 @@ function useViewportSize() {
 
     sync();
     window.addEventListener("resize", sync);
+    window.addEventListener("orientationchange", sync);
     window.visualViewport?.addEventListener("resize", sync);
+    window.visualViewport?.addEventListener("scroll", sync);
     return () => {
       window.removeEventListener("resize", sync);
+      window.removeEventListener("orientationchange", sync);
       window.visualViewport?.removeEventListener("resize", sync);
+      window.visualViewport?.removeEventListener("scroll", sync);
     };
   }, []);
 
@@ -638,6 +643,8 @@ function CardPreviewContent({
 
 export function CardPreviewModal(props: CardPreviewModalProps) {
   const isMp = useMiniPayMode();
+  const isMobileViewport = useMobileViewportMode();
+  const useGameFrame = isMp || isMobileViewport;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const viewport = useViewportSize();
@@ -648,7 +655,7 @@ export function CardPreviewModal(props: CardPreviewModalProps) {
   }, []);
 
   useEffect(() => {
-    if (!isMp) return;
+    if (!useGameFrame) return;
     const el = wrapRef.current;
     if (!el || !viewport.width || !viewport.height) return;
 
@@ -670,11 +677,11 @@ export function CardPreviewModal(props: CardPreviewModalProps) {
     }
 
     el.style.transform = transform;
-  }, [isMp, viewport.height, viewport.width]);
+  }, [useGameFrame, viewport.height, viewport.width]);
 
   if (!mounted) return null;
 
-  const overlay = isMp ? (
+  const overlay = useGameFrame ? (
     <div
       onClick={props.onClose}
       style={{
@@ -703,8 +710,8 @@ export function CardPreviewModal(props: CardPreviewModalProps) {
         <div
           onClick={(event) => event.stopPropagation()}
           style={{
-            width: 980,
-            height: 560,
+            width: isMp ? 980 : 940,
+            height: isMp ? 560 : 540,
           }}
         >
           <CardPreviewContent {...props} compact />

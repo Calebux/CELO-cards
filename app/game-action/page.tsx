@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 
 export default function GameAction() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -12,30 +13,7 @@ export default function GameAction() {
   
   const { selectedCharacter, opponentCharacter } = useGameStore();
 
-  useEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      wrapRef.current.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, []);
+  useGameFrameScale(wrapRef);
 
   useEffect(() => {
     // Automatically transition to the gameplay screen after the animation finishes

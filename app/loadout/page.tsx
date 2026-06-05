@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useGameStore } from "../lib/gameStore";
@@ -17,6 +17,7 @@ import { useIdleReady, usePageVisibility } from "../lib/perf";
 
 const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+const CardPreviewModal = dynamic(() => import("../components/CardPreviewModal").then(m => ({ default: m.CardPreviewModal })), { ssr: false });
 
 // ── Assets ─────────────────────────────────────────────────────────────────
 const BG_MAIN = "/new addition/new_loadout_bg.webp";
@@ -341,11 +342,12 @@ export default function Loadout() {
     setSelectedCharacterFromServer,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const viewport = window.visualViewport;
+      const vw = viewport?.width ?? window.innerWidth;
+      const vh = viewport?.height ?? window.innerHeight;
       setIsShortLandscape(vw > vh && vh < 760);
       setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
       const isPortrait = vh > vw;
@@ -364,8 +366,17 @@ export default function Loadout() {
       wrapRef.current.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
   }, [isMp]);
 
   useEffect(() => {
@@ -1651,23 +1662,41 @@ export default function Loadout() {
 
         {pinnedTooltip && !waiting && !showLoadoutGuide && (
           <>
-            <button
-              onClick={() => {
-                setPinnedTooltip(null);
-                setHoveredCardId(null);
-                setHoveredTooltip(null);
-                suppressCardTapRef.current = false;
-              }}
-              style={{ position: "fixed", inset: 0, zIndex: 599, background: "transparent", border: "none", padding: 0, cursor: "default" }}
-              aria-label="Close card details"
-            />
-            <CardTooltip
-              card={pinnedTooltip.card}
-              anchor={pinnedTooltip.anchor}
-              stats={cardPerformance[pinnedTooltip.card.id] ?? null}
-              isAttuned={attunedCardIds.includes(pinnedTooltip.card.id)}
-              mobileSheet={isTouchMode}
-            />
+            {isTouchMode ? (
+              <CardPreviewModal
+                card={pinnedTooltip.card}
+                owned={!pinnedTooltip.card.isPremium || unlockedPremiumCards.includes(pinnedTooltip.card.id)}
+                stats={cardPerformance[pinnedTooltip.card.id] ?? null}
+                isAttuned={attunedCardIds.includes(pinnedTooltip.card.id)}
+                canAttune={attunedCardIds.includes(pinnedTooltip.card.id) || attunedCardIds.length < 2}
+                onToggleAttunement={() => toggleAttunement(pinnedTooltip.card.id)}
+                onClose={() => {
+                  setPinnedTooltip(null);
+                  setHoveredCardId(null);
+                  setHoveredTooltip(null);
+                  suppressCardTapRef.current = false;
+                }}
+              />
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setPinnedTooltip(null);
+                    setHoveredCardId(null);
+                    setHoveredTooltip(null);
+                    suppressCardTapRef.current = false;
+                  }}
+                  style={{ position: "fixed", inset: 0, zIndex: 599, background: "transparent", border: "none", padding: 0, cursor: "default" }}
+                  aria-label="Close card details"
+                />
+                <CardTooltip
+                  card={pinnedTooltip.card}
+                  anchor={pinnedTooltip.anchor}
+                  stats={cardPerformance[pinnedTooltip.card.id] ?? null}
+                  isAttuned={attunedCardIds.includes(pinnedTooltip.card.id)}
+                />
+              </>
+            )}
           </>
         )}
 
