@@ -18,6 +18,8 @@ export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
   const hasSeenTutorial = useGameStore((s) => s.hasSeenTutorial);
   const setHasSeenTutorial = useGameStore((s) => s.setHasSeenTutorial);
+  const playerAddress = useGameStore((s) => s.playerAddress);
+  const playerName = useGameStore((s) => s.playerName);
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
   const [showDeferredWalletUi, setShowDeferredWalletUi] = useState(false);
@@ -86,8 +88,9 @@ export default function ActionOrderLandingPage() {
     // WebView can settle to its final size after the prepaint script runs.
     if (showLoader) return;
     const scale = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const viewport = window.visualViewport;
+      const vw = viewport?.width ?? window.innerWidth;
+      const vh = viewport?.height ?? window.innerHeight;
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
@@ -108,22 +111,33 @@ export default function ActionOrderLandingPage() {
     });
     const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
     viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
     return () => {
       window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
       viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
     };
   }, [showLoader]);
 
   useEffect(() => {
     if (showLoader || hasSeenTutorial) return;
+    if (playerAddress && !playerName) return;
     const timeout = window.setTimeout(() => {
       setHowToPlayVariant("quickstart");
       setShowHowToPlay(true);
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [hasSeenTutorial, showLoader]);
+  }, [hasSeenTutorial, playerAddress, playerName, showLoader]);
+
+  useEffect(() => {
+    if (playerAddress && !playerName && showHowToPlay) {
+      setShowHowToPlay(false);
+    }
+  }, [playerAddress, playerName, showHowToPlay]);
 
   if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 
@@ -419,7 +433,7 @@ export default function ActionOrderLandingPage() {
             <LandingProgressBadge isCompact={isCompact} />
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
-            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isCompact ? 726 : 640, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:726, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
               <div style={{ display:"flex", gap:isCompact ? 16 : 12 }}>
                 <a href="/black-market" style={{
                   display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",

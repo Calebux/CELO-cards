@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { CHARACTERS } from "../../lib/gameData";
 import { getArchetypePreview } from "../../lib/archetypes";
 import { WalletSection } from "../../components/WalletSection";
 import { useGameStore } from "../../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+import { useGameFrameScale } from "../../lib/mobile";
 
 const STAT_META = [
   { key: "knockStat" as const, label: "Knock", color: "#f87171", icon: "gavel", desc: "Raw damage output per winning slot" },
@@ -34,34 +35,12 @@ export default function CharacterDetailPage() {
   const params = useParams();
   const id = params?.id as string;
   const { selectCharacter, startMatch, playerRole, matchId } = useGameStore();
+  const safeTop = "env(safe-area-inset-top)";
 
   const char = CHARACTERS.find((c) => c.id === id);
   const planPreview = getArchetypePreview(id);
 
-  useEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      wrapRef.current.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, []);
+  useGameFrameScale(wrapRef);
 
   if (!char) {
     return (
@@ -89,7 +68,7 @@ export default function CharacterDetailPage() {
         <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 30% 50%, ${char.color}12 0%, transparent 60%)`, pointerEvents: "none" }} />
 
         {/* Top bar */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <button onClick={() => router.push("/select-character")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
             <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
             <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
@@ -103,7 +82,7 @@ export default function CharacterDetailPage() {
         </div>
 
         {/* Main layout: left portrait | right content */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex" }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 68px)`, left: 0, right: 0, bottom: 0, display: "flex" }}>
 
           {/* ── Left: Portrait ── */}
           <div style={{ width: 340, position: "relative", flexShrink: 0, overflow: "hidden" }}>

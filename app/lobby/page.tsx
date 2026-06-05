@@ -53,6 +53,7 @@ export default function Lobby() {
   const isMp = useMiniPayMode();
   const isMobileViewport = useMobileViewportMode();
   const pageVisible = usePageVisibility();
+  const safeTop = "env(safe-area-inset-top)";
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
 
@@ -298,7 +299,7 @@ export default function Lobby() {
           router.replace("/");
         }}
         style={{
-          position: "absolute", top: 20, left: 20,
+          position: "absolute", top: `calc(${safeTop} + 20px)`, left: 20,
           background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 6, padding: "6px 14px", cursor: "pointer",
           fontSize: 11, color: "rgba(185,231,244,0.45)", fontFamily: "inherit",
@@ -311,7 +312,7 @@ export default function Lobby() {
 
       {/* Match ID + wager badge — top center */}
       <div style={{
-        position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)",
+        position: "absolute", top: `calc(${safeTop} + 20px)`, left: "50%", transform: "translateX(-50%)",
         display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
         animation: "ml-fadein 0.5s ease forwards",
       }}>

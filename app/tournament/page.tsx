@@ -7,7 +7,7 @@ import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_H, DESIGN_W } from "../lib/designConstants";
-import { useMobileViewportMode } from "../lib/mobile";
+import { useGameFrameScale, useMobileViewportMode } from "../lib/mobile";
 import { useMiniPayMode } from "../lib/premiumPayments";
 
 type WinnerRow = {
@@ -38,7 +38,6 @@ function fallbackName(address: string, isMiniPay: boolean) {
 export default function HouseBossChallengePage() {
   const isMp = useMiniPayMode();
   const isMobileViewport = useMobileViewportMode();
-  const outerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address } = useAccount();
@@ -46,6 +45,7 @@ export default function HouseBossChallengePage() {
 
   const [data, setData] = useState<HouseWinnerResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const safeTop = "env(safe-area-inset-top)";
 
   const challengeSteps = [
     {
@@ -78,28 +78,7 @@ export default function HouseBossChallengePage() {
     },
   ];
 
-  useEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current || !outerRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        wrapRef.current.style.transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        wrapRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [isMp]);
+  useGameFrameScale(wrapRef);
 
   const fetchChallenge = useCallback(() => {
     setLoading(true);
@@ -127,7 +106,7 @@ export default function HouseBossChallengePage() {
   const totalWinners = data?.totalWinners ?? 0;
 
   return (
-    <div ref={outerRef} style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
         {isMp || isMobileViewport ? (
           <MiniPayImage
@@ -148,7 +127,7 @@ export default function HouseBossChallengePage() {
       </div>
 
       <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", zIndex: 1, transform: "var(--ao-tr)" }}>
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
@@ -168,7 +147,7 @@ export default function HouseBossChallengePage() {
           <WalletSection />
         </div>
 
-        <div style={{ position: "absolute", top: 84, left: 0, right: 0, height: 252, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 84px)`, left: 0, right: 0, height: 252, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase" }}>SEASON 2 · RISE OF THE AGENTS</div>
           <div style={{ fontSize: 68, fontWeight: 900, letterSpacing: "-3px", color: "white", textTransform: "uppercase", textAlign: "center", lineHeight: 1, textShadow: "0 0 40px rgba(251,204,92,0.25)" }}>
             HOUSE BOSS CHALLENGE
@@ -207,7 +186,7 @@ export default function HouseBossChallengePage() {
           </div>
         </div>
 
-        <div style={{ position: "absolute", top: 350, left: 64, right: 52, bottom: 24, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", overflowX: "hidden", paddingRight: 12 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 350px)`, left: 64, right: 52, bottom: 24, display: "flex", gap: 20, alignItems: "flex-start", overflowY: "auto", overflowX: "hidden", paddingRight: 12 }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(86,164,203,0.15)", borderRadius: 8, overflow: "hidden", maxHeight: 480, display: "flex", flexDirection: "column" }}>
               <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(86,164,203,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>

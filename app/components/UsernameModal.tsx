@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+
+const MOBILE_MODAL_W = 760;
+const MOBILE_MODAL_H = 520;
 
 export function UsernameModal() {
   const { address } = useAccount();
   const playerName = useGameStore((s) => s.playerName);
   const setPlayerName = useGameStore((s) => s.setPlayerName);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [isMobileModal, setIsMobileModal] = useState(false);
 
   const [show, setShow] = useState(false);
   const [input, setInput] = useState("");
@@ -20,30 +24,49 @@ export function UsernameModal() {
   const checkedRef = useRef<string>("");
 
   useEffect(() => {
+    const query = window.matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const update = () => setIsMobileModal(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const scale = () => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
+      const frameW = isMobileModal ? MOBILE_MODAL_W : DESIGN_W;
+      const frameH = isMobileModal ? MOBILE_MODAL_H : DESIGN_H;
       let transform: string;
       if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        const s = Math.min(vw / frameH, vh / frameW);
+        const tx = vw / 2 + (frameH * s) / 2;
+        const ty = vh / 2 - (frameW * s) / 2;
         transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
       } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
+        const s = Math.min(vw / frameW, vh / frameH);
+        const tx = (vw - frameW * s) / 2;
+        const ty = (vh - frameH * s) / 2;
         transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
       el.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [show]);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
+  }, [isMobileModal, show]);
 
   // When a wallet connects, check if they already have a username
   useEffect(() => {
@@ -107,7 +130,7 @@ export function UsernameModal() {
       backdropFilter: "blur(10px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
+      <div ref={wrapRef} style={{ width: isMobileModal ? MOBILE_MODAL_W : DESIGN_W, height: isMobileModal ? MOBILE_MODAL_H : DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "translate(-9999px, -9999px) scale(0.001)" }}>
         <div style={{
           position: "relative", width: 420,
           background: "rgba(12,18,36,0.97)",

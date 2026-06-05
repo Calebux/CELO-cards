@@ -10,7 +10,6 @@ import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
 import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
-import { primeWeb3AuthConnection } from "../lib/web3auth";
 
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
@@ -108,6 +107,7 @@ export function LandingWalletSection() {
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [showBalances, setShowBalances] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const mp = useMiniPayMode();
 
@@ -243,9 +243,6 @@ export function LandingWalletSection() {
     if (!connector) return;
     void (async () => {
       try {
-        if (web3AuthConnector && connector.id === web3AuthConnector.id) {
-          await primeWeb3AuthConnection();
-        }
         await connectAsync({ connector, chainId: celo.id });
       } catch {}
     })();
@@ -253,6 +250,16 @@ export function LandingWalletSection() {
 
   const handleDisconnect = () => {
     void disconnectAsync().catch(() => {}).finally(() => setShowAccountMenu(false));
+  };
+
+  const handleCopyAddress = () => {
+    if (!address || typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+    void navigator.clipboard.writeText(address)
+      .then(() => {
+        setCopiedAddress(true);
+        window.setTimeout(() => setCopiedAddress(false), 1600);
+      })
+      .catch(() => {});
   };
 
   return (
@@ -303,6 +310,36 @@ export function LandingWalletSection() {
             zIndex: 30,
           }}
         >
+          <button
+            onClick={handleCopyAddress}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              padding: "10px 12px",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              color: "#b9e7f4",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="material-icons" style={{ fontSize: 16, color: "#56a4cb" }}>content_copy</span>
+              {copiedAddress ? "Address copied" : "Copy wallet address"}
+            </span>
+            {address ? (
+              <span style={{ fontSize: 11, color: "#64748b", letterSpacing: 0.3 }}>
+                {formatAddress(address)}
+              </span>
+            ) : null}
+          </button>
           <button
             onClick={() => { setShowAccountMenu(false); window.location.href = "/profile"; }}
             style={{

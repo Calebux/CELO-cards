@@ -5,21 +5,25 @@
 // • Everywhere: keeps gameStore.playerAddress + playerName in sync with wagmi address
 
 import { useEffect } from "react";
-import { useAccount, useConnect } from "wagmi";
+import { useAccount, useConnect, useConnectors } from "wagmi";
 import { useGameStore } from "./gameStore";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
 import { useRef } from "react";
 import type { CardProgressPayload } from "./cardProgress";
+import { celo } from "wagmi/chains";
+import { clearWeb3AuthSessionHint, hasWeb3AuthSessionHint } from "./web3auth";
 
 export function WalletSync() {
   const { address, isConnected } = useAccount();
   const { connectAsync } = useConnect();
+  const connectors = useConnectors();
   const setPlayerAddress = useGameStore((s) => s.setPlayerAddress);
   const setPlayerName = useGameStore((s) => s.setPlayerName);
   const hydrateCardProgress = useGameStore((s) => s.hydrateCardProgress);
   const clearCardProgress = useGameStore((s) => s.clearCardProgress);
   const playerName = useGameStore((s) => s.playerName);
   const progressAddressRef = useRef<string | null>(null);
+  const attemptedWeb3AuthResumeRef = useRef(false);
 
   useEffect(() => {
     if (!isMiniPay() || isConnected) return;
@@ -61,6 +65,25 @@ export function WalletSync() {
       window.clearInterval(retry);
     };
   }, [connectAsync, isConnected]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isMiniPay() || isConnected) {
+      attemptedWeb3AuthResumeRef.current = false;
+      return;
+    }
+    if (window.location.pathname === "/") return;
+    if (attemptedWeb3AuthResumeRef.current) return;
+    if (!hasWeb3AuthSessionHint()) return;
+
+    const web3AuthConnector = connectors.find((connector) => connector.id === "web3auth");
+    if (!web3AuthConnector) return;
+
+    attemptedWeb3AuthResumeRef.current = true;
+    void connectAsync({ connector: web3AuthConnector, chainId: celo.id }).catch(() => {
+      clearWeb3AuthSessionHint();
+    });
+  }, [connectAsync, connectors, isConnected]);
 
   useEffect(() => {
     setPlayerAddress(address ?? null);

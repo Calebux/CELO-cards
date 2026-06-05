@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, createConfig, http } from "wagmi";
+import { WagmiProvider, createConfig, createStorage, http } from "wagmi";
 import { celo, celoAlfajores } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
@@ -22,6 +22,7 @@ const TutorialModal  = dynamic(() => import("./components/TutorialModal").then(m
 // Users connect via: MetaMask/injected wallets, or Web3Auth (social login).
 const config = createConfig({
   chains: [celo, celoAlfajores],
+  storage: createStorage({ key: "ao-wagmi" }),
   transports: {
     [celo.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL),
     [celoAlfajores.id]: http(),

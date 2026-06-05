@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isMiniPay as detectMiniPayRuntime } from "../lib/minipayRuntime";
 
 type ProviderComponent = React.ComponentType<{ children: React.ReactNode }>;
 
@@ -17,7 +18,9 @@ export function AppProviders({
     let cancelled = false;
 
     const loadProvider = async () => {
-      if (isMiniPayUA) {
+      const shouldUseMiniPayProviders = isMiniPayUA || detectMiniPayRuntime();
+
+      if (shouldUseMiniPayProviders) {
         const module = await import("../minipay-providers");
         if (!cancelled) {
           setProviderComponent(() => module.MiniPayProviders);

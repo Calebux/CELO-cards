@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../lib/gameStore";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../lib/activeMatch";
@@ -100,8 +100,6 @@ export default function CreateMatch() {
   const playerRole = useGameStore((s) => s.playerRole);
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   const vsBot = useGameStore((s) => s.vsBot);
-  const aiDifficulty = useGameStore((s) => s.aiDifficulty);
-  const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const { address } = useAccount();
   const serverResumeMatch = useActiveMatchResume(address);
   const safeTop = "env(safe-area-inset-top)";
@@ -157,11 +155,12 @@ export default function CreateMatch() {
       .catch(() => {});
   }, [address, isMp]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scale = () => {
       if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const viewport = window.visualViewport;
+      const vw = viewport?.width ?? window.innerWidth;
+      const vh = viewport?.height ?? window.innerHeight;
       setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
       setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
       const isPortrait = vh > vw;
@@ -180,8 +179,17 @@ export default function CreateMatch() {
       wrapRef.current.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
   }, [isMp]);
 
   useEffect(() => {
@@ -494,39 +502,6 @@ export default function CreateMatch() {
                     <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>SEASON PASS ACTIVE</div>
                     <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>
                       — {matchType === "vshouse" ? "house event unlocked" : "ranked unlocked"}
-                    </div>
-                  </div>
-                )}
-
-                {/* Difficulty selector — VS House */}
-                {matchType === "vshouse" && (
-                  <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>AI Difficulty (all 5 fights)</div>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      {([
-                        { level: 0 as const, label: "EASY",   sub: "Random orders",     color: "#4ade80" },
-                        { level: 1 as const, label: "NORMAL", sub: "Adaptive AI",        color: "#f59e0b" },
-                        { level: 2 as const, label: "HARD",   sub: "Counter-picks you",  color: "#f87171" },
-                      ] as const).map(({ level, label, sub, color }) => {
-                        const active = aiDifficulty === level;
-                        return (
-                          <button
-                            key={level}
-                            onClick={() => setAiDifficulty(level)}
-                            style={{
-                              flex: 1, padding: "10px 8px",
-                              background: active ? `${color}18` : "rgba(255,255,255,0.03)",
-                              border: `1.5px solid ${active ? color : "rgba(255,255,255,0.08)"}`,
-                              borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
-                              transition: "all 0.15s",
-                              boxShadow: active ? `0 0 12px ${color}25` : "none",
-                            }}
-                          >
-                            <div style={{ fontSize: 11, fontWeight: 800, color: active ? color : "#6b7280", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
-                            <div style={{ fontSize: 9, color: active ? `${color}cc` : "#475569", letterSpacing: 0.3 }}>{sub}</div>
-                          </button>
-                        );
-                      })}
                     </div>
                   </div>
                 )}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MiniPayImage } from "../components/MiniPayImage";
 import { WalletSection } from "../components/WalletSection";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 
 const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
@@ -33,31 +34,9 @@ export default function DeckPage() {
     const wrapRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<Tab>("STRIKE");
+    const safeTop = "env(safe-area-inset-top)";
 
-    useEffect(() => {
-        const scale = () => {
-            if (!wrapRef.current) return;
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const isPortrait = vh > vw;
-            let transform: string;
-            if (isPortrait) {
-                const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-                const tx = vw / 2 + (DESIGN_H * s) / 2;
-                const ty = vh / 2 - (DESIGN_W * s) / 2;
-                transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-            } else {
-                const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-                const tx = (vw - DESIGN_W * s) / 2;
-                const ty = (vh - DESIGN_H * s) / 2;
-                transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-            }
-            wrapRef.current.style.transform = transform;
-        };
-        scale();
-        window.addEventListener("resize", scale);
-        return () => window.removeEventListener("resize", scale);
-    }, []);
+    useGameFrameScale(wrapRef);
 
     const cards = activeTab === "STRIKE" ? STRIKE_CARDS
         : activeTab === "CONTROL" ? CONTROL_CARDS
@@ -70,7 +49,7 @@ export default function DeckPage() {
                 <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
 
                 {/* ── Top Bar ── */}
-                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+                <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
                   <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0 }}>
                     <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
                     <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
@@ -80,7 +59,7 @@ export default function DeckPage() {
                 </div>
 
                 {/* Tabs */}
-                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 88, display: "flex", gap: "12px" }}>
+                <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: `calc(${safeTop} + 88px)`, display: "flex", gap: "12px" }}>
                     {(["STRIKE", "CONTROL", "DEFENSE"] as Tab[]).map((tab) => (
                         <button
                             key={tab}

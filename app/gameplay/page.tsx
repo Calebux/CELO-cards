@@ -4,7 +4,7 @@ const STUCK_GAME_TIMEOUT_MS = 90_000;
 const MATCH_LOADING_DURATION_MS = 2200;
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
@@ -127,7 +127,6 @@ export default function Gameplay() {
   const [opponentLeft, setOpponentLeft] = useState(false);
   const [playerStreak, setPlayerStreak] = useState(0);
   const [opponentStreak, setOpponentStreak] = useState(0);
-  const [momentum, setMomentum] = useState(0); // 0-5, fills with slot wins
   const [matchLoading, setMatchLoading] = useState(true);
   const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [achievementToast, setAchievementToast] = useState<{ id: string; name: string; icon: string; label?: string } | null>(null);
@@ -372,10 +371,11 @@ export default function Gameplay() {
 
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-      setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
-      setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
+    const viewport = window.visualViewport;
+    const vw = viewport?.width ?? window.innerWidth;
+    const vh = viewport?.height ?? window.innerHeight;
+    setIsShortLandscape(vw > vh && vh < (isMp ? 820 : 760));
+    setIsCompactPhone(Math.min(vw, vh) <= (isMp ? 560 : 430));
     const isPortrait = vh > vw;
     let transform: string;
     if (isPortrait) {
@@ -392,10 +392,19 @@ export default function Gameplay() {
     wrapRef.current.style.transform = transform;
   }, [isMp]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyScale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", applyScale);
-    return () => window.removeEventListener("resize", applyScale);
+    window.addEventListener("orientationchange", applyScale);
+    viewport?.addEventListener("resize", applyScale);
+    viewport?.addEventListener("scroll", applyScale);
+    return () => {
+      window.removeEventListener("resize", applyScale);
+      window.removeEventListener("orientationchange", applyScale);
+      viewport?.removeEventListener("resize", applyScale);
+      viewport?.removeEventListener("scroll", applyScale);
+    };
   }, [applyScale]);
 
   // Prefetch next screen so round transitions are less sensitive to poor network.
@@ -443,13 +452,9 @@ export default function Gameplay() {
       if (result.winner === "player") {
         setPlayerStreak(s => { const next = s + 1; if (next >= 3) setComboBanner("player"); return next; });
         setOpponentStreak(0);
-        setMomentum(m => Math.min(5, m + 1));
       } else if (result.winner === "opponent") {
         setOpponentStreak(s => { const next = s + 1; if (next >= 3) setComboBanner("opponent"); return next; });
         setPlayerStreak(0);
-        setMomentum(m => Math.max(0, m - 1));
-      } else {
-        setMomentum(m => Math.max(0, m - 1));
       }
       if (result.isCrit) { setCritBanner("player"); setTimeout(() => setCritBanner(null), 1200); }
       if (result.isOpponentCrit) { setCritBanner("opponent"); setTimeout(() => setCritBanner(null), 1200); }
@@ -514,7 +519,6 @@ export default function Gameplay() {
     setTotalOpponentKnock(0);
     setPlayerStreak(0);
     setOpponentStreak(0);
-    setMomentum(0);
     setCritBanner(null);
     setComboBanner(null);
     nextRound();
@@ -653,7 +657,6 @@ export default function Gameplay() {
           setTotalOpponentKnock(0);
           setPlayerStreak(0);
           setOpponentStreak(0);
-          setMomentum(0);
           setCritBanner(null);
           setComboBanner(null);
           setShowBreakdown(false);
@@ -711,7 +714,6 @@ export default function Gameplay() {
     setTotalOpponentKnock(0);
     setPlayerStreak(0);
     setOpponentStreak(0);
-    setMomentum(0);
     setCritBanner(null);
     setComboBanner(null);
     setShowBreakdown(false);
@@ -967,21 +969,6 @@ export default function Gameplay() {
             )}
           </div>
         )}
-
-        {/* Momentum bar */}
-        <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 106 : 88}px)`, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", alignItems: "center", gap: isCompactPhone ? 4 : 6 }}>
-          <span style={{ fontSize: isCompactPhone ? 8 : 9, fontWeight: 700, letterSpacing: 1.5, color: "#94a3b8", textTransform: "uppercase" }}>MOMENTUM</span>
-          <div style={{ display: "flex", gap: 3 }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} style={{
-                width: isCompactPhone ? 15 : 18, height: 8, borderRadius: 2,
-                background: i < momentum ? "#4ade80" : "rgba(255,255,255,0.1)",
-                boxShadow: i < momentum ? "0 0 6px #4ade80" : "none",
-                transition: "all 0.3s ease",
-              }} />
-            ))}
-          </div>
-        </div>
 
         {/* Bottom Left Controls */}
         <div style={{ position: "absolute", bottom: `calc(${safeBottom} + ${isShortLandscape ? 24 : 16}px)`, left: isCompactPhone ? 20 : 32, zIndex: 20, display: "flex", gap: 12 }}>

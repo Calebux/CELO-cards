@@ -22,6 +22,7 @@ import { useAttunementSync } from "../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { MiniPayImage } from "../components/MiniPayImage";
+import { useGameFrameScale } from "../lib/mobile";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const WalletSection = dynamic(() => import("../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -83,6 +84,7 @@ export default function BlackMarket() {
   const { sendTransactionAsync } = useSendTransaction();
   const { connectAsync } = useConnect();
   const { switchChainAsync } = useSwitchChain();
+  const safeTop = "env(safe-area-inset-top)";
 
   const marketCards = CARDS.filter((c) => c.isPremium);
   const paymentOptions = getPremiumPaymentOptions(isMp);
@@ -101,38 +103,22 @@ export default function BlackMarket() {
     });
   const previewCard = previewCardId ? CARDS.find((card) => card.id === previewCardId) ?? null : null;
 
+  useGameFrameScale(wrapRef);
+
   useEffect(() => {
-    setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+    const sync = () => setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("orientationchange", sync);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("orientationchange", sync);
+    };
   }, []);
 
   useLayoutEffect(() => {
     if (isMp && buyCurrency !== "usdt") setBuyCurrency("usdt");
   }, [buyCurrency, isMp]);
-
-  useEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      wrapRef.current.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, []);
 
   const ensureWalletReady = async () => {
     if (isMiniPay()) {
@@ -248,7 +234,7 @@ export default function BlackMarket() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(86,0,0,0.1) 0%, rgba(0,0,0,0.95) 100%)", pointerEvents: "none" }} />
 
         {/* Top bar */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(255,0,0,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,0,0,0.8)", zIndex: 10 }}>
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(255,0,0,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,0,0,0.8)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
             <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
               <span className="material-icons ko-btn-icon" style={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }}>arrow_back_ios</span>
@@ -268,7 +254,7 @@ export default function BlackMarket() {
         </div>
 
         {/* Content */}
-        <div style={{ position: "absolute", top: 68, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 32, gap: 28 }}>
+        <div style={{ position: "absolute", top: `calc(${safeTop} + 68px)`, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 32, gap: 28 }}>
 
           <div style={{ textAlign: "center" }}>
             <h1 style={{ fontSize: 52, fontWeight: 900, color: ACCENT, textTransform: "uppercase", letterSpacing: -2, margin: 0, lineHeight: 1, textShadow: "0 0 40px rgba(239,68,68,0.4)" }}>

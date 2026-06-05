@@ -14,6 +14,8 @@ import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLI
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
+const MOBILE_MODAL_W = 900;
+const MOBILE_MODAL_H = 620;
 const USDT_ABI = [
   { name: "transfer", type: "function", stateMutability: "nonpayable",
     inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
@@ -84,6 +86,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
   const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [isMobileModal, setIsMobileModal] = useState(false);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
   const [currency, setCurrency] = useState<Currency>(() => getInitialMiniPayMode() ? "usdt" : "celo");
@@ -100,31 +103,51 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     if (isMp && currency !== "usdt") setCurrency("usdt");
   }, [currency, isMp]);
 
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const update = () => setIsMobileModal(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
   useLayoutEffect(() => {
-    if (!isMp) return;
+    const useMobileFrame = isMp || isMobileModal;
+    if (!useMobileFrame) return;
     const scale = () => {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
+      const frameW = MOBILE_MODAL_W;
+      const frameH = MOBILE_MODAL_H;
       let transform: string;
       if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        const s = Math.min(vw / frameH, vh / frameW);
+        const tx = vw / 2 + (frameH * s) / 2;
+        const ty = vh / 2 - (frameW * s) / 2;
         transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
       } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
+        const s = Math.min(vw / frameW, vh / frameH);
+        const tx = (vw - frameW * s) / 2;
+        const ty = (vh - frameH * s) / 2;
         transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
       wrapRef.current.style.transform = transform;
     };
     scale();
+    const viewport = window.visualViewport;
     window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [isMp]);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
+  }, [isMobileModal, isMp]);
 
   // Check for an existing active pass when the modal opens
   useEffect(() => {
@@ -154,6 +177,10 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const availableCurrencies = getPremiumPaymentOptions(isMp);
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
+  const useMobileFrame = isMp || isMobileModal;
+  const modalWidth = useMobileFrame ? 540 : 620;
+  const touchButtonHeight = isMp ? 48 : undefined;
+  const touchButtonPadding = isMp ? "0 18px" : undefined;
 
   const ensureWalletReady = useCallback(async () => {
     if (isMiniPay()) {
@@ -303,8 +330,8 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={isMp ? {
-        width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0,
+      <div ref={wrapRef} style={useMobileFrame ? {
+        width: MOBILE_MODAL_W, height: MOBILE_MODAL_H, position: "absolute", top: 0, left: 0,
         transformOrigin: "top left",
         transform: "var(--ao-tr)",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -313,12 +340,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
       <div style={{
-        width: isMp ? 620 : 620, maxWidth: "calc(100vw - 28px)", borderRadius: 14,
+        width: modalWidth, maxWidth: useMobileFrame ? "none" : "calc(100vw - 28px)", borderRadius: 14,
         backgroundColor: "#080e1a",
         border: "1.5px solid rgba(86,164,203,0.3)",
         boxShadow: "0 0 60px rgba(86,164,203,0.15), 0 24px 60px rgba(0,0,0,0.8)",
         overflow: "hidden",
-      }}>
+          }}>
         {/* Header */}
         <div style={{
           padding: "20px 24px 16px",
@@ -333,7 +360,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               Play Ranked. No Fees.
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? "24px" : "8px 10px", minWidth: isMp ? 92 : 40, minHeight: isMp ? 92 : 40, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(185,231,244,0.4)", cursor: "pointer", fontSize: 20, padding: isMp ? 0 : "8px 10px", width: isMp ? 48 : undefined, height: isMp ? 48 : undefined, minWidth: isMp ? 48 : 40, minHeight: isMp ? 48 : 40, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
         {step === "checking" ? (
@@ -411,7 +438,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => { setStep("idle"); setExistingPlan(null); }}
                 style={{
-                  padding: isMp ? "36px 32px" : "9px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "9px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.35)",
                   cursor: "pointer", fontSize: 11, fontWeight: 800, letterSpacing: 1.5,
                   textTransform: "uppercase", color: "#fbbf24", fontFamily: "inherit",
@@ -422,7 +449,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => { onActivated?.(); onClose(); }}
                 style={{
-                  padding: isMp ? "38px 32px" : "12px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "linear-gradient(135deg, #22c55e, #16a34a)",
                   border: "none", cursor: "pointer",
                   fontSize: 14, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase",
@@ -445,9 +472,15 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
-                onClick={() => window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank")}
+                onClick={() => {
+                  if (isMp) {
+                    window.location.href = MINIPAY_DEPOSIT_DEEPLINK;
+                    return;
+                  }
+                  window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank", "noopener,noreferrer");
+                }}
                 style={{
-                  padding: isMp ? "36px 32px" : "12px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "linear-gradient(135deg, #26a17b22, #26a17b44)",
                   border: "1.5px solid #26a17b",
                   cursor: "pointer", fontSize: 13, fontWeight: 800, letterSpacing: 2,
@@ -460,7 +493,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               <button
                 onClick={() => setStep("idle")}
                 style={{
-                  padding: isMp ? "36px 32px" : "10px 32px", borderRadius: 7,
+                  padding: isMp ? touchButtonPadding : "10px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                   background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.25)",
                   cursor: "pointer", fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
                   textTransform: "uppercase", color: "rgba(185,231,244,0.6)", fontFamily: "inherit",
@@ -486,7 +519,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                   key={c.key}
                   onClick={() => setCurrency(c.key)}
                   style={{
-                    flex: 1, padding: isMp ? "38px 8px" : "8px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                    flex: 1, padding: isMp ? "0 8px" : "8px", minHeight: isMp ? 42 : undefined, borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
                     border: `1.5px solid ${isActive ? c.color : "rgba(86,164,203,0.15)"}`,
                     background: isActive ? `${c.color}1a` : "rgba(255,255,255,0.02)",
                     fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
@@ -521,7 +554,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                     key={p.id}
                     onClick={() => setSelectedPlan(p.id)}
                     style={{
-                      flex: 1, padding: isMp ? "36px 10px" : "14px 10px", borderRadius: 8, cursor: "pointer",
+                      flex: 1, padding: isMp ? "14px 8px" : "14px 10px", minHeight: isMp ? 86 : undefined, borderRadius: 8, cursor: "pointer",
                       border: `1.5px solid ${selectedPlan === p.id ? p.color : "rgba(86,164,203,0.15)"}`,
                       backgroundColor: selectedPlan === p.id ? `${p.color}12` : "rgba(255,255,255,0.02)",
                       boxShadow: selectedPlan === p.id ? `0 0 16px ${p.color}30` : "none",
@@ -592,7 +625,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 disabled={!address || step === "waiting-tx" || step === "confirming" || step === "registering"}
                 onClick={handlePurchase}
                 style={{
-                  width: "100%", padding: isMp ? "36px" : "14px", borderRadius: 8, cursor: "pointer",
+                  width: "100%", padding: isMp ? touchButtonPadding : "14px", minHeight: touchButtonHeight, borderRadius: 8, cursor: "pointer",
                   background: `linear-gradient(135deg, ${plan.color}22, ${plan.color}44)`,
                   border: `1.5px solid ${plan.color}`,
                   boxShadow: `0 0 20px ${plan.color}30`,

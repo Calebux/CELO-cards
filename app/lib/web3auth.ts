@@ -7,6 +7,7 @@ import { isMiniPay } from "./minipayRuntime";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
 const DEFAULT_CELO_RPC = "https://forno.celo.org";
+const WEB3AUTH_SESSION_KEY = "ao:web3auth-connected";
 const WEB3AUTH_RPC_TARGET = (() => {
   const candidate = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL?.trim();
   if (candidate && /^https?:\/\//i.test(candidate)) return candidate;
@@ -17,6 +18,37 @@ const WEB3AUTH_RPC_TARGET = (() => {
 let web3authInstance: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let initPromise: Promise<any> | null = null;
+
+function persistWeb3AuthSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(WEB3AUTH_SESSION_KEY, "1");
+  } catch {}
+  try {
+    window.localStorage.setItem(WEB3AUTH_SESSION_KEY, "1");
+  } catch {}
+}
+
+export function clearWeb3AuthSessionHint() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(WEB3AUTH_SESSION_KEY);
+  } catch {}
+  try {
+    window.localStorage.removeItem(WEB3AUTH_SESSION_KEY);
+  } catch {}
+}
+
+export function hasWeb3AuthSessionHint(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.sessionStorage.getItem(WEB3AUTH_SESSION_KEY) === "1") return true;
+  } catch {}
+  try {
+    if (window.localStorage.getItem(WEB3AUTH_SESSION_KEY) === "1") return true;
+  } catch {}
+  return false;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getWeb3Auth(): Promise<any> {
@@ -50,14 +82,6 @@ async function getWeb3Auth(): Promise<any> {
   return initPromise;
 }
 
-export async function primeWeb3AuthConnection(): Promise<void> {
-  const web3auth = await getWeb3Auth();
-  if (!web3auth.connected) {
-    const provider = await web3auth.connect();
-    if (!provider) throw new Error("Web3Auth: no provider after connect");
-  }
-}
-
 export function createWeb3AuthConnector() {
   return createConnector(() => ({
     id: "web3auth",
@@ -69,6 +93,7 @@ export function createWeb3AuthConnector() {
       const web3auth = await getWeb3Auth();
       const provider = await web3auth.connect();
       if (!provider) throw new Error("Web3Auth: no provider after connect");
+      persistWeb3AuthSession();
       const accounts = (await provider.request({ method: "eth_accounts" })) as `0x${string}`[];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return { accounts: accounts as readonly `0x${string}`[], chainId: celo.id } as any;
@@ -77,6 +102,7 @@ export function createWeb3AuthConnector() {
     async disconnect() {
       const web3auth = await getWeb3Auth();
       await web3auth.logout();
+      clearWeb3AuthSessionHint();
     },
 
     async getAccounts() {
@@ -101,14 +127,17 @@ export function createWeb3AuthConnector() {
     },
 
     async isAuthorized() {
-      // Do NOT call getWeb3Auth() here — wagmi invokes isAuthorized() on every
-      // connector at startup. If we called getWeb3Auth(), it would trigger the
-      // dynamic import of @web3auth/modal, loading 1.3MB from auth.web3auth.io
-      // on every page load. Instead, return false unless the SDK is already
-      // initialised (user connected in this session).
       if (typeof window === "undefined") return false;
       if (isMiniPay()) return false;
-      return web3authInstance?.connected ?? false;
+      if (web3authInstance?.connected) return true;
+      if (!hasWeb3AuthSessionHint()) return false;
+      try {
+        const web3auth = await getWeb3Auth();
+        return Boolean(web3auth.connected && web3auth.provider);
+      } catch {
+        clearWeb3AuthSessionHint();
+        return false;
+      }
     },
 
     onAccountsChanged() {},
