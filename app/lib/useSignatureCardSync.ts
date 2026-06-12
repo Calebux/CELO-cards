@@ -1,9 +1,13 @@
 "use client";
 
-import { useAccount, useSignMessage } from "wagmi";
-import { ATTUNEMENT_LIMIT, buildCardProgressAuthMessage } from "./cardProgress";
+import { useAccount, useSignTypedData } from "wagmi";
+import {
+  ATTUNEMENT_LIMIT,
+  CARD_PROGRESS_TYPED_DOMAIN,
+  CARD_PROGRESS_TYPED_TYPES,
+  buildCardProgressTypedMessage,
+} from "./cardProgress";
 import { useGameStore } from "./gameStore";
-import { isMiniPay } from "./minipayRuntime";
 
 type AttunementSnapshot = {
   attunedCardIds: string[];
@@ -13,7 +17,7 @@ type AttunementSnapshot = {
 
 export function useAttunementSync() {
   const { address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { signTypedDataAsync } = useSignTypedData();
   const hydrateCardProgress = useGameStore((state) => state.hydrateCardProgress);
 
   const toggleAttunedCard = async (currentAttunedCardIds: string[], targetCardId: string) => {
@@ -36,13 +40,14 @@ export function useAttunementSync() {
       throw new Error(authData?.error ?? "Failed to prepare attunement update.");
     }
 
-    const miniPay = isMiniPay();
-    let signature = "";
-    if (!miniPay) {
-      signature = await signMessageAsync({
-        message: buildCardProgressAuthMessage(lower, nextAttunedCardIds, authData.nonce, authData.issuedAt),
-      });
-    }
+    // EIP-712 typed data signing — supported by MiniPay (eth_signTypedData_v4) and all
+    // standard wallets. No personal_sign bypass needed.
+    const signature = await signTypedDataAsync({
+      domain: CARD_PROGRESS_TYPED_DOMAIN,
+      types: CARD_PROGRESS_TYPED_TYPES,
+      primaryType: "AttunementUpdate",
+      message: buildCardProgressTypedMessage(lower, nextAttunedCardIds, authData.nonce, authData.issuedAt),
+    });
 
     const response = await fetch("/api/card-progress", {
       method: "POST",
@@ -51,7 +56,6 @@ export function useAttunementSync() {
         address: lower,
         attunedCardIds: nextAttunedCardIds,
         signature,
-        isMiniPay: miniPay,
       }),
     });
     const data = (await response.json().catch(() => null)) as { error?: string; snapshot?: AttunementSnapshot } | null;
