@@ -1,4 +1,4 @@
 # Match History
 
-History gives players a record of prior matches and outcomes.
-This is part of the long-session retention surface for returning users.
+Match history gives players a persistent record of prior matches, opponents, and outcomes.
+This is part of the long-session retention surface aimed at bringing users back after their first session.
