@@ -1,4 +1,4 @@
 # Release Checklist
 
-Release work for this project should cover build, env parity, contract addresses, and live smoke tests.
-A stable release here depends on both app code and chain-connected configuration.
+Release work should cover build integrity, env parity, contract addresses, and live smoke tests against production.
+A stable release depends on both correct app code and verified chain-connected configuration.
