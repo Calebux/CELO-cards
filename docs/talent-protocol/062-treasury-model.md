@@ -1,4 +1,4 @@
 # Treasury Model
 
-The app treasury is primarily an address-driven operational model rather than a complex treasury contract.
-Contracts and payment flows point to treasury recipients instead of replacing the treasury itself.
+The app treasury is an address-driven operational model rather than an on-chain treasury contract.
+Arena, season pass, and payout flows point to treasury recipient addresses rather than routing through a dedicated contract.
