@@ -20,7 +20,6 @@ artifacts/
 cache/
 .vercel
 
-
 # Local/internal docs
 docs/dev.md
 prd.md
@@ -32,3 +31,6 @@ scripts/
 data/leaderboard.json
 data/daily-claims.json
 data/matches.json
+
+# Local screenshot/download folders
+downloads/
