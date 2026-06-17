@@ -24,6 +24,9 @@ cache/
 docs/dev.md
 prd.md
 
+# Scripts (local ops only — never commit)
+scripts/
+
 # Auto-generated data files
 data/leaderboard.json
 data/daily-claims.json
