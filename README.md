@@ -101,31 +101,6 @@ Five fighters are available at launch, each with a unique portrait, idle animati
 
 ---
 
-## Tech Stack
-
-- **Next.js 14** (App Router, standalone output)
-- **TypeScript** (strict)
-- **Tailwind CSS**
-- **Zustand** — client state management
-- **wagmi + viem** — wallet connection and on-chain reads/writes
-- **RainbowKit** — web wallet modal
-- **Redis (Upstash)** — match state, leaderboard, rate limiting, nonce store
-- **Solidity + Foundry** — smart contract development and deployment
-- **Service Worker** — static asset precaching
-
----
-
-## Smart Contracts
-
-| Contract | Purpose |
-|----------|---------|
-| `contracts/KnockOrderArena.sol` | Match registration, wager escrow, winner resolution |
-| `contracts/SeasonPassRegistry.sol` | Season Pass ownership tracking (ERC-721) |
-
-**Deployed on Celo mainnet.**
-
----
-
 ## Getting Started
 
 ```bash
