@@ -139,7 +139,7 @@ export default function Gameplay() {
   const [houseWinnerModalOpen, setHouseWinnerModalOpen] = useState(false);
   const [showNextFightReveal, setShowNextFightReveal] = useState(false);
   const [nextFightRevealData, setNextFightRevealData] = useState<{
-    defeatedId: string; nextName: string; nextPortrait: string;
+    defeatedId: string; nextName: string;
   } | null>(null);
   const pendingNextRoundRef = useRef<number>(0);
   const payoutFiredRef = useRef(false);
@@ -661,7 +661,6 @@ export default function Gameplay() {
           setNextFightRevealData({
             defeatedId: chamberOrder[upperChamberRound],
             nextName: nextCharData.name,
-            nextPortrait: nextCharData.portrait,
           });
           setShowNextFightReveal(true);
           return;
@@ -1808,7 +1807,6 @@ export default function Gameplay() {
           <NextFightReveal
             defeatedId={nextFightRevealData.defeatedId}
             nextName={nextFightRevealData.nextName}
-            nextPortrait={nextFightRevealData.nextPortrait}
             onComplete={() => {
               setShowNextFightReveal(false);
               setNextFightRevealData(null);

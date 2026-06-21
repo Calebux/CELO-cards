@@ -42,20 +42,15 @@ const KEYFRAMES = `
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes nfSlideIn {
-  from { transform: translateX(110%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
 `;
 
 type Props = {
   defeatedId: string;
   nextName: string;
-  nextPortrait: string;
   onComplete: () => void;
 };
 
-export function NextFightReveal({ defeatedId, nextName, nextPortrait, onComplete }: Props) {
+export function NextFightReveal({ defeatedId, nextName, onComplete }: Props) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,101 +114,84 @@ export function NextFightReveal({ defeatedId, nextName, nextPortrait, onComplete
           SKIP
         </button>
 
-        {/* Story text — left side, vertically centred, max 52vw so portrait never overlaps */}
+        {/* Story text — centred, works in portrait and landscape */}
         <div
           style={{
             position: "absolute",
-            left: 0,
-            top: "50%",
-            transform: "translateY(-50%)",
-            zIndex: 1,
-            boxSizing: "border-box",
-            width: "min(500px, 52vw)",
+            inset: 0,
             display: "flex",
-            flexDirection: "column",
-            gap: "clamp(10px, 2.5vh, 18px)",
-            paddingLeft: "clamp(24px, 5vw, 64px)",
-            paddingRight: 16,
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1,
           }}
         >
-          {lines.map((line, i) => (
+          <div
+            style={{
+              boxSizing: "border-box",
+              width: "min(560px, 88vw)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "clamp(10px, 2.5vh, 18px)",
+              padding: "0 clamp(24px, 6vw, 48px)",
+            }}
+          >
+            {lines.map((line, i) => (
+              <p
+                key={i}
+                style={{
+                  margin: 0,
+                  color: i === lines.length - 1 ? "#e2e8f0" : "rgba(185,231,244,0.75)",
+                  fontSize: "clamp(16px, 4.5vw, 22px)",
+                  lineHeight: 1.55,
+                  fontWeight: i === lines.length - 1 ? 700 : 400,
+                  fontStyle: i === lines.length - 1 ? "normal" : "italic",
+                  opacity: 0,
+                  animation: "nfFadeUp 0.5s ease forwards",
+                  animationDelay: `${0.4 + i * 0.35}s`,
+                  textShadow: "0 1px 6px rgba(0,0,0,0.8)",
+                }}
+              >
+                {line}
+              </p>
+            ))}
+
+            {/* "NEXT OPPONENT" eyebrow */}
             <p
-              key={i}
               style={{
                 margin: 0,
-                color: i === lines.length - 1 ? "#e2e8f0" : "rgba(185,231,244,0.75)",
-                fontSize: "clamp(14px, 1.8vw, 20px)",
-                lineHeight: 1.55,
-                fontWeight: i === lines.length - 1 ? 700 : 400,
-                fontStyle: i === lines.length - 1 ? "normal" : "italic",
+                marginTop: "clamp(12px, 2.5vh, 24px)",
+                color: "#56a4cb",
+                fontSize: "clamp(11px, 3vw, 13px)",
+                fontWeight: 700,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
                 opacity: 0,
                 animation: "nfFadeUp 0.5s ease forwards",
-                animationDelay: `${0.4 + i * 0.35}s`,
-                textShadow: "0 1px 6px rgba(0,0,0,0.8)",
+                animationDelay: `${0.4 + lines.length * 0.35}s`,
               }}
             >
-              {line}
+              Next opponent
             </p>
-          ))}
 
-          {/* "NEXT OPPONENT" eyebrow */}
-          <p
-            style={{
-              margin: 0,
-              marginTop: "clamp(12px, 2.5vh, 24px)",
-              color: "#56a4cb",
-              fontSize: "clamp(10px, 1vw, 13px)",
-              fontWeight: 700,
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              opacity: 0,
-              animation: "nfFadeUp 0.5s ease forwards",
-              animationDelay: `${0.4 + lines.length * 0.35}s`,
-            }}
-          >
-            Next opponent
-          </p>
-
-          {/* Fighter name */}
-          <p
-            style={{
-              margin: 0,
-              color: "#ffffff",
-              fontSize: "clamp(24px, 3.5vw, 42px)",
-              fontWeight: 800,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              opacity: 0,
-              animation: "nfFadeUp 0.5s ease forwards",
-              animationDelay: `${0.55 + lines.length * 0.35}s`,
-              textShadow: "0 0 24px rgba(86,164,203,0.45)",
-            }}
-          >
-            {nextName}
-          </p>
+            {/* Fighter name */}
+            <p
+              style={{
+                margin: 0,
+                color: "#ffffff",
+                fontSize: "clamp(28px, 8vw, 48px)",
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                opacity: 0,
+                animation: "nfFadeUp 0.5s ease forwards",
+                animationDelay: `${0.55 + lines.length * 0.35}s`,
+                textShadow: "0 0 24px rgba(86,164,203,0.45)",
+              }}
+            >
+              {nextName}
+            </p>
+          </div>
         </div>
-
-        {/* Portrait — right side, slides in from off-screen */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={nextPortrait}
-          alt={nextName}
-          style={{
-            position: "absolute",
-            right: 0,
-            bottom: 0,
-            height: "min(88vh, 70vw)",
-            maxHeight: 660,
-            width: "auto",
-            objectFit: "contain",
-            objectPosition: "bottom right",
-            opacity: 0,
-            animation: "nfSlideIn 0.7s ease forwards",
-            animationDelay: "1.5s",
-            pointerEvents: "none",
-            userSelect: "none",
-          }}
-        />
       </div>
     </>,
     document.body
