@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-import { Card, getArenaBackground } from "../lib/gameData";
+import { Card, getArenaBackground, CHARACTERS } from "../lib/gameData";
 import { SlotResult } from "../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic } from "../lib/soundManager";
 import { formatUnits } from "viem";
@@ -27,6 +27,7 @@ const MENU_BG = "/new-assets/gameplay-landing-lite.webp";
 const OnboardingCoach = dynamic(() => import("../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const ShareCard = dynamic(() => import("../components/ShareCard").then(m => ({ default: m.ShareCard })), { ssr: false });
 const HouseWinnerModal = dynamic(() => import("../components/HouseWinnerModal").then(m => ({ default: m.HouseWinnerModal })), { ssr: false });
+const NextFightReveal = dynamic(() => import("../components/NextFightReveal").then(m => ({ default: m.NextFightReveal })), { ssr: false });
 
 export default function Gameplay() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -136,6 +137,11 @@ export default function Gameplay() {
   const [houseWinnerError, setHouseWinnerError] = useState<string | null>(null);
   const [houseWinnerReward, setHouseWinnerReward] = useState<{ rewardCode: string; rewardUsd: number } | null>(null);
   const [houseWinnerModalOpen, setHouseWinnerModalOpen] = useState(false);
+  const [showNextFightReveal, setShowNextFightReveal] = useState(false);
+  const [nextFightRevealData, setNextFightRevealData] = useState<{
+    defeatedId: string; nextName: string; nextPortrait: string;
+  } | null>(null);
+  const pendingNextRoundRef = useRef<number>(0);
   const payoutFiredRef = useRef(false);
   const showResultRef = useRef(false);
   const [isShortLandscape, setIsShortLandscape] = useState(false);
@@ -647,26 +653,20 @@ export default function Gameplay() {
     if (vsBot) {
       if (upperChamberActive) {
         if (upperChamberRound < 4) {
-          // Advance to the next fighter, briefly show the loading screen,
-          // then return to loadout so the player can rebuild their order.
-          advanceUpperChamber(upperChamberRound + 1);
-          setRevealedSlots(0);
-          setSlotResults([]);
-          setShowResult(false);
-          setTotalPlayerKnock(0);
-          setTotalOpponentKnock(0);
-          setPlayerStreak(0);
-          setOpponentStreak(0);
-          setCritBanner(null);
-          setComboBanner(null);
-          setShowBreakdown(false);
-          setShowShareCard(false);
-          setPayoutState("idle");
-          setPayoutTxHash(null);
-          setMatchLoading(true);
-          setTimeout(() => router.push("/loadout"), matchLoadingDurationMs);
-        } else {
-          if (houseWinnerReward) {
+          // Show story reveal before advancing to next fighter.
+          const chamberOrder = ["kaira", "kenji", "riven", "zane", "elara"];
+          const nextRound = upperChamberRound + 1;
+          const nextCharData = CHARACTERS.find(c => c.id === chamberOrder[nextRound])!;
+          pendingNextRoundRef.current = nextRound;
+          setNextFightRevealData({
+            defeatedId: chamberOrder[upperChamberRound],
+            nextName: nextCharData.name,
+            nextPortrait: nextCharData.portrait,
+          });
+          setShowNextFightReveal(true);
+          return;
+        }
+        if (houseWinnerReward) {
             setHouseWinnerModalOpen(true);
             return;
           }
@@ -697,7 +697,6 @@ export default function Gameplay() {
           } finally {
             setClaimingHouseWinner(false);
           }
-        }
         return;
       }
       resetMatch();
@@ -1800,6 +1799,35 @@ export default function Gameplay() {
             isMiniPay={isMp}
             onClose={() => {
               setHouseWinnerModalOpen(false);
+            }}
+          />
+        )}
+
+        {/* ── Next Fight Story Reveal ── */}
+        {showNextFightReveal && nextFightRevealData && (
+          <NextFightReveal
+            defeatedId={nextFightRevealData.defeatedId}
+            nextName={nextFightRevealData.nextName}
+            nextPortrait={nextFightRevealData.nextPortrait}
+            onComplete={() => {
+              setShowNextFightReveal(false);
+              setNextFightRevealData(null);
+              advanceUpperChamber(pendingNextRoundRef.current);
+              setRevealedSlots(0);
+              setSlotResults([]);
+              setShowResult(false);
+              setTotalPlayerKnock(0);
+              setTotalOpponentKnock(0);
+              setPlayerStreak(0);
+              setOpponentStreak(0);
+              setCritBanner(null);
+              setComboBanner(null);
+              setShowBreakdown(false);
+              setShowShareCard(false);
+              setPayoutState("idle");
+              setPayoutTxHash(null);
+              setMatchLoading(true);
+              setTimeout(() => router.push("/loadout"), matchLoadingDurationMs);
             }}
           />
         )}
