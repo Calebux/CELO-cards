@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSignMessage } from "wagmi";
 import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { buildOpsAuthMessage, isOpsAllowed } from "../lib/admin";
 
 type BalanceResponse = Awaited<ReturnType<typeof import("../lib/balance").getBalanceDashboard>>;
@@ -121,10 +122,10 @@ export default function OpsPage() {
       <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
         <div style={{ width: 420, borderRadius: 12, padding: 24, background: "rgba(10,15,24,0.92)", border: "1px solid rgba(86,164,203,0.24)", textAlign: "center" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>Ops Access</div>
-          <h1 style={{ margin: "10px 0 8px", fontSize: 28 }}>Connect admin wallet</h1>
-          <p style={{ margin: 0, color: "#94a3b8", lineHeight: 1.6 }}>
-            This page only loads for an allowlisted wallet.
-          </p>
+          <h1 style={{ margin: "10px 0 16px", fontSize: 28 }}>Connect admin wallet</h1>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <ConnectButton />
+          </div>
         </div>
       </div>
     );
