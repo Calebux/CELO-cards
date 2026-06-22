@@ -67,6 +67,7 @@ type TransactionHealthMetrics = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TX_HEALTH_CACHE_KEY = "ops:stats:tx-health:v1";
 const TX_HEALTH_CACHE_SECONDS = 10 * 60;
+const TX_HEALTH_TIMEOUT_MS = 8_000;
 
 function addAddress(target: Set<string>, address: string | null | undefined) {
   const normalized = address?.trim().toLowerCase();
@@ -321,14 +322,21 @@ async function getTransactionHealthMetrics(): Promise<TransactionHealthMetrics> 
   let failedTransactions = 0;
   let pendingTransactions = 0;
 
-  const receipts = await Promise.all(
-    sampleTxs.map((txHash) =>
-      celoClient.getTransactionReceipt({ hash: txHash }).then(
-        (receipt) => receipt.status,
-        () => null
-      )
-    )
+  const timeout = new Promise<null[]>((resolve) =>
+    setTimeout(() => resolve(sampleTxs.map(() => null)), TX_HEALTH_TIMEOUT_MS)
   );
+
+  const receipts = await Promise.race([
+    Promise.all(
+      sampleTxs.map((txHash) =>
+        celoClient.getTransactionReceipt({ hash: txHash }).then(
+          (receipt) => receipt.status,
+          () => null
+        )
+      )
+    ),
+    timeout,
+  ]);
 
   for (const status of receipts) {
     if (status === "success") successfulTransactions += 1;
@@ -400,14 +408,24 @@ async function getOnChainStats() {
   };
 }
 
+function withFallback<T>(promise: Promise<T>, fallback: T, label: string): Promise<T> {
+  return promise.catch((err) => {
+    console.error(`[ops] ${label} failed:`, err);
+    return fallback;
+  });
+}
+
 export async function getBalanceDashboard() {
+  const emptyRetention: RetentionMetrics = { d1Rate: 0, d7Rate: 0, d30Rate: 0, d1Eligible: 0, d7Eligible: 0, d30Eligible: 0 };
+  const emptyTxHealth: TransactionHealthMetrics = { sampledTransactions: 0, successfulTransactions: 0, failedTransactions: 0, pendingTransactions: 0, failedRate: 0 };
+
   const [snapshot, activity, audience, onChain, retention, transactionHealth] = await Promise.all([
-    getRankedDashboardSnapshot(),
-    getOpsActivitySnapshot(),
-    getAudienceMetrics(),
-    getOnChainStats(),
-    getRetentionMetrics(),
-    getTransactionHealthMetrics(),
+    withFallback(getRankedDashboardSnapshot(), { aggregate: { updatedAt: 0, totalMatches: 0, totalRounds: 0, totalMatchDurationMs: 0, totalRoundDurationMs: 0, cards: {}, characters: {}, skillBuckets: {}, matchups: {} }, totalCardPicks: 0, averageMatchMinutes: 0, averageRoundSeconds: 0, mirrorMatchRate: 0, topCards: [], characterRows: [], skillRows: [] }, "ranked snapshot"),
+    withFallback(getOpsActivitySnapshot(), { house: { totalMatches: 0, winRate: 0, wageredMatches: 0, averagePointsEarned: 0, recentMatches: [], winnerRewardsIssued: 0, winnerRewardUsdTotal: 0, recentWinnerRewards: [] }, blackMarket: { totalPurchases: 0, uniqueBuyers: 0, gdollarPurchases: 0, usdtPurchases: 0, celoPurchases: 0, revenuePoints: 0, recentPurchases: [] } }, "ops activity"),
+    withFallback(getAudienceMetrics(), { totalPlayers: 0, dailyPlayers: 0, weeklyPlayers: 0, monthlyPlayers: 0, transactions: 0, transactions24h: 0, transactions7d: 0, transactions30d: 0, trackedVolumeUsdt: 0, trackedVolumeCelo: 0, trackedVolumeGdollar: 0 }, "audience metrics"),
+    withFallback(getOnChainStats(), { totalPassesSold: 0, totalMatchesOnChain: 0 }, "on-chain stats"),
+    withFallback(getRetentionMetrics(), emptyRetention, "retention"),
+    withFallback(getTransactionHealthMetrics(), emptyTxHealth, "tx health"),
   ]);
   return {
     snapshot,
