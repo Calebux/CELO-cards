@@ -262,6 +262,10 @@ export default function ActionOrderLandingPage() {
         .ko-land-page-wrapper.ko-mobile .ko-btn-tournament { left: 36px; top: 400px; }
         .ko-land-page-wrapper.ko-mobile .ko-btn-leaderboard { left: 36px; top: 482px; }
         .ko-land-page-wrapper.ko-mobile .ko-btn-profile { left: 36px; top: 564px; }
+        .ko-land-page-wrapper.ko-mobile.ko-minipay .ko-btn-join { display: none; }
+        .ko-land-page-wrapper.ko-mobile.ko-minipay .ko-btn-tournament { top: 318px; }
+        .ko-land-page-wrapper.ko-mobile.ko-minipay .ko-btn-leaderboard { top: 400px; }
+        .ko-land-page-wrapper.ko-mobile.ko-minipay .ko-btn-profile { top: 482px; }
 
         /* ── Points badge ─────────────────────────────── */
         .ko-points-badge {
