@@ -4,7 +4,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
-
 const MOBILE_MODAL_W = 760;
 const MOBILE_MODAL_H = 520;
 
