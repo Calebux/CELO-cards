@@ -19,7 +19,7 @@ async function fetchSeasonPass(address: string) {
   const res = await fetch(`/api/season-pass?address=${address.toLowerCase()}&t=${Date.now()}`, {
     cache: "no-store",
   });
-  return res.json() as Promise<{ active: boolean }>;
+  return res.json() as Promise<{ active: boolean; freeGamesLeft?: number }>;
 }
 
 type MatchType = "wager" | "ranked" | "tourney" | "vshouse";
@@ -84,6 +84,7 @@ export default function CreateMatch() {
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
   const [hasSeasonPass, setHasSeasonPass] = useState(false);
+  const [freeGamesLeft, setFreeGamesLeft] = useState(0);
   const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
   const [isShortLandscape, setIsShortLandscape] = useState(false);
   const [isCompactPhone, setIsCompactPhone] = useState(false);
@@ -139,20 +140,21 @@ export default function CreateMatch() {
   useEffect(() => {
     if (!address) {
       setHasSeasonPass(false);
+      setFreeGamesLeft(0);
       return;
     }
+    const handlePass = (d: { active: boolean; freeGamesLeft?: number }) => {
+      setHasSeasonPass(d.active);
+      setFreeGamesLeft(d.freeGamesLeft ?? 0);
+    };
     if (isMp) {
       const timeout = window.setTimeout(() => {
-        fetchSeasonPass(address)
-          .then((d: { active: boolean }) => setHasSeasonPass(d.active))
-          .catch(() => {});
+        fetchSeasonPass(address).then(handlePass).catch(() => {});
       }, 900);
       return () => window.clearTimeout(timeout);
     }
 
-    fetchSeasonPass(address)
-      .then((d: { active: boolean }) => setHasSeasonPass(d.active))
-      .catch(() => {});
+    fetchSeasonPass(address).then(handlePass).catch(() => {});
   }, [address, isMp]);
 
   useLayoutEffect(() => {
@@ -195,9 +197,10 @@ export default function CreateMatch() {
   useEffect(() => {
     const mode = new URLSearchParams(window.location.search).get("mode");
     if (mode === "ranked" || mode === "wager" || mode === "tourney" || mode === "vshouse") {
+      if (isMp && mode !== "vshouse") return; // MiniPay: only VS House available
       setMatchType(mode);
     }
-  }, []);
+  }, [isMp]);
 
   useEffect(() => {
     type IdleWindow = Window & {
@@ -239,7 +242,7 @@ export default function CreateMatch() {
 
   const handleFindMatch = async () => {
     if (!address) return;
-    if (!hasSeasonPass) {
+    if (!hasSeasonPass && freeGamesLeft <= 0) {
       setShowSeasonPassModal(true);
       return;
     }
@@ -259,7 +262,7 @@ export default function CreateMatch() {
   const handleCreateMatch = async () => {
     if (!address) return;
     if (matchType === "vshouse") {
-      if (!hasSeasonPass) {
+      if (!hasSeasonPass && freeGamesLeft <= 0) {
         setShowSeasonPassModal(true);
         return;
       }
@@ -283,7 +286,7 @@ export default function CreateMatch() {
     setPlayerRole("host");
     markOnboardingStep("create_match");
     if (matchType === "ranked") {
-      if (!hasSeasonPass) {
+      if (!hasSeasonPass && freeGamesLeft <= 0) {
         setShowSeasonPassModal(true);
         return;
       }
@@ -420,24 +423,31 @@ export default function CreateMatch() {
                 {/* Match type cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 28 }}>
                   {MATCH_TYPES.map((mt) => {
-                    const active = matchType === mt.key;
+                    const comingSoon = isMp && mt.key !== "vshouse";
+                    const active = matchType === mt.key && !comingSoon;
                     return (
                       <div key={mt.key} style={{ flex: 1, position: "relative" }}>
-                        {mt.badge && (
+                        {comingSoon ? (
+                          <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: "#475569", borderRadius: 3, padding: "3px 9px", zIndex: 2 }}>
+                            <span style={{ fontSize: 8, fontWeight: 800, color: "#fff", letterSpacing: 1, textTransform: "uppercase" }}>COMING SOON</span>
+                          </div>
+                        ) : mt.badge ? (
                           <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: mt.color, borderRadius: 3, padding: "3px 9px", zIndex: 2 }}>
                             <span style={{ fontSize: 8, fontWeight: 800, color: "#000", letterSpacing: 1, textTransform: "uppercase" }}>{mt.badge}</span>
                           </div>
-                        )}
+                        ) : null}
                         <button
-                          onClick={() => setMatchType(mt.key)}
+                          onClick={() => !comingSoon && setMatchType(mt.key)}
+                          disabled={comingSoon}
                           style={{
                             width: "100%", minHeight: 146, padding: "24px 14px 20px",
                             background: active ? `${mt.color}1e` : "rgba(255,255,255,0.03)",
                             border: active ? `1.5px solid ${mt.color}` : "1.5px solid rgba(255,255,255,0.08)",
-                            borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                            borderRadius: 8, cursor: comingSoon ? "not-allowed" : "pointer", fontFamily: "inherit",
                             textAlign: "center",
                             transition: "all 0.18s ease",
                             boxShadow: active ? `0 0 20px ${mt.color}25` : "none",
+                            opacity: comingSoon ? 0.4 : 1,
                           }}
                         >
                           <span className="material-icons" style={{ fontSize: isCompactPhone ? 38 : 32, color: active ? mt.color : "#6b7280", display: "block", marginBottom: 10 }}>{mt.icon}</span>
@@ -459,8 +469,38 @@ export default function CreateMatch() {
                   <p style={{ fontSize: isCompactPhone ? 13 : 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
 
-                {/* Season Pass callout — required for ranked + house event */}
-                {(matchType === "ranked" || matchType === "vshouse") && !hasSeasonPass && (
+                {/* Season Pass / Free Games callout */}
+                {(matchType === "ranked" || matchType === "vshouse") && hasSeasonPass && (
+                  <div style={{
+                    marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 14px",
+                    background: "rgba(74,222,128,0.06)",
+                    border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6,
+                  }}>
+                    <span style={{ fontSize: 13 }}>⚡</span>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>SEASON PASS ACTIVE</div>
+                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>
+                      — {matchType === "vshouse" ? "house event unlocked" : "ranked unlocked"}
+                    </div>
+                  </div>
+                )}
+                {(matchType === "ranked" || matchType === "vshouse") && !hasSeasonPass && freeGamesLeft > 0 && (
+                  <div style={{
+                    marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 14px",
+                    background: "rgba(74,222,128,0.06)",
+                    border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6,
+                  }}>
+                    <span style={{ fontSize: 13 }}>🎮</span>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>
+                      {freeGamesLeft === 2 ? "2 FREE MATCHES" : "1 FREE MATCH LEFT"}
+                    </div>
+                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>
+                      — no season pass needed
+                    </div>
+                  </div>
+                )}
+                {(matchType === "ranked" || matchType === "vshouse") && !hasSeasonPass && freeGamesLeft <= 0 && (
                   <div style={{
                     marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "10px 14px",
@@ -472,9 +512,7 @@ export default function CreateMatch() {
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase", lineHeight: 1 }}>SEASON PASS</div>
                         <div style={{ fontSize: 10, color: "rgba(251,204,92,0.6)", marginTop: 2 }}>
-                          {matchType === "vshouse"
-                            ? "Unlock the House event and fight through the full 5/5 streak"
-                            : "Unlock unlimited ranked matches during your active pass"}
+                          Free matches used — get a pass to keep playing
                         </div>
                       </div>
                     </div>
@@ -489,20 +527,6 @@ export default function CreateMatch() {
                     >
                       Get Pass →
                     </button>
-                  </div>
-                )}
-                {(matchType === "ranked" || matchType === "vshouse") && hasSeasonPass && (
-                  <div style={{
-                    marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
-                    padding: "8px 14px",
-                    background: "rgba(74,222,128,0.06)",
-                    border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6,
-                  }}>
-                    <span style={{ fontSize: 13 }}>⚡</span>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: "#4ade80", letterSpacing: 1.5, textTransform: "uppercase" }}>SEASON PASS ACTIVE</div>
-                    <div style={{ fontSize: 10, color: "rgba(74,222,128,0.6)", marginLeft: 2 }}>
-                      — {matchType === "vshouse" ? "house event unlocked" : "ranked unlocked"}
-                    </div>
                   </div>
                 )}
 
