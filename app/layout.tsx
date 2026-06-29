@@ -44,7 +44,7 @@ export default async function RootLayout({
   const shouldWrapWithProviders = matchedPath !== "/";
 
   return (
-    <html lang="en" data-minipay={isMiniPayUA ? "1" : undefined}>
+    <html lang="en" suppressHydrationWarning data-minipay={isMiniPayUA ? "1" : undefined}>
       <head>
         {/* Intercept window.electronAPI so wallet extensions that look for
             Electron APIs don't throw and crash the React tree.
