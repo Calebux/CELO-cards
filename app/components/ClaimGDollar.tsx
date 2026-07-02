@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useWalletClient } from "wagmi";
+import { useEffect, useState, useMemo } from "react";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useWalletClient, usePublicClient } from "wagmi";
 import { celo } from "wagmi/chains";
-import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR, generateGoodIDVerificationUrl } from "../lib/gooddollar";
+import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { IdentitySDK } from "@goodsdks/citizen-sdk";
 import { formatUnits } from "viem";
 
 export function ClaimGDollar() {
@@ -28,6 +29,11 @@ export function ClaimGDollar() {
   });
 
   const { data: walletClient } = useWalletClient({ chainId: celo.id });
+  const publicClient = usePublicClient({ chainId: celo.id });
+  const identitySDK = useMemo(() => {
+    if (!walletClient || !publicClient || !address) return null;
+    return new IdentitySDK({ account: address, publicClient, walletClient, env: "production" });
+  }, [walletClient, publicClient, address]);
   const { writeContract, data: txHash, isPending, isError, reset } = useWriteContract();
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -93,15 +99,15 @@ export function ClaimGDollar() {
             Not verified. Get your GoodDollar identity to claim daily G$.
           </p>
           <button
-            disabled={isVerifying || !walletClient}
+            disabled={isVerifying || !identitySDK}
             onClick={async () => {
-              if (!walletClient || !address) return;
+              if (!identitySDK) return;
               setIsVerifying(true);
               try {
-                const url = await generateGoodIDVerificationUrl(
-                  walletClient,
-                  address,
+                const url = await identitySDK.generateFVLink(
+                  true,
                   window.location.href,
+                  42220,
                 );
                 window.open(url, "_blank");
               } catch {
