@@ -1,3 +1,6 @@
+import LZString from "lz-string";
+import type { WalletClient } from "viem";
+
 // GoodDollar (G$) token — native Superfluid SuperToken on Celo mainnet
 
 // G$ contract address (Celo mainnet)
@@ -126,3 +129,43 @@ export const CFA_FORWARDER_ABI = [
     outputs: [{ name: "flowrate", type: "int96" }],
   },
 ] as const;
+
+// ── GoodID Face Verification ──────────────────────────────────────────
+
+const GD_IDENTITY_URL = "https://goodid.gooddollar.org";
+
+const GD_FV_MSG =
+  "I authorize GoodDollar to verify my identity with Face Verification.\nIMPORTANT: do not sign this message on behalf of other people.";
+
+const GD_FV_LOGIN_MSG =
+  "Login to GoodDollar Unique Identity Verification\nIMPORTANT: do not sign this message on behalf of other people.";
+
+/**
+ * Signs two messages with the user's wallet and returns a GoodID face-verification URL.
+ */
+export async function generateGoodIDVerificationUrl(
+  walletClient: WalletClient,
+  address: `0x${string}`,
+  redirectUrl: string,
+): Promise<string> {
+  const loginSig = await walletClient.signMessage({
+    account: address,
+    message: GD_FV_LOGIN_MSG,
+  });
+
+  const fvSig = await walletClient.signMessage({
+    account: address,
+    message: GD_FV_MSG,
+  });
+
+  const params = JSON.stringify({
+    account: address,
+    loginSig,
+    fvSig,
+    chainId: 42220,
+    redirectUrl,
+  });
+
+  const compressed = LZString.compressToEncodedURIComponent(params);
+  return `${GD_IDENTITY_URL}?lz=${compressed}`;
+}

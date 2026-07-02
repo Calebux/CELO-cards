@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useEffect, useState, useCallback } from "react";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useWalletClient } from "wagmi";
 import { celo } from "wagmi/chains";
-import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR, generateGoodIDVerificationUrl } from "../lib/gooddollar";
 import { formatUnits } from "viem";
 
 export function ClaimGDollar() {
@@ -27,7 +27,9 @@ export function ClaimGDollar() {
     query: { enabled: !!address && isWhitelisted === true },
   });
 
+  const { data: walletClient } = useWalletClient({ chainId: celo.id });
   const { writeContract, data: txHash, isPending, isError, reset } = useWriteContract();
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -90,14 +92,41 @@ export function ClaimGDollar() {
           <p style={{ fontSize: 9, color: "#6b7280", lineHeight: "13px" }}>
             Not verified. Get your GoodDollar identity to claim daily G$.
           </p>
-          <a
-            href="https://wallet.gooddollar.org/verify"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: GDOLLAR_COLOR, textDecoration: "none", letterSpacing: 0.5 }}
+          <button
+            disabled={isVerifying || !walletClient}
+            onClick={async () => {
+              if (!walletClient || !address) return;
+              setIsVerifying(true);
+              try {
+                const url = await generateGoodIDVerificationUrl(
+                  walletClient,
+                  address,
+                  window.location.href,
+                );
+                window.open(url, "_blank");
+              } catch {
+                // user rejected signing
+              } finally {
+                setIsVerifying(false);
+              }
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: isVerifying ? "wait" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 10,
+              fontWeight: 700,
+              color: GDOLLAR_COLOR,
+              letterSpacing: 0.5,
+              opacity: isVerifying ? 0.6 : 1,
+            }}
           >
-            Get Verified →
-          </a>
+            {isVerifying ? "Signing…" : "Get Verified →"}
+          </button>
         </div>
       ) : isWhitelisted === true && entitlement === 0n ? (
         /* Verified but already claimed today */
