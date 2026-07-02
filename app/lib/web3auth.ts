@@ -67,14 +67,25 @@ async function getWeb3Auth(): Promise<any> {
     // critical bundle. The full SDK only loads when user clicks "Social Login".
     const { Web3Auth: Web3AuthClass, WEB3AUTH_NETWORK, fromViemChain } = await import("@web3auth/modal");
 
+    // On mobile browsers popups are blocked — use redirect mode instead.
+    const isMobileBrowser = typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+
     const instance = new Web3AuthClass({
       clientId: CLIENT_ID,
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
       chains: [{ ...fromViemChain(celo), rpcTarget: WEB3AUTH_RPC_TARGET }],
       defaultChainId: `0x${celo.id.toString(16)}`,
+      ...(isMobileBrowser && {
+        uiConfig: { uxMode: "redirect" as const },
+      }),
     });
 
-    await instance.init();
+    // Add timeout to prevent infinite hang on mobile
+    await Promise.race([
+      instance.init(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Web3Auth init timeout")), 15_000)),
+    ]);
     web3authInstance = instance;
     return instance;
   })();
@@ -91,7 +102,11 @@ export function createWeb3AuthConnector() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async connect(_parameters?: any) {
       const web3auth = await getWeb3Auth();
-      const provider = await web3auth.connect();
+      // In redirect mode, init() restores the session automatically.
+      // Only open the modal if user is not already connected.
+      const provider = web3auth.connected && web3auth.provider
+        ? web3auth.provider
+        : await web3auth.connect();
       if (!provider) throw new Error("Web3Auth: no provider after connect");
       persistWeb3AuthSession();
       const accounts = (await provider.request({ method: "eth_accounts" })) as `0x${string}`[];
