@@ -226,16 +226,13 @@ export default function OpsPage() {
           {[
             { label: "GoodDollar Verified", value: onChain.verifiedGoodDollar.toLocaleString() },
             { label: "Signups (On-Chain)", value: onChain.signups.toLocaleString() },
-            { label: "Unique Wallets", value: onChain.uniqueWallets.toLocaleString() },
             { label: "Season Passes — G$", value: onChain.passesSoldGdollar.toLocaleString() },
             { label: "Season Passes — cUSD/CELO", value: onChain.passesSoldCusd.toLocaleString() },
             { label: "Season Passes — Total", value: onChain.totalPassesSold.toLocaleString() },
             { label: "Ranked Matches", value: snapshot.aggregate.totalMatches.toLocaleString() },
             { label: "Total Players", value: audience.totalPlayers.toLocaleString() },
             { label: "Daily Players", value: audience.dailyPlayers.toLocaleString() },
-            { label: "Transactions", value: audience.transactions.toLocaleString() },
             { label: "House Matches", value: activity.house.totalMatches.toLocaleString() },
-            { label: "Matches On-Chain", value: onChain.totalMatchesOnChain.toLocaleString() },
           ].map((item) => (
             <div key={item.label} style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: "18px 18px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase" }}>{item.label}</div>

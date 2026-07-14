@@ -8,7 +8,6 @@ import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "./seasonPassContract";
 import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "./gdollarSeasonPassContract";
 import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "./signupsContract";
 import { IDENTITY_CONTRACT, IDENTITY_ABI } from "./gooddollar";
-import { MATCH_REGISTRY, MATCH_REGISTRY_ACTIVE, MATCH_REGISTRY_ABI } from "./matchRegistry";
 import { ServerMatch } from "./serverMatch";
 import type { ServerMatchRecord } from "./leaderboard";
 
@@ -410,7 +409,6 @@ async function getOnChainStats() {
     passesSoldCusd,
     passesSoldGdollar,
     signups,
-    totalMatchesOnChain,
     verifiedResults,
   ] = await Promise.all([
     CUSD_PASS_ACTIVE
@@ -421,9 +419,6 @@ async function getOnChainStats() {
       : Promise.resolve(0n),
     SIGNUPS_ACTIVE
       ? celoClient.readContract({ address: SIGNUPS_CONTRACT, abi: SIGNUPS_ABI, functionName: "totalSignups" }).catch(() => 0n)
-      : Promise.resolve(0n),
-    MATCH_REGISTRY_ACTIVE
-      ? celoClient.readContract({ address: MATCH_REGISTRY, abi: MATCH_REGISTRY_ABI, functionName: "totalMatches" }).catch(() => 0n)
       : Promise.resolve(0n),
     uniqueWalletList.length > 0
       ? celoClient.multicall({
@@ -448,7 +443,6 @@ async function getOnChainStats() {
     signups: Number(signups),
     uniqueWallets: uniqueWalletList.length,
     verifiedGoodDollar,
-    totalMatchesOnChain: Number(totalMatchesOnChain),
   };
 }
 
@@ -467,7 +461,7 @@ export async function getBalanceDashboard() {
     withFallback(getRankedDashboardSnapshot(), { aggregate: { updatedAt: 0, totalMatches: 0, totalRounds: 0, totalMatchDurationMs: 0, totalRoundDurationMs: 0, cards: {}, characters: {}, skillBuckets: {}, matchups: {} }, totalCardPicks: 0, averageMatchMinutes: 0, averageRoundSeconds: 0, mirrorMatchRate: 0, topCards: [], characterRows: [], skillRows: [] }, "ranked snapshot"),
     withFallback(getOpsActivitySnapshot(), { house: { totalMatches: 0, winRate: 0, wageredMatches: 0, averagePointsEarned: 0, recentMatches: [], winnerRewardsIssued: 0, winnerRewardUsdTotal: 0, recentWinnerRewards: [] }, blackMarket: { totalPurchases: 0, uniqueBuyers: 0, gdollarPurchases: 0, usdtPurchases: 0, celoPurchases: 0, revenuePoints: 0, recentPurchases: [] } }, "ops activity"),
     withFallback(getAudienceMetrics(), { totalPlayers: 0, dailyPlayers: 0, weeklyPlayers: 0, monthlyPlayers: 0, transactions: 0, transactions24h: 0, transactions7d: 0, transactions30d: 0, trackedVolumeUsdt: 0, trackedVolumeCelo: 0, trackedVolumeGdollar: 0 }, "audience metrics"),
-    withFallback(getOnChainStats(), { totalPassesSold: 0, passesSoldCusd: 0, passesSoldGdollar: 0, signups: 0, uniqueWallets: 0, verifiedGoodDollar: 0, totalMatchesOnChain: 0 }, "on-chain stats"),
+    withFallback(getOnChainStats(), { totalPassesSold: 0, passesSoldCusd: 0, passesSoldGdollar: 0, signups: 0, uniqueWallets: 0, verifiedGoodDollar: 0 }, "on-chain stats"),
     withFallback(getRetentionMetrics(), emptyRetention, "retention"),
     withFallback(getTransactionHealthMetrics(), emptyTxHealth, "tx health"),
   ]);
