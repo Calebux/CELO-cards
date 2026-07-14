@@ -189,7 +189,7 @@ export default function OpsPage() {
     );
   }
 
-  const { snapshot, activity, audience, onChain } = data;
+  const { snapshot, activity, onChain } = data;
 
   return (
     <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", padding: "40px 32px 64px" }}>
@@ -230,8 +230,7 @@ export default function OpsPage() {
             { label: "Season Passes — cUSD/CELO", value: onChain.passesSoldCusd.toLocaleString() },
             { label: "Season Passes — Total", value: onChain.totalPassesSold.toLocaleString() },
             { label: "Ranked Matches", value: snapshot.aggregate.totalMatches.toLocaleString() },
-            { label: "Total Players", value: audience.totalPlayers.toLocaleString() },
-            { label: "Daily Players", value: audience.dailyPlayers.toLocaleString() },
+            { label: "Total Players", value: onChain.uniqueWallets.toLocaleString() },
             { label: "House Matches", value: activity.house.totalMatches.toLocaleString() },
           ].map((item) => (
             <div key={item.label} style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: "18px 18px 16px" }}>

@@ -4,17 +4,13 @@ import Link from "next/link";
 export const revalidate = 60; // refresh every minute
 
 export default async function StatsPage() {
-  const { audience, onChain, policy, retention, transactionHealth } = await getBalanceDashboard();
+  const { onChain, policy, retention, transactionHealth } = await getBalanceDashboard();
 
   const stats = [
-    { label: "Daily Active Players", value: audience.dailyPlayers.toLocaleString(), color: "#4ade80" },
-    { label: "Weekly Active Players", value: audience.weeklyPlayers.toLocaleString(), color: "#22c55e" },
-    { label: "Monthly Active Players", value: audience.monthlyPlayers.toLocaleString(), color: "#14b8a6" },
-    { label: "Total Players", value: audience.totalPlayers.toLocaleString(), color: "#56a4cb" },
+    { label: "GoodDollar Verified", value: onChain.verifiedGoodDollar.toLocaleString(), color: "#00C58E" },
+    { label: "Signups (On-Chain)", value: onChain.signups.toLocaleString(), color: "#4ade80" },
+    { label: "Total Players", value: onChain.uniqueWallets.toLocaleString(), color: "#56a4cb" },
     { label: "Season Passes Sold", value: onChain.totalPassesSold.toLocaleString(), color: "#fbbf24" },
-    { label: "Tracked USDT Volume", value: `${audience.trackedVolumeUsdt.toFixed(2)} USDT`, color: "#34d399" },
-    { label: "Tracked CELO Volume", value: `${audience.trackedVolumeCelo.toFixed(3)} CELO`, color: "#facc15" },
-    { label: "Tracked G$ Volume", value: `${audience.trackedVolumeGdollar.toFixed(0)} G$`, color: "#10b981" },
     { label: "Season", value: policy.currentVersion, color: "#f472b6" },
   ];
 
