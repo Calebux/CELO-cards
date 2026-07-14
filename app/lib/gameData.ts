@@ -280,7 +280,7 @@ export const CARDS: Card[] = [
         type: "defense",
         priority: 5,
         knock: 3,
-        energyCost: 0,
+        energyCost: 1,
         effect: "Anticipation defeats brute force. Blocks high strikes and reduces knock.",
         color: "#22d3ee",
         bgColor: "#083344",
@@ -379,7 +379,7 @@ export const CARDS: Card[] = [
         name: "Javelin Dive",
         type: "strike",
         priority: 2,
-        knock: 2,
+        knock: 5,
         energyCost: 2,
         effect: "An unstoppable human javelin. Guarantees piercing damage that cannot be shielded.",
         color: "#93c5fd",
@@ -402,15 +402,15 @@ export const CARDS: Card[] = [
 
     // Black Market Cards
     {
-        id: "rko", name: "RKO", type: "strike", priority: 9, knock: 14, energyCost: 4,
+        id: "rko", name: "RKO", type: "strike", priority: 7, knock: 11, energyCost: 4,
         effect: "Out of nowhere! Devastating strike with massive priority.", color: "#ef4444", bgColor: "#450a0a", image: "/cards/market/rko.webp", isPremium: true, price: 37500
     },
     {
-        id: "go_to_hell", name: "Go To Hell", type: "strike", priority: 3, knock: 20, energyCost: 6,
+        id: "go_to_hell", name: "Go To Hell", type: "strike", priority: 3, knock: 15, energyCost: 5,
         effect: "Ultimate destructive move. Requires high energy but annihilates opposition.", color: "#f97316", bgColor: "#431407", image: "/cards/market/go_to_hell.webp", isPremium: true, price: 50000
     },
     {
-        id: "headbutt", name: "Headbutt", type: "strike", priority: 8, knock: 7, energyCost: 2,
+        id: "headbutt", name: "Headbutt", type: "strike", priority: 8, knock: 7, energyCost: 3,
         effect: "A quick, brutal intercept to stagger the opponent.", color: "#d946ef", bgColor: "#701a75", image: "/cards/market/headbutt.webp", isPremium: true, price: 20000
     },
     {

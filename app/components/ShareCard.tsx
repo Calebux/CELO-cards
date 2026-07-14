@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 
 interface Character {
   name: string;
@@ -27,6 +28,8 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
   const isMp = useMiniPayMode();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  useGameFrameScale(wrapRef);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -118,32 +121,6 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     };
     img.src = playerChar.standingArt;
   }, [won, playerChar, opponentChar, playerRounds, opponentRounds]);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const scale = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      el.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, []);
 
   const handleDownload = () => {
     const canvas = canvasRef.current;

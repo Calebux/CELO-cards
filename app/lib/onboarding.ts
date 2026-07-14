@@ -1,4 +1,5 @@
 export type OnboardingStepId =
+  | "verify_claim"
   | "create_match"
   | "select_fighter"
   | "build_sequence"
@@ -6,6 +7,7 @@ export type OnboardingStepId =
   | "finish_match";
 
 export type OnboardingProgress = {
+  verify_claim: boolean;
   create_match: boolean;
   select_fighter: boolean;
   build_sequence: boolean;
@@ -20,6 +22,12 @@ export const ONBOARDING_STEPS: Array<{
   title: string;
   body: string;
 }> = [
+  {
+    id: "verify_claim",
+    label: "Verify & Claim G$",
+    title: "Verify identity, claim daily G$",
+    body: "On your Profile, complete GoodDollar face verification and claim your daily G$. The claim also tops up CELO so your wallet can sign matches on-chain.",
+  },
   {
     id: "create_match",
     label: "Create Match",
@@ -54,6 +62,7 @@ export const ONBOARDING_STEPS: Array<{
 
 export function createEmptyOnboardingProgress(): OnboardingProgress {
   return {
+    verify_claim: false,
     create_match: false,
     select_fighter: false,
     build_sequence: false,
@@ -63,14 +72,22 @@ export function createEmptyOnboardingProgress(): OnboardingProgress {
   };
 }
 
-export function getOnboardingCompletion(progress: OnboardingProgress): number {
-  return ONBOARDING_STEPS.filter((step) => progress[step.id]).length;
+// MiniPay has no GoodDollar verify/claim step — the wallet flow differs and the
+// treasury covers on-chain entries there, so the step only exists on web/mobile.
+export function getOnboardingSteps(includeVerifyClaim: boolean) {
+  return includeVerifyClaim
+    ? ONBOARDING_STEPS
+    : ONBOARDING_STEPS.filter((step) => step.id !== "verify_claim");
 }
 
-export function getNextOnboardingStep(progress: OnboardingProgress) {
-  return ONBOARDING_STEPS.find((step) => !progress[step.id]) ?? null;
+export function getOnboardingCompletion(progress: OnboardingProgress, steps = ONBOARDING_STEPS): number {
+  return steps.filter((step) => progress[step.id]).length;
 }
 
-export function isOnboardingComplete(progress: OnboardingProgress): boolean {
-  return ONBOARDING_STEPS.every((step) => progress[step.id]);
+export function getNextOnboardingStep(progress: OnboardingProgress, steps = ONBOARDING_STEPS) {
+  return steps.find((step) => !progress[step.id]) ?? null;
+}
+
+export function isOnboardingComplete(progress: OnboardingProgress, steps = ONBOARDING_STEPS): boolean {
+  return steps.every((step) => progress[step.id]);
 }

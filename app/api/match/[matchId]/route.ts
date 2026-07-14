@@ -699,6 +699,35 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     } catch {
       // Best-effort — leaderboard failure must not break the card submission
     }
+    // Increment free game counter for players without an active season pass
+    const incrementFreeGame = async (addr: string) => {
+      const passRaw = await redis.get(`season-pass:${addr.toLowerCase()}`).catch(() => null);
+      let hasPass = false;
+      if (passRaw) {
+        const parsed = typeof passRaw === "string"
+          ? (() => { try { return JSON.parse(passRaw) as { expiry?: number }; } catch { return null; } })()
+          : passRaw as { expiry?: number } | null;
+        if (parsed && Number.isFinite(Number(parsed.expiry)) && Number(parsed.expiry) >= Date.now()) {
+          hasPass = true;
+        }
+      }
+      if (!hasPass) {
+        const key = `free-games:${addr.toLowerCase()}`;
+        const current = Number(await redis.get(key)) || 0;
+        if (current < 2) {
+          await redis.set(key, current + 1);
+        }
+      }
+    };
+    try {
+      const freeGamePromises: Promise<void>[] = [];
+      if (m.host.address) freeGamePromises.push(incrementFreeGame(m.host.address));
+      if (m.joiner.address) freeGamePromises.push(incrementFreeGame(m.joiner.address));
+      await Promise.allSettled(freeGamePromises);
+    } catch {
+      // Best-effort — free game tracking failure must not break match flow
+    }
+
     if (m.host.address) {
       await clearActiveMatchForAddress(m.host.address, matchId).catch(() => {});
     }

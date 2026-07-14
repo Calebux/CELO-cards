@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useWalletClient, usePublicClient } from "wagmi";
 import { celo } from "wagmi/chains";
 import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "../lib/signupsContract";
 import { formatUnits } from "viem";
+import { useGameStore } from "../lib/gameStore";
 
 export function ClaimGDollar() {
   const { address, isConnected } = useAccount();
@@ -37,6 +39,44 @@ export function ClaimGDollar() {
   useEffect(() => {
     if (isSuccess) refetch();
   }, [isSuccess, refetch]);
+
+  // Onboarding: verified + claimed (now, or already today) means the wallet
+  // has G$ and the CELO gas top-up — mark the verify_claim step done and
+  // register the player on the KnockOrderSignups contract with their own
+  // wallet. Best-effort: a rejected/failed signup retries on the next visit.
+  const markOnboardingStep = useGameStore((s) => s.markOnboardingStep);
+  const signupAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!(isSuccess || (isWhitelisted === true && entitlement === 0n))) return;
+    markOnboardingStep("verify_claim");
+
+    if (signupAttemptedRef.current) return;
+    if (!address || !walletClient || !publicClient) return;
+    if (SIGNUPS_CONTRACT === "0x0000000000000000000000000000000000000000") return;
+    signupAttemptedRef.current = true;
+
+    void (async () => {
+      try {
+        const already = await publicClient.readContract({
+          address: SIGNUPS_CONTRACT,
+          abi: SIGNUPS_ABI,
+          functionName: "hasSignedUp",
+          args: [address],
+        });
+        if (already) return;
+        await walletClient.writeContract({
+          address: SIGNUPS_CONTRACT,
+          abi: SIGNUPS_ABI,
+          functionName: "signUp",
+          chain: celo,
+          account: address,
+        });
+      } catch {
+        // No gas yet or user rejected — try again next session.
+        signupAttemptedRef.current = false;
+      }
+    })();
+  }, [isSuccess, isWhitelisted, entitlement, address, walletClient, publicClient, markOnboardingStep]);
 
   const canClaim = isConnected && entitlement !== undefined && entitlement > 0n;
   const claimableDisplay = entitlement && entitlement > 0n

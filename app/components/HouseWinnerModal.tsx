@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { MiniPayImage } from "./MiniPayImage";
 import { DESIGN_H, DESIGN_W } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 
 type Props = {
   rewardCode: string;
@@ -26,6 +27,8 @@ export function HouseWinnerModal({ rewardCode, rewardUsd, isMiniPay = false, onC
   const [mounted, setMounted] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
+  useGameFrameScale(wrapRef, { enabled: mounted });
+
   const copyCode = () => {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
       setCopied(true);
@@ -43,32 +46,6 @@ export function HouseWinnerModal({ rewardCode, rewardUsd, isMiniPay = false, onC
     setMounted(true);
     return () => setMounted(false);
   }, []);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el || !mounted) return;
-    const scale = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      el.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [mounted]);
 
   const cardW = isMiniPay ? 220 : 188;
   const cardH = isMiniPay ? 324 : 280;

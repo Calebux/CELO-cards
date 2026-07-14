@@ -18,6 +18,7 @@ import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar"
 import { useGameStore } from "../lib/gameStore";
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 import { getInitialMiniPayMode, MINIPAY_STABLECOIN_EXPLAINER, MINIPAY_STABLECOIN_SHORT, useMiniPayMode } from "../lib/premiumPayments";
 
 type Props = {
@@ -60,33 +61,10 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo"));
-  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo")) ?? "0.01");
+  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar"));
+  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar")) ?? "0.01");
 
-  useLayoutEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      wrapRef.current.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [isMp]);
+  useGameFrameScale(wrapRef);
 
   const { writeContractAsync }  = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
@@ -489,7 +467,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
         {/* Currency selector */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(isMp ? (["usdt"] as Currency[]) : (["cusd", "celo", "gdollar"] as Currency[])).map((c) => {
+          {(isMp ? (["usdt"] as Currency[]) : (["gdollar", "cusd", "celo"] as Currency[])).map((c) => {
             const cc = CURRENCY_CONFIG[c];
             const disabledByLock = !!lockedCurrency && lockedCurrency !== c;
             return (

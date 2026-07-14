@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { getVolume, isMuted, playSound, setMuted, setVolume } from "../lib/soundManager";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 
 interface SoundSettingsProps {
   /** Called when the modal closes */
@@ -16,6 +17,8 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [muted, setMutedState] = useState(false);
   const [volume, setVolumeState] = useState(100);
+
+  useGameFrameScale(wrapRef);
 
   useEffect(() => {
     const sync = () => {
@@ -32,32 +35,6 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     sync();
     window.addEventListener("ao-sound-change", handleSoundChange);
     return () => window.removeEventListener("ao-sound-change", handleSoundChange);
-  }, []);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const scale = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      el.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
   }, []);
 
   const handleMuteToggle = () => {

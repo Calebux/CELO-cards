@@ -1,0 +1,339 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useGameStore } from "../../lib/gameStore";
+import { MiniPayImage } from "../../components/MiniPayImage";
+import { useMiniPayMode } from "../../lib/premiumPayments";
+import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+
+const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
+
+const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
+
+export default function ReadyYourDeckPage() {
+  return (
+    <Suspense>
+      <ReadyYourDeck />
+    </Suspense>
+  );
+}
+
+function ReadyYourDeck() {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const isMp = useMiniPayMode();
+  const [copied, setCopied] = useState(false);
+  const [linkShared, setLinkShared] = useState(false);
+  const [opponentFound, setOpponentFound] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const searchParams   = useSearchParams();
+  const isRanked       = searchParams.get("ranked") === "true";
+  const storeMatchId   = useGameStore((s) => s.matchId);
+  const wagerActive    = useGameStore((s) => s.wagerActive);
+  const playerRole     = useGameStore((s) => s.playerRole);
+  const playerName     = useGameStore((s) => s.playerName);
+  const playerAddress  = useGameStore((s) => s.playerAddress);
+  const matchMode      = useGameStore((s) => s.matchMode);
+  const selectedCharacter = useGameStore((s) => s.selectedCharacter);
+  const resetMatch     = useGameStore((s) => s.resetMatch);
+  const safeTop = "env(safe-area-inset-top)";
+
+  useEffect(() => {
+    const scale = () => {
+      if (!wrapRef.current) return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const isPortrait = vh > vw;
+      let transform: string;
+      if (isPortrait) {
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
+      } else {
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
+        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+      }
+      wrapRef.current.style.transform = transform;
+      document.documentElement.style.setProperty("--ao-tr", transform);
+    };
+    const raf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scale);
+    });
+    scale();
+    const viewport = window.visualViewport;
+    window.addEventListener("resize", scale);
+    window.addEventListener("orientationchange", scale);
+    viewport?.addEventListener("resize", scale);
+    viewport?.addEventListener("scroll", scale);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", scale);
+      window.removeEventListener("orientationchange", scale);
+      viewport?.removeEventListener("resize", scale);
+      viewport?.removeEventListener("scroll", scale);
+    };
+  }, []);
+
+  // Keepalive — register match in Redis and keep it alive while host waits
+  useEffect(() => {
+    if (!storeMatchId || exiting) return;
+    const ping = () => {
+      void fetch(`/api/match/${storeMatchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: isRanked ? "ranked" : matchMode }),
+      }).catch(() => {});
+    };
+    ping(); // immediate ping — creates match in Redis and adds to open matches
+    const id = setInterval(ping, 60_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exiting, isRanked, matchMode, playerAddress, playerName, storeMatchId]);
+
+  // Poll for joiner — when found, redirect host to character select (payment happens in lobby)
+  useEffect(() => {
+    if (!storeMatchId || playerRole !== "host" || wagerActive || opponentFound || exiting) return;
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/match/${storeMatchId}?role=host`);
+        const data = await res.json() as { opponentCharId?: string | null };
+        if (data.opponentCharId) {
+          clearInterval(poll);
+          setOpponentFound(true);
+          router.push(selectedCharacter ? "/lobby" : "/select-character");
+        }
+      } catch { /* ignore transient errors */ }
+    }, 2000);
+    return () => clearInterval(poll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exiting, storeMatchId, playerRole, selectedCharacter, wagerActive, opponentFound]);
+
+  const matchId = storeMatchId ?? "AO-????-X";
+
+  const copyText = async (text: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    }
+  };
+
+  const handleCopyCode = () => {
+    void copyText(matchId).finally(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  const handleShareLink = () => {
+    const link = `${window.location.origin}/join?id=${matchId}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator.share({ title: "Action Order", text: `Join my match! Code: ${matchId}`, url: link }).catch(() => {});
+    } else {
+      void copyText(link);
+    }
+    setLinkShared(true);
+    setTimeout(() => setLinkShared(false), 2000);
+  };
+
+  const handleExit = async () => {
+    if (exiting) return;
+    setExiting(true);
+    try {
+      if (storeMatchId && playerRole) {
+        await fetch(`/api/match/${storeMatchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "quit", role: playerRole }),
+        }).catch(() => {});
+      }
+    } finally {
+      resetMatch();
+      router.replace("/");
+    }
+  };
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#050505", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
+
+        {/* Background */}
+        <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3, pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(5,5,5,0.88) 0%, rgba(5,8,18,0.78) 50%, rgba(5,5,5,0.88) 100%)", pointerEvents: "none" }} />
+
+        {/* ── Top Bar ── */}
+        <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
+          <button onClick={() => void handleExit()} style={{ background: "none", border: "none", cursor: exiting ? "default" : "pointer", display: "flex", alignItems: "center", gap: 12, padding: 0, opacity: exiting ? 0.7 : 1 }}>
+            <div style={{ width: 4, height: 32, background: "linear-gradient(to bottom, #56a4cb, #b9e7f4)", borderRadius: 2 }} />
+            <span style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", color: "#b9e7f4", textTransform: "uppercase" }}>ACTION ORDER</span>
+          </button>
+
+          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8, padding: "5px 16px", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, background: "rgba(86,164,203,0.06)" }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.5, color: "#9ca3af", textTransform: "uppercase" }}>MATCH READY</span>
+          </div>
+
+          <WalletSection />
+        </div>
+
+        {/* ── Central Panel ── */}
+        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -46%)", width: 504 }}>
+
+          {/* Corner accents */}
+          {[
+            { top: -12, left: -12, borderLeft: "1.5px solid #56a4cb", borderTop: "1.5px solid #56a4cb" },
+            { top: -12, right: -12, borderRight: "1.5px solid #56a4cb", borderTop: "1.5px solid #56a4cb" },
+            { bottom: -12, left: -12, borderLeft: "1.5px solid #56a4cb", borderBottom: "1.5px solid #56a4cb" },
+            { bottom: -12, right: -12, borderRight: "1.5px solid #56a4cb", borderBottom: "1.5px solid #56a4cb" },
+          ].map((s, i) => (
+            <div key={i} style={{ position: "absolute", width: 36, height: 36, ...s }} />
+          ))}
+
+          {/* Glass panel */}
+          <div style={{ background: "rgba(10,15,28,0.85)", border: "1.5px solid rgba(86,164,203,0.35)", borderRadius: 8, backdropFilter: "blur(12px)", overflow: "hidden", boxShadow: "0 0 40px rgba(86,164,203,0.1)" }}>
+
+            {/* Scanline */}
+            <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #56a4cb, transparent)" }} />
+
+            <div style={{ padding: "36px 40px 40px" }}>
+
+              {/* Heading */}
+              <div style={{ textAlign: "center", marginBottom: 32 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 4, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>INVITE YOUR OPPONENT</div>
+                <h2 style={{ fontSize: 30, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -1, margin: 0, lineHeight: 1 }}>
+                  READY YOUR DECK
+                </h2>
+                <p style={{ fontSize: 13, color: "#6b7280", marginTop: 10, lineHeight: 1.6 }}>
+                  Share your match code or link. Your opponent pastes it on the Join screen.
+                </p>
+              </div>
+
+              {/* Match code display */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>MATCH CODE</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ flex: 1, height: 52, background: "rgba(17,10,24,0.6)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 22, fontWeight: 900, color: "#b9e7f4", letterSpacing: 3, fontVariantNumeric: "tabular-nums" }}>{matchId}</span>
+                  </div>
+                  <button
+                    onClick={handleCopyCode}
+                    style={{
+                      width: 52, height: 52, flexShrink: 0,
+                      background: copied ? "rgba(74,222,128,0.12)" : "rgba(86,164,203,0.1)",
+                      border: `1px solid ${copied ? "rgba(74,222,128,0.4)" : "rgba(86,164,203,0.3)"}`,
+                      borderRadius: 6, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all 0.2s",
+                    }}
+                    title="Copy code"
+                  >
+                    <span className="material-icons" style={{ color: copied ? "#4ade80" : "#56a4cb", fontSize: 20 }}>
+                      {copied ? "check" : "content_copy"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Share link button */}
+              <button
+                onClick={handleShareLink}
+                className="ko-btn ko-btn-secondary"
+                style={{ width: "100%", height: 48, marginBottom: 28 }}
+              >
+                <svg className="ko-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
+                </svg>
+                <span className="ko-btn-text" style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", textTransform: "uppercase", letterSpacing: 2 }}>
+                  {linkShared ? "Link Copied!" : "Share Match Link"}
+                </span>
+              </button>
+
+              {/* Divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: 2, textTransform: "uppercase" }}>OR</span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+              </div>
+
+              {/* Solo play — hidden for ranked (must pay in lobby) */}
+              {!isRanked && (
+                <button
+                  onClick={() => router.push("/select-character")}
+                  style={{
+                    width: "100%", height: 52,
+                    background: "linear-gradient(135deg, #1a3a52, #0f2233)",
+                    border: "1.5px solid #56a4cb", borderRadius: 6,
+                    cursor: "pointer", fontFamily: "inherit",
+                    fontWeight: 900, fontSize: 15, letterSpacing: 2.5,
+                    color: "#b9e7f4", textTransform: "uppercase",
+                    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
+                    boxShadow: "0 0 20px rgba(86,164,203,0.2)",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                  }}
+                >
+                  <span className="material-icons" style={{ fontSize: 20 }}>group</span>
+                  PROCEED TO MATCH
+                  <span className="material-icons" style={{ fontSize: 18 }}>arrow_forward_ios</span>
+                </button>
+              )}
+
+              {/* Waiting indicator */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 24 }}>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[0, 0.3, 0.6].map((delay, i) => (
+                    <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "#56a4cb", animation: `waitPulse 1.2s ease-in-out ${delay}s infinite` }} />
+                  ))}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#475569", letterSpacing: 2, textTransform: "uppercase" }}>
+                  Waiting for opponent
+                </span>
+              </div>
+
+              <button
+                onClick={() => void handleExit()}
+                disabled={exiting}
+                style={{
+                  width: "100%",
+                  height: 46,
+                  marginTop: 20,
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 6,
+                  cursor: exiting ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: 800,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                  color: "#94a3b8",
+                  textTransform: "uppercase",
+                  opacity: exiting ? 0.7 : 1,
+                }}
+              >
+                {exiting ? "Exiting..." : "Exit Match"}
+              </button>
+
+            </div>
+          </div>
+
+          {/* Footer status */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>{isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <style>{`
+        @keyframes waitPulse {
+          0%, 100% { opacity: 0.2; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.1); }
+        }
+      `}</style>
+
+    </div>
+  );
+}

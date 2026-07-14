@@ -2,18 +2,20 @@
 
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
-import { useAccount, useConnect, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
+import { useAccount, useConnect, usePublicClient, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
+import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "../lib/gdollarSeasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
+const GDOLLAR_CONTRACT_ACTIVE = GDOLLAR_SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 const MOBILE_MODAL_W = 900;
 const MOBILE_MODAL_H = 620;
 const USDT_ABI = [
@@ -31,8 +33,8 @@ const PLANS = [
     days: 7,
     priceCelo: "0.5",
     priceWeiCelo: parseEther("0.5"),
-    priceGdollar: "1000",
-    priceWeiGdollar: parseUnits("1000", 18),
+    priceGdollar: "100",
+    priceWeiGdollar: parseUnits("100", 18),
     priceUsdt: "0.04",
     priceWeiUsdt: parseUnits("0.04", 6),
     tagline: "Try it out",
@@ -44,8 +46,8 @@ const PLANS = [
     days: 30,
     priceCelo: "1.5",
     priceWeiCelo: parseEther("1.5"),
-    priceGdollar: "3000",
-    priceWeiGdollar: parseUnits("3000", 18),
+    priceGdollar: "200",
+    priceWeiGdollar: parseUnits("200", 18),
     priceUsdt: "0.13",
     priceWeiUsdt: parseUnits("0.13", 6),
     tagline: "Most popular",
@@ -89,9 +91,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const [isMobileModal, setIsMobileModal] = useState(false);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("monthly");
-  const [currency, setCurrency] = useState<Currency>(() => getInitialMiniPayMode() ? "usdt" : "celo");
+  const [currency, setCurrency] = useState<Currency>(() => getInitialMiniPayMode() ? "usdt" : "gdollar");
   const [step, setStep] = useState<Step>("checking");
   const [errMsg, setErrMsg] = useState("");
+  // true = wallet holds the purchase amount but can't cover CELO network fees
+  const [lowBalanceGas, setLowBalanceGas] = useState(false);
+  const publicClient = usePublicClient({ chainId: celo.id });
   const [expiry, setExpiry] = useState<number | null>(null);
   const [existingPlan, setExistingPlan] = useState<string | null>(null);
 
@@ -270,7 +275,28 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               ...getMiniPayWriteOverrides(),
             });
         void pollAndRegister(hash, activeAddress);
+      } else if (currency === "gdollar" && GDOLLAR_CONTRACT_ACTIVE) {
+        // Route through GDollarSeasonPassRegistry — approve then buySeasonPass,
+        // tx is FROM buyer's wallet so it's attributable on-chain.
+        await writeContractAsync({
+          address: GDOLLAR_CONTRACT,
+          abi: GDOLLAR_ABI,
+          functionName: "approve",
+          args: [GDOLLAR_SEASON_PASS_CONTRACT, plan.priceWeiGdollar],
+          account: activeAddress,
+          chainId: celo.id,
+        });
+        const hash = await writeContractAsync({
+          address: GDOLLAR_SEASON_PASS_CONTRACT,
+          abi: GDOLLAR_SEASON_PASS_ABI,
+          functionName: "buySeasonPass",
+          args: [selectedPlan],
+          account: activeAddress,
+          chainId: celo.id,
+        });
+        void pollAndRegister(hash, activeAddress);
       } else if (currency === "gdollar") {
+        // Fallback: direct transfer to treasury (no contract deployed/active)
         const hash = await writeContractAsync({
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
@@ -314,13 +340,35 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Transaction rejected.";
       if (/insufficient funds|insufficient balance|exceeds balance/i.test(msg)) {
+        // Distinguish "short on the token" from "short on CELO gas": if the
+        // wallet holds the purchase amount, the failure was the network fee.
+        // MiniPay pays gas in USDT, so a USDT shortfall means deposit either way.
+        let gasShortfall = false;
+        try {
+          const addr = activeAddressRef.current;
+          if (addr && publicClient && currency !== "usdt") {
+            if (currency === "gdollar") {
+              const bal = await publicClient.readContract({
+                address: GDOLLAR_CONTRACT,
+                abi: GDOLLAR_ABI,
+                functionName: "balanceOf",
+                args: [addr],
+              });
+              gasShortfall = bal >= plan.priceWeiGdollar;
+            } else {
+              const bal = await publicClient.getBalance({ address: addr });
+              gasShortfall = bal >= plan.priceWeiCelo;
+            }
+          }
+        } catch { /* leave as token shortfall */ }
+        setLowBalanceGas(gasShortfall);
         setStep("low-balance");
       } else {
         setErrMsg(msg);
         setStep("error");
       }
     }
-  }, [currency, ensureWalletReady, isMp, plan, pollAndRegister, sendTransactionAsync, writeContractAsync]);
+  }, [currency, ensureWalletReady, isMp, plan, pollAndRegister, publicClient, sendTransactionAsync, writeContractAsync]);
 
   const expiryDate = expiry ? new Date(expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
 
@@ -463,33 +511,55 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           </div>
         ) : step === "low-balance" ? (
           <div style={{ padding: "32px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 36, marginBottom: 16 }}>💸</div>
+            <div style={{ fontSize: 36, marginBottom: 16 }}>{lowBalanceGas ? "⛽" : "💸"}</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "#f87171", marginBottom: 8 }}>
-              Balance Too Low
+              {lowBalanceGas ? "Need CELO for Network Fees" : "Balance Too Low"}
             </div>
             <div style={{ fontSize: 13, color: "rgba(185,231,244,0.6)", marginBottom: 24, lineHeight: 1.5 }}>
-              Your balance is too low to complete this purchase. Deposit USDT to continue.
+              {lowBalanceGas
+                ? `You have enough ${currency === "gdollar" ? "G$" : "CELO"} for this purchase, but your wallet needs a little extra CELO to pay Celo network fees. Claiming your daily G$ on your Profile also tops up CELO for gas.`
+                : currency === "usdt"
+                ? "Your USDT balance is too low to complete this purchase. Deposit USDT to continue."
+                : currency === "gdollar"
+                ? "Your G$ balance is too low for this purchase. Claim your daily G$ on your Profile, or come back after tomorrow's claim."
+                : "Your CELO balance is too low to complete this purchase."}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                onClick={() => {
-                  if (isMp) {
-                    window.location.href = MINIPAY_DEPOSIT_DEEPLINK;
-                    return;
-                  }
-                  window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank", "noopener,noreferrer");
-                }}
-                style={{
-                  padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
-                  background: "linear-gradient(135deg, #26a17b22, #26a17b44)",
-                  border: "1.5px solid #26a17b",
-                  cursor: "pointer", fontSize: 13, fontWeight: 800, letterSpacing: 2,
-                  textTransform: "uppercase", color: "#fff", fontFamily: "inherit",
-                  boxShadow: "0 0 20px rgba(38,161,123,0.3)",
-                }}
-              >
-                💳 Deposit
-              </button>
+              {currency === "usdt" ? (
+                <button
+                  onClick={() => {
+                    if (isMp) {
+                      window.location.href = MINIPAY_DEPOSIT_DEEPLINK;
+                      return;
+                    }
+                    window.open(MINIPAY_DEPOSIT_DEEPLINK, "_blank", "noopener,noreferrer");
+                  }}
+                  style={{
+                    padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
+                    background: "linear-gradient(135deg, #26a17b22, #26a17b44)",
+                    border: "1.5px solid #26a17b",
+                    cursor: "pointer", fontSize: 13, fontWeight: 800, letterSpacing: 2,
+                    textTransform: "uppercase", color: "#fff", fontFamily: "inherit",
+                    boxShadow: "0 0 20px rgba(38,161,123,0.3)",
+                  }}
+                >
+                  💳 Deposit
+                </button>
+              ) : (
+                <button
+                  onClick={() => { window.location.href = "/profile"; }}
+                  style={{
+                    padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
+                    background: "linear-gradient(135deg, #00C58E22, #00C58E44)",
+                    border: "1.5px solid #00C58E",
+                    cursor: "pointer", fontSize: 13, fontWeight: 800, letterSpacing: 2,
+                    textTransform: "uppercase", color: "#fff", fontFamily: "inherit",
+                    boxShadow: "0 0 20px rgba(0,197,142,0.3)",
+                  }}
+                >
+                  🌱 Claim G$ on Profile
+                </button>
+              )}
               <button
                 onClick={() => setStep("idle")}
                 style={{

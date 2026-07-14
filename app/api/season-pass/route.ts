@@ -5,12 +5,14 @@ import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../../lib/seasonPassContract";
+import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "../../lib/gdollarSeasonPassContract";
 import { SEASON_PLANS, type SeasonPlan } from "../../lib/seasonPassPlans";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
+const GDOLLAR_CONTRACT_ACTIVE = GDOLLAR_SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 export const dynamic = "force-dynamic";
 
 const publicClient = createPublicClient({
@@ -59,20 +61,31 @@ function parseSeasonPassRecord(value: unknown): SeasonPassRecord | null {
   return null;
 }
 
+function freeGamesKey(address: string) {
+  return `free-games:${address.toLowerCase()}`;
+}
+
+async function getFreeGamesLeft(address: string): Promise<number> {
+  const used = Number(await redis.get(freeGamesKey(address))) || 0;
+  return Math.max(0, 2 - used);
+}
+
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address");
   if (!address) return NextResponse.json({ error: "Missing address" }, { status: 400 });
 
   const data = parseSeasonPassRecord(await redis.get(passKey(address)));
-  if (!data) return NextResponse.json({ active: false, expiry: null, plan: null });
+  const freeGamesLeft = await getFreeGamesLeft(address);
+
+  if (!data) return NextResponse.json({ active: false, expiry: null, plan: null, freeGamesLeft });
 
   const { expiry, plan } = data;
   if (expiry < Date.now()) {
     await redis.del(passKey(address));
-    return NextResponse.json({ active: false, expiry: null, plan: null });
+    return NextResponse.json({ active: false, expiry: null, plan: null, freeGamesLeft });
   }
 
-  return NextResponse.json({ active: true, expiry, plan });
+  return NextResponse.json({ active: true, expiry, plan, freeGamesLeft });
 }
 
 export async function POST(req: NextRequest) {
@@ -130,28 +143,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "USDT transfer to treasury not found or insufficient" }, { status: 403 });
     }
   } else if (currency === "gdollar") {
-    // Verify ERC-20 Transfer event: G$ contract → Treasury
-    if (tx.to?.toLowerCase() !== GDOLLAR_CONTRACT.toLowerCase()) {
+    // G$ verification — contract path (new) or direct transfer (legacy)
+    const isGdollarContractTx = GDOLLAR_CONTRACT_ACTIVE &&
+      tx.to?.toLowerCase() === GDOLLAR_SEASON_PASS_CONTRACT.toLowerCase();
+    const isGdollarDirectTx = tx.to?.toLowerCase() === GDOLLAR_CONTRACT.toLowerCase();
+
+    if (!isGdollarContractTx && !isGdollarDirectTx) {
       return NextResponse.json({ error: "Invalid transaction recipient" }, { status: 403 });
     }
-    let gdollarLogs;
-    try {
-      gdollarLogs = await publicClient.getLogs({
-        address: GDOLLAR_CONTRACT,
-        event: transferEvent,
-        args: { to: TREASURY },
+
+    if (isGdollarContractTx) {
+      // Verify PassPurchased event was emitted for this buyer
+      const logs = await publicClient.getContractEvents({
+        address: GDOLLAR_SEASON_PASS_CONTRACT,
+        abi: GDOLLAR_SEASON_PASS_ABI,
+        eventName: "PassPurchased",
+        args: { buyer: address as `0x${string}` },
         fromBlock: receipt.blockNumber,
         toBlock: receipt.blockNumber,
-      });
-    } catch {
-      return NextResponse.json({ pending: true }, { status: 404 });
-    }
-    const matchingLog = gdollarLogs.find(
-      (l) => l.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
-             BigInt((l.args as { value?: bigint }).value ?? 0n) >= BigInt(planConfig.priceGdollar)
-    );
-    if (!matchingLog) {
-      return NextResponse.json({ error: "G$ transfer to treasury not found or insufficient" }, { status: 403 });
+      }).catch(() => []);
+      const matchingLog = logs.find(
+        l => l.transactionHash?.toLowerCase() === txHash.toLowerCase()
+      );
+      if (!matchingLog) {
+        return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
+      }
+    } else {
+      // Legacy direct transfer — verify ERC-20 Transfer event: G$ contract → Treasury
+      let gdollarLogs;
+      try {
+        gdollarLogs = await publicClient.getLogs({
+          address: GDOLLAR_CONTRACT,
+          event: transferEvent,
+          args: { to: TREASURY },
+          fromBlock: receipt.blockNumber,
+          toBlock: receipt.blockNumber,
+        });
+      } catch {
+        return NextResponse.json({ pending: true }, { status: 404 });
+      }
+      const matchingLog = gdollarLogs.find(
+        (l) => l.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
+               BigInt((l.args as { value?: bigint }).value ?? 0n) >= BigInt(planConfig.priceGdollar)
+      );
+      if (!matchingLog) {
+        return NextResponse.json({ error: "G$ transfer to treasury not found or insufficient" }, { status: 403 });
+      }
     }
   } else {
     // Native CELO verification — contract path (new) or direct transfer (legacy)

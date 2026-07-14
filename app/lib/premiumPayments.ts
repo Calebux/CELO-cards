@@ -85,5 +85,5 @@ export function useMiniPayMode(): boolean {
 export function getPremiumPaymentOptions(isMiniPayMode: boolean) {
   return isMiniPayMode
     ? [PREMIUM_PAYMENT_META.usdt]
-    : [PREMIUM_PAYMENT_META.celo, PREMIUM_PAYMENT_META.gdollar];
+    : [PREMIUM_PAYMENT_META.gdollar, PREMIUM_PAYMENT_META.celo];
 }

@@ -85,6 +85,16 @@ export const GDOLLAR_ABI = [
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "value",   type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
 ] as const;
 
 // Superfluid CFAv1Forwarder — create/delete constant-rate flows

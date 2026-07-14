@@ -2,18 +2,21 @@
 
 import { CSSProperties } from "react";
 import { useGameStore } from "../lib/gameStore";
-import { getNextOnboardingStep, getOnboardingCompletion, ONBOARDING_STEPS } from "../lib/onboarding";
+import { getNextOnboardingStep, getOnboardingCompletion, getOnboardingSteps } from "../lib/onboarding";
+import { useMiniPayMode } from "../lib/premiumPayments";
 
 export function OnboardingCoach({ style, accent = "#56a4cb" }: { style?: CSSProperties; accent?: string }) {
   const onboardingProgress = useGameStore((state) => state.onboardingProgress);
   const onboardingCoachHidden = useGameStore((state) => state.onboardingCoachHidden);
   const setOnboardingCoachHidden = useGameStore((state) => state.setOnboardingCoachHidden);
-  const nextStep = getNextOnboardingStep(onboardingProgress);
+  const isMp = useMiniPayMode();
+  const steps = getOnboardingSteps(!isMp);
+  const nextStep = getNextOnboardingStep(onboardingProgress, steps);
 
   if (!nextStep || onboardingCoachHidden) return null;
 
-  const complete = getOnboardingCompletion(onboardingProgress);
-  const progressPct = (complete / ONBOARDING_STEPS.length) * 100;
+  const complete = getOnboardingCompletion(onboardingProgress, steps);
+  const progressPct = (complete / steps.length) * 100;
 
   return (
     <div
@@ -34,7 +37,7 @@ export function OnboardingCoach({ style, accent = "#56a4cb" }: { style?: CSSProp
           <div style={{ marginTop: 4, fontSize: 16, fontWeight: 800, color: "#e2e8f0" }}>{nextStep.title}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>{complete}/{ONBOARDING_STEPS.length}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>{complete}/{steps.length}</div>
           <button
             onClick={() => setOnboardingCoachHidden(true)}
             style={{
@@ -63,7 +66,7 @@ export function OnboardingCoach({ style, accent = "#56a4cb" }: { style?: CSSProp
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {ONBOARDING_STEPS.map((step) => {
+        {steps.map((step) => {
           const done = onboardingProgress[step.id];
           return (
             <div key={step.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
