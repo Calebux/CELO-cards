@@ -13,10 +13,6 @@ function share(value: number, total: number) {
   return `${Math.round((value / total) * 100)}%`;
 }
 
-function pct(value: number) {
-  return `${Math.round(value * 100)}%`;
-}
-
 function shortHash(value: string) {
   return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }
@@ -250,99 +246,7 @@ export default function OpsPage() {
           </div>
         ) : null}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 18, alignItems: "start" }}>
-          <div style={{ display: "grid", gap: 18 }}>
-            <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Character Win Rates</div>
-              <div style={{ display: "grid", gap: 10 }}>
-                {snapshot.characterRows.map((row) => (
-                  <div key={row.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
-                    <div style={{ fontWeight: 700 }}>{row.name}</div>
-                    <div style={{ color: "#94a3b8" }}>{row.matches} matches</div>
-                    <div style={{ color: "#e2e8f0" }}>{pct(row.winRate)}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-
-          <div style={{ display: "grid", gap: 18 }}>
-            <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Skill Buckets</div>
-              <div style={{ display: "grid", gap: 10 }}>
-                {snapshot.skillRows.map((row) => (
-                  <div key={row.bucket} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
-                    <div style={{ fontWeight: 700 }}>{row.bucket}</div>
-                    <div style={{ color: "#94a3b8" }}>{row.matches} results</div>
-                    <div style={{ color: "#e2e8f0" }}>{pct(row.winRate)}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>Using ranked points as the current skill-bucket proxy until true MMR exists.</div>
-            </section>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start", marginTop: 18 }}>
-          <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>House Match Activity</div>
-              <div style={{ fontSize: 12, color: "#94a3b8" }}>
-                Win {pct(activity.house.winRate)} · Wagered {activity.house.wageredMatches}
-              </div>
-            </div>
-            <div style={{ marginBottom: 12, fontSize: 12, color: "#64748b" }}>
-              Avg points {activity.house.averagePointsEarned.toFixed(1)}
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {activity.house.recentMatches.length === 0 && (
-                <div style={{ fontSize: 13, color: "#94a3b8" }}>No completed matches against the house have been logged yet.</div>
-              )}
-              {activity.house.recentMatches.map((match) => (
-                <div key={`${match.matchId}-${match.completedAt}`} style={{ padding: "12px 12px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                    <div style={{ fontWeight: 800 }}>{match.playerName ?? shortHash(match.playerAddress)}</div>
-                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: match.outcome === "win" ? "#86efac" : "#fca5a5", textTransform: "uppercase" }}>{match.outcome}</div>
-                  </div>
-                  <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
-                    {match.playerCharacterName} vs {match.opponentCharacterName} · {match.playerRoundsWon}-{match.opponentRoundsWon}
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
-                    Difficulty {match.difficulty} · {match.wagered ? "Wagered" : "Free"} · {match.pointsEarned} pts · {new Date(match.completedAt).toLocaleString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#fbbf24", letterSpacing: 2, textTransform: "uppercase" }}>House Winner Rewards</div>
-              <div style={{ fontSize: 12, color: "#94a3b8" }}>
-                {activity.house.winnerRewardsIssued} issued · ${activity.house.winnerRewardUsdTotal.toFixed(2)}
-              </div>
-            </div>
-            <div style={{ display: "grid", gap: 10, marginBottom: 18 }}>
-              {activity.house.recentWinnerRewards.length === 0 && (
-                <div style={{ fontSize: 13, color: "#94a3b8" }}>No verified 5/5 House winners have been issued codes yet.</div>
-              )}
-              {activity.house.recentWinnerRewards.map((reward) => (
-                <div key={`${reward.matchId}-${reward.rewardCode}`} style={{ padding: "12px 12px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                    <div style={{ fontWeight: 800 }}>{reward.playerName ?? shortHash(reward.playerAddress)}</div>
-                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: "#fbbf24", textTransform: "uppercase" }}>${reward.rewardUsd.toFixed(2)}</div>
-                  </div>
-                  <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
-                    Mirror clear · {reward.playerCharacterName} vs {reward.opponentCharacterName}
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
-                    {reward.rewardCode} · {new Date(reward.verifiedAt).toLocaleString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 18, alignItems: "start", marginTop: 18 }}>
           <section style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>Black Market Purchases</div>
