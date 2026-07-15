@@ -8,6 +8,11 @@ import { buildOpsAuthMessage, isOpsAllowed } from "../../lib/admin";
 
 type BalanceResponse = Awaited<ReturnType<typeof import("../../lib/balance").getBalanceDashboard>>;
 
+function share(value: number, total: number) {
+  if (total <= 0) return "";
+  return `${Math.round((value / total) * 100)}%`;
+}
+
 function pct(value: number) {
   return `${Math.round(value * 100)}%`;
 }
@@ -224,21 +229,26 @@ export default function OpsPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 28 }}>
           {[
-            { label: "GoodDollar Verified", value: onChain.verifiedGoodDollar.toLocaleString() },
-            { label: "Signups (On-Chain)", value: onChain.signups.toLocaleString() },
-            { label: "Season Passes — G$", value: onChain.passesSoldGdollar.toLocaleString() },
-            { label: "Season Passes — cUSD/CELO", value: onChain.passesSoldCusd.toLocaleString() },
-            { label: "Season Passes — Total", value: onChain.totalPassesSold.toLocaleString() },
-            { label: "Ranked Matches", value: snapshot.aggregate.totalMatches.toLocaleString() },
-            { label: "Total Players", value: onChain.uniqueWallets.toLocaleString() },
-            { label: "House Matches", value: activity.house.totalMatches.toLocaleString() },
+            { label: "Distinct Real Wallets", value: onChain.distinctRealWallets.toLocaleString(), note: "signups ∪ pass buyers" },
+            { label: "GoodDollar Verified", value: onChain.verifiedGoodDollar.toLocaleString(), note: share(onChain.verifiedGoodDollar, onChain.distinctRealWallets) },
+            { label: "Unverified", value: onChain.unverified.toLocaleString(), note: share(onChain.unverified, onChain.distinctRealWallets) },
+            { label: "Passes Sold — GoodDollar (G$)", value: onChain.passesSoldGdollar.toLocaleString(), note: "" },
+            { label: "Passes Sold — CELO", value: onChain.passesSoldCelo.toLocaleString(), note: "" },
+            { label: "Total Passes Sold", value: onChain.totalPassesSold.toLocaleString(), note: "" },
           ].map((item) => (
             <div key={item.label} style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: "18px 18px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase" }}>{item.label}</div>
               <div style={{ marginTop: 8, fontSize: 30, fontWeight: 900 }}>{item.value}</div>
+              {item.note ? <div style={{ marginTop: 4, fontSize: 11, color: "#64748b" }}>{item.note}</div> : null}
             </div>
           ))}
         </div>
+
+        {!onChain.walletsComplete ? (
+          <div style={{ marginBottom: 28, padding: "10px 14px", borderRadius: 8, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", fontSize: 12, color: "#fbbf24" }}>
+            Wallet scan is still catching up to the chain head — wallet counts may read low until it completes.
+          </div>
+        ) : null}
 
         <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 18, alignItems: "start" }}>
           <div style={{ display: "grid", gap: 18 }}>

@@ -7,9 +7,8 @@ export default async function StatsPage() {
   const { onChain, policy, retention, transactionHealth } = await getBalanceDashboard();
 
   const stats = [
+    { label: "Total Players", value: onChain.distinctRealWallets.toLocaleString(), color: "#56a4cb" },
     { label: "GoodDollar Verified", value: onChain.verifiedGoodDollar.toLocaleString(), color: "#00C58E" },
-    { label: "Signups (On-Chain)", value: onChain.signups.toLocaleString(), color: "#4ade80" },
-    { label: "Total Players", value: onChain.uniqueWallets.toLocaleString(), color: "#56a4cb" },
     { label: "Season Passes Sold", value: onChain.totalPassesSold.toLocaleString(), color: "#fbbf24" },
     { label: "Season", value: policy.currentVersion, color: "#f472b6" },
   ];
