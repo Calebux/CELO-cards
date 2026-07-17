@@ -22,6 +22,7 @@ import { MultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaki
 import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
 import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow, WagerCurrency } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
+import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -402,6 +403,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       } catch {
         await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
       }
+    }
+
+    // Attribute the stake on the verified ArenaV2 escrow contract. Best-effort:
+    // if it fails, the payout route falls back to a direct treasury transfer.
+    if (wagerTx && patchAddress && typeof wagerAmount === "string") {
+      await attributeStakeOnChain({
+        matchId,
+        player: patchAddress,
+        currency: wagerCurrency,
+        amount: wagerAmount,
+        txHash: wagerTx,
+      });
     }
     return NextResponse.json({ ok: true });
   }

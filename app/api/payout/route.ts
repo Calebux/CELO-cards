@@ -20,6 +20,7 @@ import {
   buildPayoutClaimAuthMessage,
   verifyTreasuryActionSignature,
 } from "../../lib/treasuryAuth";
+import { completeMatchOnChain } from "../../lib/arenaV2Server";
 import { checkRateLimit } from "../../lib/rateLimit";
 
 interface MatchWagerInfo {
@@ -119,6 +120,20 @@ export async function POST(req: NextRequest) {
 
     // Check if both players wagered and get the actual payout amount from their stakes
     const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(match);
+
+    // ── ArenaV2 escrow path ──────────────────────────────────────────────────
+    // Stablecoin stakes land in the verified KnockOrderArenaV2 contract; if the
+    // on-chain match is Active, settle there — the winner is paid 90% of the
+    // pot straight out of the contract, with a MatchCompleted event.
+    if (currency === "usdt" || currency === "usdc" || currency === "cusd") {
+      const arenaTx = await completeMatchOnChain(matchId, winner);
+      if (arenaTx) {
+        await redis.set(`payout:${matchId}`, arenaTx, { ex: 7200 });
+        return NextResponse.json({ txHash: arenaTx, bothWagered, escrow: true });
+      }
+      // fall through to legacy direct-transfer paths (pre-ArenaV2 matches)
+    }
+
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);
 
     const publicClient = createPublicClient({

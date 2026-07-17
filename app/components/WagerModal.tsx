@@ -15,6 +15,7 @@ import { parseUnits, formatUnits } from "viem";
 import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDC_CONTRACT } from "../lib/cusd";
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
+import { ARENA_V2_ACTIVE, ARENA_V2_ADDRESS } from "../lib/arenaV2";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
@@ -273,19 +274,22 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     }
   };
 
-  // ── Stablecoins (USDT/USDC/USDm): direct ERC-20 transfer to MiniPay treasury ──
+  // ── Stablecoins (USDT/USDC/USDm): direct ERC-20 transfer into the verified
+  // KnockOrderArenaV2 escrow. The match server attributes the stake on-chain
+  // (recordStake) and the winner is paid out of the contract (completeMatch).
   const handleStableTransfer = async (activeAddress: `0x${string}`) => {
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
     const token = MP_STABLE_TOKEN[currency];
     if (!token) { setErrMsg("Unsupported currency."); setStep("error"); return; }
+    const stakeDestination = ARENA_V2_ACTIVE ? ARENA_V2_ADDRESS : TREASURY_MINIPAY_ADDRESS;
     setStep("entering");
     try {
       const hash = await writeContractAsync({
           address: token,
           abi: ERC20_ABI,
           functionName: "transfer",
-          args: [TREASURY_MINIPAY_ADDRESS, amt],
+          args: [stakeDestination, amt],
           account: activeAddress,
           chainId: celo.id,
           ...getMiniPayWriteOverrides(),
