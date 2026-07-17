@@ -523,9 +523,9 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
             </div>
             <div style={{ fontSize: 13, color: "rgba(185,231,244,0.6)", marginBottom: 24, lineHeight: 1.5 }}>
               {lowBalanceGas
-                ? `You have enough ${currency === "gdollar" ? "G$" : "CELO"} for this purchase, but your wallet needs a little extra CELO to pay Celo network fees. Claiming your daily G$ on your Profile also tops up CELO for gas.`
+                ? `You have enough ${currency === "gdollar" ? "G$" : "CELO"} for this purchase, but your wallet needs a little extra CELO to cover the network fee. Claiming your daily G$ on your Profile also tops up CELO for network fees.`
                 : currency === "usdt"
-                ? "Your USDT balance is too low to complete this purchase. Deposit USDT to continue."
+                ? "Your USDT balance is too low to complete this purchase. Add cash to continue."
                 : currency === "gdollar"
                 ? "Your G$ balance is too low for this purchase. Claim your daily G$ on your Profile, or come back after tomorrow's claim."
                 : "Your CELO balance is too low to complete this purchase."}
@@ -549,7 +549,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                     boxShadow: "0 0 20px rgba(38,161,123,0.3)",
                   }}
                 >
-                  💳 Deposit
+                  💳 Add Cash
                 </button>
               ) : (
                 <button

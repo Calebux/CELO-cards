@@ -324,7 +324,7 @@ export default function BlackMarket() {
                   }}
                 >
                   <span className="material-icons" style={{ fontSize: 13 }}>add_circle</span>
-                  Deposit
+                  Add Cash
                 </a>
               )}
             </div>

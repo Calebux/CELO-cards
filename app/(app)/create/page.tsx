@@ -62,7 +62,7 @@ const MATCH_TYPES: {
     icon: "toll",
     label: "WAGER",
     sub: "Stake",
-    desc: "Both players stake tokens. Winner claims 90% of the combined pot.",
+    desc: "Both players stake the same amount. Winner claims 90% of the combined pot.",
     color: "#fbbf24",
     badge: "NEW",
   },

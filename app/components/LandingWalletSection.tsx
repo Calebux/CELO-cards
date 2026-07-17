@@ -220,7 +220,7 @@ export function LandingWalletSection() {
             }}
           >
             <span className="material-icons" style={{ fontSize: 13 }}>add_circle</span>
-            Deposit
+            Add Cash
           </a>
         ) : null}
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>

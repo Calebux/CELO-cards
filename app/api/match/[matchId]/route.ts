@@ -381,7 +381,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       const opponentAmount = role === "host" ? match.joinerWagerAmount : match.hostWagerAmount;
 
       if (opponentCurrency && opponentCurrency !== wagerCurrency) {
-        return NextResponse.json({ error: "Wager matches require both players to stake the same token." }, { status: 409 });
+        return NextResponse.json({ error: "Wager matches require both players to stake the same currency." }, { status: 409 });
       }
       if (typeof wagerAmount === "string" && opponentAmount && opponentAmount !== wagerAmount) {
         return NextResponse.json({ error: "Wager matches require both players to stake the same amount." }, { status: 409 });
