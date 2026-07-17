@@ -442,7 +442,7 @@ function JoinMatchContent() {
           {/* Footer status */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>{isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#475569", letterSpacing: 1.5, textTransform: "uppercase" }}>{isMp ? "ACTION ORDER" : "ACTION ORDER — CELO MAINNET"}</span>
           </div>
         </div>
 

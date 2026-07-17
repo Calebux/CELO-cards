@@ -20,6 +20,7 @@ import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMin
 import { getCardForgeProgress, getCardMasterySnapshot } from "../../lib/cardMastery";
 import { useAttunementSync } from "../../lib/useSignatureCardSync";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../../lib/cusd";
+import { friendlyTxError } from "../../lib/txErrors";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useGameFrameScale } from "../../lib/mobile";
@@ -210,7 +211,7 @@ export default function BlackMarket() {
       // Unlock locally (store + localStorage). Pass 0 so points are untouched.
       unlockCard(id, 0);
     } catch (e) {
-      setBuyError(e instanceof Error ? e.message.slice(0, 100) : "Transaction failed.");
+      setBuyError(friendlyTxError(e, "Transaction failed."));
     } finally {
       setBuyingId(null);
     }

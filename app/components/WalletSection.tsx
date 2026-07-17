@@ -178,9 +178,9 @@ export function WalletSection() {
   }
 
   if (mp && isConnected && address) {
-    const primaryIdentity = playerName || "MINIPAY PLAYER";
+    const primaryIdentity = playerName || "PLAYER";
     const secondaryIdentity = playerName
-      ? "MiniPay ready"
+      ? "Ready to play"
       : "Set username in Profile";
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -208,7 +208,7 @@ export function WalletSection() {
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>MINIPAY</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>PLAYER</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.4 }}>{primaryIdentity}</div>
             <div style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.6, lineHeight: 1.2 }}>{secondaryIdentity}</div>
           </div>

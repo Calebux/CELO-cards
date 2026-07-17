@@ -7,6 +7,7 @@ import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDO
 import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "../lib/signupsContract";
 import { formatUnits } from "viem";
 import { useGameStore } from "../lib/gameStore";
+import { isUserRejectedTx } from "../lib/txErrors";
 
 export function ClaimGDollar() {
   const { address, isConnected } = useAccount();
@@ -31,7 +32,7 @@ export function ClaimGDollar() {
 
   const { data: walletClient } = useWalletClient({ chainId: celo.id });
   const publicClient = usePublicClient({ chainId: celo.id });
-  const { writeContract, data: txHash, isPending, isError, reset } = useWriteContract();
+  const { writeContract, data: txHash, isPending, isError, error: claimError, reset } = useWriteContract();
   const [isVerifying, setIsVerifying] = useState(false);
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -121,7 +122,7 @@ export function ClaimGDollar() {
         <div style={{ fontSize: 11, fontWeight: 700, color: GDOLLAR_COLOR }}>✓ Claimed! G$ incoming.</div>
       ) : isError ? (
         <button onClick={handleClaim} style={btnStyle("#f87171", "rgba(239,68,68,0.12)", "rgba(239,68,68,0.35)")}>
-          Failed — Retry
+          {isUserRejectedTx(claimError) ? "Claim cancelled — Retry" : "Failed — Retry"}
         </button>
       ) : canClaim ? (
         <button onClick={handleClaim} disabled={isBusy} style={btnStyle("#000", GDOLLAR_COLOR, GDOLLAR_COLOR, isBusy ? 0.6 : 1)}>

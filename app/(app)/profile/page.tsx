@@ -407,14 +407,14 @@ export default function ProfilePage() {
               ) : (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 3 }}>
                   <div style={{ fontSize: isProfileCompact ? 20 : 13, fontWeight: 800, color: "#f1f5f9", letterSpacing: 0.5, maxWidth: isProfileCompact ? 220 : 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {playerName || (isMp ? "MINIPAY PLAYER" : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
+                    {playerName || (isMp ? "PLAYER" : address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—")}
                   </div>
                   <button onClick={() => { setNameInput(playerName); setEditingName(true); }} title="Edit name" style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: isProfileCompact ? 18 : 12, padding: 0, lineHeight: 1 }}>✏️</button>
                 </div>
               )}
 
               <div style={{ fontSize: isProfileCompact ? 12 : 10, color: "#475569", fontFamily: "monospace" }}>
-                {address ? (isMp ? "Linked via MiniPay" : `${address.slice(0, 6)}…${address.slice(-4)}`) : "NOT CONNECTED"}
+                {address ? (isMp ? "Account connected" : `${address.slice(0, 6)}…${address.slice(-4)}`) : "NOT CONNECTED"}
               </div>
               {address && (
                 <button
@@ -864,7 +864,7 @@ export default function ProfilePage() {
         <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#4ade80" }} />
           <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", letterSpacing: 1.2, textTransform: "uppercase" }}>
-            {isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}
+            {isMp ? "ACTION ORDER" : "ACTION ORDER — CELO MAINNET"}
           </span>
         </div>
 

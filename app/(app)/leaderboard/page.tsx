@@ -329,7 +329,7 @@ export default function Leaderboard() {
         <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#4ade80" }} />
           <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", letterSpacing: 1.2, textTransform: "uppercase" }}>
-            {isMp ? "ACTION ORDER — MINIPAY" : "ACTION ORDER — CELO MAINNET"}
+            {isMp ? "ACTION ORDER" : "ACTION ORDER — CELO MAINNET"}
           </span>
         </div>
 

@@ -22,26 +22,50 @@ export async function GET(req: NextRequest) {
   }
 
   const offers = view === "outbox" ? await getOutbox(address) : await getInbox(address);
-  return NextResponse.json({ offers });
+
+  // Resolve usernames for counterparties so the client can show names
+  // instead of wallet addresses (MiniPay: never display addresses).
+  const counterparties = [...new Set(offers.map(o => (view === "outbox" ? o.toAddress : o.fromAddress).toLowerCase()))];
+  const names: Record<string, string> = {};
+  if (counterparties.length > 0) {
+    const values = await redis.mget<string>(...counterparties.map(a => `user:addr:${a}`));
+    counterparties.forEach((a, i) => {
+      if (values[i]) names[a] = values[i];
+    });
+  }
+  return NextResponse.json({ offers, names });
 }
 
 // POST /api/trade — create a new trade offer
-// Body: { fromAddress, toAddress, offeredCardId, requestedCardId? }
+// Body: { fromAddress, toUsername, offeredCardId, requestedCardId? }
+// (toAddress is still accepted for backwards compatibility, but the client
+// sends usernames only — MiniPay apps must not request wallet addresses.)
 export async function POST(req: NextRequest) {
-  let body: { fromAddress?: string; toAddress?: string; offeredCardId?: string; requestedCardId?: string | null };
+  let body: { fromAddress?: string; toAddress?: string; toUsername?: string; offeredCardId?: string; requestedCardId?: string | null };
   try { body = await req.json() as typeof body; } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const fromAddress = body.fromAddress?.toLowerCase();
-  const toAddress = body.toAddress?.toLowerCase();
+  let toAddress = body.toAddress?.toLowerCase();
+  const toUsername = body.toUsername?.trim();
   const { offeredCardId, requestedCardId = null } = body;
 
   if (!fromAddress || !/^0x[0-9a-f]{40}$/.test(fromAddress)) {
     return NextResponse.json({ error: "Invalid sender address" }, { status: 400 });
   }
+  if (toUsername) {
+    if (!/^[a-zA-Z0-9_]{2,20}$/.test(toUsername)) {
+      return NextResponse.json({ error: "Invalid username" }, { status: 400 });
+    }
+    const resolved = await redis.get<string>(`user:name:${toUsername.toLowerCase()}`);
+    if (!resolved) {
+      return NextResponse.json({ error: "No player found with that username. Ask them to set a username in their Profile." }, { status: 404 });
+    }
+    toAddress = resolved.toLowerCase();
+  }
   if (!toAddress || !/^0x[0-9a-f]{40}$/.test(toAddress)) {
-    return NextResponse.json({ error: "Invalid recipient address" }, { status: 400 });
+    return NextResponse.json({ error: "Recipient username is required" }, { status: 400 });
   }
   if (!offeredCardId || typeof offeredCardId !== "string") {
     return NextResponse.json({ error: "offeredCardId is required" }, { status: 400 });

@@ -11,6 +11,7 @@ import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract
 import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "../lib/gdollarSeasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
+import { isUserRejectedTx, TX_CANCELLED_MESSAGE } from "../lib/txErrors";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -338,7 +339,12 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         void pollAndRegister(hash, activeAddress);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Transaction rejected.";
+      if (isUserRejectedTx(err)) {
+        setErrMsg(TX_CANCELLED_MESSAGE);
+        setStep("error");
+        return;
+      }
+      const msg = err instanceof Error ? err.message : "Transaction failed.";
       if (/insufficient funds|insufficient balance|exceeds balance/i.test(msg)) {
         // Distinguish "short on the token" from "short on CELO gas": if the
         // wallet holds the purchase amount, the failure was the network fee.
@@ -364,7 +370,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         setLowBalanceGas(gasShortfall);
         setStep("low-balance");
       } else {
-        setErrMsg(msg);
+        setErrMsg(msg.slice(0, 120));
         setStep("error");
       }
     }

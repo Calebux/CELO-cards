@@ -23,11 +23,12 @@ export default function TradePage() {
   const [tab, setTab] = useState<TabView>("inbox");
   const [inbox, setInbox] = useState<TradeOffer[]>([]);
   const [outbox, setOutbox] = useState<TradeOffer[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   // Send form
-  const [toAddress, setToAddress] = useState("");
+  const [toUsername, setToUsername] = useState("");
   const [selectedOfferedCard, setSelectedOfferedCard] = useState<string | null>(null);
   const [selectedRequestedCard, setSelectedRequestedCard] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -92,9 +93,10 @@ export default function TradePage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/trade?address=${address.toLowerCase()}&view=${view}`);
-      const data = await res.json() as { offers: TradeOffer[] };
+      const data = await res.json() as { offers: TradeOffer[]; names?: Record<string, string> };
       if (view === "inbox") setInbox(data.offers);
       else setOutbox(data.offers);
+      if (data.names) setNames(prev => ({ ...prev, ...data.names }));
     } finally {
       setLoading(false);
     }
@@ -134,7 +136,7 @@ export default function TradePage() {
   }, [address, tab, fetchOffers]);
 
   const sendOffer = useCallback(async () => {
-    if (!address || !selectedOfferedCard || !toAddress.trim() || sending) return;
+    if (!address || !selectedOfferedCard || !toUsername.trim() || sending) return;
     setSending(true);
     setActionMsg(null);
     try {
@@ -143,7 +145,7 @@ export default function TradePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fromAddress: address,
-          toAddress: toAddress.trim(),
+          toUsername: toUsername.trim(),
           offeredCardId: selectedOfferedCard,
           requestedCardId: selectedRequestedCard,
         }),
@@ -151,7 +153,7 @@ export default function TradePage() {
       const data = await res.json() as { ok?: boolean; error?: string };
       if (data.ok) {
         setActionMsg("Trade offer sent!");
-        setToAddress("");
+        setToUsername("");
         setSelectedOfferedCard(null);
         setSelectedRequestedCard(null);
         setTab("outbox");
@@ -163,7 +165,7 @@ export default function TradePage() {
     } finally {
       setSending(false);
     }
-  }, [address, selectedOfferedCard, toAddress, selectedRequestedCard, sending]);
+  }, [address, selectedOfferedCard, toUsername, selectedRequestedCard, sending]);
 
   const statusColor = (s: TradeOffer["status"]) => {
     if (s === "pending") return "#fbbf24";
@@ -220,7 +222,9 @@ export default function TradePage() {
                     <div key={offer.id} style={{ background: "rgba(15,23,42,0.65)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>
-                          {tab === "inbox" ? `From: ${offer.fromAddress.slice(0, 8)}...` : `To: ${offer.toAddress.slice(0, 8)}...`}
+                          {tab === "inbox"
+                            ? `From: ${names[offer.fromAddress.toLowerCase()] ?? "Player"}`
+                            : `To: ${names[offer.toAddress.toLowerCase()] ?? "Player"}`}
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", marginBottom: 2 }}>
                           Offering: <span style={{ color: "#b9e7f4" }}>{cardName(offer.offeredCardId)}</span>
@@ -256,8 +260,9 @@ export default function TradePage() {
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase", marginBottom: 18 }}>New Trade Offer</div>
 
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 5 }}>Recipient Address</div>
-                      <input value={toAddress} onChange={e => setToAddress(e.target.value)} placeholder="0x..." style={{ width: "100%", background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, padding: "8px 10px", fontSize: 11, color: "#e2e8f0", fontFamily: "monospace", outline: "none", boxSizing: "border-box" }} />
+                      <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 5 }}>Recipient Username</div>
+                      <input value={toUsername} onChange={e => setToUsername(e.target.value)} placeholder="Their player username…" maxLength={20} style={{ width: "100%", background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, padding: "8px 10px", fontSize: 11, color: "#e2e8f0", outline: "none", boxSizing: "border-box" }} />
+                      <div style={{ fontSize: 8, color: "#475569", marginTop: 4 }}>Your friend can find their username at the top of their Profile page.</div>
                     </div>
 
                     <div style={{ marginBottom: 16 }}>
@@ -286,7 +291,7 @@ export default function TradePage() {
                       </div>
                     </div>
 
-                    <button onClick={() => void sendOffer()} disabled={sending || !selectedOfferedCard || !toAddress.trim()} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: sending || !selectedOfferedCard || !toAddress.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.4)", fontSize: 10, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit", opacity: sending || !selectedOfferedCard || !toAddress.trim() ? 0.5 : 1 }}>
+                    <button onClick={() => void sendOffer()} disabled={sending || !selectedOfferedCard || !toUsername.trim()} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: sending || !selectedOfferedCard || !toUsername.trim() ? "not-allowed" : "pointer", background: "rgba(86,164,203,0.15)", border: "1px solid rgba(86,164,203,0.4)", fontSize: 10, fontWeight: 800, color: "#b9e7f4", letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit", opacity: sending || !selectedOfferedCard || !toUsername.trim() ? 0.5 : 1 }}>
                       {sending ? "Sending..." : "Send Trade Offer →"}
                     </button>
                   </div>

@@ -20,6 +20,7 @@ import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMin
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { useGameFrameScale } from "../lib/mobile";
 import { getInitialMiniPayMode, MINIPAY_STABLECOIN_EXPLAINER, MINIPAY_STABLECOIN_SHORT, useMiniPayMode } from "../lib/premiumPayments";
+import { friendlyTxError } from "../lib/txErrors";
 
 type Props = {
   onConfirmed: () => void;
@@ -214,7 +215,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     try {
       activeAddress = await ensureWalletReady();
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message : "Wallet not connected.");
+      setErrMsg(friendlyTxError(e, "Wallet not connected."));
       setStep("error");
       return;
     }
@@ -269,7 +270,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
         });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "USDT transfer failed.");
+      setErrMsg(friendlyTxError(e, "USDT transfer failed."));
       setStep("error");
     }
   };
@@ -291,7 +292,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "G$ transfer failed.");
+      setErrMsg(friendlyTxError(e, "G$ transfer failed."));
       setStep("error");
     }
   };
@@ -312,7 +313,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Approve failed.");
+      setErrMsg(friendlyTxError(e, "Approve failed."));
       setStep("error");
     }
   };
@@ -332,7 +333,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
@@ -355,7 +356,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
@@ -377,7 +378,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
@@ -404,7 +405,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
           });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
