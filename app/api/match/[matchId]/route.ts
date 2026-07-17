@@ -52,7 +52,7 @@ function buildOpenMatchSummary(matchId: string, match: ServerMatch): OpenMatchSu
 }
 
 function validWagerCurrency(currency: unknown): currency is WagerCurrency {
-  return currency === "cusd" || currency === "celo" || currency === "gdollar" || currency === "usdt";
+  return currency === "cusd" || currency === "celo" || currency === "gdollar" || currency === "usdt" || currency === "usdc";
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────

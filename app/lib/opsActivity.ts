@@ -38,7 +38,7 @@ export type BlackMarketPurchaseActivity = {
   playerName: string | null;
   cardId: string;
   cardName: string;
-  currency: "celo" | "gdollar" | "usdt";
+  currency: "celo" | "gdollar" | "usdt" | "usdc" | "cusd";
   pricePoints: number;
   txHash: string;
   purchasedAt: number;

@@ -46,7 +46,7 @@ export default function Lobby() {
   const [opponentAbandoned, setOpponentAbandoned] = useState(false);
   const [payWaitMs, setPayWaitMs] = useState(0);
   const [rankedEntryError, setRankedEntryError] = useState<string | null>(null);
-  const [requiredWagerCurrency, setRequiredWagerCurrency] = useState<"cusd" | "celo" | "gdollar" | "usdt" | null>(null);
+  const [requiredWagerCurrency, setRequiredWagerCurrency] = useState<"cusd" | "celo" | "gdollar" | "usdt" | "usdc" | null>(null);
   const [requiredWagerAmountRaw, setRequiredWagerAmountRaw] = useState<string | null>(null);
   const payWaitStartRef = useRef<number | null>(null);
 
@@ -94,7 +94,7 @@ export default function Lobby() {
           selfWagered?:     boolean;
           paymentRequired?: boolean;
           abortedBy?:       "host" | "joiner" | null;
-          requiredWagerCurrency?: "cusd" | "celo" | "gdollar" | "usdt" | null;
+          requiredWagerCurrency?: "cusd" | "celo" | "gdollar" | "usdt" | "usdc" | null;
           requiredWagerAmount?: string | null;
         };
         setNetErrorCount(0);
@@ -291,18 +291,18 @@ export default function Lobby() {
 
   const p1Color = player?.color  ?? "#56a4cb";
   const p2Color = opponent?.color ?? "#f906a8";
-  const wagerTokenLabel =
-    requiredWagerCurrency === "gdollar" ? "G$" :
-    requiredWagerCurrency === "cusd" ? "cUSD" :
-    requiredWagerCurrency === "usdt" ? "USDT" :
-    requiredWagerCurrency === "celo" ? "CELO" :
-    wagerCurrency === "gdollar" ? "G$" :
-    wagerCurrency === "cusd" ? "cUSD" :
-    wagerCurrency === "usdt" ? "USDT" :
-    wagerCurrency === "celo" ? "CELO" :
-    "cUSD";
-  const wagerTokenDecimals =
-    (requiredWagerCurrency ?? wagerCurrency) === "usdt" ? 6 : 18;
+  const wagerTokenLabel = (() => {
+    const c = requiredWagerCurrency ?? wagerCurrency;
+    if (c === "gdollar") return "G$";
+    if (c === "usdt") return "USDT";
+    if (c === "usdc") return "USDC";
+    if (c === "celo") return "CELO";
+    return "USDm";
+  })();
+  const wagerTokenDecimals = (() => {
+    const c = requiredWagerCurrency ?? wagerCurrency;
+    return c === "usdt" || c === "usdc" ? 6 : 18;
+  })();
 
   return (
     <div style={{

@@ -3,7 +3,7 @@ import { createPublicClient, http, parseAbiItem } from "viem";
 import { celo } from "viem/chains";
 import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
-import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "../../lib/cusd";
+import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, CUSD_CONTRACT, USDC_CONTRACT } from "../../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../../lib/seasonPassContract";
 import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "../../lib/gdollarSeasonPassContract";
 import { SEASON_PLANS, type SeasonPlan } from "../../lib/seasonPassPlans";
@@ -11,6 +11,13 @@ import { SEASON_PLANS, type SeasonPlan } from "../../lib/seasonPassPlans";
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+// MiniPay stablecoins accepted for pass purchases. Prices are stored in the
+// 6-decimal priceUsdt field; scale up for 18-decimal USDm (cusd).
+const STABLE_TOKENS = {
+  usdt: { address: USDT_CONTRACT, decimals: 6, symbol: "USDT" },
+  usdc: { address: USDC_CONTRACT, decimals: 6, symbol: "USDC" },
+  cusd: { address: CUSD_CONTRACT, decimals: 18, symbol: "USDm" },
+} as const;
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 const GDOLLAR_CONTRACT_ACTIVE = GDOLLAR_SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 export const dynamic = "force-dynamic";
@@ -89,7 +96,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json() as { address?: string; txHash?: string; plan?: SeasonPlan; currency?: "celo" | "gdollar" | "usdt" };
+  const body = await req.json() as { address?: string; txHash?: string; plan?: SeasonPlan; currency?: "celo" | "gdollar" | "usdt" | "usdc" | "cusd" };
   const { address, txHash, plan, currency = "celo" } = body;
 
   if (!address || !txHash || !plan || !SEASON_PLANS[plan]) {
@@ -117,15 +124,17 @@ export async function POST(req: NextRequest) {
 
   const transferEvent = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
 
-  if (currency === "usdt") {
-    // Verify USDT ERC-20 Transfer event → TREASURY_MINIPAY (Safe contract)
-    if (tx.to?.toLowerCase() !== USDT_CONTRACT.toLowerCase()) {
+  if (currency === "usdt" || currency === "usdc" || currency === "cusd") {
+    // Verify stablecoin ERC-20 Transfer event → TREASURY_MINIPAY (Safe contract)
+    const token = STABLE_TOKENS[currency];
+    const minAmount = BigInt(planConfig.priceUsdt) * 10n ** BigInt(token.decimals - 6);
+    if (tx.to?.toLowerCase() !== token.address.toLowerCase()) {
       return NextResponse.json({ error: "Invalid transaction recipient" }, { status: 403 });
     }
-    let usdtLogs;
+    let stableLogs;
     try {
-      usdtLogs = await publicClient.getLogs({
-        address: USDT_CONTRACT,
+      stableLogs = await publicClient.getLogs({
+        address: token.address,
         event: transferEvent,
         args: { to: TREASURY_MINIPAY },
         fromBlock: receipt.blockNumber,
@@ -135,12 +144,12 @@ export async function POST(req: NextRequest) {
       // RPC failure — treat as pending so the client keeps polling
       return NextResponse.json({ pending: true }, { status: 404 });
     }
-    const matchingLog = usdtLogs.find(
+    const matchingLog = stableLogs.find(
       (l) => l.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
-             BigInt((l.args as { value?: bigint }).value ?? 0n) >= BigInt(planConfig.priceUsdt)
+             BigInt((l.args as { value?: bigint }).value ?? 0n) >= minAmount
     );
     if (!matchingLog) {
-      return NextResponse.json({ error: "USDT transfer to treasury not found or insufficient" }, { status: 403 });
+      return NextResponse.json({ error: `${token.symbol} transfer to treasury not found or insufficient` }, { status: 403 });
     }
   } else if (currency === "gdollar") {
     // G$ verification — contract path (new) or direct transfer (legacy)

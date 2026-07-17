@@ -9,8 +9,9 @@ export const CUSD_ADDRESS = {
   mainnet:   "0x765DE816845861e75A25fCA122bb6898B8B1282a" as `0x${string}`,
 } as const;
 
-export const CUSD_CONTRACT = CUSD_ADDRESS.mainnet;
+export const CUSD_CONTRACT = CUSD_ADDRESS.mainnet; // rebranded to USDm — same contract
 export const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
+export const USDC_CONTRACT = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" as `0x${string}`;
 export const USDT_FEE_CURRENCY = "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72" as `0x${string}`;
 
 // Micro wager amounts — optimised for agent activity volume

@@ -24,7 +24,8 @@ import { friendlyTxError } from "../../lib/txErrors";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useGameFrameScale } from "../../lib/mobile";
-import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../../lib/premiumPayments";
+import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, PREMIUM_PAYMENT_META, type PremiumPaymentCurrency, useMiniPayMode } from "../../lib/premiumPayments";
+import { getStablecoin, isMiniPayStableKey, useMiniPayStablecoin } from "../../lib/stablecoins";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -43,18 +44,20 @@ const USDT_ABI = [
 function ptsToOnchain(pts: number) {
   return parseUnits((pts / 1000).toFixed(6), 18);
 }
-function ptsToUsdt(pts: number) {
-  return parseUnits((pts / 1000 * 0.08).toFixed(6), 6);
+function ptsToStable(pts: number, decimals: number) {
+  return parseUnits((pts / 1000 * 0.08).toFixed(6), decimals);
 }
 function ptsToGdollar(pts: number) {
   // G$ equivalent of the USD price: (pts/1000 * 0.08) * 1000 = pts * 0.08
   return parseUnits((pts * 0.08).toFixed(6), 18);
 }
-function ptsDisplay(pts: number, currency: "celo" | "gdollar" | "usdt") {
+function ptsDisplay(pts: number, currency: PremiumPaymentCurrency) {
   const celo = pts / 1000;
   const usd = celo * 0.08;
   const gdollar = pts * 0.08;
   if (currency === "usdt") return `$${usd.toFixed(2)} USDT`;
+  if (currency === "usdc") return `$${usd.toFixed(2)} USDC`;
+  if (currency === "cusd") return `$${usd.toFixed(2)} USDm`;
   if (currency === "gdollar") return `${gdollar % 1 === 0 ? gdollar.toString() : gdollar.toFixed(1)} G$`;
   const formatted = celo % 1 === 0 ? celo.toString() : celo.toFixed(1);
   return `${formatted} CELO`;
@@ -88,7 +91,9 @@ export default function BlackMarket() {
   const safeTop = "env(safe-area-inset-top)";
 
   const marketCards = CARDS.filter((c) => c.isPremium);
-  const paymentOptions = getPremiumPaymentOptions(isMp);
+  const stable = useMiniPayStablecoin(address, isMp && isConnected);
+  const manualBuyCurrencyRef = useRef(false);
+  const paymentOptions = getPremiumPaymentOptions(isMp, stable.preferred.key);
   const forgeCards = CARDS
     .filter((c) => !c.isPremium)
     .map((card) => {
@@ -118,8 +123,14 @@ export default function BlackMarket() {
   }, []);
 
   useLayoutEffect(() => {
-    if (isMp && buyCurrency !== "usdt") setBuyCurrency("usdt");
+    if (isMp && !isMiniPayStableKey(buyCurrency)) setBuyCurrency("usdt");
   }, [buyCurrency, isMp]);
+
+  // Default to the user's preferred stablecoin until they pick manually
+  useEffect(() => {
+    if (!isMp || manualBuyCurrencyRef.current || !stable.loaded) return;
+    setBuyCurrency(stable.preferred.key);
+  }, [isMp, stable.loaded, stable.preferred.key]);
 
   const ensureWalletReady = async () => {
     if (isMiniPay()) {
@@ -165,12 +176,13 @@ export default function BlackMarket() {
     try {
       const activeAddress = await ensureWalletReady();
       let txHash: string;
-      if (buyCurrency === "usdt") {
+      if (isMiniPayStableKey(buyCurrency)) {
+        const coin = getStablecoin(buyCurrency);
         txHash = await writeContractAsync({
-            address: USDT_CONTRACT,
+            address: coin.address,
             abi: USDT_ABI,
             functionName: "transfer",
-            args: [TREASURY_MINIPAY, ptsToUsdt(price)],
+            args: [TREASURY_MINIPAY, ptsToStable(price, coin.decimals)],
             account: activeAddress,
             chainId: celo.id,
             ...getMiniPayWriteOverrides(),
@@ -351,7 +363,7 @@ export default function BlackMarket() {
                     {paymentOptions.map(({ key, label, color }) => (
                       <button
                         key={key}
-                        onClick={() => setBuyCurrency(key)}
+                        onClick={() => { manualBuyCurrencyRef.current = true; setBuyCurrency(key); }}
                         style={{
                           padding: "6px 16px",
                           background: buyCurrency === key ? `${color}20` : "rgba(255,255,255,0.04)",
@@ -376,7 +388,7 @@ export default function BlackMarket() {
                   const masteryTier = getCardMasterySnapshot(cardPerformance[c.id] ?? null).tier;
                   const price = c.price ?? 3000;
                   const isBuying = buyingId === c.id;
-                  const currColor = buyCurrency === "gdollar" ? GDOLLAR_COLOR : buyCurrency === "usdt" ? "#26a17b" : "#f9c846";
+                  const currColor = PREMIUM_PAYMENT_META[buyCurrency].color;
                   const cardW = isCompact ? 220 : 170;
                   const cardH = isCompact ? 305 : 236;
                   const badgeSize = isCompact ? 36 : 28;

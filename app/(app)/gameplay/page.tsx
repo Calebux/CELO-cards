@@ -739,12 +739,12 @@ export default function Gameplay() {
   const displayPlayerHP = showResult && roundWinner === "opponent" ? 0 : playerHP;
   const displayOpponentHP = showResult && roundWinner === "player" ? 0 : opponentHP;
 
-  const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : wagerCurrency === "gdollar" ? "G$" : wagerCurrency === "usdt" ? "USDT" : "cUSD";
+  const payoutTokenSymbol = wagerCurrency === "celo" ? "CELO" : wagerCurrency === "gdollar" ? "G$" : wagerCurrency === "usdt" ? "USDT" : wagerCurrency === "usdc" ? "USDC" : "USDm";
   const effectivePayoutAmt =
     opponentWagered
       ? (wagerCurrency === "gdollar" ? DUAL_WAGER_PAYOUT_GDOLLAR : wagerCurrency === "celo" ? DUAL_WAGER_PAYOUT_CELO : wagerCurrency === "usdt" ? DUAL_WAGER_PAYOUT_USDT : DUAL_WAGER_PAYOUT)
       : wagerCurrency === "usdt" ? PAYOUT_AMOUNT_USDT : PAYOUT_AMOUNT;
-  const payoutAmountDisplay = `${formatUnits(effectivePayoutAmt, wagerCurrency === "usdt" ? 6 : 18)} ${payoutTokenSymbol}`;
+  const payoutAmountDisplay = `${formatUnits(effectivePayoutAmt, wagerCurrency === "usdt" || wagerCurrency === "usdc" ? 6 : 18)} ${payoutTokenSymbol}`;
   const isGDollar = wagerCurrency === "gdollar";
   const payoutSteps = [
     { key: "submitted", label: "Submitted", done: payoutState === "loading" || payoutState === "done" },
