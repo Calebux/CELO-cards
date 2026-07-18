@@ -5,7 +5,11 @@ import { redis } from "./redis";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "./seasonPassContract";
-import { MATCH_REGISTRY, MATCH_REGISTRY_ACTIVE, MATCH_REGISTRY_ABI } from "./matchRegistry";
+import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "./gdollarSeasonPassContract";
+import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "./signupsContract";
+import { IDENTITY_CONTRACT, IDENTITY_ABI } from "./gooddollar";
+import { isBotWallet } from "./botWallets";
+import { getOnChainWallets } from "./onChainWallets";
 import { ServerMatch } from "./serverMatch";
 import type { ServerMatchRecord } from "./leaderboard";
 
@@ -389,22 +393,77 @@ export function buildBalanceWatchlist(snapshot: RankedDashboardSnapshot): Balanc
     .slice(0, 6);
 }
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+/**
+ * The ops/stats headline numbers, sourced entirely from Celo.
+ *
+ * Counters (passes sold) are read live — they are single eth_calls with no range
+ * limits. Wallet identities come from event logs via onChainWallets.ts, because
+ * the contracts expose no enumerable address list.
+ *
+ * Agent/automation wallets are excluded throughout: scripts/signup-env-wallets.ts
+ * registered 112 of them on KnockOrderSignups in one burst, so an unfiltered
+ * totalSignups reads ~6x its true value and is not a user metric.
+ */
 async function getOnChainStats() {
   const celoClient = createPublicClient({ chain: celo, transport: http() });
-  const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
+  const CELO_PASS_ACTIVE = SEASON_PASS_CONTRACT !== ZERO_ADDRESS;
+  const GDOLLAR_PASS_ACTIVE = GDOLLAR_SEASON_PASS_CONTRACT !== ZERO_ADDRESS;
 
-  const [totalPassesSold, totalMatchesOnChain] = await Promise.all([
-    CONTRACT_ACTIVE
+  const SIGNUPS_ACTIVE = SIGNUPS_CONTRACT !== ZERO_ADDRESS;
+
+  const [passesSoldCelo, passesSoldGdollar, totalSignups, walletsResult] = await Promise.all([
+    CELO_PASS_ACTIVE
       ? celoClient.readContract({ address: SEASON_PASS_CONTRACT, abi: SEASON_PASS_ABI, functionName: "totalPassesSold" }).catch(() => 0n)
       : Promise.resolve(0n),
-    MATCH_REGISTRY_ACTIVE
-      ? celoClient.readContract({ address: MATCH_REGISTRY, abi: MATCH_REGISTRY_ABI, functionName: "totalMatches" }).catch(() => 0n)
+    GDOLLAR_PASS_ACTIVE
+      ? celoClient.readContract({ address: GDOLLAR_SEASON_PASS_CONTRACT, abi: GDOLLAR_SEASON_PASS_ABI, functionName: "totalPassesSold" }).catch(() => 0n)
       : Promise.resolve(0n),
+    SIGNUPS_ACTIVE
+      ? celoClient.readContract({ address: SIGNUPS_CONTRACT, abi: SIGNUPS_ABI, functionName: "totalSignups" }).catch(() => 0n)
+      : Promise.resolve(0n),
+    getOnChainWallets().catch((err) => {
+      console.error("[ops] on-chain wallet read failed:", err);
+      return null;
+    }),
   ]);
 
+  // A real wallet is any non-agent address that signed up or bought a pass.
+  // Pass buyers matter on their own: signUp() only fires inside the verify+claim
+  // flow, so a buyer who skipped that flow never reaches the signups contract.
+  const realWallets = walletsResult
+    ? Array.from(new Set([...walletsResult.signers, ...walletsResult.buyers])).filter((w) => !isBotWallet(w))
+    : [];
+
+  const verifiedResults = realWallets.length
+    ? await celoClient
+        .multicall({
+          contracts: realWallets.map((wallet) => ({
+            address: IDENTITY_CONTRACT,
+            abi: IDENTITY_ABI,
+            functionName: "isWhitelisted" as const,
+            args: [wallet as `0x${string}`],
+          })),
+          allowFailure: true,
+        })
+        .catch(() => [])
+    : [];
+
+  const verifiedGoodDollar = verifiedResults.filter((r) => r.status === "success" && r.result === true).length;
+
   return {
-    totalPassesSold: Number(totalPassesSold),
-    totalMatchesOnChain: Number(totalMatchesOnChain),
+    distinctRealWallets: realWallets.length,
+    verifiedGoodDollar,
+    unverified: realWallets.length - verifiedGoodDollar,
+    passesSoldGdollar: Number(passesSoldGdollar),
+    passesSoldCelo: Number(passesSoldCelo),
+    totalPassesSold: Number(passesSoldCelo) + Number(passesSoldGdollar),
+    // signUp() is once-per-address, so the SignedUp events we read back must
+    // equal the contract's own counter exactly. Any shortfall means the log read
+    // was truncated and the wallet counts are understated — surfaced so the UI
+    // never presents a number that failed its own reconciliation.
+    walletsComplete: (walletsResult?.signers.length ?? -1) === Number(totalSignups),
   };
 }
 
@@ -423,7 +482,7 @@ export async function getBalanceDashboard() {
     withFallback(getRankedDashboardSnapshot(), { aggregate: { updatedAt: 0, totalMatches: 0, totalRounds: 0, totalMatchDurationMs: 0, totalRoundDurationMs: 0, cards: {}, characters: {}, skillBuckets: {}, matchups: {} }, totalCardPicks: 0, averageMatchMinutes: 0, averageRoundSeconds: 0, mirrorMatchRate: 0, topCards: [], characterRows: [], skillRows: [] }, "ranked snapshot"),
     withFallback(getOpsActivitySnapshot(), { house: { totalMatches: 0, winRate: 0, wageredMatches: 0, averagePointsEarned: 0, recentMatches: [], winnerRewardsIssued: 0, winnerRewardUsdTotal: 0, recentWinnerRewards: [] }, blackMarket: { totalPurchases: 0, uniqueBuyers: 0, gdollarPurchases: 0, usdtPurchases: 0, celoPurchases: 0, revenuePoints: 0, recentPurchases: [] } }, "ops activity"),
     withFallback(getAudienceMetrics(), { totalPlayers: 0, dailyPlayers: 0, weeklyPlayers: 0, monthlyPlayers: 0, transactions: 0, transactions24h: 0, transactions7d: 0, transactions30d: 0, trackedVolumeUsdt: 0, trackedVolumeCelo: 0, trackedVolumeGdollar: 0 }, "audience metrics"),
-    withFallback(getOnChainStats(), { totalPassesSold: 0, totalMatchesOnChain: 0 }, "on-chain stats"),
+    withFallback(getOnChainStats(), { distinctRealWallets: 0, verifiedGoodDollar: 0, unverified: 0, passesSoldGdollar: 0, passesSoldCelo: 0, totalPassesSold: 0, walletsComplete: false }, "on-chain stats"),
     withFallback(getRetentionMetrics(), emptyRetention, "retention"),
     withFallback(getTransactionHealthMetrics(), emptyTxHealth, "tx health"),
   ]);

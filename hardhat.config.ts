@@ -1,11 +1,14 @@
 import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox-viem";
+import hardhatViem from "@nomicfoundation/hardhat-viem";
+import hardhatNodeTestRunner from "@nomicfoundation/hardhat-node-test-runner";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 const DEPLOYER_KEY = process.env.TREASURY_PRIVATE_KEY;
 
 const config: HardhatUserConfig = {
+  plugins: [hardhatViem, hardhatNodeTestRunner, hardhatVerify],
   solidity: {
     version: "0.8.20",
     settings: { optimizer: { enabled: true, runs: 200 } },
@@ -24,20 +27,30 @@ const config: HardhatUserConfig = {
       accounts: DEPLOYER_KEY ? [DEPLOYER_KEY] : [],
     },
   },
-  etherscan: {
-    apiKey: {
-      celo: process.env.CELOSCAN_API_KEY ?? "FREE",
+  verify: {
+    etherscan: {
+      apiKey: process.env.CELOSCAN_API_KEY ?? "",
     },
-    customChains: [
-      {
-        network: "celo",
-        chainId: 42220,
-        urls: {
-          apiURL: "https://api.celoscan.io/api",
-          browserURL: "https://celoscan.io",
+    blockscout: {
+      enabled: true,
+    },
+  },
+  chainDescriptors: {
+    42220: {
+      name: "celo",
+      blockExplorers: {
+        etherscan: {
+          name: "Celoscan",
+          url: "https://celoscan.io",
+          apiUrl: "https://api.celoscan.io/api",
+        },
+        blockscout: {
+          name: "Celo Blockscout",
+          url: "https://celo.blockscout.com",
+          apiUrl: "https://celo.blockscout.com/api",
         },
       },
-    ],
+    },
   },
 };
 

@@ -15,7 +15,7 @@ export interface PlayerSlot {
   attunementSurgeUsed: boolean;
 }
 
-export type WagerCurrency = "cusd" | "celo" | "gdollar" | "usdt";
+export type WagerCurrency = "cusd" | "celo" | "gdollar" | "usdt" | "usdc";
 
 export interface ServerMatch {
   id: string;

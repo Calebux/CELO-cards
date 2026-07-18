@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { GLOBAL_CSS } from "./lib/globalCss";
-import { AppProviders } from "./components/AppProviders";
 // Material Icons moved to globals.css as self-hosted @font-face with font-display:swap
 // (was: package import that loaded all 5 variants with font-display:block — render-blocking)
 
@@ -39,12 +38,10 @@ export default async function RootLayout({
 }) {
   const requestHeaders = await headers();
   const ua = requestHeaders.get("user-agent") ?? "";
-  const matchedPath = requestHeaders.get("x-matched-path") ?? requestHeaders.get("next-url");
   const isMiniPayUA = /MiniPay/i.test(ua);
-  const shouldWrapWithProviders = matchedPath !== "/";
 
   return (
-    <html lang="en" data-minipay={isMiniPayUA ? "1" : undefined}>
+    <html lang="en" suppressHydrationWarning data-minipay={isMiniPayUA ? "1" : undefined}>
       <head>
         {/* Intercept window.electronAPI so wallet extensions that look for
             Electron APIs don't throw and crash the React tree.
@@ -89,7 +86,7 @@ export default async function RootLayout({
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-        {shouldWrapWithProviders ? <AppProviders isMiniPayUA={isMiniPayUA}>{children}</AppProviders> : children}
+        {children}
       </body>
     </html>
   );

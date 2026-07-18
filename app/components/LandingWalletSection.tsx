@@ -10,8 +10,8 @@ import { isMuted } from "../lib/soundManager";
 import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
 import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
+import { useMiniPayStablecoin } from "../lib/stablecoins";
 
-const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
 const LOW_BALANCE_THRESHOLD = 0.50;
@@ -40,21 +40,27 @@ function Balances({ address, enabled, mp }: { address: `0x${string}`; enabled: b
     query: { enabled: !!address && enabled && !mp },
   });
   const { data: token2 } = useReadContract({
-    address: mp ? USDT_CONTRACT : GDOLLAR_CONTRACT,
+    address: GDOLLAR_CONTRACT,
     abi: BALANCE_ABI,
     functionName: "balanceOf",
     args: [address],
     chainId: celo.id,
-    query: { enabled: !!address && enabled },
+    query: { enabled: !!address && enabled && !mp },
   });
+  // MiniPay: show the user's preferred stablecoin (highest balance)
+  const stable = useMiniPayStablecoin(address, enabled && mp);
+
+  if (mp) {
+    return <BalanceChip label={stable.preferred.symbol} value={stable.preferredDisplay} color={stable.preferred.color} />;
+  }
 
   const celoVal = celoBalance ? parseFloat(formatUnits(celoBalance.value, 18)).toFixed(3) : "—";
-  const token2Val = token2 ? parseFloat(formatUnits(token2, mp ? 6 : 18)).toFixed(mp ? 2 : 0) : "—";
+  const token2Val = token2 ? parseFloat(formatUnits(token2, 18)).toFixed(0) : "—";
 
   return (
     <>
-      {!mp ? <BalanceChip label="CELO" value={celoVal} color="#FBCC5C" /> : null}
-      <BalanceChip label={mp ? "USDT" : "G$"} value={token2Val} color={mp ? "#26a17b" : "#00C58E"} />
+      <BalanceChip label="CELO" value={celoVal} color="#FBCC5C" />
+      <BalanceChip label="G$" value={token2Val} color="#00C58E" />
     </>
   );
 }
@@ -111,16 +117,11 @@ export function LandingWalletSection() {
   const menuRef = useRef<HTMLDivElement>(null);
   const mp = useMiniPayMode();
 
-  const { data: usdtRaw } = useReadContract({
-    address: USDT_CONTRACT,
-    abi: BALANCE_ABI,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    chainId: celo.id,
-    query: { enabled: !!address && mp && isConnected },
-  });
-  const usdtFloat = usdtRaw !== undefined ? parseFloat(formatUnits(usdtRaw, 6)) : null;
-  const isLowBalance = mp && usdtFloat !== null && usdtFloat < LOW_BALANCE_THRESHOLD;
+  // Low-balance check based on the preferred (highest-balance) stablecoin
+  const stableState = useMiniPayStablecoin(address, mp && isConnected);
+  const preferredRaw = stableState.balances[stableState.preferred.key];
+  const preferredFloat = preferredRaw !== undefined ? parseFloat(formatUnits(preferredRaw, stableState.preferred.decimals)) : null;
+  const isLowBalance = mp && preferredFloat !== null && preferredFloat < LOW_BALANCE_THRESHOLD;
 
   useEffect(() => {
     if (!isConnected || !address) {
@@ -198,8 +199,8 @@ export function LandingWalletSection() {
   }
 
   if (mp && isConnected && address) {
-    const primaryIdentity = playerName || "MINIPAY PLAYER";
-    const secondaryIdentity = playerName ? "MiniPay ready" : "Set username in Profile";
+    const primaryIdentity = playerName || "PLAYER";
+    const secondaryIdentity = playerName ? "Ready to play" : "Set username in Profile";
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <MuteButton />
@@ -220,13 +221,13 @@ export function LandingWalletSection() {
             }}
           >
             <span className="material-icons" style={{ fontSize: 13 }}>add_circle</span>
-            Deposit
+            Add Cash
           </a>
         ) : null}
         <div style={{ ...base, background: "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))" }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           <div>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>MINIPAY</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>PLAYER</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.4 }}>{primaryIdentity}</div>
             <div style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.6, lineHeight: 1.2 }}>{secondaryIdentity}</div>
           </div>

@@ -4,8 +4,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
-const MOBILE_MODAL_W = 760;
-const MOBILE_MODAL_H = 520;
 
 export function UsernameModal() {
   const { address } = useAccount();
@@ -31,24 +29,23 @@ export function UsernameModal() {
   }, []);
 
   useLayoutEffect(() => {
+    if (isMobileModal) return; // mobile uses plain CSS centering
     const el = wrapRef.current;
     if (!el) return;
     const scale = () => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const isPortrait = vh > vw;
-      const frameW = isMobileModal ? MOBILE_MODAL_W : DESIGN_W;
-      const frameH = isMobileModal ? MOBILE_MODAL_H : DESIGN_H;
       let transform: string;
       if (isPortrait) {
-        const s = Math.min(vw / frameH, vh / frameW);
-        const tx = vw / 2 + (frameH * s) / 2;
-        const ty = vh / 2 - (frameW * s) / 2;
+        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
+        const tx = vw / 2 + (DESIGN_H * s) / 2;
+        const ty = vh / 2 - (DESIGN_W * s) / 2;
         transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
       } else {
-        const s = Math.min(vw / frameW, vh / frameH);
-        const tx = (vw - frameW * s) / 2;
-        const ty = (vh - frameH * s) / 2;
+        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+        const tx = (vw - DESIGN_W * s) / 2;
+        const ty = (vh - DESIGN_H * s) / 2;
         transform = `translate(${tx}px, ${ty}px) scale(${s})`;
       }
       el.style.transform = transform;
@@ -129,13 +126,17 @@ export function UsernameModal() {
       backdropFilter: "blur(10px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={{ width: isMobileModal ? MOBILE_MODAL_W : DESIGN_W, height: isMobileModal ? MOBILE_MODAL_H : DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "translate(-9999px, -9999px) scale(0.001)" }}>
+      <div ref={wrapRef} style={isMobileModal
+        ? { position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }
+        : { width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "translate(-9999px, -9999px) scale(0.001)" }
+      }>
         <div style={{
-          position: "relative", width: 420,
+          position: "relative",
+          width: isMobileModal ? "min(92vw, 440px)" : 420,
           background: "rgba(12,18,36,0.97)",
           border: `2px solid ${ACCENT}`,
           borderRadius: 10,
-          padding: "44px 44px 36px",
+          padding: isMobileModal ? "42px 42px 38px" : "44px 44px 36px",
           boxShadow: `0 0 60px ${ACCENT}40, 0 0 120px ${ACCENT}18`,
           fontFamily: "var(--font-space-grotesk), sans-serif",
         }}>
@@ -152,23 +153,23 @@ export function UsernameModal() {
           ))}
 
           {/* Icon */}
-          <div style={{ textAlign: "center", marginBottom: 16 }}>
-            <span className="material-icons" style={{ fontSize: 40, color: ACCENT }}>person</span>
+          <div style={{ textAlign: "center", marginBottom: isMobileModal ? 10 : 16 }}>
+            <span className="material-icons" style={{ fontSize: isMobileModal ? 36 : 40, color: ACCENT }}>person</span>
           </div>
 
           {/* Heading */}
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 4, color: ACCENT, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
+          <p style={{ fontSize: isMobileModal ? 11 : 10, fontWeight: 700, letterSpacing: 4, color: ACCENT, textTransform: "uppercase", marginBottom: 6, textAlign: "center" }}>
             Welcome, Fighter
           </p>
-          <h2 style={{ fontSize: 26, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: "0 0 8px", textAlign: "center" }}>
+          <h2 style={{ fontSize: isMobileModal ? 24 : 26, fontWeight: 900, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: "0 0 6px", textAlign: "center" }}>
             Choose Your Name
           </h2>
-          <p style={{ fontSize: 12, color: "#9ca3af", margin: "0 0 28px", lineHeight: 1.6, textAlign: "center" }}>
+          <p style={{ fontSize: isMobileModal ? 13 : 12, color: "#9ca3af", margin: isMobileModal ? "0 0 20px" : "0 0 28px", lineHeight: 1.6, textAlign: "center" }}>
             This is how opponents and the leaderboard will see you.
           </p>
 
           {/* Input */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: isMobileModal ? 16 : 20 }}>
             <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>
               Username
             </div>

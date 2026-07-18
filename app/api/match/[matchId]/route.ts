@@ -22,6 +22,7 @@ import { MultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaki
 import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
 import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow, WagerCurrency } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
+import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -52,7 +53,7 @@ function buildOpenMatchSummary(matchId: string, match: ServerMatch): OpenMatchSu
 }
 
 function validWagerCurrency(currency: unknown): currency is WagerCurrency {
-  return currency === "cusd" || currency === "celo" || currency === "gdollar" || currency === "usdt";
+  return currency === "cusd" || currency === "celo" || currency === "gdollar" || currency === "usdt" || currency === "usdc";
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -381,7 +382,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       const opponentAmount = role === "host" ? match.joinerWagerAmount : match.hostWagerAmount;
 
       if (opponentCurrency && opponentCurrency !== wagerCurrency) {
-        return NextResponse.json({ error: "Wager matches require both players to stake the same token." }, { status: 409 });
+        return NextResponse.json({ error: "Wager matches require both players to stake the same currency." }, { status: 409 });
       }
       if (typeof wagerAmount === "string" && opponentAmount && opponentAmount !== wagerAmount) {
         return NextResponse.json({ error: "Wager matches require both players to stake the same amount." }, { status: 409 });
@@ -402,6 +403,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       } catch {
         await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
       }
+    }
+
+    // Attribute the stake on the verified ArenaV2 escrow contract. Best-effort:
+    // if it fails, the payout route falls back to a direct treasury transfer.
+    if (wagerTx && patchAddress && typeof wagerAmount === "string") {
+      await attributeStakeOnChain({
+        matchId,
+        player: patchAddress,
+        currency: wagerCurrency,
+        amount: wagerAmount,
+        txHash: wagerTx,
+      });
     }
     return NextResponse.json({ ok: true });
   }
@@ -699,6 +712,35 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     } catch {
       // Best-effort — leaderboard failure must not break the card submission
     }
+    // Increment free game counter for players without an active season pass
+    const incrementFreeGame = async (addr: string) => {
+      const passRaw = await redis.get(`season-pass:${addr.toLowerCase()}`).catch(() => null);
+      let hasPass = false;
+      if (passRaw) {
+        const parsed = typeof passRaw === "string"
+          ? (() => { try { return JSON.parse(passRaw) as { expiry?: number }; } catch { return null; } })()
+          : passRaw as { expiry?: number } | null;
+        if (parsed && Number.isFinite(Number(parsed.expiry)) && Number(parsed.expiry) >= Date.now()) {
+          hasPass = true;
+        }
+      }
+      if (!hasPass) {
+        const key = `free-games:${addr.toLowerCase()}`;
+        const current = Number(await redis.get(key)) || 0;
+        if (current < 2) {
+          await redis.set(key, current + 1);
+        }
+      }
+    };
+    try {
+      const freeGamePromises: Promise<void>[] = [];
+      if (m.host.address) freeGamePromises.push(incrementFreeGame(m.host.address));
+      if (m.joiner.address) freeGamePromises.push(incrementFreeGame(m.joiner.address));
+      await Promise.allSettled(freeGamePromises);
+    } catch {
+      // Best-effort — free game tracking failure must not break match flow
+    }
+
     if (m.host.address) {
       await clearActiveMatchForAddress(m.host.address, matchId).catch(() => {});
     }

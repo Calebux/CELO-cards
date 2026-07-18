@@ -12,13 +12,17 @@ import {
 } from "wagmi";
 import { celo } from "wagmi/chains";
 import { parseUnits, formatUnits } from "viem";
-import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
+import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDC_CONTRACT } from "../lib/cusd";
+import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
+import { ARENA_V2_ACTIVE, ARENA_V2_ADDRESS } from "../lib/arenaV2";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { useGameFrameScale } from "../lib/mobile";
 import { getInitialMiniPayMode, MINIPAY_STABLECOIN_EXPLAINER, MINIPAY_STABLECOIN_SHORT, useMiniPayMode } from "../lib/premiumPayments";
+import { friendlyTxError } from "../lib/txErrors";
 
 type Props = {
   onConfirmed: () => void;
@@ -28,15 +32,24 @@ type Props = {
 };
 
 type Step = "idle" | "approving" | "approved" | "entering" | "done" | "error";
-type Currency = "cusd" | "celo" | "gdollar" | "usdt";
+type Currency = "cusd" | "celo" | "gdollar" | "usdt" | "usdc";
 
 const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
 const CURRENCY_CONFIG: Record<Currency, { label: string; color: string; symbol: string; decimals: number }> = {
-  cusd:    { label: "cUSD",    color: "#56a4cb",     symbol: "cUSD", decimals: 18 },
+  cusd:    { label: "USDm",    color: "#56a4cb",     symbol: "USDm", decimals: 18 },
   celo:    { label: "CELO",    color: "#f9c846",     symbol: "CELO", decimals: 18 },
   gdollar: { label: "G$",      color: GDOLLAR_COLOR, symbol: "G$", decimals: 18 },
   usdt:    { label: "USDT",    color: "#26a17b",     symbol: "USDT", decimals: 6 },
+  usdc:    { label: "USDC",    color: "#2775CA",     symbol: "USDC", decimals: 6 },
+};
+
+// Stablecoins usable inside MiniPay — direct treasury transfers, no contract calls
+const MP_STABLES: readonly Currency[] = ["usdt", "usdc", "cusd"];
+const MP_STABLE_TOKEN: Record<string, `0x${string}`> = {
+  usdt: USDT_CONTRACT,
+  usdc: USDC_CONTRACT,
+  cusd: CUSD_CONTRACT,
 };
 
 export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrency }: Props) {
@@ -60,33 +73,10 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo"));
-  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "celo")) ?? "0.01");
+  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar"));
+  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar")) ?? "0.01");
 
-  useLayoutEffect(() => {
-    const scale = () => {
-      if (!wrapRef.current) return;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const isPortrait = vh > vw;
-      let transform: string;
-      if (isPortrait) {
-        const s = Math.min(vw / DESIGN_H, vh / DESIGN_W);
-        const tx = vw / 2 + (DESIGN_H * s) / 2;
-        const ty = vh / 2 - (DESIGN_W * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) rotate(90deg) scale(${s})`;
-      } else {
-        const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
-        const tx = (vw - DESIGN_W * s) / 2;
-        const ty = (vh - DESIGN_H * s) / 2;
-        transform = `translate(${tx}px, ${ty}px) scale(${s})`;
-      }
-      wrapRef.current.style.transform = transform;
-    };
-    scale();
-    window.addEventListener("resize", scale);
-    return () => window.removeEventListener("resize", scale);
-  }, [isMp]);
+  useGameFrameScale(wrapRef);
 
   const { writeContractAsync }  = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
@@ -104,11 +94,19 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     if (formatted) setAmountInput(formatted);
   }, [currency, lockedAmountRaw, lockedCurrency]);
 
+  // MiniPay: keep the selection within the supported stablecoins, and default
+  // to the user's preferred one (highest balance) until they pick manually.
+  const stable = useMiniPayStablecoin(address, isMp && isConnected);
+  const manualCurrencyRef = useRef(false);
   useLayoutEffect(() => {
-    if (isMp && !lockedCurrency && currency !== "usdt") {
+    if (isMp && !lockedCurrency && !MP_STABLES.includes(currency)) {
       setCurrency("usdt");
     }
   }, [currency, isMp, lockedCurrency]);
+  useEffect(() => {
+    if (!isMp || lockedCurrency || manualCurrencyRef.current || !stable.loaded) return;
+    setCurrency(stable.preferred.key);
+  }, [isMp, lockedCurrency, stable.loaded, stable.preferred.key]);
 
   // Check existing cUSD allowance for the arena (only relevant for cUSD path)
   const { data: allowance } = useReadContract({
@@ -120,7 +118,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   });
 
   const { isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-  const miniPayCurrencyMismatch = isMp && !!lockedCurrency && lockedCurrency !== "usdt";
+  const miniPayCurrencyMismatch = isMp && !!lockedCurrency && !MP_STABLES.includes(lockedCurrency);
 
   // After approve confirms → move to entering (cUSD only)
   useEffect(() => {
@@ -236,7 +234,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     try {
       activeAddress = await ensureWalletReady();
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message : "Wallet not connected.");
+      setErrMsg(friendlyTxError(e, "Wallet not connected."));
       setStep("error");
       return;
     }
@@ -246,8 +244,10 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       return;
     }
 
-    if (currency === "usdt") {
-      await handleUsdtTransfer(activeAddress);
+    // Stablecoin direct transfers: USDT/USDC always; USDm (cusd) too when in
+    // MiniPay — the arena approve/enter flow is web-only.
+    if (currency === "usdt" || currency === "usdc" || (isMp && currency === "cusd")) {
+      await handleStableTransfer(activeAddress);
       return;
     }
 
@@ -274,24 +274,29 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     }
   };
 
-  // ── USDT: direct ERC-20 transfer to MiniPay treasury ─────────────────────
-  const handleUsdtTransfer = async (activeAddress: `0x${string}`) => {
+  // ── Stablecoins (USDT/USDC/USDm): direct ERC-20 transfer into the verified
+  // KnockOrderArenaV2 escrow. The match server attributes the stake on-chain
+  // (recordStake) and the winner is paid out of the contract (completeMatch).
+  const handleStableTransfer = async (activeAddress: `0x${string}`) => {
     const amt = parsedAmount();
     if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
+    const token = MP_STABLE_TOKEN[currency];
+    if (!token) { setErrMsg("Unsupported currency."); setStep("error"); return; }
+    const stakeDestination = ARENA_V2_ACTIVE ? ARENA_V2_ADDRESS : TREASURY_MINIPAY_ADDRESS;
     setStep("entering");
     try {
       const hash = await writeContractAsync({
-          address: USDT_CONTRACT,
+          address: token,
           abi: ERC20_ABI,
           functionName: "transfer",
-          args: [TREASURY_MINIPAY_ADDRESS, amt],
+          args: [stakeDestination, amt],
           account: activeAddress,
           chainId: celo.id,
           ...getMiniPayWriteOverrides(),
         });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "USDT transfer failed.");
+      setErrMsg(friendlyTxError(e, `${CURRENCY_CONFIG[currency].symbol} transfer failed.`));
       setStep("error");
     }
   };
@@ -313,7 +318,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "G$ transfer failed.");
+      setErrMsg(friendlyTxError(e, "G$ transfer failed."));
       setStep("error");
     }
   };
@@ -334,7 +339,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Approve failed.");
+      setErrMsg(friendlyTxError(e, "Approve failed."));
       setStep("error");
     }
   };
@@ -354,7 +359,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
@@ -377,7 +382,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
@@ -399,7 +404,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
@@ -426,7 +431,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
           });
       setTxHash(hash);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message.slice(0, 120) : "Transaction failed.");
+      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
@@ -434,9 +439,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   const busy = ["approving", "approved", "entering"].includes(step);
 
   const statusLabel = () => {
-    if (step === "approving") return "Approving cUSD spend…";
+    if (step === "approving") return "Approving USDm spend…";
     if (step === "approved")  return "Approval confirmed — entering match…";
-    if (step === "entering")  return currency === "gdollar" ? "Sending G$…" : currency === "usdt" ? "Sending USDT…" : "Waiting for confirmation…";
+    if (step === "entering")  return currency === "celo" ? "Waiting for confirmation…" : `Sending ${CURRENCY_CONFIG[currency].symbol}…`;
     return null;
   };
 
@@ -451,6 +456,33 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   const payoutNote = currency === "gdollar"
     ? "Winnings stream to your wallet via Superfluid"
     : `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
+
+  // ── MiniPay: wagers are coming soon — never show a stake flow ────────────
+  if (isMp) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 200, backgroundColor: "rgba(5, 5, 16, 0.85)", backdropFilter: "blur(8px)", overflow: "hidden" }}>
+        <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
+          <div style={{ position: "relative", width: 420, background: "rgba(15, 23, 42, 0.95)", border: "2px solid #56a4cb", borderRadius: 8, padding: "40px 40px 32px", boxShadow: "0 0 40px rgba(86,164,203,0.3)", fontFamily: "var(--font-space-grotesk), sans-serif", textAlign: "center" }}>
+            <div style={{ fontSize: 34, marginBottom: 14 }}>⚡</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: "0 0 12px" }}>
+              Wagers Coming Soon
+            </h2>
+            <p style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6, margin: "0 0 22px" }}>
+              Staked matches aren&apos;t available on MiniPay yet. Play for free —
+              winners currently receive rewards through our Telegram support
+              after sharing proof of their win.
+            </p>
+            <button
+              onClick={onSkip}
+              style={{ width: "100%", minHeight: 48, borderRadius: 6, cursor: "pointer", background: "linear-gradient(135deg, #56a4cb, #b9e7f4)", border: "none", fontSize: 13, fontWeight: 800, color: "#000", letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit" }}
+            >
+              Play Free Match →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Default wager view ────────────────────────────────────────────────────
   return (
@@ -489,13 +521,13 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
         {/* Currency selector */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(isMp ? (["usdt"] as Currency[]) : (["cusd", "celo", "gdollar"] as Currency[])).map((c) => {
+          {(isMp ? [...MP_STABLES] : (["gdollar", "cusd", "celo"] as Currency[])).map((c) => {
             const cc = CURRENCY_CONFIG[c];
             const disabledByLock = !!lockedCurrency && lockedCurrency !== c;
             return (
               <button
                 key={c}
-                onClick={() => { if (!busy && !disabledByLock) { setCurrency(c); setErrMsg(""); setStep("idle"); } }}
+                onClick={() => { if (!busy && !disabledByLock) { manualCurrencyRef.current = true; setCurrency(c); setErrMsg(""); setStep("idle"); } }}
                 disabled={busy || disabledByLock}
                 style={{
                   flex: 1, padding: isMp ? "40px 0" : "8px 0",
@@ -524,7 +556,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
             borderRadius: 6,
           }}>
             <span style={{ fontSize: 11, color: "#f87171", fontWeight: 700, letterSpacing: 0.3 }}>
-              MiniPay wager matches use USDT only. Ask the host to recreate this match in MiniPay.
+              This match uses a currency MiniPay doesn&apos;t support. Ask the host to recreate it with a stablecoin stake (USDT, USDC, or USDm).
             </span>
           </div>
         )}

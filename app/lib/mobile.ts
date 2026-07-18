@@ -30,6 +30,7 @@ export function useMobileViewportMode(): boolean {
 
 type GameFrameScaleOptions = {
   compactThreshold?: number;
+  enabled?: boolean;
   onCompactChange?: (compact: boolean) => void;
 };
 
@@ -37,7 +38,7 @@ export function useGameFrameScale(
   wrapRef: RefObject<HTMLElement | null>,
   options: GameFrameScaleOptions = {},
 ): void {
-  const { compactThreshold, onCompactChange } = options;
+  const { compactThreshold, enabled = true, onCompactChange } = options;
   const onCompactChangeRef = useRef(onCompactChange);
 
   useEffect(() => {
@@ -45,6 +46,8 @@ export function useGameFrameScale(
   }, [onCompactChange]);
 
   useLayoutEffect(() => {
+    if (!enabled) return;
+
     const scale = () => {
       const el = wrapRef.current;
       if (!el) return;
@@ -82,5 +85,5 @@ export function useGameFrameScale(
       viewport?.removeEventListener("resize", scale);
       viewport?.removeEventListener("scroll", scale);
     };
-  }, [compactThreshold, wrapRef]);
+  }, [compactThreshold, enabled, wrapRef]);
 }

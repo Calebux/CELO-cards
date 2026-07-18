@@ -1,6 +1,6 @@
 import { recoverMessageAddress } from "viem";
 
-export function buildPayoutClaimAuthMessage(address: string, matchId: string, currency: "cusd" | "celo" | "gdollar" | "usdt"): string {
+export function buildPayoutClaimAuthMessage(address: string, matchId: string, currency: "cusd" | "celo" | "gdollar" | "usdt" | "usdc"): string {
   return [
     "Action Order Wager Payout Claim",
     "",

@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
 import { MultiplayerMode } from "./matchmaking";
-import { createEmptyOnboardingProgress, isOnboardingComplete, OnboardingProgress, OnboardingStepId } from "./onboarding";
+import { createEmptyOnboardingProgress, getOnboardingSteps, isOnboardingComplete, OnboardingProgress, OnboardingStepId } from "./onboarding";
+import { isMiniPay } from "./minipayRuntime";
 import { emptyCardPerformance } from "./cardProgress";
 import type { CardPerformanceStats } from "./cardProgress";
 import {
@@ -102,11 +103,15 @@ interface GameState {
 
     // Player identity (Celo wallet address)
     playerAddress: string | null;
+    // Wallet that owns the locally persisted stats/cards. When a different
+    // wallet signs in, the per-account slice is reset so accounts don't
+    // inherit each other's local progress.
+    accountOwner: string | null;
 
     // Wager
     wagerActive: boolean;
     wagerTxHash: string | null;
-    wagerCurrency: "cusd" | "celo" | "gdollar" | "usdt";
+    wagerCurrency: "cusd" | "celo" | "gdollar" | "usdt" | "usdc";
     wagerAmountInput: string;        // human-readable stake, e.g. "0.01"
     setWagerAmountInput: (v: string) => void;
     opponentWagered: boolean;
@@ -188,7 +193,7 @@ interface GameState {
     clearCardProgress: () => void;
     purchaseCard: (cardId: string, price: number) => void;
     setPrecomputedFromServer: (slots: SlotResult[]) => void;
-    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar" | "usdt") => void;
+    setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar" | "usdt" | "usdc") => void;
     selectCharacter: (character: Character) => void;
     startMatch: () => void;
     addCardToSlot: (card: Card) => void;
@@ -280,9 +285,10 @@ export const useGameStore = create<GameState>()(
         pointsThisRound: state.pointsThisRound + amount,
     })),
     playerAddress: null,
+    accountOwner: null,
     wagerActive: false,
     wagerTxHash: null,
-    wagerCurrency: "cusd" as "cusd" | "celo" | "gdollar" | "usdt",
+    wagerCurrency: "cusd" as "cusd" | "celo" | "gdollar" | "usdt" | "usdc",
     wagerAmountInput: "0.01",
     setWagerAmountInput: (v) => set({ wagerAmountInput: v }),
     opponentWagered: false,
@@ -357,14 +363,72 @@ export const useGameStore = create<GameState>()(
     }),
     setPlayerTaunt: (taunt) => set({ playerTaunt: taunt }),
 
-    setPlayerAddress: (address) => set({ playerAddress: address }),
+    setPlayerAddress: (address) => set((state) => {
+        // Sign-out keeps local state — the same wallet usually reconnects.
+        if (!address) return { playerAddress: null };
+        const next = address.toLowerCase();
+        const owner = state.accountOwner?.toLowerCase() ?? null;
+        if (owner === next) return { playerAddress: address };
+        if (owner === null) {
+            // First sign-in on this device (or data from before accountOwner
+            // existed): adopt the current state instead of wiping it.
+            return { playerAddress: address, accountOwner: next };
+        }
+        // A different wallet signed in — reset the previous account's local
+        // progress and any in-flight match so nothing leaks across accounts.
+        return {
+            playerAddress: address,
+            accountOwner: next,
+            playerPoints: 0,
+            pointsThisRound: 0,
+            matchesPlayed: 0,
+            matchesWon: 0,
+            matchesLost: 0,
+            winStreak: 0,
+            lossStreak: 0,
+            maxWinStreak: 0,
+            matchHistory: [],
+            currentMatchRounds: [],
+            playerName: "",
+            opponentName: null,
+            deckPresets: [],
+            unlockedPremiumCards: [],
+            attunedCardIds: [],
+            activeAttunedCardIds: [],
+            attunementSurgeUsed: false,
+            cardPerformance: {},
+            cardProgressUpdatedAt: 0,
+            matchId: null,
+            matchMode: "wager" as const,
+            playerRole: null,
+            matchPhase: "idle" as const,
+            vsBot: false,
+            selectedCharacter: null,
+            opponentCharacter: null,
+            currentOrder: [null, null, null, null, null],
+            opponentOrder: [],
+            currentRoundResult: null,
+            precomputedRound: null,
+            revealedSlots: 0,
+            roundNumber: 1,
+            playerRoundsWon: 0,
+            opponentRoundsWon: 0,
+            wagerActive: false,
+            wagerTxHash: null,
+            upperChamberActive: false,
+            upperChamberRound: 0,
+            ultimateActivated: false,
+            ultimateUsed: false,
+            playerTaunt: null,
+        };
+    }),
     setPlayerName: (name) => set({ playerName: name.slice(0, 20) }),
     setOpponentName: (name) => set({ opponentName: name ? name.slice(0, 20) : null }),
     setHasSeenTutorial: (v) => set({ hasSeenTutorial: v }),
     markOnboardingStep: (step) => set((state) => {
         if (state.onboardingProgress[step]) return state;
         const nextProgress = { ...state.onboardingProgress, [step]: true };
-        if (isOnboardingComplete(nextProgress) && !nextProgress.completedAt) {
+        if (isOnboardingComplete(nextProgress, getOnboardingSteps(!isMiniPay())) && !nextProgress.completedAt) {
             nextProgress.completedAt = Date.now();
         }
         return { onboardingProgress: nextProgress };
@@ -457,7 +521,7 @@ export const useGameStore = create<GameState>()(
         const { deckPresets } = get();
         set({ deckPresets: deckPresets.filter((_, i) => i !== index) });
     },
-    setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency as "cusd" | "celo" | "gdollar" | "usdt" }),
+    setWager: (active, txHash, currency = "cusd") => set({ wagerActive: active, wagerTxHash: txHash, wagerCurrency: currency as "cusd" | "celo" | "gdollar" | "usdt" | "usdc" }),
 
     setOpponentCharacterFromServer: (charId) => {
         const char = CHARACTERS.find((c) => c.id === charId);
@@ -996,6 +1060,7 @@ export const useGameStore = create<GameState>()(
         maxEnergy: state.maxEnergy,
 
         // Persistent stats & history
+        accountOwner: state.accountOwner,
         playerPoints: state.playerPoints,
         matchesPlayed: state.matchesPlayed,
         matchesWon: state.matchesWon,

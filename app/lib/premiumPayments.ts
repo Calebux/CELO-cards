@@ -3,13 +3,15 @@
 import { useLayoutEffect, useState } from "react";
 import { isMiniPay } from "./minipayRuntime";
 
-export type PremiumPaymentCurrency = "celo" | "gdollar" | "usdt";
+import type { MiniPayStableKey } from "./stablecoins";
 
-export const MINIPAY_DEPOSIT_DEEPLINK = "https://link.minipay.xyz/add_cash?tokens=USDT";
+export type PremiumPaymentCurrency = "celo" | "gdollar" | "usdt" | "usdc" | "cusd";
+
+export const MINIPAY_DEPOSIT_DEEPLINK = "https://link.minipay.xyz/add_cash?tokens=USDT,USDC,USDm";
 export const MINIPAY_STABLECOIN_EXPLAINER =
-  "MiniPay mode uses USDT only right now. If your funds are in another stablecoin, swap to USDT in MiniPay before paying.";
+  "Pay with the stablecoin you already hold — USDT, USDC, or USDm. We pre-select whichever you have the most of.";
 export const MINIPAY_STABLECOIN_SHORT =
-  "MiniPay mode uses USDT only right now.";
+  "Pays with your preferred stablecoin.";
 
 export const PREMIUM_PAYMENT_META = {
   celo: {
@@ -29,6 +31,18 @@ export const PREMIUM_PAYMENT_META = {
     label: "USDT",
     actionLabel: "Pay with USDT",
     color: "#26a17b",
+  },
+  usdc: {
+    key: "usdc" as const,
+    label: "USDC",
+    actionLabel: "Pay with USDC",
+    color: "#2775CA",
+  },
+  cusd: {
+    key: "cusd" as const,
+    label: "USDm",
+    actionLabel: "Pay with USDm",
+    color: "#56a4cb",
   },
 } as const;
 
@@ -82,8 +96,12 @@ export function useMiniPayMode(): boolean {
   return miniPayMode;
 }
 
-export function getPremiumPaymentOptions(isMiniPayMode: boolean) {
-  return isMiniPayMode
-    ? [PREMIUM_PAYMENT_META.usdt]
-    : [PREMIUM_PAYMENT_META.celo, PREMIUM_PAYMENT_META.gdollar];
+// MiniPay: all three supported stablecoins, preferred (highest balance) first
+// so payment UIs auto-select it. Web: G$ and CELO as before.
+export function getPremiumPaymentOptions(isMiniPayMode: boolean, preferredStable: MiniPayStableKey = "usdt") {
+  if (!isMiniPayMode) {
+    return [PREMIUM_PAYMENT_META.gdollar, PREMIUM_PAYMENT_META.celo];
+  }
+  const stables = [PREMIUM_PAYMENT_META.usdt, PREMIUM_PAYMENT_META.usdc, PREMIUM_PAYMENT_META.cusd];
+  return stables.sort((a, b) => (a.key === preferredStable ? -1 : 0) - (b.key === preferredStable ? -1 : 0));
 }

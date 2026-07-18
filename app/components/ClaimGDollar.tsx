@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useEffect, useRef, useState } from "react";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useWalletClient, usePublicClient } from "wagmi";
 import { celo } from "wagmi/chains";
 import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "../lib/signupsContract";
 import { formatUnits } from "viem";
+import { useGameStore } from "../lib/gameStore";
+import { isUserRejectedTx } from "../lib/txErrors";
 
 export function ClaimGDollar() {
   const { address, isConnected } = useAccount();
@@ -27,13 +30,54 @@ export function ClaimGDollar() {
     query: { enabled: !!address && isWhitelisted === true },
   });
 
-  const { writeContract, data: txHash, isPending, isError, reset } = useWriteContract();
+  const { data: walletClient } = useWalletClient({ chainId: celo.id });
+  const publicClient = usePublicClient({ chainId: celo.id });
+  const { writeContract, data: txHash, isPending, isError, error: claimError, reset } = useWriteContract();
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   useEffect(() => {
     if (isSuccess) refetch();
   }, [isSuccess, refetch]);
+
+  // Onboarding: verified + claimed (now, or already today) means the wallet
+  // has G$ and the CELO gas top-up — mark the verify_claim step done and
+  // register the player on the KnockOrderSignups contract with their own
+  // wallet. Best-effort: a rejected/failed signup retries on the next visit.
+  const markOnboardingStep = useGameStore((s) => s.markOnboardingStep);
+  const signupAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!(isSuccess || (isWhitelisted === true && entitlement === 0n))) return;
+    markOnboardingStep("verify_claim");
+
+    if (signupAttemptedRef.current) return;
+    if (!address || !walletClient || !publicClient) return;
+    if (SIGNUPS_CONTRACT === "0x0000000000000000000000000000000000000000") return;
+    signupAttemptedRef.current = true;
+
+    void (async () => {
+      try {
+        const already = await publicClient.readContract({
+          address: SIGNUPS_CONTRACT,
+          abi: SIGNUPS_ABI,
+          functionName: "hasSignedUp",
+          args: [address],
+        });
+        if (already) return;
+        await walletClient.writeContract({
+          address: SIGNUPS_CONTRACT,
+          abi: SIGNUPS_ABI,
+          functionName: "signUp",
+          chain: celo,
+          account: address,
+        });
+      } catch {
+        // No gas yet or user rejected — try again next session.
+        signupAttemptedRef.current = false;
+      }
+    })();
+  }, [isSuccess, isWhitelisted, entitlement, address, walletClient, publicClient, markOnboardingStep]);
 
   const canClaim = isConnected && entitlement !== undefined && entitlement > 0n;
   const claimableDisplay = entitlement && entitlement > 0n
@@ -78,7 +122,7 @@ export function ClaimGDollar() {
         <div style={{ fontSize: 11, fontWeight: 700, color: GDOLLAR_COLOR }}>✓ Claimed! G$ incoming.</div>
       ) : isError ? (
         <button onClick={handleClaim} style={btnStyle("#f87171", "rgba(239,68,68,0.12)", "rgba(239,68,68,0.35)")}>
-          Failed — Retry
+          {isUserRejectedTx(claimError) ? "Claim cancelled — Retry" : "Failed — Retry"}
         </button>
       ) : canClaim ? (
         <button onClick={handleClaim} disabled={isBusy} style={btnStyle("#000", GDOLLAR_COLOR, GDOLLAR_COLOR, isBusy ? 0.6 : 1)}>
@@ -90,14 +134,44 @@ export function ClaimGDollar() {
           <p style={{ fontSize: 9, color: "#6b7280", lineHeight: "13px" }}>
             Not verified. Get your GoodDollar identity to claim daily G$.
           </p>
-          <a
-            href="https://wallet.gooddollar.org/verify"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: GDOLLAR_COLOR, textDecoration: "none", letterSpacing: 0.5 }}
+          <button
+            disabled={isVerifying || !walletClient || !publicClient || !address}
+            onClick={async () => {
+              if (!walletClient || !publicClient || !address) return;
+              setIsVerifying(true);
+              try {
+                // Create SDK fresh at click time so wallet/public clients are fully ready
+                const { IdentitySDK } = await import("@goodsdks/citizen-sdk");
+                const sdk = new IdentitySDK({ account: address, publicClient, walletClient, env: "production" });
+                const url = await sdk.generateFVLink(
+                  true,
+                  window.location.href,
+                  42220,
+                );
+                window.open(url, "_blank");
+              } catch {
+                // user rejected signing
+              } finally {
+                setIsVerifying(false);
+              }
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: isVerifying ? "wait" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 10,
+              fontWeight: 700,
+              color: GDOLLAR_COLOR,
+              letterSpacing: 0.5,
+              opacity: isVerifying ? 0.6 : 1,
+            }}
           >
-            Get Verified →
-          </a>
+            {isVerifying ? "Signing…" : "Get Verified →"}
+          </button>
         </div>
       ) : isWhitelisted === true && entitlement === 0n ? (
         /* Verified but already claimed today */
