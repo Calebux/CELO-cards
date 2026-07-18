@@ -457,6 +457,33 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     ? "Winnings stream to your wallet via Superfluid"
     : `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
 
+  // ── MiniPay: wagers are coming soon — never show a stake flow ────────────
+  if (isMp) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 200, backgroundColor: "rgba(5, 5, 16, 0.85)", backdropFilter: "blur(8px)", overflow: "hidden" }}>
+        <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
+          <div style={{ position: "relative", width: 420, background: "rgba(15, 23, 42, 0.95)", border: "2px solid #56a4cb", borderRadius: 8, padding: "40px 40px 32px", boxShadow: "0 0 40px rgba(86,164,203,0.3)", fontFamily: "var(--font-space-grotesk), sans-serif", textAlign: "center" }}>
+            <div style={{ fontSize: 34, marginBottom: 14 }}>⚡</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: "0 0 12px" }}>
+              Wagers Coming Soon
+            </h2>
+            <p style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6, margin: "0 0 22px" }}>
+              Staked matches aren&apos;t available on MiniPay yet. Play for free —
+              winners currently receive rewards through our Telegram support
+              after sharing proof of their win.
+            </p>
+            <button
+              onClick={onSkip}
+              style={{ width: "100%", minHeight: 48, borderRadius: 6, cursor: "pointer", background: "linear-gradient(135deg, #56a4cb, #b9e7f4)", border: "none", fontSize: 13, fontWeight: 800, color: "#000", letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "inherit" }}
+            >
+              Play Free Match →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── Default wager view ────────────────────────────────────────────────────
   return (
     <div style={{

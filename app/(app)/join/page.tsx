@@ -87,7 +87,10 @@ function JoinMatchContent() {
       void fetch(`/api/matches/live${qs}`)
         .then(r => r.json())
         .then((d: { matches: LiveMatch[] }) => {
-          if (!cancelled) setLiveMatches(d.matches ?? []);
+          // Wager matches are "coming soon" in MiniPay — hide them so a
+          // MiniPay player can't join into a stake flow.
+          const visible = (d.matches ?? []).filter(m => !isMp || m.mode !== "wager");
+          if (!cancelled) setLiveMatches(visible);
         })
         .catch(() => {})
         .finally(() => {
@@ -102,7 +105,7 @@ function JoinMatchContent() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [address]);
+  }, [address, isMp]);
 
   const handleJoin = async (overrideCode?: string) => {
     if (!address) return;

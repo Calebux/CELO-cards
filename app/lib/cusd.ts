@@ -1,17 +1,30 @@
-// cUSD (Celo Dollar) ERC-20 contract config
+// Stablecoin + treasury contract config (Celo mainnet).
+// All addresses are env-overridable; the defaults are the canonical
+// MiniPay-supported contracts.
 
 // Platform treasury addresses
-export const TREASURY_ADDRESS = "0xBa37dd0890AFc659a25331871319f66E7EBA3522" as `0x${string}`;
-export const TREASURY_MINIPAY_ADDRESS = "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b" as `0x${string}`;
+export const TREASURY_ADDRESS = (
+  process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "0xBa37dd0890AFc659a25331871319f66E7EBA3522"
+) as `0x${string}`;
+export const TREASURY_MINIPAY_ADDRESS = (
+  process.env.NEXT_PUBLIC_TREASURY_MINIPAY_ADDRESS ?? "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b"
+) as `0x${string}`;
 
 export const CUSD_ADDRESS = {
   alfajores: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1" as `0x${string}`,
   mainnet:   "0x765DE816845861e75A25fCA122bb6898B8B1282a" as `0x${string}`,
 } as const;
 
-export const CUSD_CONTRACT = CUSD_ADDRESS.mainnet; // rebranded to USDm — same contract
-export const USDT_CONTRACT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as `0x${string}`;
-export const USDC_CONTRACT = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" as `0x${string}`;
+// USDm (rebranded cUSD — same contract)
+export const CUSD_CONTRACT = (
+  process.env.NEXT_PUBLIC_USDM_CONTRACT ?? CUSD_ADDRESS.mainnet
+) as `0x${string}`;
+export const USDT_CONTRACT = (
+  process.env.NEXT_PUBLIC_USDT_CONTRACT ?? "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+) as `0x${string}`;
+export const USDC_CONTRACT = (
+  process.env.NEXT_PUBLIC_USDC_CONTRACT ?? "0xcebA9300f2b948710d2653dD7B07f33A8B32118C"
+) as `0x${string}`;
 export const USDT_FEE_CURRENCY = "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72" as `0x${string}`;
 
 // Micro wager amounts — optimised for agent activity volume
