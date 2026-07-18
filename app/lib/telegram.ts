@@ -15,7 +15,7 @@ export async function sendTelegramNewMatchAlert(payload: NewMatchAlert): Promise
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return false;
 
-  const baseUrl = process.env.APP_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://action-order.xyz";
+  const baseUrl = process.env.APP_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://actionorder.xyz";
   const joinUrl = `${baseUrl.replace(/\/$/, "")}/join?id=${encodeURIComponent(payload.matchId)}`;
   const modeLabel = payload.mode === "tournament" ? "tourney" : payload.mode;
   const hostLabel = payload.hostName?.trim()
