@@ -2,7 +2,9 @@
 pragma solidity ^0.8.20;
 
 /**
- * KnockOrderArenaV2 — multi-stablecoin wager escrow for Action Order (Celo).
+ * KnockOrderArenaV2 — stablecoin wager escrow for Action Order on Celo.
+ * Built for MiniPay: players stake USDT, USDC, or USDm with a single
+ * one-tap transfer; no approvals and no message signing required.
  *
  * Supports any allowlisted stablecoin (USDT, USDC, USDm at deploy).
  *
