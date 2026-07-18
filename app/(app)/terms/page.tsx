@@ -14,14 +14,22 @@ export default function TermsPage() {
 
       <h2 style={{ marginTop: "30px", marginBottom: "10px" }}>2. Game Mechanisms</h2>
       <p style={{ marginBottom: "20px", color: "#ccc" }}>
-        Action Order involves matches simulated entirely by your selected card strategies. Payouts and wagers are processed via stablecoin transfers (USDT / USDm) on the Celo network. We do not guarantee the performance of the underlying blockchain.
+        Action Order involves matches simulated entirely by your selected card strategies. Payouts and wagers are processed via stablecoin transfers (USDT / USDC / USDm) on the Celo network. We do not guarantee the performance of the underlying blockchain.
       </p>
 
       <h2 style={{ marginTop: "30px", marginBottom: "10px" }}>3. Risk Assumption</h2>
       <p style={{ marginBottom: "20px", color: "#ccc" }}>
         You interact with digital dollars on the Celo blockchain at your own risk. You are solely responsible for managing your wallets and any network fees incurred.
       </p>
-      
+
+      <h2 style={{ marginTop: "30px", marginBottom: "10px" }}>4. Operator</h2>
+      <p style={{ marginBottom: "20px", color: "#ccc" }}>
+        Action Order is independently developed and operated by the Action Order team.
+        This app is <strong>not</strong> operated by, affiliated with, or endorsed by Opera or MiniPay.
+        MiniPay is solely the wallet through which you may access the app. For any questions
+        or support, contact us at <a href="https://t.me/actionorder" style={{ color: "#60a5ce" }}>t.me/actionorder</a>.
+      </p>
+
       <p style={{ marginTop: "40px", color: "#60a5ce" }}>
         &copy; 2026 Action Order. All rights reserved.
       </p>

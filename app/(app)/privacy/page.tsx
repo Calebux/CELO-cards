@@ -22,6 +22,14 @@ export default function PrivacyPage() {
         We may use decentralized networks and third-party RPC providers (like Celo network nodes) which operate under their own privacy policies. We do not sell your data.
       </p>
 
+      <h2 style={{ marginTop: "30px", marginBottom: "10px" }}>4. Operator</h2>
+      <p style={{ marginBottom: "20px", color: "#ccc" }}>
+        Action Order is independently developed and operated by the Action Order team.
+        This app is <strong>not</strong> operated by, affiliated with, or endorsed by Opera or MiniPay.
+        MiniPay is solely the wallet through which you may access the app. For privacy questions
+        or data requests, contact us at <a href="https://t.me/actionorder" style={{ color: "#60a5ce" }}>t.me/actionorder</a>.
+      </p>
+
       <p style={{ marginTop: "40px", color: "#60a5ce" }}>
         &copy; 2026 Action Order. All rights reserved.
       </p>
