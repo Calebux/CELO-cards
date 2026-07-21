@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { resolveRound, SlotResult } from "../../../lib/combatEngine";
+import { resolveRound, SlotResult, calcEnergyPool } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import {
   getActiveMatchIdForAddress,
@@ -478,6 +478,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (invalidCard) {
     return NextResponse.json({ error: `Unknown card: ${invalidCard}` }, { status: 400 });
   }
+  // Server-side deck legality (M-05): a legal deck is 5 distinct cards whose
+  // total energy fits the submitter's character pool — exactly what the client
+  // enforces (gameStore.addCardToSlot). A legitimate client never violates
+  // this; rejecting here blocks a forged over-budget or duplicate-stacked deck.
+  if (new Set(cardIds as string[]).size !== 5) {
+    return NextResponse.json({ error: "A deck must be 5 distinct cards" }, { status: 400 });
+  }
 
   let match: ServerMatch | null = null;
   let saved = false;
@@ -522,6 +529,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     const slot = role === "host" ? match.host : match.joiner;
+    // Energy-budget legality (M-05): once the submitter's character is known,
+    // the 5 cards' total energy must fit its pool — the same limit the client
+    // applies. Skip only if the character isn't registered yet.
+    const submitterChar = CHARACTERS.find((c) => c.id === slot.charId);
+    if (submitterChar) {
+      const energyPool = calcEnergyPool(submitterChar);
+      const usedEnergy = (cardIds as string[]).reduce(
+        (sum, id) => sum + (CARDS.find((c) => c.id === id)?.energyCost ?? 0), 0);
+      if (usedEnergy > energyPool) {
+        return NextResponse.json({ error: "Deck exceeds this character's energy budget" }, { status: 400 });
+      }
+    }
     slot.cardIds = cardIds;
     slot.usedCardIdsThisMatch = Array.from(new Set([...(slot.usedCardIdsThisMatch ?? []), ...cardIds]));
     slot.orderRound = round;
@@ -730,7 +749,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     } catch {
       // Best-effort — leaderboard failure must not break the card submission
     }
-    // Increment free game counter for players without an active season pass
+    // Increment free game counter for players without an active season pass.
+    // Only free/casual play consumes a free game — wager and tournament matches
+    // have their own entry/stake and must not burn the free allowance (M-01).
+    const consumesFreeGame = m.mode !== "wager" && m.mode !== "tournament";
     const incrementFreeGame = async (addr: string) => {
       const passRaw = await redis.get(`season-pass:${addr.toLowerCase()}`).catch(() => null);
       let hasPass = false;
@@ -752,8 +774,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     };
     try {
       const freeGamePromises: Promise<void>[] = [];
-      if (m.host.address) freeGamePromises.push(incrementFreeGame(m.host.address));
-      if (m.joiner.address) freeGamePromises.push(incrementFreeGame(m.joiner.address));
+      if (consumesFreeGame && m.host.address) freeGamePromises.push(incrementFreeGame(m.host.address));
+      if (consumesFreeGame && m.joiner.address) freeGamePromises.push(incrementFreeGame(m.joiner.address));
       await Promise.allSettled(freeGamePromises);
     } catch {
       // Best-effort — free game tracking failure must not break match flow
