@@ -21,6 +21,7 @@ interface IGoodDollar {
  */
 contract GDollarSeasonPassRegistry {
     address public owner;
+    address public pendingOwner;
     address public treasury;
     IGoodDollar public immutable gDollar;
 
@@ -42,6 +43,9 @@ contract GDollarSeasonPassRegistry {
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
 
     event PricesUpdated(uint256 weekly, uint256 monthly, uint256 season);
+
+    event OwnershipTransferStarted(address indexed previous, address indexed next);
+    event OwnershipTransferred(address indexed previous, address indexed next);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -87,9 +91,20 @@ contract GDollarSeasonPassRegistry {
         treasury = _treasury;
     }
 
+    /// Two-step ownership transfer (M-09): the new owner must call
+    /// acceptOwnership, so a mistyped address can never take over price/treasury
+    /// control. Emits events so a transfer is observable on-chain.
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "Zero owner");
-        owner = newOwner;
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "Not pending owner");
+        emit OwnershipTransferred(owner, msg.sender);
+        owner = msg.sender;
+        pendingOwner = address(0);
     }
 
     // ── Internal ─────────────────────────────────────────────────────────────
