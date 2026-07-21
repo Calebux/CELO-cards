@@ -5,9 +5,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import {
   GDOLLAR_CONTRACT,
-  CFA_FORWARDER,
-  CFA_FORWARDER_ABI,
-  STREAM_FLOW_RATE,
+  GDOLLAR_ABI,
+  PAYOUT_AMOUNT_GDOLLAR,
 } from "../../lib/gooddollar";
 import { checkRateLimit } from "../../lib/rateLimit";
 
@@ -28,7 +27,7 @@ async function writeClaims(claims: Record<string, string>): Promise<void> {
 
 // POST /api/daily-reward
 // Body: { address: string }
-// Returns: { txHash, streaming: true } | { claimed: true }
+// Returns: { txHash } | { claimed: true }
 export async function POST(req: NextRequest) {
   const treasuryKey = process.env.TREASURY_PRIVATE_KEY;
   if (!treasuryKey) {
@@ -64,39 +63,20 @@ export async function POST(req: NextRequest) {
     const publicClient = createPublicClient({ chain: celo, transport: http() });
     const walletClient = createWalletClient({ account, chain: celo, transport: http() });
 
-    // Check if a stream already exists from treasury to this address
-    const existingRate = await publicClient.readContract({
-      address: CFA_FORWARDER,
-      abi: CFA_FORWARDER_ABI,
-      functionName: "getFlowrate",
-      args: [GDOLLAR_CONTRACT, account.address, address as `0x${string}`],
+    // Bounded one-time G$ transfer (was a Superfluid stream with no enforced end).
+    const { request } = await publicClient.simulateContract({
+      account,
+      address: GDOLLAR_CONTRACT,
+      abi: GDOLLAR_ABI,
+      functionName: "transfer",
+      args: [address as `0x${string}`, PAYOUT_AMOUNT_GDOLLAR],
     });
-
-    let txHash: string;
-    if (existingRate > 0n) {
-      // Stream already running — no new tx needed
-      txHash = "existing-stream";
-    } else {
-      const { request } = await publicClient.simulateContract({
-        account,
-        address: CFA_FORWARDER,
-        abi: CFA_FORWARDER_ABI,
-        functionName: "createFlow",
-        args: [
-          GDOLLAR_CONTRACT,
-          account.address,
-          address as `0x${string}`,
-          STREAM_FLOW_RATE,
-          "0x",
-        ],
-      });
-      txHash = await walletClient.writeContract(request);
-    }
+    const txHash = await walletClient.writeContract(request);
 
     claims[key] = today;
     await writeClaims(claims);
 
-    return NextResponse.json({ txHash, streaming: true });
+    return NextResponse.json({ txHash });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed";
     return NextResponse.json({ error: msg }, { status: 500 });

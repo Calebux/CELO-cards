@@ -1,23 +1,15 @@
-// GoodDollar (G$) token — native Superfluid SuperToken on Celo mainnet
+// GoodDollar (G$) token on Celo mainnet. Payouts are bounded one-time
+// ERC-20 transfers (Superfluid streaming was removed — it had no enforced end).
 
 // G$ contract address (Celo mainnet)
 export const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
-
-// Superfluid CFAv1Forwarder (Celo mainnet)
-export const CFA_FORWARDER = "0xcfA132E353cB4E398080B9700609bb008eceB125" as `0x${string}`;
 
 // Micro wager — same denomination as cUSD/CELO (18 decimals)
 export const WAGER_AMOUNT_GDOLLAR  = 7_000_000_000_000n; // 0.000007 G$
 export const PAYOUT_AMOUNT_GDOLLAR = 7_000_000_000_000n; // 0.000007 G$
 
-// Stream the payout over 24 hours
-// flowRate (wei/sec) = amount / duration_in_seconds
-export const STREAM_DURATION_SECS = 86_400n; // 24 hours
-export const STREAM_FLOW_RATE = PAYOUT_AMOUNT_GDOLLAR / STREAM_DURATION_SECS; // ≈81,018,519 wei/sec
-
 // Dual-wager G$ payout: 2 × 0.000007 × 90% = 0.0000126 G$
 export const DUAL_WAGER_PAYOUT_GDOLLAR = 2n * WAGER_AMOUNT_GDOLLAR * 9000n / 10000n; // 12_600_000_000_000n
-export const STREAM_FLOW_RATE_DUAL     = DUAL_WAGER_PAYOUT_GDOLLAR / STREAM_DURATION_SECS;
 
 // G$ brand color
 export const GDOLLAR_COLOR = "#00C58E";
@@ -97,43 +89,4 @@ export const GDOLLAR_ABI = [
   },
 ] as const;
 
-// Superfluid CFAv1Forwarder — create/delete constant-rate flows
-export const CFA_FORWARDER_ABI = [
-  {
-    name: "createFlow",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "token",    type: "address" },
-      { name: "sender",   type: "address" },
-      { name: "receiver", type: "address" },
-      { name: "flowrate", type: "int96" },
-      { name: "userData", type: "bytes" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    name: "deleteFlow",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "token",    type: "address" },
-      { name: "sender",   type: "address" },
-      { name: "receiver", type: "address" },
-      { name: "userData", type: "bytes" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    name: "getFlowrate",
-    type: "function",
-    stateMutability: "view",
-    inputs: [
-      { name: "token",    type: "address" },
-      { name: "sender",   type: "address" },
-      { name: "receiver", type: "address" },
-    ],
-    outputs: [{ name: "flowrate", type: "int96" }],
-  },
-] as const;
 

@@ -21,10 +21,10 @@ export function DailyReward() {
       body: JSON.stringify({ address }),
     })
       .then((r) => r.json())
-      .then((data: { claimed?: boolean; txHash?: string; streaming?: boolean; error?: string }) => {
+      .then((data: { claimed?: boolean; txHash?: string; error?: string }) => {
         if (data.claimed || data.error) return;
         localStorage.setItem(key, today);
-        if (!isMp) setToast("Daily G$ stream started! ✓");
+        if (!isMp) setToast("Daily G$ reward sent! ✓");
         setTimeout(() => setToast(null), 5000);
       })
       .catch(() => {});

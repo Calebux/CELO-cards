@@ -5,8 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import {
   GDOLLAR_CONTRACT,
-  CFA_FORWARDER,
-  CFA_FORWARDER_ABI,
+  GDOLLAR_ABI,
 } from "../../lib/gooddollar";
 import { requireOpsSession } from "../../lib/admin";
 
@@ -128,35 +127,21 @@ function computeSlots(data: TournamentData) {
 // Top 4 split: 1st 60%, 2nd 25%, 3rd/4th 7.5% each
 const PRIZE_SPLIT = [6000n, 2500n, 750n, 750n]; // basis points out of 10000
 
-async function streamPrize(treasuryKey: string, winner: `0x${string}`, flowRate: bigint): Promise<string> {
-  const key = treasuryKey;
-  const account = privateKeyToAccount(key as `0x${string}`);
+// Bounded one-time G$ prize transfer (was a Superfluid stream with a
+// best-effort 24h in-process timer that a serverless request can't guarantee).
+async function transferPrize(treasuryKey: string, winner: `0x${string}`, amount: bigint): Promise<string> {
+  const account = privateKeyToAccount(treasuryKey as `0x${string}`);
   const publicClient = createPublicClient({ chain: celo, transport: http() });
   const walletClient = createWalletClient({ account, chain: celo, transport: http() });
 
   const { request } = await publicClient.simulateContract({
     account,
-    address: CFA_FORWARDER,
-    abi: CFA_FORWARDER_ABI,
-    functionName: "createFlow",
-    args: [GDOLLAR_CONTRACT, account.address, winner, flowRate, "0x"],
+    address: GDOLLAR_CONTRACT,
+    abi: GDOLLAR_ABI,
+    functionName: "transfer",
+    args: [winner, amount],
   });
-  const txHash = await walletClient.writeContract(request);
-
-  // Schedule deletion after 24h (best effort)
-  void (async () => {
-    await new Promise((r) => setTimeout(r, 86_400_000));
-    await walletClient.writeContract({
-      address: CFA_FORWARDER,
-      abi: CFA_FORWARDER_ABI,
-      functionName: "deleteFlow",
-      args: [GDOLLAR_CONTRACT, account.address, winner, "0x"],
-      account,
-      chain: celo,
-    }).catch(() => {});
-  })();
-
-  return txHash;
+  return walletClient.writeContract(request);
 }
 
 type TournamentPayoutPreview = {
@@ -375,7 +360,7 @@ export async function POST(req: NextRequest) {
         if (txHashes[addr]) continue;
 
         try {
-          const txHash = await streamPrize(treasuryKey, addr, BigInt(item.flowRate));
+          const txHash = await transferPrize(treasuryKey, addr, BigInt(item.amount));
           txHashes[addr] = txHash;
         } catch (e) {
           return NextResponse.json({ error: `Payout failed for ${addr}: ${e instanceof Error ? e.message : e}` }, { status: 500 });

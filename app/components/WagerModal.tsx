@@ -453,9 +453,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     ? `${formatUnits(stakeAmt * 2n * 9000n / 10000n, currencyDecimals)} ${cfg.symbol}`
     : `— ${cfg.symbol}`;
 
-  const payoutNote = currency === "gdollar"
-    ? "Winnings stream to your wallet via Superfluid"
-    : `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
+  const payoutNote = `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
 
   // ── MiniPay: wagers are coming soon — never show a stake flow ────────────
   if (isMp) {
@@ -570,21 +568,6 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
           }}>
             <span style={{ fontSize: 11, color: "#34d399", fontWeight: 700, letterSpacing: 0.3 }}>
               {MINIPAY_STABLECOIN_EXPLAINER}
-            </span>
-          </div>
-        )}
-
-        {/* G$ streaming badge */}
-        {currency === "gdollar" && (
-          <div style={{
-            marginBottom: 12, padding: "8px 14px",
-            background: `${GDOLLAR_COLOR}18`,
-            border: `1px solid ${GDOLLAR_COLOR}50`,
-            borderRadius: 6, display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: GDOLLAR_COLOR, boxShadow: `0 0 6px ${GDOLLAR_COLOR}`, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: GDOLLAR_COLOR, fontWeight: 700, letterSpacing: 0.5 }}>
-              Powered by Superfluid · Winnings stream to your wallet
             </span>
           </div>
         )}

@@ -11,9 +11,7 @@ import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
 import {
   GDOLLAR_CONTRACT,
   GDOLLAR_ABI,
-  CFA_FORWARDER,
-  CFA_FORWARDER_ABI,
-  STREAM_FLOW_RATE,
+  PAYOUT_AMOUNT_GDOLLAR,
 } from "../../lib/gooddollar";
 import { ServerMatch } from "../../lib/serverMatch";
 import {
@@ -45,7 +43,7 @@ const PAYOUT_LOCK_TTL_SECONDS = 120;
 
 // POST /api/payout
 // Body: { matchId: string, currency?: string }
-// Returns: { txHash: string, streaming?: boolean }
+// Returns: { txHash: string }
 export async function POST(req: NextRequest) {
   const treasuryKey = process.env.TREASURY_PRIVATE_KEY;
   if (!treasuryKey) {
@@ -149,30 +147,22 @@ export async function POST(req: NextRequest) {
 
     let txHash: `0x${string}`;
 
-    // ── G$ path: stream payout via Superfluid CFAv1Forwarder ─────────────────
+    // ── G$ path: bounded one-time transfer ───────────────────────────────────
+    // Previously a Superfluid stream, which had no enforced end (it ran until
+    // the treasury drained). Now a single fixed-amount ERC-20 transfer, capped
+    // at exactly the winner payout.
     if (currency === "gdollar") {
-      // Both-wagered → flow rate from actual stakes (90% of pot over 24h); solo → standard rate
-      const baseFlowRate = bothWagered && dualPayout > 0n
-        ? dualPayout / 86_400n
-        : STREAM_FLOW_RATE;
+      const gdollarAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_GDOLLAR;
       const { request } = await publicClient.simulateContract({
         account,
-        address: CFA_FORWARDER,
-        abi: CFA_FORWARDER_ABI,
-        functionName: "createFlow",
-        args: [
-          GDOLLAR_CONTRACT,
-          account.address,
-          winner,
-          baseFlowRate,
-          "0x",
-        ],
+        address: GDOLLAR_CONTRACT,
+        abi: GDOLLAR_ABI,
+        functionName: "transfer",
+        args: [winner, gdollarAmt],
       });
       txHash = await walletClient.writeContract(request);
-      // Note: stream auto-expires on Superfluid after the token balance is drained;
-      // serverless setTimeout cannot be used here (function lifetime too short).
       await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
-      return NextResponse.json({ txHash, streaming: true });
+      return NextResponse.json({ txHash, bothWagered });
     }
 
     // ── Arena contract path ───────────────────────────────────────────────────
