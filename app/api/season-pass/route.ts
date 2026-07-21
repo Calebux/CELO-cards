@@ -109,6 +109,11 @@ export async function POST(req: NextRequest) {
   if (seen) return NextResponse.json({ error: "Transaction already used" }, { status: 409 });
 
   const planConfig = SEASON_PLANS[plan];
+  // The plan we actually credit. For contract purchases this is overridden with
+  // the plan emitted on-chain, so a cheap purchase cannot be claimed as an
+  // expensive plan (H-01). Direct-transfer paths are bound by the amount check
+  // below, so the requested plan is safe there.
+  let creditedPlan: SeasonPlan = plan;
 
   // ── On-chain TX verification ──────────────────────────────────────────────
   const [tx, receipt] = await Promise.all([
@@ -177,6 +182,12 @@ export async function POST(req: NextRequest) {
       if (!matchingLog) {
         return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
       }
+      // Credit the plan the contract actually charged for, not the request.
+      const eventPlan = matchingLog.args.plan;
+      if (!eventPlan || !(eventPlan in SEASON_PLANS)) {
+        return NextResponse.json({ error: "Unrecognized plan in purchase event" }, { status: 403 });
+      }
+      creditedPlan = eventPlan as SeasonPlan;
     } else {
       // Legacy direct transfer — verify ERC-20 Transfer event: G$ contract → Treasury
       let gdollarLogs;
@@ -225,6 +236,12 @@ export async function POST(req: NextRequest) {
       if (!matchingLog) {
         return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
       }
+      // Credit the plan the contract actually charged for, not the request.
+      const eventPlan = matchingLog.args.plan;
+      if (!eventPlan || !(eventPlan in SEASON_PLANS)) {
+        return NextResponse.json({ error: "Unrecognized plan in purchase event" }, { status: 403 });
+      }
+      creditedPlan = eventPlan as SeasonPlan;
     } else {
       // Legacy direct transfer
       if (tx.value < BigInt(planConfig.priceWei)) {
@@ -232,7 +249,7 @@ export async function POST(req: NextRequest) {
       }
     }
   }
-  const durationMs = planConfig.days * 24 * 60 * 60 * 1000;
+  const durationMs = SEASON_PLANS[creditedPlan].days * 24 * 60 * 60 * 1000;
 
   // Stack on top of existing pass if still active
   const existing = parseSeasonPassRecord(await redis.get(passKey(address)));
@@ -240,8 +257,8 @@ export async function POST(req: NextRequest) {
   const expiry = baseExpiry + durationMs;
 
   const ttlSec = Math.ceil((expiry - Date.now()) / 1000) + 86400; // +1 day buffer
-  await redis.set(passKey(address), { expiry, plan, txHash }, { ex: ttlSec });
+  await redis.set(passKey(address), { expiry, plan: creditedPlan, txHash }, { ex: ttlSec });
   await redis.set(txKey, "1", { ex: ttlSec });
 
-  return NextResponse.json({ success: true, expiry, plan });
+  return NextResponse.json({ success: true, expiry, plan: creditedPlan });
 }
