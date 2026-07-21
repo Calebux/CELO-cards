@@ -25,7 +25,11 @@ pragma solidity ^0.8.20;
  * Settlement:
  *   Server calls completeMatch(matchId, winner) → winner receives 90% of the
  *   combined pot in the staked token; the 10% platform fee stays in the
- *   contract and is withdrawable by the owner. refundMatch returns all stakes.
+ *   contract and is withdrawable by the owner. Settlement requires two equal
+ *   stakes and a winner who is one of the two stakers. refundMatch returns all
+ *   stakes, and once a match has sat Active past REFUND_TIMEOUT anyone can
+ *   trigger the refund via refundExpiredMatch — recovering an abandoned
+ *   deposit never depends on the owner key.
  *
  * Indexers can follow: StakeRecorded, MatchCompleted, MatchRefunded.
  */
@@ -40,9 +44,12 @@ contract KnockOrderArenaV2 {
 
     // ── State ─────────────────────────────────────────────────────────────────
     address public owner;
+    address public pendingOwner;
 
     uint256 public constant FEE_BPS = 1000; // 10% platform fee on the pot
     uint256 public constant MAX_STAKERS = 2;
+    /// After this long Active without settlement, anyone can refund the match.
+    uint256 public constant REFUND_TIMEOUT = 24 hours;
 
     mapping(address => bool) public allowedTokens;
 
@@ -84,6 +91,7 @@ contract KnockOrderArenaV2 {
     event MatchRefunded(bytes32 indexed matchId, address indexed token, uint256 pot, uint256 timestamp);
     event TokenAllowed(address indexed token, bool allowed);
     event FeesWithdrawn(address indexed token, address indexed to, uint256 amount);
+    event OwnershipTransferStarted(address indexed previous, address indexed next);
     event OwnershipTransferred(address indexed previous, address indexed next);
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
@@ -149,8 +157,10 @@ contract KnockOrderArenaV2 {
     // ── Server: settle ────────────────────────────────────────────────────────
     function completeMatch(bytes32 matchId, address winner) external onlyOwner {
         MatchInfo storage m = _matches[matchId];
-        require(m.status == MatchStatus.Active, "KOA2: not active");
-        require(winner != address(0),           "KOA2: zero winner");
+        require(m.status == MatchStatus.Active,  "KOA2: not active");
+        require(m.stakerCount == MAX_STAKERS,    "KOA2: need two stakers");
+        require(m.stakes[0] == m.stakes[1],      "KOA2: stakes unequal");
+        require(winner == m.stakers[0] || winner == m.stakers[1], "KOA2: winner not a staker");
 
         uint256 pot = m.stakes[0] + m.stakes[1];
         uint256 payout = pot * (10000 - FEE_BPS) / 10000;
@@ -164,6 +174,21 @@ contract KnockOrderArenaV2 {
     }
 
     function refundMatch(bytes32 matchId) external onlyOwner {
+        _refund(matchId);
+    }
+
+    /// Permissionless timeout refund: once a match has been Active for
+    /// REFUND_TIMEOUT without settlement, any caller (including a staker)
+    /// can return all stakes. Games resolve in minutes, so a day-old Active
+    /// match is abandoned by definition.
+    function refundExpiredMatch(bytes32 matchId) external {
+        MatchInfo storage m = _matches[matchId];
+        require(m.status == MatchStatus.Active, "KOA2: not active");
+        require(block.timestamp >= uint256(m.startedAt) + REFUND_TIMEOUT, "KOA2: not expired");
+        _refund(matchId);
+    }
+
+    function _refund(bytes32 matchId) internal {
         MatchInfo storage m = _matches[matchId];
         require(m.status == MatchStatus.Active, "KOA2: not active");
 
@@ -194,10 +219,19 @@ contract KnockOrderArenaV2 {
         emit FeesWithdrawn(token, to, amount);
     }
 
+    /// Two-step ownership transfer: the new owner must call acceptOwnership,
+    /// so a typo'd address can never brick settlement/refund authority.
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "KOA2: zero address");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "KOA2: not pending owner");
+        emit OwnershipTransferred(owner, msg.sender);
+        owner = msg.sender;
+        pendingOwner = address(0);
     }
 
     // ── Views ─────────────────────────────────────────────────────────────────

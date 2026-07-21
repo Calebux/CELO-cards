@@ -115,6 +115,69 @@ describe("KnockOrderArenaV2", async () => {
     assert.equal(await arena.read.surplus([usdt.address]), 0n);
   });
 
+  it("rejects settlement with one staker, a non-staker winner, or unequal stakes", async () => {
+    // One staker only
+    await usdt.write.transfer([arena.address, stake], { account: aliceClient.account });
+    await arena.write.recordStake([MATCH_A, alice, usdt.address, stake]);
+    await assert.rejects(
+      arena.write.completeMatch([MATCH_A, alice]),
+      /need two stakers/
+    );
+
+    // Winner must be one of the two stakers
+    await usdt.write.transfer([arena.address, stake], { account: bobClient.account });
+    await arena.write.recordStake([MATCH_A, bob, usdt.address, stake]);
+    await assert.rejects(
+      arena.write.completeMatch([MATCH_A, owner]),
+      /winner not a staker/
+    );
+
+    // Unequal stakes cannot settle (refund is the recovery path)
+    await usdt.write.transfer([arena.address, stake * 3n], { account: aliceClient.account });
+    await arena.write.recordStake([MATCH_B, alice, usdt.address, stake]);
+    await usdt.write.transfer([arena.address, stake * 2n], { account: bobClient.account });
+    await arena.write.recordStake([MATCH_B, bob, usdt.address, stake * 2n]);
+    await assert.rejects(
+      arena.write.completeMatch([MATCH_B, alice]),
+      /stakes unequal/
+    );
+    await arena.write.refundMatch([MATCH_B]);
+  });
+
+  it("lets anyone refund an expired match, but only after the timeout", async () => {
+    await usdt.write.transfer([arena.address, stake], { account: aliceClient.account });
+    await arena.write.recordStake([MATCH_A, alice, usdt.address, stake]);
+    await usdt.write.transfer([arena.address, stake], { account: bobClient.account });
+    await arena.write.recordStake([MATCH_A, bob, usdt.address, stake]);
+
+    // Too early — even a staker can't force a refund yet
+    await assert.rejects(
+      arena.write.refundExpiredMatch([MATCH_A], { account: aliceClient.account }),
+      /not expired/
+    );
+
+    const testClient = await viem.getTestClient();
+    await testClient.increaseTime({ seconds: 24 * 60 * 60 + 1 });
+    await testClient.mine({ blocks: 1 });
+
+    const aliceBefore = await usdt.read.balanceOf([alice]) as bigint;
+    await arena.write.refundExpiredMatch([MATCH_A], { account: aliceClient.account });
+    assert.equal((await usdt.read.balanceOf([alice]) as bigint) - aliceBefore, stake);
+    assert.equal(await arena.read.totalCredited([usdt.address]), 0n);
+  });
+
+  it("requires two-step ownership transfer", async () => {
+    await arena.write.transferOwnership([alice]);
+    // Owner is unchanged until the pending owner accepts
+    assert.equal(getAddress(await arena.read.owner() as string), getAddress(owner));
+    await assert.rejects(
+      arena.write.acceptOwnership({ account: bobClient.account }),
+      /not pending owner/
+    );
+    await arena.write.acceptOwnership({ account: aliceClient.account });
+    assert.equal(getAddress(await arena.read.owner() as string), getAddress(alice));
+  });
+
   it("rejects non-allowlisted tokens and non-owner settlement", async () => {
     const fake = await viem.deployContract("MockERC20", ["FAKE", 18]);
     await fake.write.mint([alice, stake]);
