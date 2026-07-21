@@ -63,6 +63,7 @@ Last updated: 2026-07-21 (second pass)
 | M-05 (deck legality) | Card submission rejects decks that aren't 5 distinct cards or that exceed the character's energy pool (the same rules the client enforces). Ownership enforcement stays H-11 part 2 | _pass 3_ |
 | M-09 G$ registry ownership | `GDollarSeasonPassRegistry` now uses two-step ownership (`transferOwnership` + `acceptOwnership`) with events | _pass 3, source-only, needs redeploy_ |
 | C-01 cluster (money risk) | Server-side wager kill-switch (`NEXT_PUBLIC_ENABLE_WAGERS`, default off) at creation/registration/payout + web "Coming Soon" gate. No wager match can exist, so forged match state can't move real money | _pass 4_ |
+| M-07 House reward-code forgery | `/api/house-winner` no longer auto-mints a $5 code from forgeable VS House telemetry. Gated by `ENABLE_HOUSE_AUTO_REWARDS` (default off); a win is recorded as **pending** and paid only after manual verification. Public showcase shows verified rewards only; in-game shows a "pending / claim on Telegram" acknowledgement | _pass 5_ |
 
 ## ⚠️ Requires redeploy before it takes effect
 
@@ -125,13 +126,12 @@ forgeable — they need C-01 as the foundation, then become enforceable:
 - **C-01-adjacent** role assertion, order read/overwrite, VS House result
   forging (M-07), progression endpoints trusting the client (M-08) — all the
   same root.
-- **⚠️ House reward codes (M-07, LIVE and money-relevant).** With wagers off,
-  VS House is the mode people actually play — and `/api/house-winner` issues a
-  **$5 reward code** (from a $100 pool) for a win. It's gated only by VS House
-  telemetry that `/api/match/vshouse/resolve` records **without authentication**,
-  so a forged "win" can claim a real code. Disabling wagers does NOT touch this.
-  Options: gate reward issuance behind manual review, disable the auto-code, or
-  cap/close the pool. This is the highest-value remaining live item.
+- **House reward codes (M-07) — FIXED (pass 5).** `/api/house-winner` no longer
+  auto-issues a redeemable $5 code from forgeable telemetry; wins are recorded
+  **pending** and paid only after manual verification (`ENABLE_HOUSE_AUTO_REWARDS`
+  default off). The underlying VS House telemetry is still unauthenticated (same
+  C-01 root), so leaderboard/points remain forgeable — but no automatic real
+  value is issued from it now.
 - **H-10** treasury-funded ranked/House entries from weakly-trusted state. The
   VS House treasury entry is already flag-gated off (`ENABLE_VSHOUSE_TREASURY_ENTRY`
   defaults false); `/api/season-pass/enter` griefing needs match-action auth.
