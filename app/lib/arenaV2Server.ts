@@ -8,6 +8,7 @@ import { celo } from "viem/chains";
 import { matchIdToBytes32 } from "./arena";
 import { ARENA_V2_ABI, ARENA_V2_ADDRESS, ARENA_V2_ACTIVE, ARENA_V2_STATUS } from "./arenaV2";
 import { CUSD_CONTRACT, USDT_CONTRACT, USDC_CONTRACT } from "./cusd";
+import { redis } from "./redis";
 
 const TRANSFER_EVENT_ABI = [{
   name: "Transfer", type: "event",
@@ -33,11 +34,17 @@ function clients() {
   return { account, publicClient, walletClient };
 }
 
+// One deposit log can back exactly one credit, globally and permanently (H-06).
+function stakeLogKey(txHash: string, logIndex: number) {
+  return `arena-stake-log:${txHash.toLowerCase()}:${logIndex}`;
+}
+
 /**
- * Verify the stake transfer (player → arena, exact token, >= amount) and
- * attribute it on-chain. Best-effort: returns false on any failure — the
- * payout route falls back to a direct treasury transfer when the on-chain
- * match never became Active.
+ * Verify the stake transfer (player → arena, exact token, >= amount), consume
+ * its transfer log exactly once, and attribute it on-chain, waiting for the
+ * recordStake receipt. Returns true only when the stake is confirmed credited
+ * on-chain (H-07); a false return means the caller must not treat the wager
+ * as escrowed.
  */
 export async function attributeStakeOnChain(params: {
   matchId: string;
@@ -55,8 +62,12 @@ export async function attributeStakeOnChain(params: {
     const amount = BigInt(params.amount);
     if (amount <= 0n) return false;
 
-    const receipt = await c.publicClient.getTransactionReceipt({ hash: params.txHash as `0x${string}` });
-    if (receipt.status !== "success") return false;
+    // The client posts right after submitting, so wait briefly for the mine
+    // (Celo blocks are ~1s) instead of failing on an unmined tx.
+    const receipt = await c.publicClient
+      .waitForTransactionReceipt({ hash: params.txHash as `0x${string}`, timeout: 15_000, confirmations: 1 })
+      .catch(() => null);
+    if (!receipt || receipt.status !== "success") return false;
 
     const transfers = parseEventLogs({ abi: TRANSFER_EVENT_ABI, logs: receipt.logs, eventName: "Transfer" });
     const matching = transfers.find(l =>
@@ -65,15 +76,48 @@ export async function attributeStakeOnChain(params: {
       l.args.to.toLowerCase() === ARENA_V2_ADDRESS.toLowerCase() &&
       l.args.value >= amount
     );
-    if (!matching) return false;
+    if (!matching || matching.logIndex === null) return false;
 
-    await c.walletClient.writeContract({
-      address: ARENA_V2_ADDRESS,
-      abi: ARENA_V2_ABI,
-      functionName: "recordStake",
-      args: [matchIdToBytes32(params.matchId), params.player as `0x${string}`, token, amount],
-    });
-    return true;
+    // Atomically consume this transfer log — permanent record, so the same
+    // deposit can never be re-attributed to another match or player even
+    // while unattributed/fee surplus sits in the contract (H-06).
+    const logKey = stakeLogKey(params.txHash, matching.logIndex);
+    const consumer = `${params.matchId}:${params.player.toLowerCase()}`;
+    const reserved = await redis.set(logKey, consumer, { nx: true });
+    if (!reserved) {
+      const existing = await redis.get<string>(logKey);
+      if (existing !== consumer) return false; // consumed by a different match/player
+      // Same consumer retrying: if the earlier recordStake landed, we're done.
+      const arena = await getArenaMatch(params.matchId);
+      if (arena?.stakers.some(s => s.toLowerCase() === params.player.toLowerCase())) return true;
+      // Otherwise fall through and re-broadcast the attribution.
+    }
+
+    try {
+      const { request } = await c.publicClient.simulateContract({
+        account: c.account,
+        address: ARENA_V2_ADDRESS,
+        abi: ARENA_V2_ABI,
+        functionName: "recordStake",
+        args: [matchIdToBytes32(params.matchId), params.player as `0x${string}`, token, amount],
+      });
+      const attributionTx = await c.walletClient.writeContract(request);
+      const attributionReceipt = await c.publicClient
+        .waitForTransactionReceipt({ hash: attributionTx, timeout: 20_000, confirmations: 1 })
+        .catch(() => null);
+      if (attributionReceipt?.status === "success") return true;
+      if (attributionReceipt?.status === "reverted") {
+        await redis.del(logKey).catch(() => {});
+        return false;
+      }
+      // Timed out waiting: the tx may still land. Keep the log reservation —
+      // a retry by the same consumer re-checks on-chain state above.
+      return false;
+    } catch {
+      // Simulation/broadcast failed — nothing was consumed on-chain.
+      await redis.del(logKey).catch(() => {});
+      return false;
+    }
   } catch {
     return false;
   }
@@ -86,8 +130,8 @@ export type ArenaMatchState = {
 };
 
 /** Read the on-chain escrow match. Returns null when ArenaV2 is inactive, the
- *  key is missing, or the match was never recorded on-chain (a legacy/direct
- *  match). Used to bind the payout winner to a real staker. */
+ *  key is missing, or the match was never recorded on-chain. Used to bind the
+ *  payout winner to a real staker. */
 export async function getArenaMatch(matchId: string): Promise<ArenaMatchState | null> {
   try {
     if (!ARENA_V2_ACTIVE) return null;
@@ -105,8 +149,9 @@ export async function getArenaMatch(matchId: string): Promise<ArenaMatchState | 
   }
 }
 
-/** Settle an Active on-chain match. Returns the tx hash, or null when the
- *  match never made it on-chain (caller falls back to direct transfer). */
+/** Broadcast settlement of an Active on-chain match. Returns the tx hash, or
+ *  null when the match is not Active/settleable. The caller must confirm the
+ *  receipt (see waitForArenaReceipt) before recording payout finality (H-07). */
 export async function completeMatchOnChain(matchId: string, winner: `0x${string}`): Promise<`0x${string}` | null> {
   try {
     if (!ARENA_V2_ACTIVE) return null;
@@ -133,4 +178,16 @@ export async function completeMatchOnChain(matchId: string, winner: `0x${string}
   } catch {
     return null;
   }
+}
+
+/** Check a broadcast arena tx: confirmed success, confirmed revert, or still
+ *  pending after the wait window. */
+export async function waitForArenaReceipt(txHash: `0x${string}`, timeoutMs = 30_000): Promise<"success" | "reverted" | "pending"> {
+  const c = clients();
+  if (!c) return "pending";
+  const receipt = await c.publicClient
+    .waitForTransactionReceipt({ hash: txHash, timeout: timeoutMs, confirmations: 1 })
+    .catch(() => null);
+  if (!receipt) return "pending";
+  return receipt.status === "success" ? "success" : "reverted";
 }

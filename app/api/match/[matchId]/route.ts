@@ -420,10 +420,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       }
     }
 
-    // Attribute the stake on the verified ArenaV2 escrow contract. Best-effort:
-    // if it fails, the payout route falls back to a direct treasury transfer.
+    // Attribute the stake on the verified ArenaV2 escrow contract, waiting for
+    // the receipt. There is no treasury fallback: if attribution hasn't landed
+    // by payout time, the payout route retries it from the recorded tx and
+    // refuses to settle without an Active escrow match.
+    let escrowAttributed = false;
     if (wagerTx && patchAddress && typeof wagerAmount === "string") {
-      await attributeStakeOnChain({
+      escrowAttributed = await attributeStakeOnChain({
         matchId,
         player: patchAddress,
         currency: wagerCurrency,
@@ -431,7 +434,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         txHash: wagerTx,
       });
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, escrowAttributed });
   }
 
   // ── Quit match ──────────────────────────────────────────────────────────

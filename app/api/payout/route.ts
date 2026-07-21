@@ -1,52 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
 import { redis, getMatch } from "../../lib/redis";
-import {
-  ERC20_ABI, CUSD_CONTRACT, USDT_CONTRACT, USDC_CONTRACT,
-  PAYOUT_AMOUNT, PAYOUT_AMOUNT_CELO, PAYOUT_AMOUNT_USDT,
-} from "../../lib/cusd";
-import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
-import {
-  GDOLLAR_CONTRACT,
-  GDOLLAR_ABI,
-  PAYOUT_AMOUNT_GDOLLAR,
-} from "../../lib/gooddollar";
 import { ServerMatch } from "../../lib/serverMatch";
 import {
   buildPayoutClaimAuthMessage,
   verifyTreasuryActionSignature,
 } from "../../lib/treasuryAuth";
-import { completeMatchOnChain, getArenaMatch } from "../../lib/arenaV2Server";
+import {
+  attributeStakeOnChain,
+  completeMatchOnChain,
+  getArenaMatch,
+  waitForArenaReceipt,
+} from "../../lib/arenaV2Server";
 import { checkRateLimit } from "../../lib/rateLimit";
 
-interface MatchWagerInfo {
-  bothWagered: boolean;
-  winnerPayout: bigint;
-}
-
-function getMatchWagerInfo(match: ServerMatch): MatchWagerInfo {
-  try {
-    if (!match.hostWagerTx || !match.joinerWagerTx) return { bothWagered: false, winnerPayout: 0n };
-    const hostAmt   = BigInt(match.hostWagerAmount   ?? "0");
-    const joinerAmt = BigInt(match.joinerWagerAmount ?? "0");
-    const pot = hostAmt + joinerAmt;
-    return { bothWagered: true, winnerPayout: pot * 9000n / 10000n };
-  } catch {
-    return { bothWagered: false, winnerPayout: 0n };
-  }
-}
-
-const USE_CONTRACT = ARENA_ADDRESS !== "0x0000000000000000000000000000000000000000";
 const PAYOUT_LOCK_TTL_SECONDS = 120;
 
+// Wager payouts are escrow-only: every wager that can be created stakes into
+// the verified KnockOrderArenaV2 contract, so settlement always comes from the
+// contract's recorded pot to one of its recorded stakers. There is NO direct
+// treasury-transfer fallback — Redis wager amounts are caller-supplied and
+// must never size a treasury payment (C-02).
+const ESCROW_CURRENCIES = new Set(["usdt", "usdc", "cusd"]);
+
 // POST /api/payout
-// Body: { matchId: string, currency?: string }
-// Returns: { txHash: string }
+// Body: { matchId: string, currency: string, address: string, signature: string }
+// Returns: { txHash: string } (202 + pending:true while the settlement tx is
+// still confirming — safe to re-poll).
 export async function POST(req: NextRequest) {
-  const treasuryKey = process.env.TREASURY_PRIVATE_KEY;
-  if (!treasuryKey) {
+  if (!process.env.TREASURY_PRIVATE_KEY) {
     return NextResponse.json({ error: "Treasury not configured" }, { status: 500 });
   }
 
@@ -74,7 +55,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
   }
 
-  // Idempotency — prevent double payout for the same match
+  // Permanent settlement finality — a match settles exactly once (C-02).
   const existingPayout = await redis.get<string>(`payout:${matchId}`);
   if (existingPayout) {
     return NextResponse.json({ txHash: existingPayout, cached: true });
@@ -103,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Derive the payout currency from match state — the caller cannot choose
-    // which treasury asset to be paid in (C-02).
+    // which asset to be paid in (C-02).
     const hostCur = match.hostWagerCurrency;
     const joinCur = match.joinerWagerCurrency;
     if (hostCur && joinCur && hostCur !== joinCur) {
@@ -115,6 +96,11 @@ export async function POST(req: NextRequest) {
     }
     if (currency !== matchCurrency) {
       return NextResponse.json({ error: "Currency does not match the wager" }, { status: 403 });
+    }
+    if (!ESCROW_CURRENCIES.has(matchCurrency)) {
+      // G$/CELO wager creation is rejected server-side, so this only matches
+      // records that predate the escrow-only gate. Those are settled manually.
+      return NextResponse.json({ error: "This wager predates escrow settlement — contact support" }, { status: 409 });
     }
 
     // Every payout claim must be signed by the winner's wallet. (MiniPay wagers
@@ -129,113 +115,80 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
-    // Check if both players wagered and get the actual payout amount from their stakes
-    const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(match);
-
-    // ── ArenaV2 escrow path ──────────────────────────────────────────────────
-    // Stablecoin stakes land in the verified KnockOrderArenaV2 contract. When an
-    // on-chain match is Active, the escrow is the source of truth: the winner
-    // MUST be one of the two real stakers, and the payout comes from the pot the
-    // contract recorded (90%). This binds settlement to actual participants and
-    // amounts even though the Redis match state is forgeable — so a forged
-    // winnerAddress pointing at a non-participant can never be paid, and an
-    // active escrow match never falls back to a direct treasury transfer (C-02).
-    if (currency === "usdt" || currency === "usdc" || currency === "cusd") {
-      const arena = await getArenaMatch(matchId);
-      if (arena && arena.active) {
-        const isStaker = arena.stakers.some((s: `0x${string}`) => s.toLowerCase() === winner.toLowerCase());
-        if (!isStaker) {
-          return NextResponse.json({ error: "Winner is not a participant in this match" }, { status: 403 });
-        }
-        const arenaTx = await completeMatchOnChain(matchId, winner);
-        if (!arenaTx) {
-          return NextResponse.json({ error: "Escrow settlement failed" }, { status: 500 });
-        }
-        // Permanent settlement record — a match settles exactly once.
-        await redis.set(`payout:${matchId}`, arenaTx);
-        return NextResponse.json({ txHash: arenaTx, bothWagered, escrow: true });
+    // ── ArenaV2 escrow settlement ────────────────────────────────────────────
+    // The contract is the sole source of truth for participants and amounts:
+    // the winner MUST be one of the two on-chain stakers and is paid 90% of the
+    // contract-recorded pot. Forged Redis state can never size or redirect a
+    // payment (C-02).
+    let arena = await getArenaMatch(matchId);
+    if (!arena || !arena.active) {
+      // Self-heal: stake attribution at wager time is best-effort (the tx may
+      // not have been mined yet). Retry it now from the recorded stake txs
+      // before concluding the escrow is missing (H-07).
+      const retries: Promise<boolean>[] = [];
+      if (match.hostWagerTx && match.host?.address && match.hostWagerAmount) {
+        retries.push(attributeStakeOnChain({
+          matchId, player: match.host.address, currency: matchCurrency,
+          amount: match.hostWagerAmount, txHash: match.hostWagerTx,
+        }));
       }
-      // No active escrow match → legacy/direct fall-through below.
+      if (match.joinerWagerTx && match.joiner?.address && match.joinerWagerAmount) {
+        retries.push(attributeStakeOnChain({
+          matchId, player: match.joiner.address, currency: matchCurrency,
+          amount: match.joinerWagerAmount, txHash: match.joinerWagerTx,
+        }));
+      }
+      if (retries.length > 0) {
+        await Promise.allSettled(retries);
+        arena = await getArenaMatch(matchId);
+      }
+    }
+    if (!arena || !arena.active) {
+      return NextResponse.json({ error: "No escrow stakes found for this match" }, { status: 409 });
+    }
+    const isStaker = arena.stakers.some((s: `0x${string}`) => s.toLowerCase() === winner.toLowerCase());
+    if (!isStaker) {
+      return NextResponse.json({ error: "Winner is not a participant in this match" }, { status: 403 });
     }
 
-    const account = privateKeyToAccount(treasuryKey as `0x${string}`);
-
-    const publicClient = createPublicClient({
-      chain: celo,
-      transport: http(),
-    });
-
-    const walletClient = createWalletClient({
-      account,
-      chain: celo,
-      transport: http(),
-    });
-
-    let txHash: `0x${string}`;
-
-    // ── G$ path: bounded one-time transfer ───────────────────────────────────
-    // Previously a Superfluid stream, which had no enforced end (it ran until
-    // the treasury drained). Now a single fixed-amount ERC-20 transfer, capped
-    // at exactly the winner payout.
-    if (currency === "gdollar") {
-      const gdollarAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_GDOLLAR;
-      const { request } = await publicClient.simulateContract({
-        account,
-        address: GDOLLAR_CONTRACT,
-        abi: GDOLLAR_ABI,
-        functionName: "transfer",
-        args: [winner, gdollarAmt],
-      });
-      txHash = await walletClient.writeContract(request);
-      await redis.set(`payout:${matchId}`, txHash);
-      return NextResponse.json({ txHash, bothWagered });
+    // A previous attempt may have broadcast but not confirmed before we
+    // recorded finality — resolve it before broadcasting again (H-07).
+    const attemptKey = `payout-attempt:${matchId}`;
+    const priorAttempt = await redis.get<string>(attemptKey);
+    if (priorAttempt) {
+      const status = await waitForArenaReceipt(priorAttempt as `0x${string}`, 15_000);
+      if (status === "success") {
+        await redis.set(`payout:${matchId}`, priorAttempt);
+        await redis.del(attemptKey).catch(() => {});
+        return NextResponse.json({ txHash: priorAttempt, escrow: true });
+      }
+      if (status === "pending") {
+        return NextResponse.json({ txHash: priorAttempt, pending: true, escrow: true }, { status: 202 });
+      }
+      // Confirmed revert — clear and settle fresh.
+      await redis.del(attemptKey).catch(() => {});
     }
 
-    // ── Arena contract path ───────────────────────────────────────────────────
-    // USDT/USDC stakes are always direct treasury transfers, and MiniPay
-    // USDm (cusd) stakes are too — those never entered the arena contract,
-    // so their payouts must also be direct transfers.
-    if (USE_CONTRACT && currency !== "usdt" && currency !== "usdc") {
-      const { request } = await publicClient.simulateContract({
-        account,
-        address: ARENA_ADDRESS,
-        abi: ARENA_ABI,
-        functionName: "completeMatch",
-        args: [matchIdToBytes32(matchId), winner],
-      });
-      txHash = await walletClient.writeContract(request);
-    } else if (currency === "celo") {
-      // Native CELO direct transfer
-      const celoAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_CELO;
-      txHash = await walletClient.sendTransaction({ to: winner, value: celoAmt });
-    } else if (currency === "usdt" || currency === "usdc") {
-      const stableAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT_USDT;
-      const { request } = await publicClient.simulateContract({
-        account,
-        address: currency === "usdc" ? USDC_CONTRACT : USDT_CONTRACT,
-        abi: ERC20_ABI,
-        functionName: "transfer",
-        args: [winner, stableAmt],
-      });
-      txHash = await walletClient.writeContract(request);
-    } else {
-      // cUSD direct transfer
-      const cusdAmt = bothWagered && dualPayout > 0n ? dualPayout : PAYOUT_AMOUNT;
-      const { request } = await publicClient.simulateContract({
-        account,
-        address: CUSD_CONTRACT,
-        abi: ERC20_ABI,
-        functionName: "transfer",
-        args: [winner, cusdAmt],
-      });
-      txHash = await walletClient.writeContract(request);
+    const arenaTx = await completeMatchOnChain(matchId, winner);
+    if (!arenaTx) {
+      return NextResponse.json({ error: "Escrow settlement failed" }, { status: 500 });
     }
+    await redis.set(attemptKey, arenaTx);
 
-    // Permanent settlement record — a match settles exactly once (no TTL that
-    // would restore claimability, C-02).
-    await redis.set(`payout:${matchId}`, txHash);
-
-    return NextResponse.json({ txHash, bothWagered });
+    // Only a confirmed receipt becomes permanent finality — a broadcast hash
+    // that later reverts must never be cached as a successful payout (H-07).
+    const receiptStatus = await waitForArenaReceipt(arenaTx, 30_000);
+    if (receiptStatus === "success") {
+      await redis.set(`payout:${matchId}`, arenaTx);
+      await redis.del(attemptKey).catch(() => {});
+      return NextResponse.json({ txHash: arenaTx, escrow: true });
+    }
+    if (receiptStatus === "reverted") {
+      await redis.del(attemptKey).catch(() => {});
+      return NextResponse.json({ error: "Escrow settlement reverted" }, { status: 500 });
+    }
+    // Still confirming — the attempt record lets the next claim resolve it.
+    return NextResponse.json({ txHash: arenaTx, pending: true, escrow: true }, { status: 202 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Payout failed";
     return NextResponse.json({ error: msg }, { status: 500 });
