@@ -7,6 +7,7 @@ import { MatchMode, useGameStore } from "../../lib/gameStore";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../../lib/activeMatch";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
+import { WAGERS_ENABLED } from "../../lib/wagerConfig";
 import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 
@@ -423,7 +424,7 @@ export default function CreateMatch() {
                 {/* Match type cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 28 }}>
                   {MATCH_TYPES.map((mt) => {
-                    const comingSoon = isMp && mt.key !== "vshouse";
+                    const comingSoon = (isMp && mt.key !== "vshouse") || (mt.key === "wager" && !WAGERS_ENABLED);
                     const active = matchType === mt.key && !comingSoon;
                     return (
                       <div key={mt.key} style={{ flex: 1, position: "relative" }}>

@@ -553,7 +553,7 @@ export default function Gameplay() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ matchId, currency: wagerCurrency, address, signature, isMiniPay: miniPay }),
       });
-      const data = await res.json() as { txHash?: string; error?: string; streaming?: boolean };
+      const data = await res.json() as { txHash?: string; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "Payout failed");
       setPayoutTxHash(data.txHash ?? null);
       setPayoutState("done");
@@ -749,7 +749,7 @@ export default function Gameplay() {
   const payoutSteps = [
     { key: "submitted", label: "Submitted", done: payoutState === "loading" || payoutState === "done" },
     { key: "confirmed", label: "Confirmed", done: payoutState === "done" },
-    { key: "streamed", label: isGDollar ? "Streamed" : "Settled", done: payoutState === "done" },
+    { key: "streamed", label: "Settled", done: payoutState === "done" },
   ];
   const isLastStand = playerRoundsWon === 0 && opponentRoundsWon >= 2;
 
@@ -1598,12 +1598,8 @@ export default function Gameplay() {
                         </div>
                         <span style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.45 }}>
                           {payoutState === "done"
-                            ? (isGDollar
-                              ? `${payoutAmountDisplay} is flowing via Superfluid stream.`
-                              : `${payoutAmountDisplay} settled to your wallet.`)
-                            : (isGDollar
-                              ? "Submitting payout and opening stream..."
-                              : "Submitting payout transaction...")}
+                            ? `${payoutAmountDisplay} settled to your wallet.`
+                            : "Submitting payout transaction..."}
                         </span>
                       </div>
                       {payoutState === "error" && (

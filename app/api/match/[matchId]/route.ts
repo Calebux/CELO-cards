@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { resolveRound, SlotResult } from "../../../lib/combatEngine";
+import { resolveRound, SlotResult, calcEnergyPool } from "../../../lib/combatEngine";
 import { CARDS, CHARACTERS } from "../../../lib/gameData";
 import {
   getActiveMatchIdForAddress,
@@ -23,6 +23,8 @@ import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../..
 import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow, WagerCurrency } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
+import { ARENA_V2_ACTIVE } from "../../../lib/arenaV2";
+import { WAGERS_ENABLED } from "../../../lib/wagerConfig";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -54,6 +56,16 @@ function buildOpenMatchSummary(matchId: string, match: ServerMatch): OpenMatchSu
 
 function validWagerCurrency(currency: unknown): currency is WagerCurrency {
   return currency === "cusd" || currency === "celo" || currency === "gdollar" || currency === "usdt" || currency === "usdc";
+}
+
+// Only escrow-backed wagers are allowed: the three stablecoins that stake into
+// the verified KnockOrderArenaV2 contract, whose payout binds to real on-chain
+// participants and amounts. G$ and native CELO settle straight from the
+// treasury with no escrow, so their winner/pot can't be trusted — reject them
+// at creation so no unescrowed wager can exist.
+const ESCROW_WAGER_CURRENCIES = new Set<WagerCurrency>(["usdt", "usdc", "cusd"]);
+function isEscrowWagerCurrency(currency: unknown): currency is WagerCurrency {
+  return ARENA_V2_ACTIVE && validWagerCurrency(currency) && ESCROW_WAGER_CURRENCIES.has(currency);
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -223,10 +235,14 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       const sName = sanitizePlayerName(playerName);
       if (sName) match.host.playerName = sName;
       if (address) match.host.address = address;
-      if (match.mode === "wager") {
+      if (match.mode === "wager" && WAGERS_ENABLED) {
+        // Only escrow-backed stablecoins may be recorded as a wager currency.
+        if (wagerCurrency !== undefined && !isEscrowWagerCurrency(wagerCurrency)) {
+          return NextResponse.json({ error: "Wagers are only available in escrow-backed stablecoins (USDT, USDC, USDm)." }, { status: 400 });
+        }
         if (typeof wagerTx === "string" && !match.hostWagerTx) match.hostWagerTx = wagerTx;
         if (typeof wagerAmount === "string" && !match.hostWagerAmount) match.hostWagerAmount = wagerAmount;
-        if (validWagerCurrency(wagerCurrency) && !match.hostWagerCurrency) match.hostWagerCurrency = wagerCurrency;
+        if (isEscrowWagerCurrency(wagerCurrency) && !match.hostWagerCurrency) match.hostWagerCurrency = wagerCurrency;
       }
     } else {
       closeJoinWindow(match);
@@ -311,11 +327,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
 
   // ── Keepalive (host waiting on ready page) ──────────────────────────────
+  // Server-side wager kill-switch (default off): a real boundary that direct
+  // API calls can't bypass, unlike the UI gate. No new wager match can be
+  // created or kept alive while wagers are disabled.
+  if (requestedMode === "wager" && !WAGERS_ENABLED) {
+    return NextResponse.json({ error: "Wagers are currently unavailable." }, { status: 403 });
+  }
+
   if (action === "keepalive") {
     let match = await getMatch<ServerMatch>(matchId);
     if (!match) {
-      // Match doesn't exist yet — create it now so it appears in open matches
-      match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "wager");
+      // Match doesn't exist yet — create it now so it appears in open matches.
+      // Default a modeless keepalive to ranked (not wager) so a missing mode
+      // can never silently spin up a wager match.
+      match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "ranked");
     }
     match.lastActivity = Date.now();
     // Store player name and address if either side reconnects before character selection.
@@ -368,8 +393,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Register wager TX ───────────────────────────────────────────────────
   if (action === "wager") {
-    if (!validWagerCurrency(wagerCurrency)) {
-      return NextResponse.json({ error: "Invalid wager currency" }, { status: 400 });
+    if (!WAGERS_ENABLED) {
+      return NextResponse.json({ error: "Wagers are currently unavailable." }, { status: 403 });
+    }
+    if (!isEscrowWagerCurrency(wagerCurrency)) {
+      return NextResponse.json({ error: "Wagers are only available in escrow-backed stablecoins (USDT, USDC, USDm)." }, { status: 400 });
     }
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);
@@ -405,10 +433,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       }
     }
 
-    // Attribute the stake on the verified ArenaV2 escrow contract. Best-effort:
-    // if it fails, the payout route falls back to a direct treasury transfer.
+    // Attribute the stake on the verified ArenaV2 escrow contract, waiting for
+    // the receipt. There is no treasury fallback: if attribution hasn't landed
+    // by payout time, the payout route retries it from the recorded tx and
+    // refuses to settle without an Active escrow match.
+    let escrowAttributed = false;
     if (wagerTx && patchAddress && typeof wagerAmount === "string") {
-      await attributeStakeOnChain({
+      escrowAttributed = await attributeStakeOnChain({
         matchId,
         player: patchAddress,
         currency: wagerCurrency,
@@ -416,7 +447,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         txHash: wagerTx,
       });
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, escrowAttributed });
   }
 
   // ── Quit match ──────────────────────────────────────────────────────────
@@ -459,6 +490,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const invalidCard = cardIds.find((id) => !CARDS.find((c) => c.id === id));
   if (invalidCard) {
     return NextResponse.json({ error: `Unknown card: ${invalidCard}` }, { status: 400 });
+  }
+  // Server-side deck legality (M-05): a legal deck is 5 distinct cards whose
+  // total energy fits the submitter's character pool — exactly what the client
+  // enforces (gameStore.addCardToSlot). A legitimate client never violates
+  // this; rejecting here blocks a forged over-budget or duplicate-stacked deck.
+  if (new Set(cardIds as string[]).size !== 5) {
+    return NextResponse.json({ error: "A deck must be 5 distinct cards" }, { status: 400 });
   }
 
   let match: ServerMatch | null = null;
@@ -504,6 +542,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     const slot = role === "host" ? match.host : match.joiner;
+    // Energy-budget legality (M-05): once the submitter's character is known,
+    // the 5 cards' total energy must fit its pool — the same limit the client
+    // applies. Skip only if the character isn't registered yet.
+    const submitterChar = CHARACTERS.find((c) => c.id === slot.charId);
+    if (submitterChar) {
+      const energyPool = calcEnergyPool(submitterChar);
+      const usedEnergy = (cardIds as string[]).reduce(
+        (sum, id) => sum + (CARDS.find((c) => c.id === id)?.energyCost ?? 0), 0);
+      if (usedEnergy > energyPool) {
+        return NextResponse.json({ error: "Deck exceeds this character's energy budget" }, { status: 400 });
+      }
+    }
     slot.cardIds = cardIds;
     slot.usedCardIdsThisMatch = Array.from(new Set([...(slot.usedCardIdsThisMatch ?? []), ...cardIds]));
     slot.orderRound = round;
@@ -712,7 +762,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     } catch {
       // Best-effort — leaderboard failure must not break the card submission
     }
-    // Increment free game counter for players without an active season pass
+    // Increment free game counter for players without an active season pass.
+    // Only free/casual play consumes a free game — wager and tournament matches
+    // have their own entry/stake and must not burn the free allowance (M-01).
+    const consumesFreeGame = m.mode !== "wager" && m.mode !== "tournament";
     const incrementFreeGame = async (addr: string) => {
       const passRaw = await redis.get(`season-pass:${addr.toLowerCase()}`).catch(() => null);
       let hasPass = false;
@@ -734,8 +787,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     };
     try {
       const freeGamePromises: Promise<void>[] = [];
-      if (m.host.address) freeGamePromises.push(incrementFreeGame(m.host.address));
-      if (m.joiner.address) freeGamePromises.push(incrementFreeGame(m.joiner.address));
+      if (consumesFreeGame && m.host.address) freeGamePromises.push(incrementFreeGame(m.host.address));
+      if (consumesFreeGame && m.joiner.address) freeGamePromises.push(incrementFreeGame(m.joiner.address));
       await Promise.allSettled(freeGamePromises);
     } catch {
       // Best-effort — free game tracking failure must not break match flow

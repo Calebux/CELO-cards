@@ -134,10 +134,13 @@ export default function ActionOrderLandingPage() {
   }, [hasSeenTutorial, playerAddress, playerName, showLoader]);
 
   useEffect(() => {
-    if (playerAddress && !playerName && showHowToPlay) {
+    // Only suppress the AUTO-OPENED quickstart tutorial for connected users
+    // who haven't set a username yet — never a user-initiated "How to Play"
+    // (variant "full"), which must always open on click.
+    if (playerAddress && !playerName && showHowToPlay && howToPlayVariant === "quickstart") {
       setShowHowToPlay(false);
     }
-  }, [playerAddress, playerName, showHowToPlay]);
+  }, [playerAddress, playerName, showHowToPlay, howToPlayVariant]);
 
   if (showLoader) return <GameLoadingScreen onDone={handleLoaded} />;
 

@@ -22,9 +22,16 @@ const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000
 const GDOLLAR_CONTRACT_ACTIVE = GDOLLAR_SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 export const dynamic = "force-dynamic";
 
+// RPC endpoint from env (M-10 — never embed a keyed provider URL in source;
+// rotate the previously committed Alchemy key). All getLogs here are
+// single-block queries, which the public Forno fallback handles fine.
 const publicClient = createPublicClient({
   chain: celo,
-  transport: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
+  transport: http(
+    process.env.CELO_RPC_URL
+      ?? process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL
+      ?? "https://forno.celo.org"
+  ),
 });
 
 type SeasonPassRecord = { expiry: number; plan: SeasonPlan; txHash?: string };
@@ -102,13 +109,21 @@ export async function POST(req: NextRequest) {
   if (!address || !txHash || !plan || !SEASON_PLANS[plan]) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+  const buyer = address as `0x${string}`;
 
-  // Idempotency — don't double-credit same tx
+  // Transaction dedup is enforced atomically after verification via SET NX
+  // (see below) so concurrent requests can't double-credit.
   const txKey = `season-pass-tx:${txHash}`;
-  const seen = await redis.get(txKey);
-  if (seen) return NextResponse.json({ error: "Transaction already used" }, { status: 409 });
 
   const planConfig = SEASON_PLANS[plan];
+  // The plan we actually credit. For contract purchases this is overridden with
+  // the plan emitted on-chain, so a cheap purchase cannot be claimed as an
+  // expensive plan (H-01). Direct-transfer paths are bound by the amount check
+  // below, so the requested plan is safe there.
+  let creditedPlan: SeasonPlan = plan;
 
   // ── On-chain TX verification ──────────────────────────────────────────────
   const [tx, receipt] = await Promise.all([
@@ -136,7 +151,9 @@ export async function POST(req: NextRequest) {
       stableLogs = await publicClient.getLogs({
         address: token.address,
         event: transferEvent,
-        args: { to: TREASURY_MINIPAY },
+        // Bind the payment to the buyer (H-02): only a transfer FROM the
+        // crediting wallet TO the treasury can activate their pass.
+        args: { from: buyer, to: TREASURY_MINIPAY },
         fromBlock: receipt.blockNumber,
         toBlock: receipt.blockNumber,
       });
@@ -167,7 +184,7 @@ export async function POST(req: NextRequest) {
         address: GDOLLAR_SEASON_PASS_CONTRACT,
         abi: GDOLLAR_SEASON_PASS_ABI,
         eventName: "PassPurchased",
-        args: { buyer: address as `0x${string}` },
+        args: { buyer },
         fromBlock: receipt.blockNumber,
         toBlock: receipt.blockNumber,
       }).catch(() => []);
@@ -177,6 +194,12 @@ export async function POST(req: NextRequest) {
       if (!matchingLog) {
         return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
       }
+      // Credit the plan the contract actually charged for, not the request.
+      const eventPlan = matchingLog.args.plan;
+      if (!eventPlan || !(eventPlan in SEASON_PLANS)) {
+        return NextResponse.json({ error: "Unrecognized plan in purchase event" }, { status: 403 });
+      }
+      creditedPlan = eventPlan as SeasonPlan;
     } else {
       // Legacy direct transfer — verify ERC-20 Transfer event: G$ contract → Treasury
       let gdollarLogs;
@@ -184,7 +207,8 @@ export async function POST(req: NextRequest) {
         gdollarLogs = await publicClient.getLogs({
           address: GDOLLAR_CONTRACT,
           event: transferEvent,
-          args: { to: TREASURY },
+          // Bind the payment to the buyer (H-02).
+          args: { from: buyer, to: TREASURY },
           fromBlock: receipt.blockNumber,
           toBlock: receipt.blockNumber,
         });
@@ -215,7 +239,7 @@ export async function POST(req: NextRequest) {
         address: SEASON_PASS_CONTRACT,
         abi: SEASON_PASS_ABI,
         eventName: "PassPurchased",
-        args: { buyer: address as `0x${string}` },
+        args: { buyer },
         fromBlock: receipt.blockNumber,
         toBlock: receipt.blockNumber,
       }).catch(() => []);
@@ -225,14 +249,40 @@ export async function POST(req: NextRequest) {
       if (!matchingLog) {
         return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
       }
+      // Credit the plan the contract actually charged for, not the request.
+      const eventPlan = matchingLog.args.plan;
+      if (!eventPlan || !(eventPlan in SEASON_PLANS)) {
+        return NextResponse.json({ error: "Unrecognized plan in purchase event" }, { status: 403 });
+      }
+      creditedPlan = eventPlan as SeasonPlan;
     } else {
-      // Legacy direct transfer
+      // Legacy direct transfer — bind the payment to the buyer (H-02): the
+      // native CELO transfer must originate from the crediting wallet.
+      if (tx.from?.toLowerCase() !== buyer.toLowerCase()) {
+        return NextResponse.json({ error: "Payment sender does not match buyer" }, { status: 403 });
+      }
       if (tx.value < BigInt(planConfig.priceWei)) {
         return NextResponse.json({ error: "Insufficient payment amount" }, { status: 403 });
       }
     }
   }
-  const durationMs = planConfig.days * 24 * 60 * 60 * 1000;
+  // Atomically claim this transaction before crediting so two concurrent
+  // requests cannot both pass verification and stack the pass twice (H-03).
+  // The record is permanent (no expiry) so a tx can never be replayed after
+  // the pass lapses.
+  const reserved = await redis.set(txKey, "1", { nx: true });
+  if (!reserved) {
+    // Already claimed. If it credited THIS buyer's current pass, respond
+    // idempotently (the client may poll the same tx more than once); a
+    // different wallet reusing the tx is rejected.
+    const current = parseSeasonPassRecord(await redis.get(passKey(address)));
+    if (current && current.txHash === txHash) {
+      return NextResponse.json({ success: true, expiry: current.expiry, plan: current.plan });
+    }
+    return NextResponse.json({ error: "Transaction already used" }, { status: 409 });
+  }
+
+  const durationMs = SEASON_PLANS[creditedPlan].days * 24 * 60 * 60 * 1000;
 
   // Stack on top of existing pass if still active
   const existing = parseSeasonPassRecord(await redis.get(passKey(address)));
@@ -240,8 +290,7 @@ export async function POST(req: NextRequest) {
   const expiry = baseExpiry + durationMs;
 
   const ttlSec = Math.ceil((expiry - Date.now()) / 1000) + 86400; // +1 day buffer
-  await redis.set(passKey(address), { expiry, plan, txHash }, { ex: ttlSec });
-  await redis.set(txKey, "1", { ex: ttlSec });
+  await redis.set(passKey(address), { expiry, plan: creditedPlan, txHash }, { ex: ttlSec });
 
-  return NextResponse.json({ success: true, expiry, plan });
+  return NextResponse.json({ success: true, expiry, plan: creditedPlan });
 }

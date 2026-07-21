@@ -16,6 +16,7 @@ import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, U
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { ARENA_V2_ACTIVE, ARENA_V2_ADDRESS } from "../lib/arenaV2";
+import { WAGERS_ENABLED } from "../lib/wagerConfig";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
@@ -73,8 +74,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar"));
-  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar")) ?? "0.01");
+  // Wagers are escrow-only (USDT/USDC/USDm through ArenaV2); default to USDT.
+  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? "usdt");
+  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? "usdt") ?? "0.01");
 
   useGameFrameScale(wrapRef);
 
@@ -94,19 +96,19 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     if (formatted) setAmountInput(formatted);
   }, [currency, lockedAmountRaw, lockedCurrency]);
 
-  // MiniPay: keep the selection within the supported stablecoins, and default
-  // to the user's preferred one (highest balance) until they pick manually.
-  const stable = useMiniPayStablecoin(address, isMp && isConnected);
+  // Keep the selection within the escrow-backed stablecoins (web + MiniPay),
+  // and default to the user's preferred one (highest balance) until they pick.
+  const stable = useMiniPayStablecoin(address, isConnected);
   const manualCurrencyRef = useRef(false);
   useLayoutEffect(() => {
-    if (isMp && !lockedCurrency && !MP_STABLES.includes(currency)) {
+    if (!lockedCurrency && !MP_STABLES.includes(currency)) {
       setCurrency("usdt");
     }
-  }, [currency, isMp, lockedCurrency]);
+  }, [currency, lockedCurrency]);
   useEffect(() => {
-    if (!isMp || lockedCurrency || manualCurrencyRef.current || !stable.loaded) return;
+    if (lockedCurrency || manualCurrencyRef.current || !stable.loaded) return;
     setCurrency(stable.preferred.key);
-  }, [isMp, lockedCurrency, stable.loaded, stable.preferred.key]);
+  }, [lockedCurrency, stable.loaded, stable.preferred.key]);
 
   // Check existing cUSD allowance for the arena (only relevant for cUSD path)
   const { data: allowance } = useReadContract({
@@ -246,7 +248,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
     // Stablecoin direct transfers: USDT/USDC always; USDm (cusd) too when in
     // MiniPay — the arena approve/enter flow is web-only.
-    if (currency === "usdt" || currency === "usdc" || (isMp && currency === "cusd")) {
+    // All wager stablecoins (USDT/USDC/USDm) stake into the ArenaV2 escrow.
+    if (MP_STABLES.includes(currency)) {
       await handleStableTransfer(activeAddress);
       return;
     }
@@ -453,12 +456,11 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     ? `${formatUnits(stakeAmt * 2n * 9000n / 10000n, currencyDecimals)} ${cfg.symbol}`
     : `— ${cfg.symbol}`;
 
-  const payoutNote = currency === "gdollar"
-    ? "Winnings stream to your wallet via Superfluid"
-    : `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
+  const payoutNote = `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
 
-  // ── MiniPay: wagers are coming soon — never show a stake flow ────────────
-  if (isMp) {
+  // ── Wagers coming soon — never show a stake flow. On MiniPay always, and on
+  //    web whenever wagers are disabled server-side (the default). ───────────
+  if (isMp || !WAGERS_ENABLED) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 200, backgroundColor: "rgba(5, 5, 16, 0.85)", backdropFilter: "blur(8px)", overflow: "hidden" }}>
         <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
@@ -468,9 +470,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
               Wagers Coming Soon
             </h2>
             <p style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6, margin: "0 0 22px" }}>
-              Staked matches aren&apos;t available on MiniPay yet. Play for free —
-              winners currently receive rewards through our Telegram support
-              after sharing proof of their win.
+              Staked matches aren&apos;t available yet. Play for free — winners
+              currently receive rewards through our Telegram support after
+              sharing proof of their win.
             </p>
             <button
               onClick={onSkip}
@@ -521,7 +523,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
         {/* Currency selector */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(isMp ? [...MP_STABLES] : (["gdollar", "cusd", "celo"] as Currency[])).map((c) => {
+          {[...MP_STABLES].map((c) => {
             const cc = CURRENCY_CONFIG[c];
             const disabledByLock = !!lockedCurrency && lockedCurrency !== c;
             return (
@@ -570,21 +572,6 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
           }}>
             <span style={{ fontSize: 11, color: "#34d399", fontWeight: 700, letterSpacing: 0.3 }}>
               {MINIPAY_STABLECOIN_EXPLAINER}
-            </span>
-          </div>
-        )}
-
-        {/* G$ streaming badge */}
-        {currency === "gdollar" && (
-          <div style={{
-            marginBottom: 12, padding: "8px 14px",
-            background: `${GDOLLAR_COLOR}18`,
-            border: `1px solid ${GDOLLAR_COLOR}50`,
-            borderRadius: 6, display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: GDOLLAR_COLOR, boxShadow: `0 0 6px ${GDOLLAR_COLOR}`, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: GDOLLAR_COLOR, fontWeight: 700, letterSpacing: 0.5 }}>
-              Powered by Superfluid · Winnings stream to your wallet
             </span>
           </div>
         )}
