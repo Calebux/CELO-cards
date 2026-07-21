@@ -208,7 +208,11 @@ export default function BlackMarket() {
             })
           : await sendTransactionAsync({ to: TREASURY, value: amt, account: activeAddress, chainId: celo.id });
       }
-      await fetch("/api/black-market/purchase", {
+      // Unlock locally for instant UX (store + localStorage). Pass 0 so points
+      // are untouched. The server verifies the payment on-chain and records
+      // authoritative ownership in the background — no need to block the UI.
+      unlockCard(id, 0);
+      void fetch("/api/black-market/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -220,8 +224,6 @@ export default function BlackMarket() {
           txHash,
         }),
       }).catch(() => {});
-      // Unlock locally (store + localStorage). Pass 0 so points are untouched.
-      unlockCard(id, 0);
     } catch (e) {
       setBuyError(friendlyTxError(e, "Transaction failed."));
     } finally {
