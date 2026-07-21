@@ -54,7 +54,7 @@ Last updated: 2026-07-21 (second pass)
 | Wager scope | Wager creation gated to escrow-backed stablecoins (USDT/USDC/USDm) only; G$/CELO wager creation rejected | `76aab27` |
 | C-02 payout fall-through | `/api/payout` removed the direct-treasury fallback entirely; wager payouts require an Active escrow match and settle only via the contract. Pre-gate legacy records return a "contact support" 409 instead of paying from forgeable Redis amounts | _this pass_ |
 | H-04 price desync | `GDollarSeasonPassRegistry` price getters (`weeklyPrice`/`monthlyPrice`/`seasonPrice`) added to the client ABI; modal reads the live price at approval time and displays it, failing closed if the read fails | _this pass_ |
-| H-05 ArenaV2 settlement invariants | `completeMatch` requires two equal stakes + winner ∈ stakers; permissionless `refundExpiredMatch` after `REFUND_TIMEOUT` (24h); two-step ownership | _this pass_ |
+| H-05 ArenaV2 settlement invariants | `completeMatch` requires two equal stakes + winner ∈ stakers; permissionless `refundExpiredMatch` after `REFUND_TIMEOUT` (24h); two-step ownership. **Deployed + Celoscan-verified at `0x473df985d05a0b635706e58ac8e7452dcc3e9a01`; app repointed** | _this pass; deployed pass 6_ |
 | H-06 attribution replay | Each stake transfer `(txHash, logIndex)` is consumed once via permanent `SET NX`, keyed to `matchId:player`; a deposit can't back a second match/player even with surplus in the contract | _this pass_ |
 | H-07 unconfirmed finality | `attributeStakeOnChain` and payout settlement wait for on-chain receipts; only a confirmed `success` becomes permanent finality; a broadcast-but-pending settlement returns `202 pending` and is reconciled on the next claim | _this pass_ |
 | M-10 embedded API key | Alchemy URL removed from `/api/season-pass` source; RPC read from `CELO_RPC_URL`/env with Forno fallback (rotate the leaked key) | _pass 2_ |
@@ -65,15 +65,18 @@ Last updated: 2026-07-21 (second pass)
 | C-01 cluster (money risk) | Server-side wager kill-switch (`NEXT_PUBLIC_ENABLE_WAGERS`, default off) at creation/registration/payout + web "Coming Soon" gate. No wager match can exist, so forged match state can't move real money | _pass 4_ |
 | M-07 House reward-code forgery | `/api/house-winner` no longer auto-mints a $5 code from forgeable VS House telemetry. Gated by `ENABLE_HOUSE_AUTO_REWARDS` (default off); a win is recorded as **pending** and paid only after manual verification. Public showcase shows verified rewards only; in-game shows a "pending / claim on Telegram" acknowledgement | _pass 5_ |
 
-## ⚠️ Requires redeploy before it takes effect
+## Deploy status
 
-The **H-05 ArenaV2 invariants are source-only**. The deployed contract at
-`0x8475ca3d129b9d69716b3dcab73a5e0306eaa9c1` is the *old* bytecode without
-the two-staker / equal-stake / winner-is-staker checks, without
-`refundExpiredMatch`, and with one-step ownership. Until a new
-`KnockOrderArenaV2` is deployed and `NEXT_PUBLIC_ARENA_V2_ADDRESS` is
-repointed (then source-verified on Celoscan), on-chain settlement still trusts
-the owner to pass a correct winner.
+- **H-05 ArenaV2 — DONE.** The hardened `KnockOrderArenaV2` is deployed to Celo
+  mainnet at `0x473df985d05a0b635706e58ac8e7452dcc3e9a01`, source-verified on
+  Celoscan, and the app is repointed (`NEXT_PUBLIC_ARENA_V2_ADDRESS` in
+  `.env.local` + `app/lib/arenaV2.ts` fallback). **Set the same env var in
+  Vercel and redeploy** so production uses it. Supersedes `0x8475ca3d…`.
+- **M-09 G$ registry — still source-only.** The two-step-ownership version is
+  NOT deployed; the live registry is the old one-step version. This is a
+  deliberate hold: the registry is a live payment contract and redeploying it
+  resets on-chain purchase history for a defensive-only fix. Migrate only if you
+  specifically want it.
 
 Mitigation in the meantime: the **payout route already enforces the same
 invariants off-chain** (winner must be an on-chain staker; escrow-only; no
