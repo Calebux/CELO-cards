@@ -23,6 +23,7 @@ import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../..
 import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow, WagerCurrency } from "../../../lib/serverMatch";
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
+import { ARENA_V2_ACTIVE } from "../../../lib/arenaV2";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -54,6 +55,16 @@ function buildOpenMatchSummary(matchId: string, match: ServerMatch): OpenMatchSu
 
 function validWagerCurrency(currency: unknown): currency is WagerCurrency {
   return currency === "cusd" || currency === "celo" || currency === "gdollar" || currency === "usdt" || currency === "usdc";
+}
+
+// Only escrow-backed wagers are allowed: the three stablecoins that stake into
+// the verified KnockOrderArenaV2 contract, whose payout binds to real on-chain
+// participants and amounts. G$ and native CELO settle straight from the
+// treasury with no escrow, so their winner/pot can't be trusted — reject them
+// at creation so no unescrowed wager can exist.
+const ESCROW_WAGER_CURRENCIES = new Set<WagerCurrency>(["usdt", "usdc", "cusd"]);
+function isEscrowWagerCurrency(currency: unknown): currency is WagerCurrency {
+  return ARENA_V2_ACTIVE && validWagerCurrency(currency) && ESCROW_WAGER_CURRENCIES.has(currency);
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -224,9 +235,13 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (sName) match.host.playerName = sName;
       if (address) match.host.address = address;
       if (match.mode === "wager") {
+        // Only escrow-backed stablecoins may be recorded as a wager currency.
+        if (wagerCurrency !== undefined && !isEscrowWagerCurrency(wagerCurrency)) {
+          return NextResponse.json({ error: "Wagers are only available in escrow-backed stablecoins (USDT, USDC, USDm)." }, { status: 400 });
+        }
         if (typeof wagerTx === "string" && !match.hostWagerTx) match.hostWagerTx = wagerTx;
         if (typeof wagerAmount === "string" && !match.hostWagerAmount) match.hostWagerAmount = wagerAmount;
-        if (validWagerCurrency(wagerCurrency) && !match.hostWagerCurrency) match.hostWagerCurrency = wagerCurrency;
+        if (isEscrowWagerCurrency(wagerCurrency) && !match.hostWagerCurrency) match.hostWagerCurrency = wagerCurrency;
       }
     } else {
       closeJoinWindow(match);
@@ -368,8 +383,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Register wager TX ───────────────────────────────────────────────────
   if (action === "wager") {
-    if (!validWagerCurrency(wagerCurrency)) {
-      return NextResponse.json({ error: "Invalid wager currency" }, { status: 400 });
+    if (!isEscrowWagerCurrency(wagerCurrency)) {
+      return NextResponse.json({ error: "Wagers are only available in escrow-backed stablecoins (USDT, USDC, USDm)." }, { status: 400 });
     }
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);

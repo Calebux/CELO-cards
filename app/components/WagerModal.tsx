@@ -73,8 +73,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const [step, setStep]         = useState<Step>("idle");
   const [errMsg, setErrMsg]     = useState("");
-  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar"));
-  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? (getInitialMiniPayMode() ? "usdt" : "gdollar")) ?? "0.01");
+  // Wagers are escrow-only (USDT/USDC/USDm through ArenaV2); default to USDT.
+  const [currency, setCurrency] = useState<Currency>(() => lockedCurrency ?? "usdt");
+  const [amountInput, setAmountInput] = useState(formatLockedAmount(lockedAmountRaw, lockedCurrency ?? "usdt") ?? "0.01");
 
   useGameFrameScale(wrapRef);
 
@@ -94,19 +95,19 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     if (formatted) setAmountInput(formatted);
   }, [currency, lockedAmountRaw, lockedCurrency]);
 
-  // MiniPay: keep the selection within the supported stablecoins, and default
-  // to the user's preferred one (highest balance) until they pick manually.
-  const stable = useMiniPayStablecoin(address, isMp && isConnected);
+  // Keep the selection within the escrow-backed stablecoins (web + MiniPay),
+  // and default to the user's preferred one (highest balance) until they pick.
+  const stable = useMiniPayStablecoin(address, isConnected);
   const manualCurrencyRef = useRef(false);
   useLayoutEffect(() => {
-    if (isMp && !lockedCurrency && !MP_STABLES.includes(currency)) {
+    if (!lockedCurrency && !MP_STABLES.includes(currency)) {
       setCurrency("usdt");
     }
-  }, [currency, isMp, lockedCurrency]);
+  }, [currency, lockedCurrency]);
   useEffect(() => {
-    if (!isMp || lockedCurrency || manualCurrencyRef.current || !stable.loaded) return;
+    if (lockedCurrency || manualCurrencyRef.current || !stable.loaded) return;
     setCurrency(stable.preferred.key);
-  }, [isMp, lockedCurrency, stable.loaded, stable.preferred.key]);
+  }, [lockedCurrency, stable.loaded, stable.preferred.key]);
 
   // Check existing cUSD allowance for the arena (only relevant for cUSD path)
   const { data: allowance } = useReadContract({
@@ -246,7 +247,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
     // Stablecoin direct transfers: USDT/USDC always; USDm (cusd) too when in
     // MiniPay — the arena approve/enter flow is web-only.
-    if (currency === "usdt" || currency === "usdc" || (isMp && currency === "cusd")) {
+    // All wager stablecoins (USDT/USDC/USDm) stake into the ArenaV2 escrow.
+    if (MP_STABLES.includes(currency)) {
       await handleStableTransfer(activeAddress);
       return;
     }
@@ -519,7 +521,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
         {/* Currency selector */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {(isMp ? [...MP_STABLES] : (["gdollar", "cusd", "celo"] as Currency[])).map((c) => {
+          {[...MP_STABLES].map((c) => {
             const cc = CURRENCY_CONFIG[c];
             const disabledByLock = !!lockedCurrency && lockedCurrency !== c;
             return (
