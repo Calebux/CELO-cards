@@ -22,9 +22,16 @@ const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000
 const GDOLLAR_CONTRACT_ACTIVE = GDOLLAR_SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 export const dynamic = "force-dynamic";
 
+// RPC endpoint from env (M-10 — never embed a keyed provider URL in source;
+// rotate the previously committed Alchemy key). All getLogs here are
+// single-block queries, which the public Forno fallback handles fine.
 const publicClient = createPublicClient({
   chain: celo,
-  transport: http("https://celo-mainnet.g.alchemy.com/v2/5TkObpGZSAQ-ntN5ZFswA"),
+  transport: http(
+    process.env.CELO_RPC_URL
+      ?? process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL
+      ?? "https://forno.celo.org"
+  ),
 });
 
 type SeasonPassRecord = { expiry: number; plan: SeasonPlan; txHash?: string };

@@ -10,6 +10,30 @@ export const GDOLLAR_SEASON_PASS_ABI = [
     inputs: [{ name: "plan", type: "string" }],
     outputs: [],
   },
+  // Owner-adjustable prices — the contract is the pricing authority. The UI
+  // must read these before approving/purchasing rather than trusting its own
+  // hard-coded copies (H-04).
+  {
+    name: "weeklyPrice",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "monthlyPrice",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "seasonPrice",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
   {
     name: "totalPassesSold",
     type: "function",

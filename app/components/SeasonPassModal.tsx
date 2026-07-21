@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
 import { useAccount, useConnect, usePublicClient, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
-import { parseEther, parseUnits } from "viem";
+import { formatUnits, parseEther, parseUnits } from "viem";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
@@ -74,6 +74,14 @@ const PLANS = [
 type PlanId = (typeof PLANS)[number]["id"];
 type Step = "checking" | "idle" | "waiting-tx" | "confirming" | "registering" | "done" | "error" | "low-balance";
 
+// On-chain price getters per plan — the G$ registry owner can adjust prices,
+// so the contract is the pricing authority, not the PLANS config (H-04).
+const GDOLLAR_PRICE_GETTER = {
+  weekly: "weeklyPrice",
+  monthly: "monthlyPrice",
+  season: "seasonPrice",
+} as const;
+
 type Props = {
   onClose: () => void;
   onActivated?: () => void;
@@ -101,6 +109,40 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const publicClient = usePublicClient({ chainId: celo.id });
   const [expiry, setExpiry] = useState<number | null>(null);
   const [existingPlan, setExistingPlan] = useState<string | null>(null);
+
+  // Live G$ prices read from the registry; PLANS values are only a fallback
+  // for display before the read resolves (H-04).
+  const [gdollarPrices, setGdollarPrices] = useState<Partial<Record<PlanId, bigint>>>({});
+  useEffect(() => {
+    if (!GDOLLAR_CONTRACT_ACTIVE || !publicClient) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [weekly, monthly, season] = await Promise.all(
+          ([GDOLLAR_PRICE_GETTER.weekly, GDOLLAR_PRICE_GETTER.monthly, GDOLLAR_PRICE_GETTER.season] as const).map((fn) =>
+            publicClient.readContract({
+              address: GDOLLAR_SEASON_PASS_CONTRACT,
+              abi: GDOLLAR_SEASON_PASS_ABI,
+              functionName: fn,
+            })
+          )
+        );
+        if (!cancelled) setGdollarPrices({ weekly, monthly, season });
+      } catch { /* show configured prices until the read succeeds */ }
+    })();
+    return () => { cancelled = true; };
+  }, [publicClient]);
+  const gdollarPriceWeiFor = useCallback(
+    (planId: PlanId): bigint => gdollarPrices[planId] ?? PLANS.find((p) => p.id === planId)!.priceWeiGdollar,
+    [gdollarPrices]
+  );
+  const gdollarPriceLabelFor = useCallback(
+    (planId: PlanId): string => {
+      const onChain = gdollarPrices[planId];
+      return onChain !== undefined ? formatUnits(onChain, 18) : PLANS.find((p) => p.id === planId)!.priceGdollar;
+    },
+    [gdollarPrices]
+  );
 
   useEffect(() => {
     activeAddressRef.current = address ?? null;
@@ -290,11 +332,21 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       } else if (currency === "gdollar" && GDOLLAR_CONTRACT_ACTIVE) {
         // Route through GDollarSeasonPassRegistry — approve then buySeasonPass,
         // tx is FROM buyer's wallet so it's attributable on-chain.
+        // Read the authoritative price at purchase time and approve exactly
+        // that amount — fail closed rather than approving a stale config
+        // price the owner may have changed (H-04).
+        if (!publicClient) throw new Error("Network unavailable. Try again.");
+        const livePrice = await publicClient.readContract({
+          address: GDOLLAR_SEASON_PASS_CONTRACT,
+          abi: GDOLLAR_SEASON_PASS_ABI,
+          functionName: GDOLLAR_PRICE_GETTER[selectedPlan],
+        });
+        setGdollarPrices((prev) => ({ ...prev, [selectedPlan]: livePrice }));
         await writeContractAsync({
           address: GDOLLAR_CONTRACT,
           abi: GDOLLAR_ABI,
           functionName: "approve",
-          args: [GDOLLAR_SEASON_PASS_CONTRACT, plan.priceWeiGdollar],
+          args: [GDOLLAR_SEASON_PASS_CONTRACT, livePrice],
           account: activeAddress,
           chainId: celo.id,
         });
@@ -371,7 +423,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 functionName: "balanceOf",
                 args: [addr],
               });
-              gasShortfall = bal >= plan.priceWeiGdollar;
+              gasShortfall = bal >= gdollarPriceWeiFor(plan.id);
             } else {
               const bal = await publicClient.getBalance({ address: addr });
               gasShortfall = bal >= plan.priceWeiCelo;
@@ -385,7 +437,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
         setStep("error");
       }
     }
-  }, [currency, ensureWalletReady, isMp, plan, pollAndRegister, publicClient, sendTransactionAsync, writeContractAsync]);
+  }, [currency, ensureWalletReady, gdollarPriceWeiFor, isMp, plan, pollAndRegister, publicClient, selectedPlan, sendTransactionAsync, writeContractAsync]);
 
   const expiryDate = expiry ? new Date(expiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
 
@@ -661,7 +713,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                       </div>
                     )}
                     <div style={{ fontSize: 20, fontWeight: 800, color: p.color, marginBottom: 2 }}>
-                      {currency === "gdollar" ? `${p.priceGdollar} G$` : isMiniPayStableKey(currency) ? `$${p.priceUsdt} ${getStablecoin(currency).symbol}` : `${p.priceCelo} CELO`}
+                      {currency === "gdollar" ? `${gdollarPriceLabelFor(p.id)} G$` : isMiniPayStableKey(currency) ? `$${p.priceUsdt} ${getStablecoin(currency).symbol}` : `${p.priceCelo} CELO`}
                     </div>
                     <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: selectedPlan === p.id ? p.color : "rgba(185,231,244,0.4)", textTransform: "uppercase" }}>
                       {p.days} DAYS
@@ -726,7 +778,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 {step === "waiting-tx" && <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite" }}>●</span>}
                 {step === "confirming" && <span style={{ animation: "ko-dot-pulse 1s ease-in-out infinite" }}>●</span>}
                 {step === "idle" || step === "error"
-                  ? `Pay ${currency === "gdollar" ? `${plan.priceGdollar} G$` : isMiniPayStableKey(currency) ? `$${plan.priceUsdt} ${getStablecoin(currency).symbol}` : `${plan.priceCelo} CELO`} → Activate ${plan.days}d Pass`
+                  ? `Pay ${currency === "gdollar" ? `${gdollarPriceLabelFor(plan.id)} G$` : isMiniPayStableKey(currency) ? `$${plan.priceUsdt} ${getStablecoin(currency).symbol}` : `${plan.priceCelo} CELO`} → Activate ${plan.days}d Pass`
                   : step === "waiting-tx"
                   ? "Confirm in wallet…"
                   : "Confirming on-chain…"}
