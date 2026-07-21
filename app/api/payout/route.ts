@@ -12,6 +12,7 @@ import {
   waitForArenaReceipt,
 } from "../../lib/arenaV2Server";
 import { checkRateLimit } from "../../lib/rateLimit";
+import { WAGERS_ENABLED } from "../../lib/wagerConfig";
 
 const PAYOUT_LOCK_TTL_SECONDS = 120;
 
@@ -29,6 +30,11 @@ const ESCROW_CURRENCIES = new Set(["usdt", "usdc", "cusd"]);
 export async function POST(req: NextRequest) {
   if (!process.env.TREASURY_PRIVATE_KEY) {
     return NextResponse.json({ error: "Treasury not configured" }, { status: 500 });
+  }
+  // Wagers are disabled, so no wager match can be created or settled. Defence in
+  // depth alongside the creation/registration gates — there is nothing to pay.
+  if (!WAGERS_ENABLED) {
+    return NextResponse.json({ error: "Wagers are currently unavailable." }, { status: 403 });
   }
 
   let matchId: string;

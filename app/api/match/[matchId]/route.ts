@@ -24,6 +24,7 @@ import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJ
 import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
 import { ARENA_V2_ACTIVE } from "../../../lib/arenaV2";
+import { WAGERS_ENABLED } from "../../../lib/wagerConfig";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -234,7 +235,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       const sName = sanitizePlayerName(playerName);
       if (sName) match.host.playerName = sName;
       if (address) match.host.address = address;
-      if (match.mode === "wager") {
+      if (match.mode === "wager" && WAGERS_ENABLED) {
         // Only escrow-backed stablecoins may be recorded as a wager currency.
         if (wagerCurrency !== undefined && !isEscrowWagerCurrency(wagerCurrency)) {
           return NextResponse.json({ error: "Wagers are only available in escrow-backed stablecoins (USDT, USDC, USDm)." }, { status: 400 });
@@ -326,11 +327,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
 
   // ── Keepalive (host waiting on ready page) ──────────────────────────────
+  // Server-side wager kill-switch (default off): a real boundary that direct
+  // API calls can't bypass, unlike the UI gate. No new wager match can be
+  // created or kept alive while wagers are disabled.
+  if (requestedMode === "wager" && !WAGERS_ENABLED) {
+    return NextResponse.json({ error: "Wagers are currently unavailable." }, { status: 403 });
+  }
+
   if (action === "keepalive") {
     let match = await getMatch<ServerMatch>(matchId);
     if (!match) {
-      // Match doesn't exist yet — create it now so it appears in open matches
-      match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "wager");
+      // Match doesn't exist yet — create it now so it appears in open matches.
+      // Default a modeless keepalive to ranked (not wager) so a missing mode
+      // can never silently spin up a wager match.
+      match = newServerMatch(matchId, validMode(requestedMode) ? requestedMode : "ranked");
     }
     match.lastActivity = Date.now();
     // Store player name and address if either side reconnects before character selection.
@@ -383,6 +393,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // ── Register wager TX ───────────────────────────────────────────────────
   if (action === "wager") {
+    if (!WAGERS_ENABLED) {
+      return NextResponse.json({ error: "Wagers are currently unavailable." }, { status: 403 });
+    }
     if (!isEscrowWagerCurrency(wagerCurrency)) {
       return NextResponse.json({ error: "Wagers are only available in escrow-backed stablecoins (USDT, USDC, USDm)." }, { status: 400 });
     }

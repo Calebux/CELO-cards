@@ -16,6 +16,7 @@ import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, U
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
 import { ARENA_V2_ACTIVE, ARENA_V2_ADDRESS } from "../lib/arenaV2";
+import { WAGERS_ENABLED } from "../lib/wagerConfig";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
 import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMiniPay, sendMiniPayNativeTransaction } from "../lib/minipay";
@@ -457,8 +458,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   const payoutNote = `If opponent also stakes, winner takes ${dualPayoutDisplay}`;
 
-  // ── MiniPay: wagers are coming soon — never show a stake flow ────────────
-  if (isMp) {
+  // ── Wagers coming soon — never show a stake flow. On MiniPay always, and on
+  //    web whenever wagers are disabled server-side (the default). ───────────
+  if (isMp || !WAGERS_ENABLED) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 200, backgroundColor: "rgba(5, 5, 16, 0.85)", backdropFilter: "blur(8px)", overflow: "hidden" }}>
         <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
@@ -468,9 +470,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
               Wagers Coming Soon
             </h2>
             <p style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6, margin: "0 0 22px" }}>
-              Staked matches aren&apos;t available on MiniPay yet. Play for free —
-              winners currently receive rewards through our Telegram support
-              after sharing proof of their win.
+              Staked matches aren&apos;t available yet. Play for free — winners
+              currently receive rewards through our Telegram support after
+              sharing proof of their win.
             </p>
             <button
               onClick={onSkip}
