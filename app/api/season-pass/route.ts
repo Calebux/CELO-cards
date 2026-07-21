@@ -102,6 +102,10 @@ export async function POST(req: NextRequest) {
   if (!address || !txHash || !plan || !SEASON_PLANS[plan]) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+  const buyer = address as `0x${string}`;
 
   // Idempotency — don't double-credit same tx
   const txKey = `season-pass-tx:${txHash}`;
@@ -141,7 +145,9 @@ export async function POST(req: NextRequest) {
       stableLogs = await publicClient.getLogs({
         address: token.address,
         event: transferEvent,
-        args: { to: TREASURY_MINIPAY },
+        // Bind the payment to the buyer (H-02): only a transfer FROM the
+        // crediting wallet TO the treasury can activate their pass.
+        args: { from: buyer, to: TREASURY_MINIPAY },
         fromBlock: receipt.blockNumber,
         toBlock: receipt.blockNumber,
       });
@@ -172,7 +178,7 @@ export async function POST(req: NextRequest) {
         address: GDOLLAR_SEASON_PASS_CONTRACT,
         abi: GDOLLAR_SEASON_PASS_ABI,
         eventName: "PassPurchased",
-        args: { buyer: address as `0x${string}` },
+        args: { buyer },
         fromBlock: receipt.blockNumber,
         toBlock: receipt.blockNumber,
       }).catch(() => []);
@@ -195,7 +201,8 @@ export async function POST(req: NextRequest) {
         gdollarLogs = await publicClient.getLogs({
           address: GDOLLAR_CONTRACT,
           event: transferEvent,
-          args: { to: TREASURY },
+          // Bind the payment to the buyer (H-02).
+          args: { from: buyer, to: TREASURY },
           fromBlock: receipt.blockNumber,
           toBlock: receipt.blockNumber,
         });
@@ -226,7 +233,7 @@ export async function POST(req: NextRequest) {
         address: SEASON_PASS_CONTRACT,
         abi: SEASON_PASS_ABI,
         eventName: "PassPurchased",
-        args: { buyer: address as `0x${string}` },
+        args: { buyer },
         fromBlock: receipt.blockNumber,
         toBlock: receipt.blockNumber,
       }).catch(() => []);
@@ -243,7 +250,11 @@ export async function POST(req: NextRequest) {
       }
       creditedPlan = eventPlan as SeasonPlan;
     } else {
-      // Legacy direct transfer
+      // Legacy direct transfer — bind the payment to the buyer (H-02): the
+      // native CELO transfer must originate from the crediting wallet.
+      if (tx.from?.toLowerCase() !== buyer.toLowerCase()) {
+        return NextResponse.json({ error: "Payment sender does not match buyer" }, { status: 403 });
+      }
       if (tx.value < BigInt(planConfig.priceWei)) {
         return NextResponse.json({ error: "Insufficient payment amount" }, { status: 403 });
       }
