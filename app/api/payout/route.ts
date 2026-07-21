@@ -18,7 +18,7 @@ import {
   buildPayoutClaimAuthMessage,
   verifyTreasuryActionSignature,
 } from "../../lib/treasuryAuth";
-import { completeMatchOnChain } from "../../lib/arenaV2Server";
+import { completeMatchOnChain, getArenaMatch } from "../../lib/arenaV2Server";
 import { checkRateLimit } from "../../lib/rateLimit";
 
 interface MatchWagerInfo {
@@ -133,17 +133,29 @@ export async function POST(req: NextRequest) {
     const { bothWagered, winnerPayout: dualPayout } = getMatchWagerInfo(match);
 
     // ── ArenaV2 escrow path ──────────────────────────────────────────────────
-    // Stablecoin stakes land in the verified KnockOrderArenaV2 contract; if the
-    // on-chain match is Active, settle there — the winner is paid 90% of the
-    // pot straight out of the contract, with a MatchCompleted event.
+    // Stablecoin stakes land in the verified KnockOrderArenaV2 contract. When an
+    // on-chain match is Active, the escrow is the source of truth: the winner
+    // MUST be one of the two real stakers, and the payout comes from the pot the
+    // contract recorded (90%). This binds settlement to actual participants and
+    // amounts even though the Redis match state is forgeable — so a forged
+    // winnerAddress pointing at a non-participant can never be paid, and an
+    // active escrow match never falls back to a direct treasury transfer (C-02).
     if (currency === "usdt" || currency === "usdc" || currency === "cusd") {
-      const arenaTx = await completeMatchOnChain(matchId, winner);
-      if (arenaTx) {
+      const arena = await getArenaMatch(matchId);
+      if (arena && arena.active) {
+        const isStaker = arena.stakers.some((s: `0x${string}`) => s.toLowerCase() === winner.toLowerCase());
+        if (!isStaker) {
+          return NextResponse.json({ error: "Winner is not a participant in this match" }, { status: 403 });
+        }
+        const arenaTx = await completeMatchOnChain(matchId, winner);
+        if (!arenaTx) {
+          return NextResponse.json({ error: "Escrow settlement failed" }, { status: 500 });
+        }
         // Permanent settlement record — a match settles exactly once.
         await redis.set(`payout:${matchId}`, arenaTx);
         return NextResponse.json({ txHash: arenaTx, bothWagered, escrow: true });
       }
-      // fall through to legacy direct-transfer paths (pre-ArenaV2 matches)
+      // No active escrow match → legacy/direct fall-through below.
     }
 
     const account = privateKeyToAccount(treasuryKey as `0x${string}`);

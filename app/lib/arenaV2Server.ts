@@ -79,6 +79,32 @@ export async function attributeStakeOnChain(params: {
   }
 }
 
+export type ArenaMatchState = {
+  active: boolean;
+  stakers: readonly `0x${string}`[];
+  pot: bigint;
+};
+
+/** Read the on-chain escrow match. Returns null when ArenaV2 is inactive, the
+ *  key is missing, or the match was never recorded on-chain (a legacy/direct
+ *  match). Used to bind the payout winner to a real staker. */
+export async function getArenaMatch(matchId: string): Promise<ArenaMatchState | null> {
+  try {
+    if (!ARENA_V2_ACTIVE) return null;
+    const c = clients();
+    if (!c) return null;
+    const [, status, , pot, stakers] = await c.publicClient.readContract({
+      address: ARENA_V2_ADDRESS,
+      abi: ARENA_V2_ABI,
+      functionName: "getMatch",
+      args: [matchIdToBytes32(matchId)],
+    });
+    return { active: status === ARENA_V2_STATUS.Active, stakers, pot };
+  } catch {
+    return null;
+  }
+}
+
 /** Settle an Active on-chain match. Returns the tx hash, or null when the
  *  match never made it on-chain (caller falls back to direct transfer). */
 export async function completeMatchOnChain(matchId: string, winner: `0x${string}`): Promise<`0x${string}` | null> {
