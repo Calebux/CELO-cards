@@ -31,6 +31,11 @@ export type HouseWinnerRewardActivity = {
   rewardCode: string;
   rewardUsd: number;
   verifiedAt: number;
+  // "pending" = win recorded from (forgeable) VS House telemetry but not yet
+  // manually verified; only "verified" rewards carry a real redeemable code
+  // and appear in the public showcase (M-07). Absent on legacy entries → treated
+  // as unverified.
+  status?: "verified" | "pending";
 };
 
 export type BlackMarketPurchaseActivity = {
