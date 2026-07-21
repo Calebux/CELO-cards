@@ -8,9 +8,18 @@ Last updated: 2026-07-21 (second pass)
 
 ## Posture summary
 
+- **Wagers are OFF by default, gated server-side.** `NEXT_PUBLIC_ENABLE_WAGERS`
+  (default false) is checked at wager-match creation, stake registration, and
+  `/api/payout` — a real boundary, not just the UI gate (which the reviews
+  correctly flagged as bypassable via direct API calls, H-09). With no wager
+  match able to exist, the entire **C-01 cluster's monetary risk is neutralised**
+  without needing per-move signing. The web `WagerModal` and the create-page
+  wager card now show "Coming Soon" too, matching MiniPay. Flip the flag on only
+  after C-01 auth lands and a two-wallet test passes. The hardening below still
+  applies whenever wagers are re-enabled.
 - **Live MiniPay payment surface (season passes + card purchases): hardened.**
   Payments are verified on-chain, bound to the buyer, and replay-safe.
-- **Wagers: escrow-only, with no treasury fallback.** Only USDT/USDC/USDm
+- **Wagers (when enabled): escrow-only, with no treasury fallback.** Only USDT/USDC/USDm
   wagers (which stake into the verified `KnockOrderArenaV2` escrow) can be
   created. Payout now **requires** an Active on-chain escrow match and settles
   only through the contract — the old direct-treasury fall-through (which was
@@ -53,6 +62,7 @@ Last updated: 2026-07-21 (second pass)
 | M-01 free-game accounting | Free-game counter only increments for free/ranked play; wager and tournament matches no longer burn the free allowance | _pass 3_ |
 | M-05 (deck legality) | Card submission rejects decks that aren't 5 distinct cards or that exceed the character's energy pool (the same rules the client enforces). Ownership enforcement stays H-11 part 2 | _pass 3_ |
 | M-09 G$ registry ownership | `GDollarSeasonPassRegistry` now uses two-step ownership (`transferOwnership` + `acceptOwnership`) with events | _pass 3, source-only, needs redeploy_ |
+| C-01 cluster (money risk) | Server-side wager kill-switch (`NEXT_PUBLIC_ENABLE_WAGERS`, default off) at creation/registration/payout + web "Coming Soon" gate. No wager match can exist, so forged match state can't move real money | _pass 4_ |
 
 ## ⚠️ Requires redeploy before it takes effect
 
@@ -115,6 +125,13 @@ forgeable — they need C-01 as the foundation, then become enforceable:
 - **C-01-adjacent** role assertion, order read/overwrite, VS House result
   forging (M-07), progression endpoints trusting the client (M-08) — all the
   same root.
+- **⚠️ House reward codes (M-07, LIVE and money-relevant).** With wagers off,
+  VS House is the mode people actually play — and `/api/house-winner` issues a
+  **$5 reward code** (from a $100 pool) for a win. It's gated only by VS House
+  telemetry that `/api/match/vshouse/resolve` records **without authentication**,
+  so a forged "win" can claim a real code. Disabling wagers does NOT touch this.
+  Options: gate reward issuance behind manual review, disable the auto-code, or
+  cap/close the pool. This is the highest-value remaining live item.
 - **H-10** treasury-funded ranked/House entries from weakly-trusted state. The
   VS House treasury entry is already flag-gated off (`ENABLE_VSHOUSE_TREASURY_ENTRY`
   defaults false); `/api/season-pass/enter` griefing needs match-action auth.
