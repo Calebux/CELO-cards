@@ -107,10 +107,9 @@ export async function POST(req: NextRequest) {
   }
   const buyer = address as `0x${string}`;
 
-  // Idempotency — don't double-credit same tx
+  // Transaction dedup is enforced atomically after verification via SET NX
+  // (see below) so concurrent requests can't double-credit.
   const txKey = `season-pass-tx:${txHash}`;
-  const seen = await redis.get(txKey);
-  if (seen) return NextResponse.json({ error: "Transaction already used" }, { status: 409 });
 
   const planConfig = SEASON_PLANS[plan];
   // The plan we actually credit. For contract purchases this is overridden with
@@ -260,6 +259,22 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+  // Atomically claim this transaction before crediting so two concurrent
+  // requests cannot both pass verification and stack the pass twice (H-03).
+  // The record is permanent (no expiry) so a tx can never be replayed after
+  // the pass lapses.
+  const reserved = await redis.set(txKey, "1", { nx: true });
+  if (!reserved) {
+    // Already claimed. If it credited THIS buyer's current pass, respond
+    // idempotently (the client may poll the same tx more than once); a
+    // different wallet reusing the tx is rejected.
+    const current = parseSeasonPassRecord(await redis.get(passKey(address)));
+    if (current && current.txHash === txHash) {
+      return NextResponse.json({ success: true, expiry: current.expiry, plan: current.plan });
+    }
+    return NextResponse.json({ error: "Transaction already used" }, { status: 409 });
+  }
+
   const durationMs = SEASON_PLANS[creditedPlan].days * 24 * 60 * 60 * 1000;
 
   // Stack on top of existing pass if still active
@@ -269,7 +284,6 @@ export async function POST(req: NextRequest) {
 
   const ttlSec = Math.ceil((expiry - Date.now()) / 1000) + 86400; // +1 day buffer
   await redis.set(passKey(address), { expiry, plan: creditedPlan, txHash }, { ex: ttlSec });
-  await redis.set(txKey, "1", { ex: ttlSec });
 
   return NextResponse.json({ success: true, expiry, plan: creditedPlan });
 }
