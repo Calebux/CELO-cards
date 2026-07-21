@@ -48,7 +48,11 @@ Last updated: 2026-07-21 (second pass)
 | H-05 ArenaV2 settlement invariants | `completeMatch` requires two equal stakes + winner ∈ stakers; permissionless `refundExpiredMatch` after `REFUND_TIMEOUT` (24h); two-step ownership | _this pass_ |
 | H-06 attribution replay | Each stake transfer `(txHash, logIndex)` is consumed once via permanent `SET NX`, keyed to `matchId:player`; a deposit can't back a second match/player even with surplus in the contract | _this pass_ |
 | H-07 unconfirmed finality | `attributeStakeOnChain` and payout settlement wait for on-chain receipts; only a confirmed `success` becomes permanent finality; a broadcast-but-pending settlement returns `202 pending` and is reconciled on the next claim | _this pass_ |
-| M-10 embedded API key | Alchemy URL removed from `/api/season-pass` source; RPC read from `CELO_RPC_URL`/env with Forno fallback (rotate the leaked key) | _this pass_ |
+| M-10 embedded API key | Alchemy URL removed from `/api/season-pass` source; RPC read from `CELO_RPC_URL`/env with Forno fallback (rotate the leaked key) | _pass 2_ |
+| C-04 unauth daily reward | `/api/daily-reward` now requires a GoodDollar-verified (`isWhitelisted`) wallet and an atomic one-time-per-day claim; fails closed if the identity read fails | _pass 3_ |
+| M-01 free-game accounting | Free-game counter only increments for free/ranked play; wager and tournament matches no longer burn the free allowance | _pass 3_ |
+| M-05 (deck legality) | Card submission rejects decks that aren't 5 distinct cards or that exceed the character's energy pool (the same rules the client enforces). Ownership enforcement stays H-11 part 2 | _pass 3_ |
+| M-09 G$ registry ownership | `GDollarSeasonPassRegistry` now uses two-step ownership (`transferOwnership` + `acceptOwnership`) with events | _pass 3, source-only, needs redeploy_ |
 
 ## ⚠️ Requires redeploy before it takes effect
 
@@ -100,18 +104,35 @@ from, so enforcing now would lock out existing card holders. The authoritative
 `owned-premium:<addr>` set (built by the part-1 fix) is the foundation;
 enforcement needs a backfill/migration first.
 
-## Still open (not yet addressed)
+## Still open — the C-01 cluster (one root cause)
 
-- **C-04** `/api/daily-reward` is unauthenticated (streaming removed, but any
-  address can still trigger a small G$ transfer). Recommend gating to the same
-  GoodDollar-verified eligibility as the real UBI claim, or disabling it.
-- **C-01-adjacent** other match mutations (role assertion, order read/overwrite,
-  VS House result forging) remain unauthenticated — same root as C-01.
-- **Mediums** (M-01 free-game counter, M-03 Redis race conditions, M-04
-  unverifiable randomness, M-05 deck/legality enforcement) — not yet addressed.
-- **Key management** (H-12): treasury/deployer/owner remain one hot key. The
-  ArenaV2 two-step ownership added this pass helps rotate the owner safely but
-  does not by itself split the roles.
+Most of what remains is **not independent bugs**. It's all downstream of the
+match/game state being unauthenticated and client-driven (C-01). You cannot
+make these individually trustworthy while the underlying match actions are
+forgeable — they need C-01 as the foundation, then become enforceable:
+
+- **C-01** full match-action authentication (deferred — see above). The root.
+- **C-01-adjacent** role assertion, order read/overwrite, VS House result
+  forging (M-07), progression endpoints trusting the client (M-08) — all the
+  same root.
+- **H-10** treasury-funded ranked/House entries from weakly-trusted state. The
+  VS House treasury entry is already flag-gated off (`ENABLE_VSHOUSE_TREASURY_ENTRY`
+  defaults false); `/api/season-pass/enter` griefing needs match-action auth.
+- **H-11 (part 2)** premium-card ownership enforcement — needs the
+  `owned-premium` backfill first (see Deferred).
+- **M-03** Redis race conditions — broad; the highest-value transitions (payout,
+  daily-reward, season-pass tx claim, stake-log consumption) are now atomic via
+  `SET NX`, but full versioned CAS across match state remains.
+- **M-04** unverifiable randomness (`Math.random()` in paid matches) — needs a
+  committed-seed/VRF design; overlaps with the C-01 commit/reveal work.
+
+## Still open — needs ops, not code
+
+- **Key management (H-12):** treasury/deployer/owner remain one hot key.
+  Two-step ownership on both contracts (ArenaV2, G$ registry) makes rotation
+  safe, but actually splitting into deployer / escrow-resolver / reward /
+  sponsorship keys requires provisioning and funding separate wallets and
+  moving contract ownership to a multisig — an operational task.
 
 ## Fixed this pass — verification
 
