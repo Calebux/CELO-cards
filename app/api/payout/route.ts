@@ -54,14 +54,12 @@ export async function POST(req: NextRequest) {
   let currency: "cusd" | "celo" | "gdollar" | "usdt" | "usdc" = "cusd";
   let claimantAddress: string;
   let signature: string;
-  let fromMiniPay = false;
   try {
-    const body = await req.json() as { matchId: string; currency?: string; address?: string; signature?: string; isMiniPay?: boolean };
+    const body = await req.json() as { matchId: string; currency?: string; address?: string; signature?: string };
     if (!body.matchId || !body.address) throw new Error("missing fields");
     matchId = body.matchId;
     claimantAddress = body.address;
     signature = body.signature ?? "";
-    fromMiniPay = body.isMiniPay === true;
     if (body.currency === "celo")    currency = "celo";
     if (body.currency === "gdollar") currency = "gdollar";
     if (body.currency === "usdt")    currency = "usdt";
@@ -103,17 +101,32 @@ export async function POST(req: NextRequest) {
     if (winner.toLowerCase() !== claimantAddress.toLowerCase()) {
       return NextResponse.json({ error: "Only the match winner can claim payout" }, { status: 403 });
     }
-    // MiniPay doesn't support personal_sign — address ownership is proven by auto-connect.
-    // Winner check above is sufficient to authorise the claim.
-    if (!fromMiniPay) {
-      const isValidSignature = await verifyTreasuryActionSignature(
-        claimantAddress,
-        signature,
-        buildPayoutClaimAuthMessage(claimantAddress, matchId, currency),
-      );
-      if (!isValidSignature) {
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-      }
+
+    // Derive the payout currency from match state — the caller cannot choose
+    // which treasury asset to be paid in (C-02).
+    const hostCur = match.hostWagerCurrency;
+    const joinCur = match.joinerWagerCurrency;
+    if (hostCur && joinCur && hostCur !== joinCur) {
+      return NextResponse.json({ error: "Wager currency mismatch" }, { status: 409 });
+    }
+    const matchCurrency = hostCur ?? joinCur;
+    if (!matchCurrency) {
+      return NextResponse.json({ error: "Match has no recorded wager currency" }, { status: 409 });
+    }
+    if (currency !== matchCurrency) {
+      return NextResponse.json({ error: "Currency does not match the wager" }, { status: 403 });
+    }
+
+    // Every payout claim must be signed by the winner's wallet. (MiniPay wagers
+    // are disabled, so there is no legitimate unsigned-claim path — the previous
+    // isMiniPay bypass is removed, C-02.)
+    const isValidSignature = await verifyTreasuryActionSignature(
+      claimantAddress,
+      signature,
+      buildPayoutClaimAuthMessage(claimantAddress, matchId, currency),
+    );
+    if (!isValidSignature) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     // Check if both players wagered and get the actual payout amount from their stakes
@@ -126,7 +139,8 @@ export async function POST(req: NextRequest) {
     if (currency === "usdt" || currency === "usdc" || currency === "cusd") {
       const arenaTx = await completeMatchOnChain(matchId, winner);
       if (arenaTx) {
-        await redis.set(`payout:${matchId}`, arenaTx, { ex: 7200 });
+        // Permanent settlement record — a match settles exactly once.
+        await redis.set(`payout:${matchId}`, arenaTx);
         return NextResponse.json({ txHash: arenaTx, bothWagered, escrow: true });
       }
       // fall through to legacy direct-transfer paths (pre-ArenaV2 matches)
@@ -161,7 +175,7 @@ export async function POST(req: NextRequest) {
         args: [winner, gdollarAmt],
       });
       txHash = await walletClient.writeContract(request);
-      await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
+      await redis.set(`payout:${matchId}`, txHash);
       return NextResponse.json({ txHash, bothWagered });
     }
 
@@ -169,7 +183,7 @@ export async function POST(req: NextRequest) {
     // USDT/USDC stakes are always direct treasury transfers, and MiniPay
     // USDm (cusd) stakes are too — those never entered the arena contract,
     // so their payouts must also be direct transfers.
-    if (USE_CONTRACT && currency !== "usdt" && currency !== "usdc" && !(fromMiniPay && currency === "cusd")) {
+    if (USE_CONTRACT && currency !== "usdt" && currency !== "usdc") {
       const { request } = await publicClient.simulateContract({
         account,
         address: ARENA_ADDRESS,
@@ -205,8 +219,9 @@ export async function POST(req: NextRequest) {
       txHash = await walletClient.writeContract(request);
     }
 
-    // Record payout so it can't be triggered twice
-    await redis.set(`payout:${matchId}`, txHash, { ex: 7200 });
+    // Permanent settlement record — a match settles exactly once (no TTL that
+    // would restore claimability, C-02).
+    await redis.set(`payout:${matchId}`, txHash);
 
     return NextResponse.json({ txHash, bothWagered });
   } catch (e) {
