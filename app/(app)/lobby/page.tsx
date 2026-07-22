@@ -9,6 +9,8 @@ import { formatUnits } from "viem";
 import { useAccount, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
+import { MATCH_REGISTRY, MATCH_REGISTRY_ABI, MATCH_REGISTRY_ACTIVE } from "../../lib/matchRegistry";
+import { getMiniPayWriteOverrides } from "../../lib/minipay";
 import { WAGER_AMOUNT_CELO } from "../../lib/cusd";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { useMobileViewportMode } from "../../lib/mobile";
@@ -215,6 +217,23 @@ export default function Lobby() {
         } catch {
           playerTxHash = null;
         }
+      }
+
+      // Best-effort: record this ranked match on the dedicated MatchRegistry
+      // from the player's OWN wallet, so it's attributed to them on Talent
+      // Protocol / Celoscan (the entry fee itself may be treasury-sponsored,
+      // esp. on MiniPay, which wouldn't attribute to the player). Fire and
+      // forget — a rejected or failed tracking tx must never block the match.
+      if (MATCH_REGISTRY_ACTIVE && wagmiAddress && isConnected) {
+        writeContractAsync({
+          address: MATCH_REGISTRY,
+          abi: MATCH_REGISTRY_ABI,
+          functionName: "recordMatch",
+          args: [matchId],
+          account: wagmiAddress,
+          chainId: celo.id,
+          ...(isMp ? getMiniPayWriteOverrides() : {}),
+        }).catch(() => {});
       }
 
       const postEntry = (txHash: string | null) =>
