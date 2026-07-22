@@ -8,11 +8,21 @@ import {
   type HouseWinnerRewardActivity,
 } from "../../lib/opsActivity";
 import { sanitizePlayerName } from "../../lib/rateLimit";
+import { HOUSE_AUTO_REWARDS_ENABLED } from "../../lib/houseConfig";
 
 export const dynamic = "force-dynamic";
 
 const REWARD_USD = 5;
 const POOL_PRIZE_USD = 100;
+const PENDING_MESSAGE =
+  "Your House win is recorded! Rewards are verified by our team and sent on " +
+  "Telegram — share your win there to claim your $5.";
+
+// Only verified rewards carry a real redeemable code and count toward the pool.
+// Legacy entries without a status are treated as unverified (M-07).
+function isVerifiedReward(r: HouseWinnerRewardActivity): boolean {
+  return r.status === "verified" && !!r.rewardCode;
+}
 const SHOWCASE_WINNERS: Array<{
   playerAddress: string;
   playerName: string;
@@ -68,7 +78,9 @@ function buildRewardCode() {
 }
 
 export async function GET() {
-  const rewards = await getHouseWinnerRewardActivity();
+  // Only verified rewards are shown publicly — pending (unverified, possibly
+  // forged) claims never appear as winners (M-07).
+  const rewards = (await getHouseWinnerRewardActivity()).filter(isVerifiedReward);
   const actualWinners = rewards.slice(0, 20).map((reward, index) => ({
     rank: index + 1,
     playerAddress: reward.playerAddress,
@@ -129,12 +141,15 @@ export async function POST(req: NextRequest) {
   const rewardKey = `house-winner:${matchId}:${playerAddress}`;
   const existing = await redis.get<HouseWinnerRewardActivity>(rewardKey);
   if (existing) {
-    return NextResponse.json({
-      ok: true,
-      rewardCode: existing.rewardCode,
-      rewardUsd: existing.rewardUsd,
-      verifiedAt: existing.verifiedAt,
-    });
+    if (isVerifiedReward(existing)) {
+      return NextResponse.json({
+        ok: true,
+        rewardCode: existing.rewardCode,
+        rewardUsd: existing.rewardUsd,
+        verifiedAt: existing.verifiedAt,
+      });
+    }
+    return NextResponse.json({ ok: true, pending: true, message: PENDING_MESSAGE });
   }
 
   const houseMatches = await getHouseMatchActivity();
@@ -153,16 +168,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Winning house telemetry not found for this final match" }, { status: 403 });
   }
 
-  const rewardEntry: HouseWinnerRewardActivity = {
+  const baseEntry = {
     matchId,
     playerAddress,
     playerName: sanitizePlayerName(body.playerName ?? null),
     playerCharacterId,
     opponentCharacterId,
-    rewardCode: buildRewardCode(),
     rewardUsd: REWARD_USD,
     verifiedAt: Date.now(),
   };
+
+  // VS House telemetry isn't authenticated, so a "win" is forgeable. Unless
+  // auto-rewards are explicitly enabled, record the claim as pending and issue
+  // NO redeemable code — the prize is paid only after manual verification (M-07).
+  if (!HOUSE_AUTO_REWARDS_ENABLED) {
+    const pendingEntry: HouseWinnerRewardActivity = { ...baseEntry, rewardCode: "", status: "pending" };
+    await Promise.all([
+      redis.set(rewardKey, pendingEntry, { ex: 60 * 60 * 24 * 180 }),
+      recordHouseWinnerRewardActivity(pendingEntry),
+    ]);
+    return NextResponse.json({ ok: true, pending: true, message: PENDING_MESSAGE });
+  }
+
+  const rewardEntry: HouseWinnerRewardActivity = { ...baseEntry, rewardCode: buildRewardCode(), status: "verified" };
 
   await Promise.all([
     redis.set(rewardKey, rewardEntry, { ex: 60 * 60 * 24 * 180 }),

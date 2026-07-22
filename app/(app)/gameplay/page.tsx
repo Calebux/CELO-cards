@@ -135,6 +135,7 @@ export default function Gameplay() {
   const [showShareCard, setShowShareCard] = useState(false);
   const [claimingHouseWinner, setClaimingHouseWinner] = useState(false);
   const [houseWinnerError, setHouseWinnerError] = useState<string | null>(null);
+  const [houseWinnerPending, setHouseWinnerPending] = useState<string | null>(null);
   const [houseWinnerReward, setHouseWinnerReward] = useState<{ rewardCode: string; rewardUsd: number } | null>(null);
   const [houseWinnerModalOpen, setHouseWinnerModalOpen] = useState(false);
   const [showNextFightReveal, setShowNextFightReveal] = useState(false);
@@ -684,7 +685,13 @@ export default function Gameplay() {
                 opponentCharacterId: opponentCharacter.id,
               }),
             });
-            const data = await res.json().catch(() => ({})) as { rewardCode?: string; rewardUsd?: number; error?: string };
+            const data = await res.json().catch(() => ({})) as { rewardCode?: string; rewardUsd?: number; pending?: boolean; message?: string; error?: string };
+            // Win recorded, reward pending manual verification (no auto-code).
+            if (res.ok && data.pending) {
+              addBonusPoints(5000);
+              setHouseWinnerPending(data.message ?? "Your House win is recorded! Rewards are verified and sent on Telegram.");
+              return;
+            }
             if (!res.ok || !data.rewardCode || !data.rewardUsd) {
               throw new Error(data.error ?? "Could not verify this House win right now.");
             }
@@ -1769,6 +1776,11 @@ export default function Gameplay() {
                   {houseWinnerError && (
                     <div style={{ marginTop: 12, fontSize: 11, color: "#fca5a5", textAlign: "center" }}>
                       {houseWinnerError}
+                    </div>
+                  )}
+                  {houseWinnerPending && !houseWinnerError && (
+                    <div style={{ marginTop: 12, fontSize: 11, color: "#4ade80", textAlign: "center", lineHeight: 1.5 }}>
+                      {houseWinnerPending}
                     </div>
                   )}
                 </div>
