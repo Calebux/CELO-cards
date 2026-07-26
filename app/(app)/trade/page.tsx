@@ -9,6 +9,7 @@ import { MiniPayImage } from "../../components/MiniPayImage";
 import { WalletSection } from "../../components/WalletSection";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import type { TradeOffer } from "../../lib/cardTrade";
+import { useTradeCardSync } from "../../lib/useTradeCardSync";
 
 const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
@@ -17,7 +18,7 @@ type TabView = "inbox" | "outbox" | "send";
 export default function TradePage() {
   const router = useRouter();
   const { address } = useAccount();
-  const { unlockedPremiumCards, purchaseCard } = useGameStore();
+  const { unlockedPremiumCards, purchaseCard, removePremiumCard } = useGameStore();
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const [tab, setTab] = useState<TabView>("inbox");
@@ -36,6 +37,7 @@ export default function TradePage() {
 
   const ownedPremiumCards = CARDS.filter(c => c.isPremium && unlockedPremiumCards.includes(c.id));
   const allPremiumCards = CARDS.filter(c => c.isPremium);
+  useTradeCardSync(address);
 
   // Match the game canvas orientation on phones/MiniPay: rotate the
   // landscape layout into portrait viewports instead of shrinking it upright.
@@ -70,23 +72,6 @@ export default function TradePage() {
       viewport?.removeEventListener("resize", update);
     };
   }, []);
-
-  // Check for pending trade grants
-  useEffect(() => {
-    if (!address) return;
-    fetch(`/api/trade?address=${address.toLowerCase()}&view=grants`)
-      .then(r => r.ok ? r.json() as Promise<{ grants: string[] }> : null)
-      .then(data => {
-        if (data?.grants?.length) {
-          data.grants.forEach(cardId => {
-            if (!unlockedPremiumCards.includes(cardId)) {
-              purchaseCard(cardId, 0);
-            }
-          });
-        }
-      })
-      .catch(() => {});
-  }, [address, unlockedPremiumCards, purchaseCard]);
 
   const fetchOffers = useCallback(async (view: "inbox" | "outbox") => {
     if (!address) return;
@@ -125,6 +110,9 @@ export default function TradePage() {
           if (acceptedOffer && !unlockedPremiumCards.includes(acceptedOffer.offeredCardId)) {
             purchaseCard(acceptedOffer.offeredCardId, 0);
           }
+          if (acceptedOffer?.requestedCardId && unlockedPremiumCards.includes(acceptedOffer.requestedCardId)) {
+            removePremiumCard(acceptedOffer.requestedCardId);
+          }
         }
         void fetchOffers(tab === "outbox" ? "outbox" : "inbox");
       } else {
@@ -133,7 +121,7 @@ export default function TradePage() {
     } catch {
       setActionMsg("Request failed.");
     }
-  }, [address, tab, fetchOffers]);
+  }, [address, tab, fetchOffers, inbox, purchaseCard, removePremiumCard, unlockedPremiumCards]);
 
   const sendOffer = useCallback(async () => {
     if (!address || !selectedOfferedCard || !toUsername.trim() || sending) return;

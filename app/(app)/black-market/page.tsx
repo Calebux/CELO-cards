@@ -26,6 +26,7 @@ import { MiniPayImage } from "../../components/MiniPayImage";
 import { useGameFrameScale } from "../../lib/mobile";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, PREMIUM_PAYMENT_META, type PremiumPaymentCurrency, useMiniPayMode } from "../../lib/premiumPayments";
 import { getStablecoin, isMiniPayStableKey, useMiniPayStablecoin } from "../../lib/stablecoins";
+import { useTradeCardSync } from "../../lib/useTradeCardSync";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -73,6 +74,7 @@ export default function BlackMarket() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { address, isConnected, chainId } = useAccount();
+  useTradeCardSync(address);
 
   const { unlockedPremiumCards, playerName, attunedCardIds, cardPerformance } = useGameStore();
   const unlockCard = useGameStore((s) => s.purchaseCard);

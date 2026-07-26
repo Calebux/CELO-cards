@@ -25,6 +25,7 @@ import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
 import { ARENA_V2_ACTIVE } from "../../../lib/arenaV2";
 import { WAGERS_ENABLED } from "../../../lib/wagerConfig";
+import { MatchAction, MatchActionAuth, verifyMatchActionSignature } from "../../../lib/matchAuth";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -66,6 +67,44 @@ function validWagerCurrency(currency: unknown): currency is WagerCurrency {
 const ESCROW_WAGER_CURRENCIES = new Set<WagerCurrency>(["usdt", "usdc", "cusd"]);
 function isEscrowWagerCurrency(currency: unknown): currency is WagerCurrency {
   return ARENA_V2_ACTIVE && validWagerCurrency(currency) && ESCROW_WAGER_CURRENCIES.has(currency);
+}
+
+function authAddress(auth: unknown): string | null {
+  if (!auth || typeof auth !== "object") return null;
+  const address = (auth as MatchActionAuth).address;
+  return typeof address === "string" && /^0x[0-9a-fA-F]{40}$/.test(address) ? address.toLowerCase() : null;
+}
+
+async function requireWagerActionAuth(params: {
+  matchId: string;
+  role: "host" | "joiner";
+  action: MatchAction;
+  round?: number;
+  payload: Record<string, unknown>;
+  auth: unknown;
+  expectedAddress?: string | null;
+}): Promise<NextResponse | null> {
+  const authBody = params.auth && typeof params.auth === "object" ? params.auth as MatchActionAuth : null;
+  const wallet = authAddress(authBody);
+  const signature = authBody?.signature;
+  const issuedAt = Number(authBody?.issuedAt);
+  if (!wallet || !signature || !Number.isFinite(issuedAt)) {
+    return NextResponse.json({ error: "Signed match action required" }, { status: 401 });
+  }
+  if (params.expectedAddress && wallet !== params.expectedAddress.toLowerCase()) {
+    return NextResponse.json({ error: "Signed wallet does not match player slot" }, { status: 403 });
+  }
+  const ok = await verifyMatchActionSignature({
+    wallet,
+    matchId: params.matchId,
+    role: params.role,
+    action: params.action,
+    round: params.round,
+    payload: params.payload,
+    issuedAt,
+    signature,
+  });
+  return ok ? null : NextResponse.json({ error: "Invalid match action signature" }, { status: 401 });
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -174,7 +213,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     opponentCharId,
     opponentName: other.playerName,
     selfCharId: self.charId,
-    selfCardIds: self.orderRound === match.round ? self.cardIds : null,
+    selfCardIds: match.mode === "wager" && !match.resolvedSlots ? null : self.orderRound === match.round ? self.cardIds : null,
     phase,
     slots,
     hostWins:        role === "host" ? match.hostWins   : match.joinerWins,
@@ -202,7 +241,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, characterId, playerName, address, wagerTx, wagerAmount, wagerCurrency } = body as { role: unknown; characterId: unknown; playerName?: string; address?: string; wagerTx?: string; wagerAmount?: string; wagerCurrency?: WagerCurrency };
+  const { role, characterId, playerName, address, wagerTx, wagerAmount, wagerCurrency, matchAuth } = body as { role: unknown; characterId: unknown; playerName?: string; address?: string; wagerTx?: string; wagerAmount?: string; wagerCurrency?: WagerCurrency; matchAuth?: MatchActionAuth };
 
   if (!validRole(role)) {
     return NextResponse.json({ error: "role must be 'host' or 'joiner'" }, { status: 400 });
@@ -212,6 +251,21 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   const existingMatch = await getMatch<ServerMatch>(matchId);
+  if (existingMatch?.mode === "wager" && !WAGERS_ENABLED) {
+    return NextResponse.json({ error: "Wagers are currently unavailable." }, { status: 403 });
+  }
+  if (existingMatch?.mode === "wager" || wagerTx || wagerAmount || wagerCurrency) {
+    if (!address) return NextResponse.json({ error: "Address required for signed wager match action" }, { status: 400 });
+    const authError = await requireWagerActionAuth({
+      matchId,
+      role,
+      action: "character",
+      payload: { characterId, playerName, address: address.toLowerCase(), wagerTx, wagerAmount, wagerCurrency },
+      auth: matchAuth,
+      expectedAddress: address,
+    });
+    if (authError) return authError;
+  }
   if (
     role === "joiner" &&
     existingMatch &&
@@ -308,7 +362,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, wagerCurrency, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, attunedCardIds } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, wagerCurrency, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, attunedCardIds, matchAuth } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
@@ -320,6 +374,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     address?: string;
     mode?: MultiplayerMode;
     attunedCardIds?: string[];
+    matchAuth?: MatchActionAuth;
   };
 
   if (!validRole(role)) {
@@ -336,6 +391,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   if (action === "keepalive") {
     let match = await getMatch<ServerMatch>(matchId);
+    if ((match?.mode === "wager" || requestedMode === "wager") && WAGERS_ENABLED) {
+      const expectedAddress = typeof patchAddress === "string" ? patchAddress : match?.[role].address;
+      const authError = await requireWagerActionAuth({
+        matchId,
+        role,
+        action: "keepalive",
+        payload: { playerName: patchPlayerName, address: expectedAddress?.toLowerCase(), mode: requestedMode },
+        auth: matchAuth,
+        expectedAddress,
+      });
+      if (authError) return authError;
+    }
     if (!match) {
       // Match doesn't exist yet — create it now so it appears in open matches.
       // Default a modeless keepalive to ranked (not wager) so a missing mode
@@ -399,6 +466,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (!isEscrowWagerCurrency(wagerCurrency)) {
       return NextResponse.json({ error: "Wagers are only available in escrow-backed stablecoins (USDT, USDC, USDm)." }, { status: 400 });
     }
+    if (!patchAddress) return NextResponse.json({ error: "Address required for signed wager registration" }, { status: 400 });
+    const authError = await requireWagerActionAuth({
+      matchId,
+      role,
+      action: "wager",
+      payload: { address: patchAddress.toLowerCase(), wagerTx, wagerAmount, wagerCurrency },
+      auth: matchAuth,
+      expectedAddress: patchAddress,
+    });
+    if (authError) return authError;
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);
       if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
@@ -456,6 +533,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     for (let attempt = 0; attempt < 5; attempt++) {
       const match = await getMatch<ServerMatch>(matchId);
       if (!match) return NextResponse.json({ ok: true });
+      if (match.mode === "wager") {
+        const slotAddress = match[role].address;
+        const authError = await requireWagerActionAuth({
+          matchId,
+          role,
+          action: "quit",
+          payload: {},
+          auth: matchAuth,
+          expectedAddress: slotAddress,
+        });
+        if (authError) return authError;
+      }
       match.abortedBy = role;
       match.lastActivity = Date.now();
       closeJoinWindow(match);
@@ -526,6 +615,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   for (let attempt = 0; attempt < 5; attempt++) {
     match = await getMatch<ServerMatch>(matchId);
     if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    if (match.mode === "wager") {
+      const slotAddress = match[role].address;
+      const authError = await requireWagerActionAuth({
+        matchId,
+        role,
+        action: "submit",
+        round,
+        payload: { cardIds, round, attunedCardIds: Array.isArray(attunedCardIds) ? attunedCardIds : [] },
+        auth: matchAuth,
+        expectedAddress: slotAddress,
+      });
+      if (authError) return authError;
+    }
 
     match.lastActivity = Date.now();
     closeJoinWindow(match);

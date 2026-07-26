@@ -54,7 +54,7 @@ export function emptyPlayerSlot(): PlayerSlot {
   };
 }
 
-export function newServerMatch(matchId: string, mode: MultiplayerMode = "wager"): ServerMatch {
+export function newServerMatch(matchId: string, mode: MultiplayerMode = "ranked"): ServerMatch {
   const now = Date.now();
   return {
     id: matchId,

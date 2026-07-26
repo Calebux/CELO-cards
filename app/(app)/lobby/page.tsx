@@ -15,6 +15,7 @@ import { WAGER_AMOUNT_CELO } from "../../lib/cusd";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { useMobileViewportMode } from "../../lib/mobile";
 import { usePageVisibility } from "../../lib/perf";
+import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
 const WagerModal = dynamic(() => import("../../components/WagerModal").then(m => ({ default: m.WagerModal })), { ssr: false });
 
@@ -59,11 +60,30 @@ export default function Lobby() {
   const isMp = useMiniPayMode();
   const { address: wagmiAddress, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const signMatchAction = useMatchActionAuth();
   const isMobileViewport = useMobileViewportMode();
   const pageVisible = usePageVisibility();
   const safeTop = "env(safe-area-inset-top)";
   const player   = selectedCharacter;
   const opponent = opponentCharacter;
+
+  const quitMatch = async () => {
+    if (!matchId || !playerRole) return;
+    const matchAuth = matchMode === "wager" && wagmiAddress
+      ? await signMatchAction({
+          address: wagmiAddress,
+          matchId,
+          role: playerRole,
+          action: "quit",
+          payload: {},
+        })
+      : undefined;
+    await fetch(`/api/match/${matchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "quit", role: playerRole, matchAuth }),
+    });
+  };
 
   // ── Poll for opponent character (multiplayer only) ──────────────────────
   useEffect(() => {
@@ -354,13 +374,7 @@ export default function Lobby() {
       {/* Leave button — top left */}
       <button
         onClick={() => {
-          if (matchId && playerRole) {
-            void fetch(`/api/match/${matchId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "quit", role: playerRole }),
-            });
-          }
+          void quitMatch();
           router.replace("/");
         }}
         style={{
@@ -601,11 +615,7 @@ export default function Lobby() {
           {opponentWaitMs >= OPPONENT_ABORT_MS && (
             <button
               onClick={() => {
-                void fetch(`/api/match/${matchId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "quit", role: playerRole }),
-                });
+                void quitMatch();
                 router.replace("/");
               }}
               style={{
@@ -640,13 +650,7 @@ export default function Lobby() {
           {payWaitMs >= 90_000 && (
             <button
               onClick={() => {
-                if (matchId && playerRole) {
-                  void fetch(`/api/match/${matchId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "quit", role: playerRole }),
-                  });
-                }
+                void quitMatch();
                 router.replace("/");
               }}
               style={{
@@ -739,13 +743,7 @@ export default function Lobby() {
           lockedAmountRaw={requiredWagerAmountRaw ?? undefined}
           lockedCurrency={requiredWagerCurrency ?? undefined}
           onSkip={() => {
-            if (matchId && playerRole) {
-              void fetch(`/api/match/${matchId}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "quit", role: playerRole }),
-              });
-            }
+            void quitMatch();
             router.replace("/");
           }}
         />

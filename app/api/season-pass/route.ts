@@ -104,9 +104,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json() as { address?: string; txHash?: string; plan?: SeasonPlan; currency?: "celo" | "gdollar" | "usdt" | "usdc" | "cusd" };
-  const { address, txHash, plan, currency = "celo" } = body;
+  const { address, plan, currency = "celo" } = body;
+  const txHash = body.txHash?.trim().toLowerCase();
 
-  if (!address || !txHash || !plan || !SEASON_PLANS[plan]) {
+  if (!address || !txHash || !/^0x[0-9a-f]{64}$/.test(txHash) || !plan || !SEASON_PLANS[plan]) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {

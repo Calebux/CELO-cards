@@ -7,6 +7,7 @@ import { useGameStore } from "../../lib/gameStore";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -38,6 +39,7 @@ function ReadyYourDeck() {
   const matchMode      = useGameStore((s) => s.matchMode);
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   const resetMatch     = useGameStore((s) => s.resetMatch);
+  const signMatchAction = useMatchActionAuth();
   const safeTop = "env(safe-area-inset-top)";
 
   useEffect(() => {
@@ -82,18 +84,29 @@ function ReadyYourDeck() {
   // Keepalive — register match in Redis and keep it alive while host waits
   useEffect(() => {
     if (!storeMatchId || exiting) return;
-    const ping = () => {
-      void fetch(`/api/match/${storeMatchId}`, {
+    const ping = async () => {
+      const mode = isRanked ? "ranked" : matchMode;
+      const payload = { playerName, address: playerAddress?.toLowerCase(), mode };
+      const matchAuth = mode === "wager" && playerAddress
+        ? await signMatchAction({
+            address: playerAddress,
+            matchId: storeMatchId,
+            role: "host",
+            action: "keepalive",
+            payload,
+          })
+        : undefined;
+      await fetch(`/api/match/${storeMatchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: isRanked ? "ranked" : matchMode }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode, matchAuth }),
       }).catch(() => {});
     };
-    ping(); // immediate ping — creates match in Redis and adds to open matches
-    const id = setInterval(ping, 60_000);
+    void ping(); // immediate ping — creates match in Redis and adds to open matches
+    const id = setInterval(() => { void ping(); }, 60_000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exiting, isRanked, matchMode, playerAddress, playerName, storeMatchId]);
+  }, [exiting, isRanked, matchMode, playerAddress, playerName, storeMatchId, signMatchAction]);
 
   // Poll for joiner — when found, redirect host to character select (payment happens in lobby)
   useEffect(() => {
@@ -144,10 +157,19 @@ function ReadyYourDeck() {
     setExiting(true);
     try {
       if (storeMatchId && playerRole) {
+        const matchAuth = matchMode === "wager" && playerAddress
+          ? await signMatchAction({
+              address: playerAddress,
+              matchId: storeMatchId,
+              role: playerRole,
+              action: "quit",
+              payload: {},
+            })
+          : undefined;
         await fetch(`/api/match/${storeMatchId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "quit", role: playerRole }),
+          body: JSON.stringify({ action: "quit", role: playerRole, matchAuth }),
         }).catch(() => {});
       }
     } finally {

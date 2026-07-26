@@ -14,6 +14,7 @@ import { useAttunementSync } from "../../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { addressToCode } from "../../lib/referral";
 import { useMiniPayMode } from "../../lib/premiumPayments";
+import { useTradeCardSync } from "../../lib/useTradeCardSync";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 const SeasonPassModal = dynamic(() => import("../../components/SeasonPassModal").then(m => ({ default: m.SeasonPassModal })), { ssr: false });
@@ -74,9 +75,9 @@ export default function ProfilePage() {
     unlockedPremiumCards,
     attunedCardIds,
     cardPerformance,
-    purchaseCard,
   } = useGameStore();
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
+  useTradeCardSync(address);
 
   const ownedCards = CARDS.filter((c) => c.isPremium && unlockedPremiumCards.includes(c.id));
 
@@ -227,19 +228,6 @@ export default function ProfilePage() {
       setReferralSubmitting(false);
     }
   }, [address, referralSubmitting, referralInput]);
-
-  // Apply any pending trade grants (cards received via accepted trades)
-  useEffect(() => {
-    if (!address) return;
-    fetch(`/api/trade?address=${address.toLowerCase()}&view=grants`)
-      .then(r => r.ok ? r.json() as Promise<{ grants: string[] }> : null)
-      .then(data => {
-        data?.grants?.forEach(cardId => {
-          if (!unlockedPremiumCards.includes(cardId)) purchaseCard(cardId, 0);
-        });
-      })
-      .catch(() => {});
-  }, [address, unlockedPremiumCards, purchaseCard]);
 
   // Fetch minted NFT cards
   useEffect(() => {

@@ -14,6 +14,7 @@ import { useMiniPayMode } from "../../lib/premiumPayments";
 import { useMobileViewportMode } from "../../lib/mobile";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { useIdleReady, usePageVisibility } from "../../lib/perf";
+import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
 const OnboardingCoach = dynamic(() => import("../../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -218,8 +219,11 @@ export default function Loadout() {
     resetMatch,
     markOnboardingStep,
     attunedCardIds,
+    playerAddress,
+    matchMode,
   } = useGameStore();
   const { toggleAttunedCard: syncAttunedCard } = useAttunementSync();
+  const signMatchAction = useMatchActionAuth();
   const [lockError, setLockError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [exitingWaitState, setExitingWaitState] = useState(false);
@@ -415,10 +419,25 @@ export default function Loadout() {
 
     const submitPending = async () => {
       if (!pendingSubmitRef.current || !matchId) return;
+      const pending = pendingSubmitRef.current;
+      const matchAuth = matchMode === "wager" && playerAddress
+        ? await signMatchAction({
+            address: playerAddress,
+            matchId,
+            role: pending.role,
+            action: "submit",
+            round: pending.round,
+            payload: {
+              cardIds: pending.cardIds,
+              round: pending.round,
+              attunedCardIds: pending.attunedCardIds,
+            },
+          })
+        : undefined;
       const res = await fetch(`/api/match/${matchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pendingSubmitRef.current),
+        body: JSON.stringify({ ...pending, matchAuth }),
       });
       if (!res.ok) {
         let errorMessage = "Failed to submit your card order.";
@@ -557,6 +576,9 @@ export default function Loadout() {
     setOpponentCharacterFromServer,
     setOpponentName,
     setPrecomputedFromServer,
+    matchMode,
+    playerAddress,
+    signMatchAction,
     syncMultiplayerRoundState,
   ]);
   useEffect(() => {
@@ -578,11 +600,27 @@ export default function Loadout() {
       pollDelayRef.current = getBasePollDelay();
       const p = pendingSubmitRef.current;
       if (p && matchId) {
-        void fetch(`/api/match/${matchId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(p),
-        })
+        void (async () => {
+          const matchAuth = matchMode === "wager" && playerAddress
+            ? await signMatchAction({
+                address: playerAddress,
+                matchId,
+                role: p.role,
+                action: "submit",
+                round: p.round,
+                payload: {
+                  cardIds: p.cardIds,
+                  round: p.round,
+                  attunedCardIds: p.attunedCardIds,
+                },
+              })
+            : undefined;
+          return fetch(`/api/match/${matchId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...p, matchAuth }),
+          });
+        })()
           .then(async (res) => {
             if (res.ok) return;
             let errorMessage = "Failed to resubmit your card order.";
@@ -607,7 +645,7 @@ export default function Loadout() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [getBasePollDelay, matchId]);
+  }, [getBasePollDelay, matchId, matchMode, playerAddress, signMatchAction]);
 
   const exitMatchFromWaitState = useCallback(async () => {
     if (exitingWaitState) return;
@@ -620,10 +658,19 @@ export default function Loadout() {
       }
       pendingSubmitRef.current = null;
       if (matchId && playerRole) {
+        const matchAuth = matchMode === "wager" && playerAddress
+          ? await signMatchAction({
+              address: playerAddress,
+              matchId,
+              role: playerRole,
+              action: "quit",
+              payload: {},
+            })
+          : undefined;
         await fetch(`/api/match/${matchId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "quit", role: playerRole }),
+          body: JSON.stringify({ action: "quit", role: playerRole, matchAuth }),
         }).catch(() => {});
       }
     } finally {
@@ -633,7 +680,7 @@ export default function Loadout() {
       resetMatch();
       router.replace("/");
     }
-  }, [exitingWaitState, matchId, playerRole, resetMatch, router]);
+  }, [exitingWaitState, matchId, playerRole, matchMode, playerAddress, signMatchAction, resetMatch, router]);
 
   useEffect(() => {
     if (!matchId || !playerRole) return;

@@ -75,10 +75,11 @@ export async function POST(req: NextRequest) {
   if (currency !== "celo" && currency !== "gdollar" && currency !== "usdt" && currency !== "usdc" && currency !== "cusd") {
     return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
   }
-  if (!body.txHash || typeof body.txHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(body.txHash)) {
+  const normalizedTxHash = body.txHash?.trim().toLowerCase();
+  if (!normalizedTxHash || !/^0x[0-9a-f]{64}$/.test(normalizedTxHash)) {
     return NextResponse.json({ error: "Valid txHash required" }, { status: 400 });
   }
-  const txHash = body.txHash as `0x${string}`;
+  const txHash = normalizedTxHash as `0x${string}`;
 
   // Price is the card's authoritative price, never the caller-supplied value.
   const pricePoints = card.price ?? 3000;

@@ -22,6 +22,7 @@ import { scheduleIdle, useIdleReady, usePageVisibility } from "../../lib/perf";
 import { buildPayoutClaimAuthMessage } from "../../lib/treasuryAuth";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
 const MENU_BG = "/new-assets/gameplay-landing-lite.webp";
 const OnboardingCoach = dynamic(() => import("../../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
@@ -103,6 +104,7 @@ export default function Gameplay() {
   } = useGameStore();
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const signMatchAction = useMatchActionAuth();
 
   const isMatchEnd = matchPhase === "match-end";
   const coachReady = useIdleReady(!isMatchEnd, isMp || isMobileViewport ? 1800 : 1200);
@@ -620,11 +622,22 @@ export default function Gameplay() {
     
     if (!vsBot && matchId && playerRole && !isMatchEnd) {
       // Explicitly tell the server we're leaving
-      fetch(`/api/match/${matchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "quit", role: playerRole }),
-      }).catch(() => {});
+      void (async () => {
+        const matchAuth = matchMode === "wager" && playerAddress
+          ? await signMatchAction({
+              address: playerAddress,
+              matchId,
+              role: playerRole,
+              action: "quit",
+              payload: {},
+            })
+          : undefined;
+        await fetch(`/api/match/${matchId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "quit", role: playerRole, matchAuth }),
+        }).catch(() => {});
+      })();
     }
 
     resetMatch();

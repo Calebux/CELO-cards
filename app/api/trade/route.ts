@@ -2,10 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
 import { createTradeOffer, getTradeOffer, updateTradeStatus, getInbox, getOutbox } from "../../lib/cardTrade";
 import { checkRateLimit } from "../../lib/rateLimit";
+import { CARDS } from "../../lib/gameData";
 
 export const dynamic = "force-dynamic";
 
 const PENDING_GRANTS_TTL = 60 * 60 * 24 * 30; // 30 days
+
+function ownedPremiumKey(address: string) {
+  return `owned-premium:${address.toLowerCase()}`;
+}
+
+function grantKey(address: string) {
+  return `trade-grants:${address.toLowerCase()}`;
+}
+
+function revokeKey(address: string) {
+  return `trade-revokes:${address.toLowerCase()}`;
+}
+
+function revokeSeenKey(address: string) {
+  return `trade-revokes-seen:${address.toLowerCase()}`;
+}
+
+function isPremiumCardId(cardId: string | null | undefined): cardId is string {
+  return !!cardId && CARDS.some((card) => card.id === cardId && card.isPremium);
+}
 
 // GET /api/trade?address=0x...&view=inbox|outbox|grants
 export async function GET(req: NextRequest) {
@@ -17,8 +38,48 @@ export async function GET(req: NextRequest) {
   const view = req.nextUrl.searchParams.get("view") ?? "inbox";
 
   if (view === "grants") {
-    const grants = await redis.lrange<string>(`trade-grants:${address}`, 0, -1);
-    return NextResponse.json({ grants });
+    const [grants, queuedRevokes, outbox, inbox, seenRevokes] = await Promise.all([
+      redis.lrange<string>(grantKey(address), 0, -1),
+      redis.lrange<string>(revokeKey(address), 0, -1),
+      getOutbox(address),
+      getInbox(address),
+      redis.smembers(revokeSeenKey(address)),
+    ]);
+    const seen = new Set(seenRevokes);
+    const inferredRevokes: string[] = [];
+    const newlySeen: string[] = [];
+
+    // Backfill older accepted trades created before revocation queues existed.
+    for (const offer of outbox) {
+      const seenId = `out:${offer.id}:${offer.offeredCardId}`;
+      if (offer.status === "accepted" && !seen.has(seenId)) {
+        inferredRevokes.push(offer.offeredCardId);
+        newlySeen.push(seenId);
+        await redis.srem(ownedPremiumKey(address), offer.offeredCardId);
+        await redis.sadd(ownedPremiumKey(offer.toAddress), offer.offeredCardId);
+      }
+    }
+    for (const offer of inbox) {
+      if (!offer.requestedCardId) continue;
+      const seenId = `in:${offer.id}:${offer.requestedCardId}`;
+      if (offer.status === "accepted" && !seen.has(seenId)) {
+        inferredRevokes.push(offer.requestedCardId);
+        newlySeen.push(seenId);
+        await redis.srem(ownedPremiumKey(address), offer.requestedCardId);
+        await redis.sadd(ownedPremiumKey(offer.fromAddress), offer.requestedCardId);
+      }
+    }
+
+    if (newlySeen.length) {
+      await redis.sadd(revokeSeenKey(address), ...newlySeen);
+      await redis.expire(revokeSeenKey(address), PENDING_GRANTS_TTL);
+    }
+
+    const revokes = [...queuedRevokes, ...inferredRevokes];
+    if (grants.length || revokes.length) {
+      await redis.del(grantKey(address), revokeKey(address));
+    }
+    return NextResponse.json({ grants, revokes });
   }
 
   const offers = view === "outbox" ? await getOutbox(address) : await getInbox(address);
@@ -70,6 +131,12 @@ export async function POST(req: NextRequest) {
   if (!offeredCardId || typeof offeredCardId !== "string") {
     return NextResponse.json({ error: "offeredCardId is required" }, { status: 400 });
   }
+  if (!isPremiumCardId(offeredCardId)) {
+    return NextResponse.json({ error: "Unknown card" }, { status: 400 });
+  }
+  if (requestedCardId && !isPremiumCardId(requestedCardId)) {
+    return NextResponse.json({ error: "Unknown requested card" }, { status: 400 });
+  }
   if (fromAddress === toAddress) {
     return NextResponse.json({ error: "Cannot trade with yourself" }, { status: 400 });
   }
@@ -77,6 +144,11 @@ export async function POST(req: NextRequest) {
   const allowed = await checkRateLimit(`ratelimit:trade:${fromAddress}`, 10, 60);
   if (!allowed) {
     return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
+  }
+
+  const owned = await redis.smembers(ownedPremiumKey(fromAddress));
+  if (!owned.includes(offeredCardId)) {
+    return NextResponse.json({ error: "You no longer own that card." }, { status: 409 });
   }
 
   const offer = await createTradeOffer(fromAddress, toAddress, offeredCardId, requestedCardId ?? null);
@@ -125,16 +197,38 @@ export async function PATCH(req: NextRequest) {
   if (action === "accept") {
     if (offer.toAddress !== addr) return NextResponse.json({ error: "Only the recipient can accept" }, { status: 403 });
 
+    const senderOwned = await redis.smembers(ownedPremiumKey(offer.fromAddress));
+    if (!senderOwned.includes(offer.offeredCardId)) {
+      const updated = await updateTradeStatus(tradeId, "cancelled");
+      return NextResponse.json({ error: "Sender no longer owns that card.", offer: updated }, { status: 409 });
+    }
+
+    if (offer.requestedCardId) {
+      const recipientOwned = await redis.smembers(ownedPremiumKey(addr));
+      if (!recipientOwned.includes(offer.requestedCardId)) {
+        return NextResponse.json({ error: "You no longer own the requested card." }, { status: 409 });
+      }
+    }
+
     const updated = await updateTradeStatus(tradeId, "accepted");
 
-    // Grant offered card to recipient
-    await redis.lpush(`trade-grants:${addr}`, offer.offeredCardId);
-    await redis.expire(`trade-grants:${addr}`, PENDING_GRANTS_TTL);
+    // Move offered card to recipient. Gifts transfer ownership, so the sender
+    // can buy the same card again after the gift is accepted.
+    await redis.srem(ownedPremiumKey(offer.fromAddress), offer.offeredCardId);
+    await redis.sadd(ownedPremiumKey(addr), offer.offeredCardId);
+    await redis.lpush(grantKey(addr), offer.offeredCardId);
+    await redis.expire(grantKey(addr), PENDING_GRANTS_TTL);
+    await redis.lpush(revokeKey(offer.fromAddress), offer.offeredCardId);
+    await redis.expire(revokeKey(offer.fromAddress), PENDING_GRANTS_TTL);
 
-    // If it's a swap, grant requested card back to sender
+    // If it's a swap, move requested card back to sender.
     if (offer.requestedCardId) {
-      await redis.lpush(`trade-grants:${offer.fromAddress}`, offer.requestedCardId);
-      await redis.expire(`trade-grants:${offer.fromAddress}`, PENDING_GRANTS_TTL);
+      await redis.srem(ownedPremiumKey(addr), offer.requestedCardId);
+      await redis.sadd(ownedPremiumKey(offer.fromAddress), offer.requestedCardId);
+      await redis.lpush(grantKey(offer.fromAddress), offer.requestedCardId);
+      await redis.expire(grantKey(offer.fromAddress), PENDING_GRANTS_TTL);
+      await redis.lpush(revokeKey(addr), offer.requestedCardId);
+      await redis.expire(revokeKey(addr), PENDING_GRANTS_TTL);
     }
 
     return NextResponse.json({ ok: true, offer: updated });
