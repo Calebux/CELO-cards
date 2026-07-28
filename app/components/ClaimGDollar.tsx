@@ -143,12 +143,16 @@ export function ClaimGDollar() {
                 // Create SDK fresh at click time so wallet/public clients are fully ready
                 const { IdentitySDK } = await import("@goodsdks/citizen-sdk");
                 const sdk = new IdentitySDK({ account: address, publicClient, walletClient, env: "production" });
+                // Redirect mode (popupMode=false): goodid returns the user to
+                // rdu after verifying. Popup mode + window.open lands new/mobile
+                // users on /FVFlowError because there's no opener to complete the
+                // popup handshake. Matches the SDK's own fvRedirect() flow.
                 const url = await sdk.generateFVLink(
-                  true,
+                  false,
                   window.location.href,
                   42220,
                 );
-                window.open(url, "_blank");
+                window.location.href = url;
               } catch {
                 // user rejected signing
               } finally {
