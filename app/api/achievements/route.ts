@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
 import { checkRateLimit } from "../../lib/rateLimit";
+import { getPlayerServerStats } from "../../lib/leaderboard";
 
 const ACHIEVEMENTS_KEY = "achievements";
 
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/achievements — sync stats and return newly unlocked achievements
 export async function POST(req: NextRequest) {
-  let body: { address?: string; stats?: Partial<PlayerStats> };
+  let body: { address?: string };
   try {
     body = await req.json() as typeof body;
   } catch {
@@ -77,20 +78,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 });
   }
 
-  const incoming = body.stats ?? {};
+  // Stats come from server-authoritative match results (leaderboard + recorded
+  // win streak), never from the client — a caller can no longer unlock
+  // achievements by reporting fabricated stats (M-07).
+  const merged: PlayerStats = await getPlayerServerStats(address);
+
   const data = await readData();
-  const existing = data[address];
-
-  // Merge stats — always take the higher value so progress is never lost
-  const merged: PlayerStats = {
-    matchesWon: Math.max(incoming.matchesWon ?? 0, existing?.stats?.matchesWon ?? 0),
-    matchesPlayed: Math.max(incoming.matchesPlayed ?? 0, existing?.stats?.matchesPlayed ?? 0),
-    playerPoints: Math.max(incoming.playerPoints ?? 0, existing?.stats?.playerPoints ?? 0),
-    maxWinStreak: Math.max(incoming.maxWinStreak ?? 0, existing?.stats?.maxWinStreak ?? 0),
-    matchesLost: Math.max(incoming.matchesLost ?? 0, existing?.stats?.matchesLost ?? 0),
-  };
-
-  const previousIds = new Set(existing?.unlockedIds ?? []);
+  const previousIds = new Set(data[address]?.unlockedIds ?? []);
   const nowUnlocked = computeUnlocked(merged);
   const newlyUnlocked = nowUnlocked.filter((id) => !previousIds.has(id));
 

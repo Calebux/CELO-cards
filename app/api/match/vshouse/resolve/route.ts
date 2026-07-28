@@ -5,7 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
-import { recordMatchResult } from "../../../../lib/leaderboard";
+import { recordMatchResult, recordPlayerMatchOutcome } from "../../../../lib/leaderboard";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
@@ -190,6 +190,10 @@ export async function POST(req: NextRequest) {
       pointsEarned,
       leaderboard: "casual",
     });
+
+    // Server-authoritative daily/streak progression (M-07) — drives challenges
+    // and achievements from the computed outcome, not client-reported stats.
+    await recordPlayerMatchOutcome(addr, playerWon).catch(() => {});
 
     await recordHouseMatchActivity({
       matchId,

@@ -43,7 +43,7 @@ const FULL_STEPS = [
   {
     icon: "⚡",
     title: "Cards Resolve by Priority",
-    body: "Each slot's cards clash simultaneously. The card with higher Priority wins the slot and deals Knock damage. Ties go to the higher Knock value. Win more slots to win the round.",
+    body: "Each slot's cards clash simultaneously. The card with higher Priority wins the slot and deals Knock damage. Ties go to the higher Knock value. The player with the most total Knock across the 5 slots wins the round.",
     color: "#a855f7",
   },
   {
@@ -94,7 +94,7 @@ const QUICK_START_STEPS = [
   {
     icon: "⚡",
     title: "Priority Wins The Slot",
-    body: "Each slot resolves at the same time. The card with higher Priority wins the clash and deals Knock damage. Win more slots to win the round.",
+    body: "Each slot resolves at the same time. The card with higher Priority wins the clash and deals Knock damage. The player with the most total Knock across the 5 slots wins the round.",
     color: "#a855f7",
   },
   {

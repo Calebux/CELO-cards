@@ -3,16 +3,14 @@ import { redis } from "../../lib/redis";
 import type { PlayerEntry, LeaderboardData } from "../../lib/leaderboard";
 import { checkRateLimit } from "../../lib/rateLimit";
 import { DAILY_CHALLENGES } from "../../lib/challenges";
+import { getPlayerDaily } from "../../lib/leaderboard";
 
 const CHALLENGES_KEY = "challenges:data";
 const LEADERBOARD_KEY = "leaderboard:data";
 
-type DailyStats = { wins: number; played: number };
-
 type ChallengesData = {
   date: string; // YYYY-MM-DD UTC
   claims: Record<string, string[]>; // address → list of claimed challenge IDs today
-  dailyStats: Record<string, DailyStats>; // address → today's match stats
 };
 
 function getTodayUTC() {
@@ -24,7 +22,7 @@ async function readData(): Promise<ChallengesData> {
   const data = await redis.get<ChallengesData>(CHALLENGES_KEY);
   
   if (!data || data.date !== today) {
-    return { date: today, claims: {}, dailyStats: {} };
+    return { date: today, claims: {} };
   }
   return data;
 }
@@ -48,7 +46,7 @@ export async function GET(req: NextRequest) {
   const data = await readData();
 
   const claimed = address ? (data.claims[address] ?? []) : [];
-  const todayStats = address ? (data.dailyStats[address] ?? { wins: 0, played: 0 }) : { wins: 0, played: 0 };
+  const todayStats = address ? await getPlayerDaily(address) : { wins: 0, played: 0 };
 
   const challenges = DAILY_CHALLENGES.map((c) => {
     const isClaimed = claimed.includes(c.id);
@@ -89,6 +87,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Already claimed" }, { status: 409 });
   }
 
+  // Verify eligibility against server-authoritative daily stats — a caller can
+  // no longer claim a challenge they haven't actually completed (M-07).
+  const todayStats = await getPlayerDaily(addr);
+  const progress = challenge.requirement.type === "wins" ? todayStats.wins
+    : challenge.requirement.type === "played" ? todayStats.played : 0;
+  if (progress < challenge.requirement.count) {
+    return NextResponse.json({ error: "Challenge not completed yet" }, { status: 403 });
+  }
+
   // Award points to leaderboard
   const leaderboard = await readLeaderboard();
   const existing = leaderboard.casual[addr] ?? { address: addr, wins: 0, losses: 0, points: 0, lastSeen: Date.now() };
@@ -103,21 +110,17 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, pointsAwarded: challenge.rewardPoints, gdollarReward: challenge.rewardGDollar });
 }
 
-// PATCH /api/challenges — report a match result to update daily stats
+// PATCH /api/challenges — legacy no-op. Match results are now recorded
+// server-side from authoritative match resolution (M-07); this endpoint no
+// longer accepts client-reported wins and just echoes server daily stats.
 export async function PATCH(req: NextRequest) {
-  let body: { address?: string; won?: boolean };
+  let body: { address?: string };
   try { body = await req.json() as typeof body; } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { address, won } = body;
+  const { address } = body;
   if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
 
-  const data = await readData();
-  const addr = address.toLowerCase();
-  const prev = data.dailyStats[addr] ?? { wins: 0, played: 0 };
-  data.dailyStats[addr] = { wins: prev.wins + (won ? 1 : 0), played: prev.played + 1 };
-  await writeData(data);
-
-  return NextResponse.json({ ok: true, daily: data.dailyStats[addr] });
+  return NextResponse.json({ ok: true, daily: await getPlayerDaily(address.toLowerCase()) });
 }

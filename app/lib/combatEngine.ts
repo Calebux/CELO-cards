@@ -163,8 +163,10 @@ export function resolveSlot(
     if (opponentCard.id === "phantom_break" && playerCard.type === "defense") typeAdv = "lose";
 
     // ── Priority comparison (priorityStat breaks ties) ───────────────────
-    const playerPriorityBoost = c.playerAttunementPriorityBoost ?? 0;
-    const opponentPriorityBoost = c.opponentAttunementPriorityBoost ?? 0;
+    // Elara's "priority_surge" ultimate grants first-strike through the same
+    // priority path as attunement boosts, matching its "+5 priority" text (M-05).
+    const playerPriorityBoost = (c.playerAttunementPriorityBoost ?? 0) + (c.playerUltimateEffect === "priority_surge" ? 5 : 0);
+    const opponentPriorityBoost = (c.opponentAttunementPriorityBoost ?? 0) + (c.opponentUltimateEffect === "priority_surge" ? 5 : 0);
     const playerEffectivePriority = playerCard.priority + playerPriorityBoost;
     const opponentEffectivePriority = opponentCard.priority + opponentPriorityBoost;
     const pPriority = playerEffectivePriority + c.player.priorityBonus * 0.01;
@@ -338,7 +340,8 @@ export function resolveSlot(
     if (c.playerUltimateEffect) {
         switch (c.playerUltimateEffect) {
             case "guaranteed_crit":
-                playerKnock = Math.round(playerKnock * 2);
+                // Cap at 2×: don't stack on top of a random crit (M-05).
+                if (!isCrit) playerKnock = Math.round(playerKnock * 2);
                 description += " [ULTIMATE: BLINDING FLASH!]";
                 break;
             case "double_knock":
@@ -354,7 +357,7 @@ export function resolveSlot(
                 description += " [ULTIMATE: SEISMIC SLAM!]";
                 break;
             case "priority_surge":
-                playerKnock += 5;
+                // Applied as a +5 priority (first-strike) boost above, not bonus knock (M-05).
                 description += " [ULTIMATE: VOID SURGE!]";
                 break;
         }
@@ -362,6 +365,9 @@ export function resolveSlot(
     if (c.opponentUltimateEffect) {
         switch (c.opponentUltimateEffect) {
             case "guaranteed_crit":
+                // Cap at 2×: don't stack on top of a random crit (M-05).
+                if (!isOpponentCrit) opponentKnock = Math.round(opponentKnock * 2);
+                break;
             case "double_knock":
                 opponentKnock = Math.round(opponentKnock * 2);
                 break;
@@ -372,7 +378,7 @@ export function resolveSlot(
                 nextPlayerKnockDebuff += 3;
                 break;
             case "priority_surge":
-                opponentKnock += 5;
+                // Applied as a +5 priority (first-strike) boost above, not bonus knock (M-05).
                 break;
         }
     }
