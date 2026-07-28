@@ -10,6 +10,7 @@ import { MiniPayImage } from "../../components/MiniPayImage";
 import { playSound } from "../../lib/soundManager";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
 const OnboardingCoach = dynamic(() => import("../../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -48,6 +49,7 @@ export default function SelectCharacter() {
   const opponentJoinedRef = useRef(false);
   const router = useRouter();
   const { selectCharacter, startMatch, initMultiplayerLoadout, playerAddress, playerRole, matchId, matchMode, vsBot, playerName, wagerTxHash, wagerAmountInput, wagerCurrency, markOnboardingStep, upperChamberActive, advanceUpperChamber } = useGameStore();
+  const signMatchAction = useMatchActionAuth();
   const multiplayerMode = matchMode === "vshouse" ? "wager" : matchMode;
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
@@ -117,32 +119,47 @@ export default function SelectCharacter() {
   useEffect(() => {
     if (!matchId || !playerRole || vsBot) return;
 
-    // Send name immediately so the other player is notified right away
-    void fetch(`/api/match/${matchId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "keepalive",
-        role: playerRole,
+    const sendKeepalive = async (role: "host" | "joiner") => {
+      const payload = {
         playerName,
-        address: playerAddress,
+        address: playerAddress?.toLowerCase(),
         mode: multiplayerMode,
-      }),
-    });
+      };
+      const matchAuth = matchMode === "wager" && playerAddress
+        ? await signMatchAction({
+            address: playerAddress,
+            matchId,
+            role,
+            action: "keepalive",
+            payload,
+          })
+        : undefined;
+      await fetch(`/api/match/${matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "keepalive",
+          role,
+          playerName,
+          address: playerAddress,
+          mode: multiplayerMode,
+          matchAuth,
+        }),
+      });
+    };
+
+    // Send name immediately so the other player is notified right away
+    void sendKeepalive(playerRole);
 
     // Host: keep the match alive in open games every 60s while waiting
     if (playerRole !== "host") return;
     const kl = setInterval(() => {
       if (opponentJoinedRef.current) { clearInterval(kl); return; }
-      void fetch(`/api/match/${matchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address: playerAddress, mode: multiplayerMode }),
-      });
+      void sendKeepalive("host");
     }, 60_000);
     return () => clearInterval(kl);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, playerRole, vsBot]);
+  }, [matchId, playerRole, vsBot, matchMode, playerAddress, playerName, multiplayerMode, signMatchAction]);
 
   // Poll for opponent joining — multiplayer only
   useEffect(() => {
@@ -225,6 +242,21 @@ export default function SelectCharacter() {
           }
         } catch { /* ignore */ }
       }
+      const characterPayload = {
+        characterId: activeChar.id,
+        playerName,
+        address: playerAddress?.toLowerCase(),
+        ...(matchMode === "wager" && playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig, wagerCurrency } : {}),
+      };
+      const matchAuth = matchMode === "wager" && playerAddress
+        ? await signMatchAction({
+            address: playerAddress,
+            matchId,
+            role: playerRole,
+            action: "character",
+            payload: characterPayload,
+          })
+        : undefined;
       await fetch(`/api/match/${matchId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -234,6 +266,7 @@ export default function SelectCharacter() {
           playerName,
           address: playerAddress,
           ...(matchMode === "wager" && playerRole === "host" && wagerTxHash ? { wagerTx: wagerTxHash, wagerAmount: wagerAmountBig, wagerCurrency } : {}),
+          matchAuth,
         }),
       });
       // Multiplayer always goes through lobby (payment gate + opponent sync)

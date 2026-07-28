@@ -24,6 +24,7 @@ import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { useGameFrameScale } from "../lib/mobile";
 import { getInitialMiniPayMode, MINIPAY_STABLECOIN_EXPLAINER, MINIPAY_STABLECOIN_SHORT, useMiniPayMode } from "../lib/premiumPayments";
 import { friendlyTxError } from "../lib/txErrors";
+import { useMatchActionAuth } from "../lib/useMatchActionAuth";
 
 type Props = {
   onConfirmed: () => void;
@@ -62,6 +63,7 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   const matchId             = useGameStore((s) => s.matchId);
   const playerRole          = useGameStore((s) => s.playerRole);
   const setWagerAmountInput = useGameStore((s) => s.setWagerAmountInput);
+  const signMatchAction = useMatchActionAuth();
 
   const formatLockedAmount = (raw?: string, rawCurrency?: Currency) => {
     if (!raw) return null;
@@ -142,7 +144,21 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
 
   // Register wager TX + amount with the match server
   const registerWagerOnServer = async (hash: `0x${string}`, activeAddress: `0x${string}` | null) => {
-    if (!matchId || !playerRole) return null;
+    if (!matchId || !playerRole || !activeAddress) return null;
+    const wagerAmount = parsedAmount().toString();
+    const payload = {
+      address: activeAddress.toLowerCase(),
+      wagerTx: hash,
+      wagerAmount,
+      wagerCurrency: currency,
+    };
+    const matchAuth = await signMatchAction({
+      address: activeAddress,
+      matchId,
+      role: playerRole,
+      action: "wager",
+      payload,
+    });
     const res = await fetch(`/api/match/${matchId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -151,8 +167,9 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
         role: playerRole,
         address: activeAddress,
         wagerTx: hash,
-        wagerAmount: parsedAmount().toString(),
+        wagerAmount,
         wagerCurrency: currency,
+        matchAuth,
       }),
     });
     if (res.ok) return null;

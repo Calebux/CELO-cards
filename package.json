@@ -9,6 +9,7 @@
     "bot": "node scripts/bot-play.mjs",
     "bot:fast": "node scripts/bot-play.mjs",
     "tx:enter:6": "node --env-file=.env.local scripts/enter-matches.mjs 6",
+    "tx:enter:36": "node --env-file=.env.local scripts/enter-matches.mjs 36",
     "tx:passes:6": "node --env-file=.env.local scripts/buy-passes.mjs 6"
   },
   "keywords": [],

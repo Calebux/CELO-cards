@@ -8,6 +8,7 @@ import { WalletSection } from "../../../components/WalletSection";
 import { useGameStore } from "../../../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../../../lib/designConstants";
 import { useGameFrameScale } from "../../../lib/mobile";
+import { useMatchActionAuth } from "../../../lib/useMatchActionAuth";
 
 const STAT_META = [
   { key: "knockStat" as const, label: "Knock", color: "#f87171", icon: "gavel", desc: "Raw damage output per winning slot" },
@@ -34,7 +35,8 @@ export default function CharacterDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
-  const { selectCharacter, startMatch, playerRole, matchId } = useGameStore();
+  const { selectCharacter, startMatch, playerRole, matchId, matchMode, playerAddress, playerName } = useGameStore();
+  const signMatchAction = useMatchActionAuth();
   const safeTop = "env(safe-area-inset-top)";
 
   const char = CHARACTERS.find((c) => c.id === id);
@@ -218,10 +220,24 @@ export default function CharacterDetailPage() {
                   selectCharacter(char);
                   startMatch();
                   if (playerRole !== null && matchId) {
+                    const payload = {
+                      characterId: char.id,
+                      playerName,
+                      address: playerAddress?.toLowerCase(),
+                    };
+                    const matchAuth = matchMode === "wager" && playerAddress
+                      ? await signMatchAction({
+                          address: playerAddress,
+                          matchId,
+                          role: playerRole,
+                          action: "character",
+                          payload,
+                        })
+                      : undefined;
                     await fetch(`/api/match/${matchId}`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ role: playerRole, characterId: char.id }),
+                      body: JSON.stringify({ role: playerRole, characterId: char.id, playerName, address: playerAddress, matchAuth }),
                     });
                   }
                   router.push("/lobby");

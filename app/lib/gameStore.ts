@@ -192,6 +192,7 @@ interface GameState {
     }) => void;
     clearCardProgress: () => void;
     purchaseCard: (cardId: string, price: number) => void;
+    removePremiumCard: (cardId: string) => void;
     setPrecomputedFromServer: (slots: SlotResult[]) => void;
     setWager: (active: boolean, txHash: string | null, currency?: "cusd" | "celo" | "gdollar" | "usdt" | "usdc") => void;
     selectCharacter: (character: Character) => void;
@@ -326,6 +327,14 @@ export const useGameStore = create<GameState>()(
         return {
             playerPoints: price > 0 ? state.playerPoints - price : state.playerPoints,
             unlockedPremiumCards: [...state.unlockedPremiumCards, cardId],
+        };
+    }),
+    removePremiumCard: (cardId) => set((state) => {
+        if (!state.unlockedPremiumCards.includes(cardId)) return state;
+        return {
+            unlockedPremiumCards: state.unlockedPremiumCards.filter((id) => id !== cardId),
+            attunedCardIds: state.attunedCardIds.filter((id) => id !== cardId),
+            activeAttunedCardIds: state.activeAttunedCardIds.filter((id) => id !== cardId),
         };
     }),
 

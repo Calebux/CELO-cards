@@ -10,6 +10,7 @@ import { useMiniPayMode } from "../../lib/premiumPayments";
 import { WAGERS_ENABLED } from "../../lib/wagerConfig";
 import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
 const OnboardingCoach = dynamic(() => import("../../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -103,6 +104,7 @@ export default function CreateMatch() {
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   const vsBot = useGameStore((s) => s.vsBot);
   const { address } = useAccount();
+  const signMatchAction = useMatchActionAuth();
   const serverResumeMatch = useActiveMatchResume(address);
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
@@ -231,10 +233,20 @@ export default function CreateMatch() {
   const sendHostKeepalive = async (matchId: string, mode: "ranked" | "wager" | "tournament") => {
     const playerName = useGameStore.getState().playerName;
     try {
+      const payload = { playerName, address: address?.toLowerCase(), mode };
+      const matchAuth = mode === "wager" && address
+        ? await signMatchAction({
+            address,
+            matchId,
+            role: "host",
+            action: "keepalive",
+            payload,
+          })
+        : undefined;
       await fetch(`/api/match/${matchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode }),
+        body: JSON.stringify({ action: "keepalive", role: "host", playerName, address, mode, matchAuth }),
       });
     } catch {
       // Best-effort: keep UX responsive even if network is flaky.
