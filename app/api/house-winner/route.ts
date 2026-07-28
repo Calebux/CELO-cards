@@ -9,11 +9,17 @@ import {
 } from "../../lib/opsActivity";
 import { sanitizePlayerName } from "../../lib/rateLimit";
 import { HOUSE_AUTO_REWARDS_ENABLED } from "../../lib/houseConfig";
+import { createPublicClient, http } from "viem";
+import { celo } from "viem/chains";
+import { IDENTITY_CONTRACT, IDENTITY_ABI } from "../../lib/gooddollar";
 
 export const dynamic = "force-dynamic";
 
 const REWARD_USD = 5;
-const POOL_PRIZE_USD = 100;
+const POOL_PRIZE_USD = 50; // aligned with the $50-in-G$ House Boss pool
+// When auto-rewards are ON, cap how many reward codes can be auto-issued so a
+// farmed/forged win can't mint unlimited value. Derived from the pool size.
+const MAX_AUTO_REWARDS = Math.max(1, Math.floor(POOL_PRIZE_USD / REWARD_USD));
 const PENDING_MESSAGE =
   "Your House win is recorded! Rewards are verified by our team and sent on " +
   "Telegram — share your win there to claim your $5.";
@@ -75,6 +81,37 @@ type ClaimBody = {
 
 function buildRewardCode() {
   return `HOUSE-${randomBytes(3).toString("hex").toUpperCase()}`;
+}
+
+const celoClient = createPublicClient({ chain: celo, transport: http() });
+
+// Fail closed: any RPC error returns false, so a reward is never auto-issued
+// unless the wallet is provably GoodDollar-verified on-chain.
+async function isGoodDollarVerified(address: string): Promise<boolean> {
+  try {
+    const ok = await celoClient.readContract({
+      address: IDENTITY_CONTRACT,
+      abi: IDENTITY_ABI,
+      functionName: "isWhitelisted",
+      args: [address as `0x${string}`],
+    });
+    return ok === true;
+  } catch {
+    return false;
+  }
+}
+
+async function recordPending(
+  rewardKey: string,
+  baseEntry: Omit<HouseWinnerRewardActivity, "rewardCode" | "status">,
+  message: string,
+) {
+  const pendingEntry: HouseWinnerRewardActivity = { ...baseEntry, rewardCode: "", status: "pending" };
+  await Promise.all([
+    redis.set(rewardKey, pendingEntry, { ex: 60 * 60 * 24 * 180 }),
+    recordHouseWinnerRewardActivity(pendingEntry),
+  ]);
+  return NextResponse.json({ ok: true, pending: true, message });
 }
 
 export async function GET() {
@@ -182,18 +219,48 @@ export async function POST(req: NextRequest) {
   // auto-rewards are explicitly enabled, record the claim as pending and issue
   // NO redeemable code — the prize is paid only after manual verification (M-07).
   if (!HOUSE_AUTO_REWARDS_ENABLED) {
-    const pendingEntry: HouseWinnerRewardActivity = { ...baseEntry, rewardCode: "", status: "pending" };
-    await Promise.all([
-      redis.set(rewardKey, pendingEntry, { ex: 60 * 60 * 24 * 180 }),
-      recordHouseWinnerRewardActivity(pendingEntry),
-    ]);
-    return NextResponse.json({ ok: true, pending: true, message: PENDING_MESSAGE });
+    return recordPending(rewardKey, baseEntry, PENDING_MESSAGE);
+  }
+
+  // Auto-rewards are ON. VS House is server-authoritative (the win above is
+  // computed server-side), but the resolve route isn't yet identity-bound or
+  // ownership-checked, so bound the exposure of auto-issued codes — a farmed
+  // win can't mint unlimited value:
+  //   1. GoodDollar-verified wallets only — sybil-resistant, ~one human each
+  //   2. one auto-reward per wallet, ever
+  //   3. stop auto-issuing once the pool cap is reached
+  if (!(await isGoodDollarVerified(playerAddress))) {
+    return recordPending(
+      rewardKey,
+      baseEntry,
+      "Your House win is recorded. Verify your GoodDollar identity to auto-claim — unverified wins are reviewed manually.",
+    );
+  }
+
+  const walletRewardKey = `house-reward-wallet:${playerAddress}`;
+  if (await redis.get(walletRewardKey)) {
+    return NextResponse.json({
+      ok: true,
+      pending: true,
+      message: "You've already claimed your House reward — it's one per wallet.",
+    });
+  }
+
+  const issued = Number((await redis.get<number>("house-reward-issued-count")) ?? 0);
+  if (issued >= MAX_AUTO_REWARDS) {
+    return recordPending(
+      rewardKey,
+      baseEntry,
+      "The House reward pool is fully claimed for now — your win is recorded for manual review.",
+    );
   }
 
   const rewardEntry: HouseWinnerRewardActivity = { ...baseEntry, rewardCode: buildRewardCode(), status: "verified" };
 
   await Promise.all([
     redis.set(rewardKey, rewardEntry, { ex: 60 * 60 * 24 * 180 }),
+    redis.set(walletRewardKey, "1"), // permanent lifetime marker — one reward per wallet
+    redis.incr("house-reward-issued-count"),
     recordHouseWinnerRewardActivity(rewardEntry),
   ]);
 

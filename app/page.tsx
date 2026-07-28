@@ -27,9 +27,9 @@ export default function ActionOrderLandingPage() {
   const [LandingSeasonPassButtonComponent, setLandingSeasonPassButtonComponent] = useState<LandingSeasonPassButtonComponent | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [howToPlayVariant, setHowToPlayVariant] = useState<"quickstart" | "full">("full");
-  const tournamentPrizeDisplay = "100 USDT";
+  const tournamentPrizeDisplay = "431,000 G$";
   const tournamentPrizeLabel = "POOL PRIZE";
-  const tournamentRewardCopy = "Beat our House AI in the full 5/5 streak to claim from the 100 USDT pool prize.";
+  const tournamentRewardCopy = "Beat our House AI in the full 5/5 streak to claim from the 431,000 G$ (≈$50) pool prize.";
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {
@@ -392,23 +392,39 @@ export default function ActionOrderLandingPage() {
             </div>
             {showDeferredWalletUi && LandingWalletHudComponent ? <LandingWalletHudComponent isMiniPay={isMp} /> : null}
 
-            {/* ── Tournament Live Banner — centered, blinking ───────── */}
-            <a href="/tournament" style={{
-              position:"absolute", left:"50%", transform:"translateX(-50%)", top:isMp ? 186 : 200, zIndex:15,
-              display:"flex", alignItems:"center", gap:isMp ? 18 : 16, padding:isMp ? "16px 32px" : "14px 28px",
-              background:"linear-gradient(135deg, rgba(15,12,5,0.92), rgba(40,30,5,0.88))",
-              border:"1.5px solid rgba(251,204,92,0.8)", borderRadius:8,
-              textDecoration:"none", whiteSpace:"nowrap",
-              animation:"ko-tournament-blink 1.4s ease-in-out infinite",
-            }}>
-              <span style={{ fontSize:isMp ? 24 : 22 }}>🏆</span>
-              <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>HOUSE BOSS LIVE</span>
-                <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>{tournamentPrizeDisplay} <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>{tournamentPrizeLabel}</span></span>
-              </div>
-              <div style={{ width:1, height:isMp ? 36 : 32, background:"rgba(251,204,92,0.25)" }} />
-              <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>BEAT THE HOUSE →</span>
-            </a>
+            {/* ── House Boss Live banner + attached How-to-Play — centered ─ */}
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isMp ? 186 : 200, zIndex:15, display:"flex", flexDirection:"column", alignItems:"stretch" }}>
+              <a href="/tournament" style={{
+                display:"flex", alignItems:"center", gap:isMp ? 18 : 16, padding:isMp ? "16px 32px" : "14px 28px",
+                background:"linear-gradient(135deg, rgba(15,12,5,0.92), rgba(40,30,5,0.88))",
+                border:"1.5px solid rgba(251,204,92,0.8)", borderBottom:"none", borderRadius:"8px 8px 0 0",
+                textDecoration:"none", whiteSpace:"nowrap",
+                animation:"ko-tournament-blink 1.4s ease-in-out infinite",
+              }}>
+                <span style={{ fontSize:isMp ? 24 : 22 }}>🏆</span>
+                <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:3, color:"#fbbf24", textTransform:"uppercase", lineHeight:1 }}>HOUSE BOSS LIVE</span>
+                  <span style={{ fontSize:isMp ? 22 : 20, fontWeight:900, letterSpacing:-0.5, color:"#fff", lineHeight:1 }}>{tournamentPrizeDisplay} <span style={{ color:"#4ade80", fontSize:isMp ? 14 : 13, fontWeight:700, letterSpacing:1 }}>{tournamentPrizeLabel}</span></span>
+                </div>
+                <div style={{ width:1, height:isMp ? 36 : 32, background:"rgba(251,204,92,0.25)" }} />
+                <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>BEAT THE HOUSE →</span>
+              </a>
+              {/* Attached How-to-Play strip — for everyone, opens the full guide */}
+              <button
+                onClick={() => { setHowToPlayVariant("full"); setShowHowToPlay(true); }}
+                style={{
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:isMp ? 10 : 8,
+                  padding:isMp ? "10px 32px" : "9px 28px",
+                  background:"linear-gradient(135deg, rgba(10,15,28,0.96), rgba(15,23,42,0.94))",
+                  border:"1.5px solid rgba(86,164,203,0.55)", borderTop:"1px solid rgba(251,204,92,0.3)",
+                  borderRadius:"0 0 8px 8px", cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap",
+                }}
+              >
+                <svg width={isMp ? 15 : 14} height={isMp ? 15 : 14} viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+                <span style={{ fontSize:isMp ? 12 : 11, fontWeight:800, letterSpacing:2, color:"#b9e7f4", textTransform:"uppercase" }}>How to Play</span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, color:"#4ade80", letterSpacing:1 }}>30-sec guide →</span>
+              </button>
+            </div>
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
             {/* ── Left Nav ─────────────────────────────────────────── */}
@@ -472,21 +488,6 @@ export default function ActionOrderLandingPage() {
                     ⚡ SEASON PASS
                   </div>
                 )}
-                <button onClick={() => {
-                  setHowToPlayVariant("full");
-                  setShowHowToPlay(true);
-                }} style={{
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 26px" : "10px 20px",
-                  background:"rgba(15,23,42,0.85)", border:"1px solid rgba(86,164,203,0.35)",
-                  borderRadius:6, cursor:"pointer", fontFamily:"inherit",
-                  color:"#b9e7f4", fontSize:isCompact ? 17 : 13, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase",
-                  backdropFilter:"blur(8px)",
-                  clipPath:"polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)",
-                  whiteSpace:"nowrap", lineHeight:1,
-                }}>
-                  <svg width={isCompact ? 17 : 14} height={isCompact ? 17 : 14} viewBox="0 0 24 24" fill="none" stroke="#56a4cb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                  HOW TO PLAY
-                </button>
               </div>
             </div>
 
