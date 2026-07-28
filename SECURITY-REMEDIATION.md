@@ -4,7 +4,72 @@ Tracks the findings from the two GoodDollar CTO security reviews
 (`REVIEW-clean-main.md`, `REVIEW-main-2026-07-21.md`) against what has been
 fixed on `clean-main`. Kept for the re-review conversation.
 
-Last updated: 2026-07-21 (second pass)
+Last updated: 2026-07-28 (re-review pass — M-07 / M-02 / H-09 / M-05 + house-reward bounding)
+
+## 2026-07-28 re-review status — `REVIEW-clean-main.md` findings
+
+This is the authoritative current status, keyed to **`REVIEW-clean-main.md`'s own
+finding IDs** (the file the CTO issued). ⚠️ The sections further down use a
+*different, merged* numbering from an earlier pass — where they disagree, **this
+section wins**. Notable ID clashes to avoid confusion:
+REVIEW **H-09** (match races) = older doc's "M-03"; REVIEW **H-10** (VS House
+reward forgery) = older doc's "M-07"; REVIEW **M-03** (randomness) = older doc's
+"M-04"; REVIEW **M-07** (progression) = older doc's "M-08".
+
+### ✅ Fixed — bugs and live security holes
+
+| ID | Finding | Status |
+|---|---|---|
+| C-02 | Payout `isMiniPay` bypass | Bypass removed; currency/winner from verified match state; permanent finality |
+| C-03 | G$ streams with no end | Superfluid removed → bounded one-time transfers |
+| C-04 | Unauth treasury daily stream | Gated to GoodDollar `isWhitelisted` + atomic per-day claim; fails closed |
+| H-01 | Cheap pass credited as expensive | Credited plan derived from the `PassPurchased` event, not the request |
+| H-02 | On-chain price desync | Client reads live registry price at approval; fails closed |
+| H-03 | Legacy direct-transfer payment theft | Payment bound to buyer (`from == buyer`) |
+| H-04 | Non-atomic tx uniqueness | Atomic `SET NX`, permanent used-tx record |
+| H-06 | Arena not a 2-player escrow | Hardened ArenaV2 deployed + Celoscan-verified (`0x473df985…`) |
+| H-09 | Match-update races | **Best-effort** per-match write lock (`app/lib/matchLock.ts`) serializes POST/PATCH/DELETE — see caveat |
+| H-10 | VS House / winner rewards forged | Auto-reward bounded: GoodDollar-verified + one-per-wallet + pool cap, fails closed; pending + manual by default |
+| M-02 | Entitlement not recoverable | `scripts/reconcile-passes.mjs` rebuilds entitlements from on-chain `PassPurchased` events (surfaced 5 lost active passes) |
+| M-05 | Rules vs engine | Elara ult grants the +5 **priority** it advertises (not silent +5 knock); Kaira crit capped at 2× (no 4× stack); tutorial copy → **total Knock** decides the round |
+| M-07 | Progression forgeable | Achievements derive from server stats; challenges verify server-recorded eligibility; forgeable PATCH neutered |
+
+### 🔒 Deferred on purpose — documented tradeoffs, NOT "fixed"
+
+| ID | Finding | Why deferred |
+|---|---|---|
+| C-01 / H-08 | Match-action auth + commit-reveal | Per-round wallet-prompt UX; doesn't fail safe; needs a two-wallet test |
+| M-01 | G$ registry two-step ownership (deployed) | Source has it; redeploying the live registry resets on-chain purchase history |
+| H-07 pt2 / M-04 | Card-ownership enforcement | Locks out existing holders without an owned-card backfill |
+| H-11 | Treasury/owner single hot key → multisig | Needs a Safe + on-chain ownership move (ops task) |
+| M-06 | House AI sees player order | Intentional difficulty handicap |
+| M-03 | Provable-fair randomness | **Not a bug** — only matters for trustless money matches |
+
+### ⚠️ Neutralized by wagers being OFF — not root-fixed
+
+**C-01, H-05, and H-10's residual are safe because wagers are disabled, not because
+the underlying match-action auth is solved.** Re-enabling wagers brings these back
+and requires the deferred C-01 + ownership work first. State this explicitly in the
+re-review rather than claiming them fixed.
+
+### Honesty caveats (say these to the CTO)
+
+- **H-09** is a best-effort lock (serializes the common race, fails *open* after
+  ~2s via an owner-checked Lua release) — not a formal versioned compare-and-set.
+- **M-02's** recovery tool lives in the gitignored `scripts/` dir (project
+  convention), so it isn't in the committed tree; the route carries only a pointer
+  comment.
+- The M-05 combat changes and the H-09 lock **typecheck clean but were not
+  playtested** with two live clients — run a concurrent-submit + combat smoke test
+  before fully trusting them.
+
+### Commits (this pass)
+
+- `91d69cb` — M-07, M-02, H-09, M-05
+- `fc6668c` — H-10 house-reward bounding (verified + one-per-wallet + pool cap)
+- Verification: `npx tsc --noEmit` clean across all touched files.
+
+---
 
 ## Posture summary
 
