@@ -237,7 +237,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 // POST — register character
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  return withMatchLock(matchId, () => postImpl(req, ctx));
+  return withMatchLock(matchId, () => postImpl(req, ctx),
+    () => NextResponse.json({ error: "Match is busy — please retry" }, { status: 409 }));
 }
 
 async function postImpl(req: NextRequest, ctx: Ctx) {
@@ -363,7 +364,8 @@ async function postImpl(req: NextRequest, ctx: Ctx) {
 // PATCH — wager registration OR card order submission
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  return withMatchLock(matchId, () => patchImpl(req, ctx));
+  return withMatchLock(matchId, () => patchImpl(req, ctx),
+    () => NextResponse.json({ error: "Match is busy — please retry" }, { status: 409 }));
 }
 
 async function patchImpl(req: NextRequest, ctx: Ctx) {
@@ -931,7 +933,8 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
 // DELETE — clean up a finished or abandoned match
 export async function DELETE(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  return withMatchLock(matchId, () => deleteImpl(req, ctx));
+  return withMatchLock<NextResponse>(matchId, () => deleteImpl(req, ctx),
+    () => NextResponse.json({ error: "Match is busy — please retry" }, { status: 409 }));
 }
 
 async function deleteImpl(_req: NextRequest, ctx: Ctx) {

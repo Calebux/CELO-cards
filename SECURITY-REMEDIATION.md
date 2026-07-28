@@ -28,9 +28,9 @@ reward forgery) = older doc's "M-07"; REVIEW **M-03** (randomness) = older doc's
 | H-03 | Legacy direct-transfer payment theft | Payment bound to buyer (`from == buyer`) |
 | H-04 | Non-atomic tx uniqueness | Atomic `SET NX`, permanent used-tx record |
 | H-06 | Arena not a 2-player escrow | Hardened ArenaV2 deployed + Celoscan-verified (`0x473df985…`) |
-| H-09 | Match-update races | **Best-effort** per-match write lock (`app/lib/matchLock.ts`) serializes POST/PATCH/DELETE — see caveat |
+| H-09 | Match-update races | **Strict** per-match write lock (Redis Lua mutual exclusion, `app/lib/matchLock.ts`) on POST/PATCH/DELETE; concurrent writers get a retryable 409 — they cannot clobber |
 | H-10 | VS House / winner rewards forged | Auto-reward bounded: GoodDollar-verified + one-per-wallet + pool cap, fails closed; pending + manual by default |
-| M-02 | Entitlement not recoverable | `scripts/reconcile-passes.mjs` rebuilds entitlements from on-chain `PassPurchased` events (surfaced 5 lost active passes) |
+| M-02 | Entitlement not recoverable | `reconcilePasses()` (`app/lib/passReconcile.ts`), exposed as ops-gated `POST /api/season-pass/reconcile`, rebuilds entitlements from on-chain `PassPurchased` events (surfaced 5 lost active passes) |
 | M-05 | Rules vs engine | Elara ult grants the +5 **priority** it advertises (not silent +5 knock); Kaira crit capped at 2× (no 4× stack); tutorial copy → **total Knock** decides the round |
 | M-07 | Progression forgeable | Achievements derive from server stats; challenges verify server-recorded eligibility; forgeable PATCH neutered |
 
@@ -54,11 +54,9 @@ re-review rather than claiming them fixed.
 
 ### Honesty caveats (say these to the CTO)
 
-- **H-09** is a best-effort lock (serializes the common race, fails *open* after
-  ~2s via an owner-checked Lua release) — not a formal versioned compare-and-set.
-- **M-02's** recovery tool lives in the gitignored `scripts/` dir (project
-  convention), so it isn't in the committed tree; the route carries only a pointer
-  comment.
+- **H-09** is a strict per-match lock (Redis Lua mutual exclusion; conflicting
+  writers get a retryable 409), not optimistic versioned CAS — an equivalent,
+  reviewer-listed ("Redis/Lua transition") solution to the same no-clobber goal.
 - The M-05 combat changes and the H-09 lock **typecheck clean but were not
   playtested** with two live clients — run a concurrent-submit + combat smoke test
   before fully trusting them.

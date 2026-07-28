@@ -35,9 +35,10 @@ const publicClient = createPublicClient({
 });
 
 // Entitlement (expiry) is Redis-backed. If Redis state is lost, entitlements
-// are recoverable from on-chain PassPurchased events via the reconciliation
-// tool `scripts/reconcile-passes.mjs`, which rebuilds this record with the same
-// stacking rule used below (M-02).
+// are recoverable from on-chain PassPurchased events via `reconcilePasses()`
+// (app/lib/passReconcile.ts), exposed as the ops-gated POST /api/season-pass/
+// reconcile endpoint, which rebuilds this record with the same stacking rule
+// used below (M-02).
 type SeasonPassRecord = { expiry: number; plan: SeasonPlan; txHash?: string };
 
 function passKey(address: string) {
