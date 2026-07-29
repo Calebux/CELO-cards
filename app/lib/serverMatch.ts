@@ -13,6 +13,11 @@ export interface PlayerSlot {
   orderRound: number;
   attunedCardIds: string[];
   attunementSurgeUsed: boolean;
+  // Commit-reveal (C-01/H-08): for wager matches under MATCH_AUTH_REQUIRED, a
+  // player first commits keccak(order‖salt) here, then reveals the order once
+  // BOTH have committed. `cardIds`/`orderRound` above stay null until reveal.
+  commitHash: string | null;
+  commitRound: number;
 }
 
 export type WagerCurrency = "cusd" | "celo" | "gdollar" | "usdt" | "usdc";
@@ -51,6 +56,8 @@ export function emptyPlayerSlot(): PlayerSlot {
     orderRound: 0,
     attunedCardIds: [],
     attunementSurgeUsed: false,
+    commitHash: null,
+    commitRound: 0,
   };
 }
 

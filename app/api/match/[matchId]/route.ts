@@ -26,7 +26,8 @@ import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
 import { ARENA_V2_ACTIVE } from "../../../lib/arenaV2";
 import { WAGERS_ENABLED } from "../../../lib/wagerConfig";
-import { MatchAction, MatchActionAuth, verifyMatchActionSignature } from "../../../lib/matchAuth";
+import { MatchAction, MatchActionAuth, verifyMatchActionSignature, MATCH_AUTH_REQUIRED, MATCH_ACTION_AUTH_TTL_MS, slotBindingViolation } from "../../../lib/matchAuth";
+import { verifyOrderReveal } from "../../../lib/commitReveal";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -105,7 +106,44 @@ async function requireWagerActionAuth(params: {
     issuedAt,
     signature,
   });
-  return ok ? null : NextResponse.json({ error: "Invalid match action signature" }, { status: 401 });
+  if (!ok) return NextResponse.json({ error: "Invalid match action signature" }, { status: 401 });
+
+  // Replay protection (C-01): a signed action is single-use within its TTL, so a
+  // captured signature can't be re-submitted. Fails open on a Redis error
+  // (availability over a tiny replay window).
+  const nonceKey = `match-nonce:${params.matchId}:${params.role}:${params.action}:${params.round ?? 0}:${issuedAt}`;
+  const fresh = await redis
+    .set(nonceKey, "1", { nx: true, ex: Math.ceil(MATCH_ACTION_AUTH_TTL_MS / 1000) })
+    .catch(() => "OK" as const);
+  if (!fresh) return NextResponse.json({ error: "Replayed match action" }, { status: 409 });
+
+  return null;
+}
+
+// ── Commit-reveal (C-01/H-08) ───────────────────────────────────────────────
+// Active only for wager matches once MATCH_AUTH_REQUIRED is on. When active, a
+// round order is never submitted in plaintext: each side commits keccak(order‖
+// salt), and only after BOTH have committed does either reveal (order+salt).
+// This makes an order impossible to read or overwrite after the fact, and binds
+// the resolved outcome to orders locked in before either side saw the other's.
+// Default off → casual/ranked play is completely unchanged.
+function commitRevealActive(mode: string | undefined): boolean {
+  return mode === "wager" && MATCH_AUTH_REQUIRED;
+}
+
+// A new round clears BOTH slots' order + commit state exactly once. Shared by the
+// commit and submit/reveal paths so a round advances identically through either.
+function advanceRoundIfNeeded(match: ServerMatch, round: number): void {
+  if (round <= match.round) return;
+  match.round = round;
+  for (const slot of [match.host, match.joiner]) {
+    slot.cardIds = null;
+    slot.orderRound = 0;
+    slot.commitHash = null;
+    slot.commitRound = 0;
+  }
+  match.resolvedSlots = null;
+  match.roundSubmitStartedAt = null;
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
@@ -209,8 +247,20 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     : 0;
   const opponentReconnecting = oneSubmittedThisRound && graceRemainingMs > 0;
 
+  // Commit-reveal state (C-01/H-08) — lets the web client drive the two-step
+  // commit→reveal flow. All false/absent for casual/ranked (commit-reveal off).
+  const usesCommitReveal = commitRevealActive(match.mode);
+  const committedFor = (s: typeof self) => !!s.commitHash && s.commitRound === match.round;
+  const revealedFor = (s: typeof self) => s.orderRound === match.round && !!s.cardIds;
+
   return NextResponse.json({
     round: match.round,
+    commitReveal: usesCommitReveal,
+    selfCommitted: usesCommitReveal ? committedFor(self) : undefined,
+    opponentCommitted: usesCommitReveal ? committedFor(other) : undefined,
+    bothCommitted: usesCommitReveal ? committedFor(self) && committedFor(other) : undefined,
+    selfRevealed: usesCommitReveal ? revealedFor(self) : undefined,
+    opponentRevealed: usesCommitReveal ? revealedFor(other) : undefined,
     opponentCharId,
     opponentName: other.playerName,
     selfCharId: self.charId,
@@ -273,6 +323,19 @@ async function postImpl(req: NextRequest, ctx: Ctx) {
     });
     if (authError) return authError;
   }
+
+  // Immutable role binding (C-01): once a slot's wallet is set, it can't be
+  // reassigned to a different wallet — blocks role/winner hijack in paid matches.
+  const boundSlotAddress = role === "host" ? existingMatch?.host?.address : existingMatch?.joiner?.address;
+  if (slotBindingViolation({
+    mode: existingMatch?.mode,
+    boundAddress: boundSlotAddress,
+    incomingAddress: address,
+    authRequired: MATCH_AUTH_REQUIRED,
+  })) {
+    return NextResponse.json({ error: "This player slot is already bound to another wallet" }, { status: 403 });
+  }
+
   if (
     role === "joiner" &&
     existingMatch &&
@@ -375,7 +438,7 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { role, cardIds, round, action, wagerTx, wagerAmount, wagerCurrency, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, attunedCardIds, matchAuth } = body as {
+  const { role, cardIds, round, action, wagerTx, wagerAmount, wagerCurrency, playerName: patchPlayerName, address: patchAddress, mode: requestedMode, attunedCardIds, matchAuth, commit, salt } = body as {
     role: unknown;
     cardIds: unknown;
     round: unknown;
@@ -388,6 +451,8 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
     mode?: MultiplayerMode;
     attunedCardIds?: string[];
     matchAuth?: MatchActionAuth;
+    commit?: string;
+    salt?: string;
   };
 
   if (!validRole(role)) {
@@ -582,7 +647,60 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ ok: true });
   }
 
+  // ── Commit an order hash (C-01/H-08 commit-reveal — wager + MATCH_AUTH_REQUIRED) ─
+  // Step 1 of 2: a player locks in keccak(order‖salt) without revealing the order.
+  // Reveal (below, action "reveal") is only accepted once BOTH sides have committed.
+  if (action === "commit") {
+    if (typeof commit !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(commit)) {
+      return NextResponse.json({ error: "commit must be a 0x-prefixed 32-byte hash" }, { status: 400 });
+    }
+    if (typeof round !== "number" || round < 1) {
+      return NextResponse.json({ error: "round must be a positive integer" }, { status: 400 });
+    }
+    const preMatch = await getMatch<ServerMatch>(matchId);
+    if (!preMatch) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    if (!commitRevealActive(preMatch.mode)) {
+      return NextResponse.json({ error: "Commit-reveal is not active for this match" }, { status: 400 });
+    }
+    // Auth once, before the write-retry loop, so a retry can't trip its own replay guard.
+    const authError = await requireWagerActionAuth({
+      matchId, role, action: "commit", round,
+      payload: { commit, round },
+      auth: matchAuth, expectedAddress: preMatch[role].address,
+    });
+    if (authError) return authError;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const match = await getMatch<ServerMatch>(matchId);
+      if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      match.lastActivity = Date.now();
+      closeJoinWindow(match);
+      advanceRoundIfNeeded(match, round);
+      const slot = role === "host" ? match.host : match.joiner;
+      // A commit is immutable for its round: a second commit is refused so an order
+      // can't be swapped after watching the opponent commit.
+      if (slot.commitHash && slot.commitRound === round) {
+        return NextResponse.json({ error: "Already committed for this round" }, { status: 409 });
+      }
+      slot.commitHash = commit;
+      slot.commitRound = round;
+      if (!match.roundSubmitStartedAt) match.roundSubmitStartedAt = Date.now();
+      try {
+        await setMatch(matchId, match);
+        const bothCommitted = !!match.host.commitHash && !!match.joiner.commitHash
+          && match.host.commitRound === round && match.joiner.commitRound === round;
+        return NextResponse.json({ ok: true, committed: true, bothCommitted });
+      } catch {
+        await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+      }
+    }
+    return NextResponse.json({ error: "Could not save commit — please retry" }, { status: 503 });
+  }
+
   // ── Submit card order (with retry to handle concurrency) ────────────────
+  // For wager matches under MATCH_AUTH_REQUIRED this arrives as action "reveal"
+  // (step 2 of commit-reveal); otherwise it's a plain "submit". Both share the
+  // validation + resolution below.
   if (!Array.isArray(cardIds) || cardIds.length !== 5 || cardIds.some((id) => typeof id !== "string")) {
     return NextResponse.json({ error: "cardIds must be an array of 5 card ID strings" }, { status: 400 });
   }
@@ -628,14 +746,41 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
   for (let attempt = 0; attempt < 5; attempt++) {
     match = await getMatch<ServerMatch>(matchId);
     if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+
+    // Commit-reveal gate (C-01/H-08): when active, this endpoint accepts only a
+    // "reveal", and only after BOTH sides have committed for this round, with the
+    // revealed order matching the stored commit. A plaintext "submit" is refused
+    // so an order can never reach the server (or resolution) uncommitted.
+    const useCommitReveal = commitRevealActive(match.mode);
+    if (useCommitReveal) {
+      if (action !== "reveal") {
+        return NextResponse.json({ error: "This match uses commit-reveal — commit first, then reveal." }, { status: 400 });
+      }
+      const self = role === "host" ? match.host : match.joiner;
+      const other = role === "host" ? match.joiner : match.host;
+      if (!self.commitHash || self.commitRound !== round) {
+        return NextResponse.json({ error: "Commit your order before revealing." }, { status: 400 });
+      }
+      if (!other.commitHash || other.commitRound !== round) {
+        return NextResponse.json({ error: "Waiting for the opponent to commit." }, { status: 409 });
+      }
+      if (typeof salt !== "string" || !verifyOrderReveal(cardIds as string[], salt, self.commitHash)) {
+        return NextResponse.json({ error: "Reveal does not match your commit." }, { status: 400 });
+      }
+    } else if (action === "reveal") {
+      return NextResponse.json({ error: "Commit-reveal is not active for this match." }, { status: 400 });
+    }
+
     if (match.mode === "wager") {
       const slotAddress = match[role].address;
       const authError = await requireWagerActionAuth({
         matchId,
         role,
-        action: "submit",
+        action: useCommitReveal ? "reveal" : "submit",
         round,
-        payload: { cardIds, round, attunedCardIds: Array.isArray(attunedCardIds) ? attunedCardIds : [] },
+        payload: useCommitReveal
+          ? { cardIds, round, salt, attunedCardIds: Array.isArray(attunedCardIds) ? attunedCardIds : [] }
+          : { cardIds, round, attunedCardIds: Array.isArray(attunedCardIds) ? attunedCardIds : [] },
         auth: matchAuth,
         expectedAddress: slotAddress,
       });
@@ -645,16 +790,10 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
     match.lastActivity = Date.now();
     closeJoinWindow(match);
 
-    // Reset slots if moving to a new round
-    if (round > match.round) {
-      match.round = round;
-      match.host.cardIds = null;
-      match.host.orderRound = 0;
-      match.joiner.cardIds = null;
-      match.joiner.orderRound = 0;
-      match.resolvedSlots = null;
-      match.roundSubmitStartedAt = null;
-    }
+    // Advance to a new round if needed (clears both sides' order + commit state).
+    // In commit-reveal the round was already advanced at commit time, so this is
+    // a no-op there and the stored commits are preserved for verification.
+    advanceRoundIfNeeded(match, round);
 
     const slot = role === "host" ? match.host : match.joiner;
     // Energy-budget legality (M-05): once the submitter's character is known,
@@ -678,8 +817,12 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
     }
 
     const m = match;
-    // Check if both players have submitted for the current round
+    // Check if both players have submitted for the current round.
+    // `!m.resolvedSlots` makes (matchId, round) resolution idempotent (C-01 Phase 4):
+    // a round resolves exactly once, so a re-submitted/replayed round can't
+    // double-count wins. resolvedSlots is cleared only when the round advances.
     if (
+      !m.resolvedSlots &&
       m.host.cardIds &&
       m.joiner.cardIds &&
       m.host.orderRound === m.round &&

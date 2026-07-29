@@ -3,6 +3,17 @@ import assert from "node:assert/strict";
 import { resolveRound, type RoundOptions } from "../app/lib/combatEngine";
 import { CHARACTERS, type Card } from "../app/lib/gameData";
 import { withMatchLock } from "../app/lib/matchLock";
+import {
+  slotBindingViolation,
+  MATCH_ACTION_TYPED_DOMAIN,
+  MATCH_ACTION_TYPED_TYPES,
+  buildMatchActionTypedMessage,
+  buildMatchActionIntent,
+  verifyMatchActionSignature,
+} from "../app/lib/matchAuth";
+import { privateKeyToAccount } from "viem/accounts";
+import { computeOrderCommit, verifyOrderReveal } from "../app/lib/commitReveal";
+import { newCommitSalt } from "../app/lib/commitRevealClient";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -116,4 +127,105 @@ test("H-09: different matches are not blocked by each other", async () => {
   ]);
 
   assert.equal(maxActive, 2); // independent locks → real concurrency
+});
+
+// ── C-01: immutable role binding — a slot's wallet can't be reassigned ────────
+test("C-01: wager slot bound to one wallet rejects a different wallet", () => {
+  const A = "0x1111111111111111111111111111111111111111";
+  const B = "0x2222222222222222222222222222222222222222";
+  // Bound to A, someone tries to register B → violation.
+  assert.equal(slotBindingViolation({ mode: "wager", boundAddress: A, incomingAddress: B }), true);
+  // Same wallet (any case) → fine.
+  assert.equal(slotBindingViolation({ mode: "wager", boundAddress: A, incomingAddress: A.toUpperCase() }), false);
+  // First bind (slot empty) → fine.
+  assert.equal(slotBindingViolation({ mode: "wager", boundAddress: undefined, incomingAddress: A }), false);
+});
+
+test("C-01: binding is not enforced on casual until MATCH_AUTH_REQUIRED", () => {
+  const A = "0x1111111111111111111111111111111111111111";
+  const B = "0x2222222222222222222222222222222222222222";
+  // Casual + flag off → not enforced (current behavior unchanged).
+  assert.equal(slotBindingViolation({ mode: "casual", boundAddress: A, incomingAddress: B, authRequired: false }), false);
+  // Any mode once auth is required → enforced.
+  assert.equal(slotBindingViolation({ mode: "casual", boundAddress: A, incomingAddress: B, authRequired: true }), true);
+});
+
+// ── C-01/H-08: commit-reveal — a reveal must match the commit exactly ─────────
+test("commit-reveal: a correct reveal verifies; tampering does not", () => {
+  const order = ["fire", "bite", "headbutt", "jaw_breaker", "go_to_hell"];
+  const salt = "s0m3-r4nd0m-salt-value";
+  const commit = computeOrderCommit(order, salt);
+
+  assert.match(commit, /^0x[0-9a-f]{64}$/);
+  assert.equal(computeOrderCommit(order, salt), commit); // deterministic
+  assert.equal(verifyOrderReveal(order, salt, commit), true); // correct reveal
+
+  // Any tampering fails:
+  assert.equal(verifyOrderReveal(["bite", "fire", "headbutt", "jaw_breaker", "go_to_hell"], salt, commit), false); // reordered
+  assert.equal(verifyOrderReveal(["fire", "bite", "headbutt", "jaw_breaker", "halo_shield"], salt, commit), false); // card swapped
+  assert.equal(verifyOrderReveal(order, "different-salt", commit), false); // wrong salt
+  assert.equal(verifyOrderReveal(order, "short", commit), false); // salt too short
+  assert.equal(verifyOrderReveal(order, salt, "0xdeadbeef"), false); // malformed commit
+});
+
+// Two players can't collide: different orders/salts give different commits, so
+// one can't be reused for the other.
+test("commit-reveal: distinct orders/salts produce distinct commits", () => {
+  const c1 = computeOrderCommit(["fire", "bite"], "salt-aaaaaaaa");
+  const c2 = computeOrderCommit(["bite", "fire"], "salt-aaaaaaaa");
+  const c3 = computeOrderCommit(["fire", "bite"], "salt-bbbbbbbb");
+  assert.notEqual(c1, c2);
+  assert.notEqual(c1, c3);
+});
+
+// ── C-01: the readable EIP-712 match-action signature signs + verifies e2e, and
+// its human-readable `intent` binds the sensitive payload (no blind bytes32) ────
+test("match-action signature: readable typed data signs and verifies; tampering fails", async () => {
+  const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+  const issuedAt = 1_700_000_000_000;
+  const params = {
+    wallet: account.address,
+    matchId: "match-abc",
+    role: "host" as const,
+    action: "wager" as const,
+    payload: { wagerCurrency: "usdt", wagerTx: "0xabc1230000000000000000000000000000000000000000000000000000000def" },
+    issuedAt,
+  };
+
+  // The wallet would render this exact sentence — not an opaque hash.
+  assert.match(buildMatchActionIntent(params.action, undefined, params.payload), /^Register wager stake in USDT · tx 0x/);
+
+  const signature = await account.signTypedData({
+    domain: MATCH_ACTION_TYPED_DOMAIN,
+    types: MATCH_ACTION_TYPED_TYPES,
+    primaryType: "MatchAction",
+    message: buildMatchActionTypedMessage(params),
+  });
+
+  // Correct signer + identical payload → verifies.
+  assert.equal(await verifyMatchActionSignature({ ...params, signature, now: issuedAt }), true);
+
+  // Swapping the currency changes the intent the server rebuilds → verify fails
+  // (proves the readable string still binds the sensitive payload).
+  assert.equal(
+    await verifyMatchActionSignature({ ...params, payload: { wagerCurrency: "usdc", wagerTx: params.payload.wagerTx }, signature, now: issuedAt }),
+    false,
+  );
+
+  // Different action for the same signature → fails.
+  assert.equal(await verifyMatchActionSignature({ ...params, action: "quit", signature, now: issuedAt }), false);
+});
+
+// ── C-01/H-08: the CLIENT commit the server VERIFIES must agree end-to-end ─────
+test("commit-reveal: a client salt + commit verifies on the server", () => {
+  const order = ["fire", "bite", "headbutt", "jaw_breaker", "go_to_hell"];
+  const salt = newCommitSalt();
+
+  // Salt is opaque enough: 32 hex chars, above the server's 8-char floor.
+  assert.match(salt, /^[0-9a-f]{32}$/);
+  assert.notEqual(newCommitSalt(), newCommitSalt()); // not constant
+
+  // What the client sends as `commit` is exactly what the server recomputes on reveal.
+  const commit = computeOrderCommit(order, salt);
+  assert.equal(verifyOrderReveal(order, salt, commit), true);
 });
