@@ -26,7 +26,7 @@ import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
 import { ARENA_V2_ACTIVE } from "../../../lib/arenaV2";
 import { WAGERS_ENABLED } from "../../../lib/wagerConfig";
-import { MatchAction, MatchActionAuth, verifyMatchActionSignature, MATCH_AUTH_REQUIRED, slotBindingViolation } from "../../../lib/matchAuth";
+import { MatchAction, MatchActionAuth, verifyMatchActionSignature, MATCH_AUTH_REQUIRED, MATCH_ACTION_AUTH_TTL_MS, slotBindingViolation } from "../../../lib/matchAuth";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -105,7 +105,18 @@ async function requireWagerActionAuth(params: {
     issuedAt,
     signature,
   });
-  return ok ? null : NextResponse.json({ error: "Invalid match action signature" }, { status: 401 });
+  if (!ok) return NextResponse.json({ error: "Invalid match action signature" }, { status: 401 });
+
+  // Replay protection (C-01): a signed action is single-use within its TTL, so a
+  // captured signature can't be re-submitted. Fails open on a Redis error
+  // (availability over a tiny replay window).
+  const nonceKey = `match-nonce:${params.matchId}:${params.role}:${params.action}:${params.round ?? 0}:${issuedAt}`;
+  const fresh = await redis
+    .set(nonceKey, "1", { nx: true, ex: Math.ceil(MATCH_ACTION_AUTH_TTL_MS / 1000) })
+    .catch(() => "OK" as const);
+  if (!fresh) return NextResponse.json({ error: "Replayed match action" }, { status: 409 });
+
+  return null;
 }
 
 // ── Perspective flip for joiner ─────────────────────────────────────────────
