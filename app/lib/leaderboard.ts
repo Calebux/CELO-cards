@@ -87,6 +87,69 @@ export async function recordMatchResult(params: {
   await writeLeaderboard(data);
 }
 
+// ── Server-authoritative progression (M-07) ──────────────────────────────────
+// Only the real match-completion paths call recordPlayerMatchOutcome, so daily
+// challenge stats and win-streak achievements are derived from server-computed
+// outcomes and can no longer be forged by client-reported numbers.
+
+export type PlayerDaily = { wins: number; played: number };
+export type WinStreak = { current: number; max: number };
+
+function progressDayUTC() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function recordPlayerMatchOutcome(address: string, won: boolean): Promise<void> {
+  const addr = address.toLowerCase();
+  const dayKey = `player-daily:${addr}:${progressDayUTC()}`;
+  const streakKey = `player-winstreak:${addr}`;
+
+  const [daily, streak] = await Promise.all([
+    redis.get<PlayerDaily>(dayKey),
+    redis.get<WinStreak>(streakKey),
+  ]);
+
+  const nextDaily: PlayerDaily = {
+    wins: (daily?.wins ?? 0) + (won ? 1 : 0),
+    played: (daily?.played ?? 0) + 1,
+  };
+  const current = won ? (streak?.current ?? 0) + 1 : 0;
+  const nextStreak: WinStreak = { current, max: Math.max(current, streak?.max ?? 0) };
+
+  await Promise.all([
+    redis.set(dayKey, nextDaily, { ex: 60 * 60 * 48 }), // keep two days
+    redis.set(streakKey, nextStreak),
+  ]);
+}
+
+export async function getPlayerDaily(address: string): Promise<PlayerDaily> {
+  const key = `player-daily:${address.toLowerCase()}:${progressDayUTC()}`;
+  return (await redis.get<PlayerDaily>(key)) ?? { wins: 0, played: 0 };
+}
+
+// Cumulative stats for achievements, derived from the server leaderboard and
+// the server-recorded win streak — never from client input.
+export async function getPlayerServerStats(address: string): Promise<{
+  matchesWon: number; matchesLost: number; matchesPlayed: number; playerPoints: number; maxWinStreak: number;
+}> {
+  const addr = address.toLowerCase();
+  const [board, streak] = await Promise.all([
+    readLeaderboard(),
+    redis.get<WinStreak>(`player-winstreak:${addr}`),
+  ]);
+  const c = board.casual[addr];
+  const r = board.ranked[addr];
+  const matchesWon = (c?.wins ?? 0) + (r?.wins ?? 0);
+  const matchesLost = (c?.losses ?? 0) + (r?.losses ?? 0);
+  return {
+    matchesWon,
+    matchesLost,
+    matchesPlayed: matchesWon + matchesLost,
+    playerPoints: (c?.points ?? 0) + (r?.points ?? 0),
+    maxWinStreak: streak?.max ?? 0,
+  };
+}
+
 // Bot players — seeded AI opponents to keep the board populated
 export const BOT_PLAYERS: PlayerEntry[] = [
   { address: "0xB071d7A6F3EA0000000000000000000000000001", name: "ShadowFist", wins: 312, losses: 89, points: 850, lastSeen: Date.now() - 900_000 },

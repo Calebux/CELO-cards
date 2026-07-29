@@ -22,6 +22,7 @@ type RedisLike = {
   lrange<T>(key: string, start: number, end: number): Promise<T[]>;
   scan(cursor: string, options?: { match?: string; count?: number }): Promise<[string, string[]]>;
   keys(pattern: string): Promise<string[]>;
+  eval<T = unknown>(script: string, keys: string[], args: (string | number)[]): Promise<T>;
 };
 
 function createDisabledRedis(): RedisLike {
@@ -85,6 +86,10 @@ function createDisabledRedis(): RedisLike {
     async keys() {
       warn();
       return [];
+    },
+    async eval<T>() {
+      warn();
+      return null as T;
     },
   };
 }

@@ -17,7 +17,8 @@ import {
   setOpenMatchSummary,
 } from "../../../lib/redis";
 import { redis } from "../../../lib/redis";
-import { recordMatchResult, recordMatchHistory } from "../../../lib/leaderboard";
+import { recordMatchResult, recordMatchHistory, recordPlayerMatchOutcome } from "../../../lib/leaderboard";
+import { withMatchLock } from "../../../lib/matchLock";
 import { MultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
 import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
 import { ServerMatch, newServerMatch, closeJoinWindow, isJoinWindowOpen, reopenJoinWindow, WagerCurrency } from "../../../lib/serverMatch";
@@ -236,6 +237,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 // POST — register character
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
+  return withMatchLock(matchId, () => postImpl(req, ctx),
+    () => NextResponse.json({ error: "Match is busy — please retry" }, { status: 409 }));
+}
+
+async function postImpl(req: NextRequest, ctx: Ctx) {
+  const { matchId } = await ctx.params;
 
   let body: unknown;
   try { body = await req.json(); }
@@ -356,6 +363,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
 // PATCH — wager registration OR card order submission
 export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const { matchId } = await ctx.params;
+  return withMatchLock(matchId, () => patchImpl(req, ctx),
+    () => NextResponse.json({ error: "Match is busy — please retry" }, { status: 409 }));
+}
+
+async function patchImpl(req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
 
   let body: unknown;
@@ -800,6 +813,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const { hostWon, m } = matchEndSnapshot;
     const now = new Date().toISOString();
     try {
+      // Server-authoritative daily/streak progression for both players (M-07).
+      if (m.host.address) await recordPlayerMatchOutcome(m.host.address, hostWon);
+      if (m.joiner.address) await recordPlayerMatchOutcome(m.joiner.address, !hostWon);
       if (m.host.address && isRankedMultiplayerMode(m.mode)) {
         await recordMatchResult({
           playerAddress: m.host.address,
@@ -915,7 +931,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 }
 
 // DELETE — clean up a finished or abandoned match
-export async function DELETE(_req: NextRequest, ctx: Ctx) {
+export async function DELETE(req: NextRequest, ctx: Ctx) {
+  const { matchId } = await ctx.params;
+  return withMatchLock<NextResponse>(matchId, () => deleteImpl(req, ctx),
+    () => NextResponse.json({ error: "Match is busy — please retry" }, { status: 409 }));
+}
+
+async function deleteImpl(_req: NextRequest, ctx: Ctx) {
   const { matchId } = await ctx.params;
   const match = await getMatch<ServerMatch>(matchId);
   await deleteMatch(matchId);
