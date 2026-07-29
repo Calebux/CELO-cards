@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { resolveRound, type RoundOptions } from "../app/lib/combatEngine";
 import { CHARACTERS, type Card } from "../app/lib/gameData";
 import { withMatchLock } from "../app/lib/matchLock";
-import { slotBindingViolation } from "../app/lib/matchAuth";
+import {
+  slotBindingViolation,
+  MATCH_ACTION_TYPED_DOMAIN,
+  MATCH_ACTION_TYPED_TYPES,
+  buildMatchActionTypedMessage,
+  buildMatchActionIntent,
+  verifyMatchActionSignature,
+} from "../app/lib/matchAuth";
+import { privateKeyToAccount } from "viem/accounts";
 import { computeOrderCommit, verifyOrderReveal } from "../app/lib/commitReveal";
 import { newCommitSalt } from "../app/lib/commitRevealClient";
 
@@ -168,6 +176,44 @@ test("commit-reveal: distinct orders/salts produce distinct commits", () => {
   const c3 = computeOrderCommit(["fire", "bite"], "salt-bbbbbbbb");
   assert.notEqual(c1, c2);
   assert.notEqual(c1, c3);
+});
+
+// ── C-01: the readable EIP-712 match-action signature signs + verifies e2e, and
+// its human-readable `intent` binds the sensitive payload (no blind bytes32) ────
+test("match-action signature: readable typed data signs and verifies; tampering fails", async () => {
+  const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+  const issuedAt = 1_700_000_000_000;
+  const params = {
+    wallet: account.address,
+    matchId: "match-abc",
+    role: "host" as const,
+    action: "wager" as const,
+    payload: { wagerCurrency: "usdt", wagerTx: "0xabc1230000000000000000000000000000000000000000000000000000000def" },
+    issuedAt,
+  };
+
+  // The wallet would render this exact sentence — not an opaque hash.
+  assert.match(buildMatchActionIntent(params.action, undefined, params.payload), /^Register wager stake in USDT · tx 0x/);
+
+  const signature = await account.signTypedData({
+    domain: MATCH_ACTION_TYPED_DOMAIN,
+    types: MATCH_ACTION_TYPED_TYPES,
+    primaryType: "MatchAction",
+    message: buildMatchActionTypedMessage(params),
+  });
+
+  // Correct signer + identical payload → verifies.
+  assert.equal(await verifyMatchActionSignature({ ...params, signature, now: issuedAt }), true);
+
+  // Swapping the currency changes the intent the server rebuilds → verify fails
+  // (proves the readable string still binds the sensitive payload).
+  assert.equal(
+    await verifyMatchActionSignature({ ...params, payload: { wagerCurrency: "usdc", wagerTx: params.payload.wagerTx }, signature, now: issuedAt }),
+    false,
+  );
+
+  // Different action for the same signature → fails.
+  assert.equal(await verifyMatchActionSignature({ ...params, action: "quit", signature, now: issuedAt }), false);
 });
 
 // ── C-01/H-08: the CLIENT commit the server VERIFIES must agree end-to-end ─────
