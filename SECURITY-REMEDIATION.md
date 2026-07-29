@@ -57,9 +57,13 @@ re-review rather than claiming them fixed.
 - **H-09** is a strict per-match lock (Redis Lua mutual exclusion; conflicting
   writers get a retryable 409), not optimistic versioned CAS — an equivalent,
   reviewer-listed ("Redis/Lua transition") solution to the same no-clobber goal.
-- The M-05 combat changes and the H-09 lock **typecheck clean but were not
-  playtested** with two live clients — run a concurrent-submit + combat smoke test
-  before fully trusting them.
+- The M-05 combat changes and the H-09 lock are covered by **automated
+  regression tests** (`test-unit/gameplay-fixes.test.ts`, `npm run test:unit`):
+  Kaira's 2× crit cap (forcing a random crit to prove no 4× stack),
+  round-by-total-knock, Elara's priority_surge, and per-match mutual exclusion
+  against real Upstash (plus different-match concurrency). All passing. A full
+  two-client end-to-end play is still worth doing before re-enabling wagers, but
+  the specific fixes are now proven and guarded against regressions.
 
 ### Commits (this pass)
 
