@@ -8,7 +8,7 @@ import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "./seasonPassContract";
 import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "./gdollarSeasonPassContract";
 import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "./signupsContract";
 import { IDENTITY_CONTRACT, IDENTITY_ABI } from "./gooddollar";
-import { isBotWallet } from "./botWallets";
+import { isAgentWallet } from "./agents";
 import { getOnChainWallets } from "./onChainWallets";
 import { ServerMatch } from "./serverMatch";
 import type { ServerMatchRecord } from "./leaderboard";
@@ -433,7 +433,7 @@ async function getOnChainStats() {
   // Pass buyers matter on their own: signUp() only fires inside the verify+claim
   // flow, so a buyer who skipped that flow never reaches the signups contract.
   const realWallets = walletsResult
-    ? Array.from(new Set([...walletsResult.signers, ...walletsResult.buyers])).filter((w) => !isBotWallet(w))
+    ? Array.from(new Set([...walletsResult.signers, ...walletsResult.buyers])).filter((w) => !isAgentWallet(w))
     : [];
 
   const verifiedResults = realWallets.length
