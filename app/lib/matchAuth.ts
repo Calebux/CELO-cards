@@ -11,6 +11,25 @@ export type MatchActionAuth = {
 
 export const MATCH_ACTION_AUTH_TTL_MS = 5 * 60 * 1000;
 
+// C-01: enforce authenticated match actions for all wager/ranked mutations.
+// Default off so it can't affect current play until the client signs actions.
+export const MATCH_AUTH_REQUIRED = process.env.MATCH_AUTH_REQUIRED === "true";
+
+// Immutable role binding (C-01/H-08): a player slot's wallet is set once and can
+// never be reassigned to a different wallet — this blocks the role/winner hijack.
+// Enforced for wager matches always, and for every mode when auth is required.
+export function slotBindingViolation(params: {
+  mode: string | undefined;
+  boundAddress: string | null | undefined;
+  incomingAddress: string | null | undefined;
+  authRequired?: boolean;
+}): boolean {
+  const enforce = params.mode === "wager" || !!params.authRequired;
+  if (!enforce) return false;
+  if (!params.incomingAddress || !params.boundAddress) return false;
+  return params.boundAddress.toLowerCase() !== params.incomingAddress.toLowerCase();
+}
+
 export const MATCH_ACTION_TYPED_DOMAIN = {
   name: "Action Order Match",
   version: "1",

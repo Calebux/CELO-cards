@@ -26,7 +26,7 @@ import { sendTelegramNewMatchAlert } from "../../../lib/telegram";
 import { attributeStakeOnChain } from "../../../lib/arenaV2Server";
 import { ARENA_V2_ACTIVE } from "../../../lib/arenaV2";
 import { WAGERS_ENABLED } from "../../../lib/wagerConfig";
-import { MatchAction, MatchActionAuth, verifyMatchActionSignature } from "../../../lib/matchAuth";
+import { MatchAction, MatchActionAuth, verifyMatchActionSignature, MATCH_AUTH_REQUIRED, slotBindingViolation } from "../../../lib/matchAuth";
 import { claimCardProgressRound, recordResolvedCardPerformance } from "../../../lib/cardProgressServer";
 import { sanitizePlayerName } from "../../../lib/rateLimit";
 import type { OpenMatchSummary } from "../../../lib/redis";
@@ -273,6 +273,19 @@ async function postImpl(req: NextRequest, ctx: Ctx) {
     });
     if (authError) return authError;
   }
+
+  // Immutable role binding (C-01): once a slot's wallet is set, it can't be
+  // reassigned to a different wallet — blocks role/winner hijack in paid matches.
+  const boundSlotAddress = role === "host" ? existingMatch?.host?.address : existingMatch?.joiner?.address;
+  if (slotBindingViolation({
+    mode: existingMatch?.mode,
+    boundAddress: boundSlotAddress,
+    incomingAddress: address,
+    authRequired: MATCH_AUTH_REQUIRED,
+  })) {
+    return NextResponse.json({ error: "This player slot is already bound to another wallet" }, { status: 403 });
+  }
+
   if (
     role === "joiner" &&
     existingMatch &&

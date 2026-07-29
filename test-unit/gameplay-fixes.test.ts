@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { resolveRound, type RoundOptions } from "../app/lib/combatEngine";
 import { CHARACTERS, type Card } from "../app/lib/gameData";
 import { withMatchLock } from "../app/lib/matchLock";
+import { slotBindingViolation } from "../app/lib/matchAuth";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -116,4 +117,25 @@ test("H-09: different matches are not blocked by each other", async () => {
   ]);
 
   assert.equal(maxActive, 2); // independent locks → real concurrency
+});
+
+// ── C-01: immutable role binding — a slot's wallet can't be reassigned ────────
+test("C-01: wager slot bound to one wallet rejects a different wallet", () => {
+  const A = "0x1111111111111111111111111111111111111111";
+  const B = "0x2222222222222222222222222222222222222222";
+  // Bound to A, someone tries to register B → violation.
+  assert.equal(slotBindingViolation({ mode: "wager", boundAddress: A, incomingAddress: B }), true);
+  // Same wallet (any case) → fine.
+  assert.equal(slotBindingViolation({ mode: "wager", boundAddress: A, incomingAddress: A.toUpperCase() }), false);
+  // First bind (slot empty) → fine.
+  assert.equal(slotBindingViolation({ mode: "wager", boundAddress: undefined, incomingAddress: A }), false);
+});
+
+test("C-01: binding is not enforced on casual until MATCH_AUTH_REQUIRED", () => {
+  const A = "0x1111111111111111111111111111111111111111";
+  const B = "0x2222222222222222222222222222222222222222";
+  // Casual + flag off → not enforced (current behavior unchanged).
+  assert.equal(slotBindingViolation({ mode: "casual", boundAddress: A, incomingAddress: B, authRequired: false }), false);
+  // Any mode once auth is required → enforced.
+  assert.equal(slotBindingViolation({ mode: "casual", boundAddress: A, incomingAddress: B, authRequired: true }), true);
 });
