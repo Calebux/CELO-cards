@@ -15,6 +15,7 @@ import { useMobileViewportMode } from "../../lib/mobile";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { useIdleReady, usePageVisibility } from "../../lib/perf";
 import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
+import { submitMatchOrder } from "../../lib/commitRevealClient";
 
 const OnboardingCoach = dynamic(() => import("../../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -420,24 +421,17 @@ export default function Loadout() {
     const submitPending = async () => {
       if (!pendingSubmitRef.current || !matchId) return;
       const pending = pendingSubmitRef.current;
-      const matchAuth = matchMode === "wager" && playerAddress
-        ? await signMatchAction({
-            address: playerAddress,
-            matchId,
-            role: pending.role,
-            action: "submit",
-            round: pending.round,
-            payload: {
-              cardIds: pending.cardIds,
-              round: pending.round,
-              attunedCardIds: pending.attunedCardIds,
-            },
-          })
-        : undefined;
-      const res = await fetch(`/api/match/${matchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...pending, matchAuth }),
+      // submitMatchOrder handles both the plain submit and the wager commit-reveal
+      // two-step (commit → wait for both → reveal) transparently.
+      const res = await submitMatchOrder({
+        matchId,
+        role: pending.role,
+        round: pending.round,
+        cardIds: pending.cardIds,
+        attunedCardIds: pending.attunedCardIds,
+        address: playerAddress,
+        matchMode,
+        signMatchAction,
       });
       if (!res.ok) {
         let errorMessage = "Failed to submit your card order.";
@@ -600,27 +594,16 @@ export default function Loadout() {
       pollDelayRef.current = getBasePollDelay();
       const p = pendingSubmitRef.current;
       if (p && matchId) {
-        void (async () => {
-          const matchAuth = matchMode === "wager" && playerAddress
-            ? await signMatchAction({
-                address: playerAddress,
-                matchId,
-                role: p.role,
-                action: "submit",
-                round: p.round,
-                payload: {
-                  cardIds: p.cardIds,
-                  round: p.round,
-                  attunedCardIds: p.attunedCardIds,
-                },
-              })
-            : undefined;
-          return fetch(`/api/match/${matchId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...p, matchAuth }),
-          });
-        })()
+        void submitMatchOrder({
+          matchId,
+          role: p.role,
+          round: p.round,
+          cardIds: p.cardIds,
+          attunedCardIds: p.attunedCardIds,
+          address: playerAddress,
+          matchMode,
+          signMatchAction,
+        })
           .then(async (res) => {
             if (res.ok) return;
             let errorMessage = "Failed to resubmit your card order.";

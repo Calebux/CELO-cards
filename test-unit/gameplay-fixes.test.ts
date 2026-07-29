@@ -5,6 +5,7 @@ import { CHARACTERS, type Card } from "../app/lib/gameData";
 import { withMatchLock } from "../app/lib/matchLock";
 import { slotBindingViolation } from "../app/lib/matchAuth";
 import { computeOrderCommit, verifyOrderReveal } from "../app/lib/commitReveal";
+import { newCommitSalt } from "../app/lib/commitRevealClient";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -167,4 +168,18 @@ test("commit-reveal: distinct orders/salts produce distinct commits", () => {
   const c3 = computeOrderCommit(["fire", "bite"], "salt-bbbbbbbb");
   assert.notEqual(c1, c2);
   assert.notEqual(c1, c3);
+});
+
+// ── C-01/H-08: the CLIENT commit the server VERIFIES must agree end-to-end ─────
+test("commit-reveal: a client salt + commit verifies on the server", () => {
+  const order = ["fire", "bite", "headbutt", "jaw_breaker", "go_to_hell"];
+  const salt = newCommitSalt();
+
+  // Salt is opaque enough: 32 hex chars, above the server's 8-char floor.
+  assert.match(salt, /^[0-9a-f]{32}$/);
+  assert.notEqual(newCommitSalt(), newCommitSalt()); // not constant
+
+  // What the client sends as `commit` is exactly what the server recomputes on reveal.
+  const commit = computeOrderCommit(order, salt);
+  assert.equal(verifyOrderReveal(order, salt, commit), true);
 });
