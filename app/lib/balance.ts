@@ -8,7 +8,6 @@ import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "./seasonPassContract";
 import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "./gdollarSeasonPassContract";
 import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "./signupsContract";
 import { IDENTITY_CONTRACT, IDENTITY_ABI } from "./gooddollar";
-import { isAgentWallet } from "./agents";
 import { getOnChainWallets } from "./onChainWallets";
 import { ServerMatch } from "./serverMatch";
 import type { ServerMatchRecord } from "./leaderboard";
@@ -432,8 +431,16 @@ async function getOnChainStats() {
   // A real wallet is any non-agent address that signed up or bought a pass.
   // Pass buyers matter on their own: signUp() only fires inside the verify+claim
   // flow, so a buyer who skipped that flow never reaches the signups contract.
+  // Internal / automation addresses to exclude from public user metrics —
+  // supplied via the AGENT_ADDRESSES env var, managed outside this repo.
+  const excludedAddresses = new Set(
+    (process.env.AGENT_ADDRESSES ?? "")
+      .split(",")
+      .map((a) => a.trim().toLowerCase())
+      .filter((a) => /^0x[0-9a-f]{40}$/.test(a)),
+  );
   const realWallets = walletsResult
-    ? Array.from(new Set([...walletsResult.signers, ...walletsResult.buyers])).filter((w) => !isAgentWallet(w))
+    ? Array.from(new Set([...walletsResult.signers, ...walletsResult.buyers])).filter((w) => !excludedAddresses.has(w.toLowerCase()))
     : [];
 
   const verifiedResults = realWallets.length
