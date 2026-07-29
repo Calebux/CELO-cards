@@ -69,6 +69,13 @@ export async function attributeStakeOnChain(params: {
       .catch(() => null);
     if (!receipt || receipt.status !== "success") return false;
 
+    // Already credited on-chain → nothing to attribute. This is the case when the
+    // player staked via the trustless enterMatch path (which credits itself in the
+    // same tx), or when a prior recordStake already landed. Skipping here avoids a
+    // guaranteed "already staked" revert and keeps attribution idempotent.
+    const alreadyCredited = await getArenaMatch(params.matchId);
+    if (alreadyCredited?.stakers.some(s => s.toLowerCase() === params.player.toLowerCase())) return true;
+
     const transfers = parseEventLogs({ abi: TRANSFER_EVENT_ABI, logs: receipt.logs, eventName: "Transfer" });
     const matching = transfers.find(l =>
       l.address.toLowerCase() === token.toLowerCase() &&

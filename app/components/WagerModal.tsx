@@ -15,7 +15,7 @@ import { parseUnits, formatUnits } from "viem";
 import { CUSD_CONTRACT, ERC20_ABI, TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT, USDC_CONTRACT } from "../lib/cusd";
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { ARENA_ADDRESS, ARENA_ABI, APPROVE_ABI, matchIdToBytes32 } from "../lib/arena";
-import { ARENA_V2_ACTIVE, ARENA_V2_ADDRESS } from "../lib/arenaV2";
+import { ARENA_V2_ACTIVE, ARENA_V2_ADDRESS, ARENA_V2_ABI } from "../lib/arenaV2";
 import { WAGERS_ENABLED } from "../lib/wagerConfig";
 import { GDOLLAR_CONTRACT, GDOLLAR_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
 import { useGameStore } from "../lib/gameStore";
@@ -112,13 +112,17 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     setCurrency(stable.preferred.key);
   }, [lockedCurrency, stable.loaded, stable.preferred.key]);
 
-  // Check existing cUSD allowance for the arena (only relevant for cUSD path)
+  // Web stablecoin staking approves the ArenaV2 escrow, then calls enterMatch
+  // (atomic credit). Read the selected token's allowance for ArenaV2 so we can
+  // skip the approve when it's already sufficient. MiniPay uses a one-tap
+  // transfer and doesn't need this.
+  const stableToken = MP_STABLE_TOKEN[currency];
   const { data: allowance } = useReadContract({
-    address: CUSD_CONTRACT,
+    address: stableToken,
     abi: APPROVE_ABI,
     functionName: "allowance",
-    args: address && USE_CONTRACT ? [address, ARENA_ADDRESS] : undefined,
-    query: { enabled: !!address && USE_CONTRACT && currency === "cusd" },
+    args: address ? [address, ARENA_V2_ADDRESS] : undefined,
+    query: { enabled: !!address && !!stableToken && !isMp && ARENA_V2_ACTIVE },
   });
 
   const { isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -203,9 +207,11 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     };
   }, [amountInput, currency, onConfirmed, setWager, setWagerAmountInput, step, txHash, txSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When cUSD approved → automatically call enterMatch
+  // Once the ArenaV2 approve confirms → automatically call enterMatch.
   useEffect(() => {
-    if (step === "approved") void handleEnterMatch();
+    if (step !== "approved") return;
+    const addr = pendingAddressRef.current ?? address;
+    if (addr) void handleEnterMatchV2(addr as `0x${string}`);
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ensureWalletReady = async () => {
@@ -267,7 +273,15 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     // MiniPay — the arena approve/enter flow is web-only.
     // All wager stablecoins (USDT/USDC/USDm) stake into the ArenaV2 escrow.
     if (MP_STABLES.includes(currency)) {
-      await handleStableTransfer(activeAddress);
+      // MiniPay: one-tap plain transfer (approve+enter is web-only). Web: the
+      // trustless enterMatch path — approve then enterMatch credit the stake in
+      // a single on-chain step, so a stake can never land in escrow un-attributed,
+      // and a repeat stake for the same match reverts instead of double-charging.
+      if (isMp || !ARENA_V2_ACTIVE) {
+        await handleStableTransfer(activeAddress);
+      } else {
+        await handleStableStake(activeAddress);
+      }
       return;
     }
 
@@ -321,6 +335,65 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
     }
   };
 
+  // ── Web stablecoins (USDT/USDC/USDm): trustless ArenaV2 stake ─────────────
+  // approve → enterMatch. enterMatch does the transferFrom AND credits the stake
+  // to this match in the SAME transaction, so the funds are never sitting in the
+  // escrow unattributed, and a second stake for the same match reverts on-chain
+  // ("already staked") rather than silently charging again.
+  const handleStableStake = async (activeAddress: `0x${string}`) => {
+    const amt = parsedAmount();
+    if (amt === 0n) { setErrMsg("Enter a valid stake amount."); return; }
+    if (!stableToken) { setErrMsg("Unsupported currency."); setStep("error"); return; }
+    if (!matchId) { setErrMsg("No match ID."); setStep("error"); return; }
+    pendingAddressRef.current = activeAddress;
+    if ((allowance ?? 0n) >= amt) {
+      await handleEnterMatchV2(activeAddress);
+    } else {
+      await handleApproveV2(activeAddress);
+    }
+  };
+
+  const handleApproveV2 = async (activeAddress: `0x${string}`) => {
+    const amt = parsedAmount();
+    if (!stableToken || amt === 0n) { setErrMsg("Enter a valid stake amount."); setStep("error"); return; }
+    setStep("approving");
+    try {
+      const hash = await writeContractAsync({
+        address: stableToken,
+        abi: APPROVE_ABI,
+        functionName: "approve",
+        args: [ARENA_V2_ADDRESS, amt],
+        account: activeAddress,
+        chainId: celo.id,
+      });
+      setTxHash(hash);
+    } catch (e) {
+      setErrMsg(friendlyTxError(e, "Approve failed."));
+      setStep("error");
+    }
+  };
+
+  const handleEnterMatchV2 = async (activeAddress: `0x${string}`) => {
+    const amt = parsedAmount();
+    if (!stableToken || amt === 0n) { setErrMsg("Enter a valid stake amount."); setStep("error"); return; }
+    if (!matchId) { setErrMsg("No match ID."); setStep("error"); return; }
+    setStep("entering");
+    try {
+      const hash = await writeContractAsync({
+        address: ARENA_V2_ADDRESS,
+        abi: ARENA_V2_ABI,
+        functionName: "enterMatch",
+        args: [matchIdToBytes32(matchId), stableToken, amt],
+        account: activeAddress,
+        chainId: celo.id,
+      });
+      setTxHash(hash);
+    } catch (e) {
+      setErrMsg(friendlyTxError(e, "Stake failed."));
+      setStep("error");
+    }
+  };
+
   // ── G$: direct ERC-20 transfer to treasury ────────────────────────────────
   const handleGDollarTransfer = async (activeAddress: `0x${string}`) => {
     const TREASURY = TREASURY_ADDRESS;
@@ -360,26 +433,6 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       setTxHash(hash);
     } catch (e) {
       setErrMsg(friendlyTxError(e, "Approve failed."));
-      setStep("error");
-    }
-  };
-
-  // ── cUSD: enterMatch ─────────────────────────────────────────────────────
-  const handleEnterMatch = async () => {
-    if (!matchId) { setErrMsg("No match ID."); setStep("error"); return; }
-    setStep("entering");
-    try {
-      const hash = await writeContractAsync({
-        address: ARENA_ADDRESS,
-        abi: ARENA_ABI,
-        functionName: "enterMatch",
-        args: [matchIdToBytes32(matchId)],
-        account: pendingAddressRef.current ?? address,
-        chainId: celo.id,
-      });
-      setTxHash(hash);
-    } catch (e) {
-      setErrMsg(friendlyTxError(e, "Transaction failed."));
       setStep("error");
     }
   };
