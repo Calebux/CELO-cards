@@ -2,10 +2,10 @@
 
 Status: **server auth foundation done.** Wager-action signatures + immutable role
 binding + replay protection are implemented, tested where testable, and flag-gated
-(`MATCH_AUTH_REQUIRED`, default off) so they can't touch current play. The remaining
-work — commit-reveal, winner derivation, client signing, and the MiniPay spike —
-needs a device + two live wallets and is the next session's focus. **Wagers stay OFF
-until those land.**
+(`MATCH_AUTH_REQUIRED`, default off) so they can't touch current play. Wagers are
+**web-only** (MiniPay stays VS-House-only), so the remaining work — commit-reveal,
+winner derivation, and web client signing — needs only two live **web** wallets, no
+device. **Wagers stay OFF until those land.**
 Owner: TBD. Last updated: 2026-07-29.
 
 ## Progress so far (2026-07-29)
@@ -16,9 +16,9 @@ Owner: TBD. Last updated: 2026-07-29.
   Unit-tested (`test-unit/gameplay-fixes.test.ts`, `npm run test:unit`).
 - ✅ **Replay protection** — a signed action is single-use within its TTL via a
   `match-nonce:*` `SET NX` marker in `requireWagerActionAuth`.
-- ⏳ **Remaining (need a device / two wallets):** MiniPay `signTypedData` spike
-  (Phase 0), commit-reveal (Phase 3), winner derivation (Phase 4), client signing
-  (Phase 5), two-wallet e2e (Phase 6).
+- ⏳ **Remaining (web-only; two web wallets, no device):** commit-reveal (Phase 3),
+  winner derivation (Phase 4), web client signing (Phase 5), two-wallet e2e (Phase 6).
+  The MiniPay `signTypedData` spike (Phase 0) is **dropped** — wagers are web-only.
 
 ## Goal
 Make wager match state and winner **tamper-proof** so `NEXT_PUBLIC_ENABLE_WAGERS`
@@ -40,10 +40,12 @@ real fixes.
 
 ## Phases (all behind a `MATCH_AUTH_REQUIRED` flag, default off)
 
-### Phase 0 — MiniPay `signTypedData` spike (DO FIRST) — ⏳ NEXT (needs a device)
-Confirm MiniPay's injected provider can produce an EIP-712 signature over
-`MATCH_ACTION_TYPED_*`. If it can't, the whole approach needs a MiniPay-specific
-auth path — this gates everything.
+### Phase 0 — MiniPay `signTypedData` spike — ❌ NOT NEEDED (wagers are web-only)
+Decision (2026-07-29): **no wagers on MiniPay.** MiniPay stays VS-House-only —
+already UI-gated (`create/page.tsx:203` only offers VS House in MiniPay; the
+join-list filters out wager matches for MiniPay). So client signing only has to
+work with **web wallets (Web3Auth / injected)**, which support `signTypedData`.
+This removes the biggest unknown from the critical path — no device spike required.
 
 ### Phase 1 — Authenticate every mutation (not just wager) — ✅ done for wager
 Generalize `requireWagerActionAuth` → `requireMatchActionAuth`; call it at the top
@@ -72,9 +74,10 @@ returns the opponent's order (weaker, simpler).
 authenticated stakers. `(matchId, round)` resolution made idempotent (one resolution,
 stored, non-repeatable) — pairs with the H-09 lock + existing `SET NX` pattern.
 
-### Phase 5 — Client + MiniPay signing — ⏳ NEXT (needs a device)
-Client signs each mutation via `signTypedData` using `MATCH_ACTION_TYPED_*`. Minimize
-prompts by signing submit+reveal together (~1/round).
+### Phase 5 — Client signing (web only) — ⏳ NEXT
+Web client signs each mutation via `signTypedData` using `MATCH_ACTION_TYPED_*`
+(Web3Auth / injected wallets support it). Minimize prompts by signing submit+reveal
+together (~1/round). **No MiniPay path — MiniPay has no wagers.**
 
 ### Phase 6 — Rollout (does NOT fail safe)
 - `MATCH_AUTH_REQUIRED` default off → nothing breaks current play.
@@ -89,7 +92,7 @@ prompts by signing submit+reveal together (~1/round).
 - **UX** — per-round wallet prompt (the reason it was deferred). Batch signatures.
 - **Replay** — ✅ done: `issuedAt` TTL + a consumed-nonce `SET NX` marker
   (`match-nonce:matchId:role:action:round:issuedAt`) in `requireWagerActionAuth`.
-- **MiniPay `signTypedData`** — verify in Phase 0; if unsupported it may block the whole thing.
+- ~~MiniPay `signTypedData`~~ — N/A: wagers are web-only; MiniPay is VS-House-only.
 
 ## Sequencing
 Phase 0 (spike) → Phase 1+2 (auth + role binding — kills most of the drain) →
