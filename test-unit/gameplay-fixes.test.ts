@@ -4,6 +4,7 @@ import { resolveRound, type RoundOptions } from "../app/lib/combatEngine";
 import { CHARACTERS, type Card } from "../app/lib/gameData";
 import { withMatchLock } from "../app/lib/matchLock";
 import { slotBindingViolation } from "../app/lib/matchAuth";
+import { computeOrderCommit, verifyOrderReveal } from "../app/lib/commitReveal";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -138,4 +139,32 @@ test("C-01: binding is not enforced on casual until MATCH_AUTH_REQUIRED", () => 
   assert.equal(slotBindingViolation({ mode: "casual", boundAddress: A, incomingAddress: B, authRequired: false }), false);
   // Any mode once auth is required → enforced.
   assert.equal(slotBindingViolation({ mode: "casual", boundAddress: A, incomingAddress: B, authRequired: true }), true);
+});
+
+// ── C-01/H-08: commit-reveal — a reveal must match the commit exactly ─────────
+test("commit-reveal: a correct reveal verifies; tampering does not", () => {
+  const order = ["fire", "bite", "headbutt", "jaw_breaker", "go_to_hell"];
+  const salt = "s0m3-r4nd0m-salt-value";
+  const commit = computeOrderCommit(order, salt);
+
+  assert.match(commit, /^0x[0-9a-f]{64}$/);
+  assert.equal(computeOrderCommit(order, salt), commit); // deterministic
+  assert.equal(verifyOrderReveal(order, salt, commit), true); // correct reveal
+
+  // Any tampering fails:
+  assert.equal(verifyOrderReveal(["bite", "fire", "headbutt", "jaw_breaker", "go_to_hell"], salt, commit), false); // reordered
+  assert.equal(verifyOrderReveal(["fire", "bite", "headbutt", "jaw_breaker", "halo_shield"], salt, commit), false); // card swapped
+  assert.equal(verifyOrderReveal(order, "different-salt", commit), false); // wrong salt
+  assert.equal(verifyOrderReveal(order, "short", commit), false); // salt too short
+  assert.equal(verifyOrderReveal(order, salt, "0xdeadbeef"), false); // malformed commit
+});
+
+// Two players can't collide: different orders/salts give different commits, so
+// one can't be reused for the other.
+test("commit-reveal: distinct orders/salts produce distinct commits", () => {
+  const c1 = computeOrderCommit(["fire", "bite"], "salt-aaaaaaaa");
+  const c2 = computeOrderCommit(["bite", "fire"], "salt-aaaaaaaa");
+  const c3 = computeOrderCommit(["fire", "bite"], "salt-bbbbbbbb");
+  assert.notEqual(c1, c2);
+  assert.notEqual(c1, c3);
 });
