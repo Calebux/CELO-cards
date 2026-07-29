@@ -1,7 +1,7 @@
 import { keccak256, recoverTypedDataAddress, toBytes } from "viem";
 
 export type MatchRole = "host" | "joiner";
-export type MatchAction = "keepalive" | "character" | "wager" | "submit" | "quit";
+export type MatchAction = "keepalive" | "character" | "wager" | "submit" | "quit" | "commit" | "reveal";
 
 export type MatchActionAuth = {
   address?: string;
