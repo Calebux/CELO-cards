@@ -10,6 +10,25 @@ export const TREASURY_MINIPAY_ADDRESS = (
   process.env.NEXT_PUBLIC_TREASURY_MINIPAY_ADDRESS ?? "0xbEa347EeBdB3dCb0Bd1feC287561504804f4bA4b"
 ) as `0x${string}`;
 
+export type PurchaseCurrency = "celo" | "gdollar" | "usdt" | "usdc" | "cusd";
+
+// Which treasury settles a given currency: CELO and G$ go to the main treasury,
+// the MiniPay stablecoins to the MiniPay treasury.
+export function receivingTreasuryFor(currency: PurchaseCurrency): `0x${string}` {
+  return currency === "gdollar" || currency === "celo" ? TREASURY_ADDRESS : TREASURY_MINIPAY_ADDRESS;
+}
+
+// A buyer can never be the treasury that receives their payment. With from ===
+// to, a zero-cost self-send satisfies on-chain verification and would mint a
+// free premium card, so the purchase is rejected before any chain lookup.
+export function treasurySelfPurchaseViolation(
+  buyer: string | null | undefined,
+  currency: PurchaseCurrency,
+): boolean {
+  if (!buyer) return false;
+  return buyer.toLowerCase() === receivingTreasuryFor(currency).toLowerCase();
+}
+
 export const CUSD_ADDRESS = {
   alfajores: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1" as `0x${string}`,
   mainnet:   "0x765DE816845861e75A25fCA122bb6898B8B1282a" as `0x${string}`,

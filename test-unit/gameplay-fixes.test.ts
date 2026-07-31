@@ -14,6 +14,12 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { computeOrderCommit, verifyOrderReveal } from "../app/lib/commitReveal";
 import { newCommitSalt } from "../app/lib/commitRevealClient";
+import {
+  TREASURY_ADDRESS,
+  TREASURY_MINIPAY_ADDRESS,
+  receivingTreasuryFor,
+  treasurySelfPurchaseViolation,
+} from "../app/lib/cusd";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -228,4 +234,42 @@ test("commit-reveal: a client salt + commit verifies on the server", () => {
   // What the client sends as `commit` is exactly what the server recomputes on reveal.
   const commit = computeOrderCommit(order, salt);
   assert.equal(verifyOrderReveal(order, salt, commit), true);
+});
+
+// ── Black market: the treasury can't buy from itself ──────────────────────────
+// A self-send (from === to) satisfies the route's on-chain check at zero cost,
+// so the buyer is rejected up front when it is the receiving treasury.
+test("black market: buyer that is the receiving treasury is rejected", () => {
+  // CELO and G$ settle to the main treasury.
+  assert.equal(treasurySelfPurchaseViolation(TREASURY_ADDRESS, "celo"), true);
+  assert.equal(treasurySelfPurchaseViolation(TREASURY_ADDRESS, "gdollar"), true);
+  // The MiniPay stablecoins settle to the MiniPay treasury.
+  assert.equal(treasurySelfPurchaseViolation(TREASURY_MINIPAY_ADDRESS, "usdt"), true);
+  assert.equal(treasurySelfPurchaseViolation(TREASURY_MINIPAY_ADDRESS, "usdc"), true);
+  assert.equal(treasurySelfPurchaseViolation(TREASURY_MINIPAY_ADDRESS, "cusd"), true);
+});
+
+test("black market: an ordinary buyer is never blocked", () => {
+  const player = "0x1111111111111111111111111111111111111111";
+  for (const currency of ["celo", "gdollar", "usdt", "usdc", "cusd"] as const) {
+    assert.equal(treasurySelfPurchaseViolation(player, currency), false);
+  }
+  // Checksummed/mixed case must still match — addresses are compared lowercased.
+  assert.equal(treasurySelfPurchaseViolation(TREASURY_ADDRESS.toUpperCase(), "celo"), true);
+  assert.equal(treasurySelfPurchaseViolation(TREASURY_ADDRESS.toLowerCase(), "celo"), true);
+  // Missing buyer is not a violation — the route rejects it as an invalid address first.
+  assert.equal(treasurySelfPurchaseViolation(undefined, "celo"), false);
+  assert.equal(treasurySelfPurchaseViolation(null, "celo"), false);
+});
+
+test("black market: each currency maps to the treasury the route verifies against", () => {
+  // This mapping must stay in lockstep with verifyPayment(), which checks the
+  // transfer landed at exactly this address.
+  assert.equal(receivingTreasuryFor("celo"), TREASURY_ADDRESS);
+  assert.equal(receivingTreasuryFor("gdollar"), TREASURY_ADDRESS);
+  assert.equal(receivingTreasuryFor("usdt"), TREASURY_MINIPAY_ADDRESS);
+  assert.equal(receivingTreasuryFor("usdc"), TREASURY_MINIPAY_ADDRESS);
+  assert.equal(receivingTreasuryFor("cusd"), TREASURY_MINIPAY_ADDRESS);
+  // The two treasuries are distinct, so the mapping is meaningful.
+  assert.notEqual(TREASURY_ADDRESS.toLowerCase(), TREASURY_MINIPAY_ADDRESS.toLowerCase());
 });
