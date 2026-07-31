@@ -104,9 +104,17 @@ export function createWeb3AuthConnector() {
       const web3auth = await getWeb3Auth();
       // In redirect mode, init() restores the session automatically.
       // Only open the modal if user is not already connected.
-      const provider = web3auth.connected && web3auth.provider
-        ? web3auth.provider
-        : await web3auth.connect();
+      let provider;
+      if (web3auth.connected && web3auth.provider) {
+        provider = web3auth.provider;
+      } else {
+        // Persist the session hint BEFORE connecting. On mobile, connect() uses
+        // redirect uxMode and navigates away, so any code after it never runs on
+        // this page load — the hint is what lets WalletSync re-attach the restored
+        // session once the OAuth redirect returns (including back to the landing "/").
+        persistWeb3AuthSession();
+        provider = await web3auth.connect();
+      }
       if (!provider) throw new Error("Web3Auth: no provider after connect");
       persistWeb3AuthSession();
       const accounts = (await provider.request({ method: "eth_accounts" })) as `0x${string}`[];
