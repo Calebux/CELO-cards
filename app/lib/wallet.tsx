@@ -72,7 +72,12 @@ export function WalletSync() {
       attemptedWeb3AuthResumeRef.current = false;
       return;
     }
-    if (window.location.pathname === "/") return;
+    // Runs on every web page INCLUDING the landing "/": a mobile OAuth sign-in
+    // uses redirect uxMode and returns to the page it started from (usually "/"),
+    // and this effect is what re-attaches the restored Web3Auth session to wagmi
+    // so the account is recognised immediately — no manual second sign-in on
+    // another page. Gated by the session hint, so anonymous visitors never load
+    // the Web3Auth SDK on the landing.
     if (attemptedWeb3AuthResumeRef.current) return;
     if (!hasWeb3AuthSessionHint()) return;
 
@@ -80,9 +85,21 @@ export function WalletSync() {
     if (!web3AuthConnector) return;
 
     attemptedWeb3AuthResumeRef.current = true;
-    void connectAsync({ connector: web3AuthConnector, chainId: celo.id }).catch(() => {
-      clearWeb3AuthSessionHint();
-    });
+    void (async () => {
+      try {
+        // isAuthorized() restores the session and returns true ONLY when it is
+        // actually connected, so a stale hint (e.g. an abandoned sign-in) can
+        // never trigger a fresh login modal/redirect here — we just drop the hint.
+        const authorized = await web3AuthConnector.isAuthorized();
+        if (!authorized) {
+          clearWeb3AuthSessionHint();
+          return;
+        }
+        await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
+      } catch {
+        clearWeb3AuthSessionHint();
+      }
+    })();
   }, [connectAsync, connectors, isConnected]);
 
   useEffect(() => {

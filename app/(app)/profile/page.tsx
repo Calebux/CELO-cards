@@ -14,6 +14,7 @@ import { useAttunementSync } from "../../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { addressToCode } from "../../lib/referral";
 import { useMiniPayMode } from "../../lib/premiumPayments";
+import { useMobileViewportMode } from "../../lib/mobile";
 import { useTradeCardSync } from "../../lib/useTradeCardSync";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -58,9 +59,10 @@ export default function ProfilePage() {
   const { address } = useAccount();
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
-  const [isCompactPhone, setIsCompactPhone] = useState(
-    typeof window !== "undefined" ? Math.min(window.innerWidth, window.innerHeight) <= 430 : false
-  );
+  // Mobile layout uses the app-wide viewport check (coarse pointer / ≤1024px), so
+  // it triggers on ALL phones. The old ≤430px-width check missed wider devices —
+  // e.g. a Pixel 8 Pro (448px) or a foldable — leaving them on the web layout.
+  const isCompactPhone = useMobileViewportMode();
 
   const {
     playerPoints,
@@ -288,7 +290,6 @@ export default function ProfilePage() {
       if (!wrapRef.current) return;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      setIsCompactPhone(Math.min(vw, vh) <= 430);
       const isPortrait = vh > vw;
       let transform: string;
       if (isPortrait) {
