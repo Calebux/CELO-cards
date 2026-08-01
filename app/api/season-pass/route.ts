@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, parseAbiItem } from "viem";
+import { createPublicClient, decodeFunctionData, http, parseAbiItem } from "viem";
 import { celo } from "viem/chains";
 import { redis } from "../../lib/redis";
 import { GDOLLAR_CONTRACT } from "../../lib/gooddollar";
@@ -107,6 +107,85 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ active: true, expiry, plan, freeGamesLeft });
 }
 
+type ContractPlanResult =
+  | { status: "ok"; plan: SeasonPlan }
+  | { status: "pending" }
+  | { status: "reject"; error: string };
+
+// Resolve which plan a contract purchase actually paid for.
+//
+// The PassPurchased event is the primary source, but two things can hide it
+// even when the payment succeeded: the log query can throw, and Celo RPCs
+// (Forno especially) can return an empty array for a perfectly valid query.
+// Collapsing either into "not found" rejected a *paid* transaction with a
+// permanent 403 — the buyer lost their G$, got no pass, and their retry then
+// failed on the reduced balance. So a throw is retryable, and an empty result
+// falls back to the transaction's own calldata.
+//
+// The fallback is safe: the receipt already proved the call succeeded, and
+// buySeasonPass reverts unless the contract collected its own price, so a
+// successful call is proof of payment. tx.from must equal the crediting wallet,
+// which preserves the H-02 buyer binding the event args gave us.
+async function resolveContractPurchasePlan(params: {
+  contract: `0x${string}`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- both pass ABIs are structurally identical for the fields used here
+  abi: any;
+  buyer: `0x${string}`;
+  txHash: `0x${string}`;
+  txFrom: string | null | undefined;
+  txInput: `0x${string}` | undefined;
+  blockNumber: bigint;
+}): Promise<ContractPlanResult> {
+  let logs;
+  try {
+    logs = await publicClient.getContractEvents({
+      address: params.contract,
+      abi: params.abi,
+      eventName: "PassPurchased",
+      args: { buyer: params.buyer },
+      fromBlock: params.blockNumber,
+      toBlock: params.blockNumber,
+    });
+  } catch {
+    return { status: "pending" };
+  }
+
+  const matching = logs.find(
+    (l) => l.transactionHash?.toLowerCase() === params.txHash.toLowerCase(),
+  );
+  if (matching) {
+    // Typed loosely because the ABI is passed in as `any` above, which erases
+    // viem's event-arg inference.
+    const eventPlan = (matching as unknown as { args?: { plan?: string } }).args?.plan;
+    if (!eventPlan || !(eventPlan in SEASON_PLANS)) {
+      return { status: "reject", error: "Unrecognized plan in purchase event" };
+    }
+    return { status: "ok", plan: eventPlan as SeasonPlan };
+  }
+
+  // No log came back. Fall back to the calldata rather than rejecting a payment
+  // that may well have gone through.
+  if (params.txFrom?.toLowerCase() !== params.buyer.toLowerCase()) {
+    return { status: "reject", error: "Payment sender does not match buyer" };
+  }
+  if (!params.txInput) {
+    return { status: "reject", error: "PassPurchased event not found for buyer" };
+  }
+  try {
+    const decoded = decodeFunctionData({ abi: params.abi, data: params.txInput });
+    if (decoded.functionName !== "buySeasonPass") {
+      return { status: "reject", error: "Transaction is not a season pass purchase" };
+    }
+    const plan = (decoded.args as readonly unknown[] | undefined)?.[0];
+    if (typeof plan !== "string" || !(plan in SEASON_PLANS)) {
+      return { status: "reject", error: "Unrecognized plan in purchase" };
+    }
+    return { status: "ok", plan: plan as SeasonPlan };
+  } catch {
+    return { status: "reject", error: "PassPurchased event not found for buyer" };
+  }
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json() as { address?: string; txHash?: string; plan?: SeasonPlan; currency?: "celo" | "gdollar" | "usdt" | "usdc" | "cusd" };
   const { address, plan, currency = "celo" } = body;
@@ -185,27 +264,23 @@ export async function POST(req: NextRequest) {
     }
 
     if (isGdollarContractTx) {
-      // Verify PassPurchased event was emitted for this buyer
-      const logs = await publicClient.getContractEvents({
-        address: GDOLLAR_SEASON_PASS_CONTRACT,
-        abi: GDOLLAR_SEASON_PASS_ABI,
-        eventName: "PassPurchased",
-        args: { buyer },
-        fromBlock: receipt.blockNumber,
-        toBlock: receipt.blockNumber,
-      }).catch(() => []);
-      const matchingLog = logs.find(
-        l => l.transactionHash?.toLowerCase() === txHash.toLowerCase()
-      );
-      if (!matchingLog) {
-        return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
-      }
       // Credit the plan the contract actually charged for, not the request.
-      const eventPlan = matchingLog.args.plan;
-      if (!eventPlan || !(eventPlan in SEASON_PLANS)) {
-        return NextResponse.json({ error: "Unrecognized plan in purchase event" }, { status: 403 });
+      const resolved = await resolveContractPurchasePlan({
+        contract: GDOLLAR_SEASON_PASS_CONTRACT,
+        abi: GDOLLAR_SEASON_PASS_ABI,
+        buyer,
+        txHash: txHash as `0x${string}`,
+        txFrom: tx.from,
+        txInput: tx.input,
+        blockNumber: receipt.blockNumber,
+      });
+      if (resolved.status === "pending") {
+        return NextResponse.json({ pending: true }, { status: 404 });
       }
-      creditedPlan = eventPlan as SeasonPlan;
+      if (resolved.status === "reject") {
+        return NextResponse.json({ error: resolved.error }, { status: 403 });
+      }
+      creditedPlan = resolved.plan;
     } else {
       // Legacy direct transfer — verify ERC-20 Transfer event: G$ contract → Treasury
       let gdollarLogs;
@@ -240,27 +315,23 @@ export async function POST(req: NextRequest) {
     }
 
     if (isContractTx) {
-      // Verify PassPurchased event was emitted for this buyer
-      const logs = await publicClient.getContractEvents({
-        address: SEASON_PASS_CONTRACT,
-        abi: SEASON_PASS_ABI,
-        eventName: "PassPurchased",
-        args: { buyer },
-        fromBlock: receipt.blockNumber,
-        toBlock: receipt.blockNumber,
-      }).catch(() => []);
-      const matchingLog = logs.find(
-        l => l.transactionHash?.toLowerCase() === txHash.toLowerCase()
-      );
-      if (!matchingLog) {
-        return NextResponse.json({ error: "PassPurchased event not found for buyer" }, { status: 403 });
-      }
       // Credit the plan the contract actually charged for, not the request.
-      const eventPlan = matchingLog.args.plan;
-      if (!eventPlan || !(eventPlan in SEASON_PLANS)) {
-        return NextResponse.json({ error: "Unrecognized plan in purchase event" }, { status: 403 });
+      const resolved = await resolveContractPurchasePlan({
+        contract: SEASON_PASS_CONTRACT,
+        abi: SEASON_PASS_ABI,
+        buyer,
+        txHash: txHash as `0x${string}`,
+        txFrom: tx.from,
+        txInput: tx.input,
+        blockNumber: receipt.blockNumber,
+      });
+      if (resolved.status === "pending") {
+        return NextResponse.json({ pending: true }, { status: 404 });
       }
-      creditedPlan = eventPlan as SeasonPlan;
+      if (resolved.status === "reject") {
+        return NextResponse.json({ error: resolved.error }, { status: 403 });
+      }
+      creditedPlan = resolved.plan;
     } else {
       // Legacy direct transfer — bind the payment to the buyer (H-02): the
       // native CELO transfer must originate from the crediting wallet.
