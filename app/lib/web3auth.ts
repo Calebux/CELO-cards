@@ -4,10 +4,14 @@
 import { createConnector } from "wagmi";
 import { celo } from "wagmi/chains";
 import { isMiniPay } from "./minipayRuntime";
+import {
+  clearWeb3AuthSessionHint as clearHint,
+  hasWeb3AuthSessionHint as hasHint,
+  persistWeb3AuthSession,
+} from "./web3authSession";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
 const DEFAULT_CELO_RPC = "https://forno.celo.org";
-const WEB3AUTH_SESSION_KEY = "ao:web3auth-connected";
 const WEB3AUTH_RPC_TARGET = (() => {
   const candidate = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL?.trim();
   if (candidate && /^https?:\/\//i.test(candidate)) return candidate;
@@ -19,36 +23,9 @@ let web3authInstance: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let initPromise: Promise<any> | null = null;
 
-function persistWeb3AuthSession() {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(WEB3AUTH_SESSION_KEY, "1");
-  } catch {}
-  try {
-    window.localStorage.setItem(WEB3AUTH_SESSION_KEY, "1");
-  } catch {}
-}
-
-export function clearWeb3AuthSessionHint() {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.removeItem(WEB3AUTH_SESSION_KEY);
-  } catch {}
-  try {
-    window.localStorage.removeItem(WEB3AUTH_SESSION_KEY);
-  } catch {}
-}
-
-export function hasWeb3AuthSessionHint(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    if (window.sessionStorage.getItem(WEB3AUTH_SESSION_KEY) === "1") return true;
-  } catch {}
-  try {
-    if (window.localStorage.getItem(WEB3AUTH_SESSION_KEY) === "1") return true;
-  } catch {}
-  return false;
-}
+// Session-hint helpers live in the dependency-free web3authSession module so the
+// landing page can read them without pulling wagmi into its critical bundle.
+export { clearWeb3AuthSessionHint, hasWeb3AuthSessionHint } from "./web3authSession";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getWeb3Auth(): Promise<any> {
@@ -136,7 +113,7 @@ export function createWeb3AuthConnector() {
     async disconnect() {
       const web3auth = await getWeb3Auth();
       await web3auth.logout();
-      clearWeb3AuthSessionHint();
+      clearHint();
     },
 
     async getAccounts() {
@@ -164,14 +141,12 @@ export function createWeb3AuthConnector() {
       if (typeof window === "undefined") return false;
       if (isMiniPay()) return false;
       if (web3authInstance?.connected) return true;
-      if (!hasWeb3AuthSessionHint()) return false;
-      try {
-        const web3auth = await getWeb3Auth();
-        return Boolean(web3auth.connected && web3auth.provider);
-      } catch {
-        clearWeb3AuthSessionHint();
-        return false;
-      }
+      if (!hasHint()) return false;
+      // Rethrow rather than dropping the hint: a slow SDK load or an init
+      // timeout is transient, and clearing here would disable auto-resume for
+      // every future page load. The caller decides what a throw means.
+      const web3auth = await getWeb3Auth();
+      return Boolean(web3auth.connected && web3auth.provider);
     },
 
     onAccountsChanged() {},

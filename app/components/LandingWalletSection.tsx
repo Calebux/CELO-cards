@@ -12,6 +12,7 @@ import { SoundSettings } from "./SoundSettings";
 import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { friendlyTxError, isUserRejectedTx } from "../lib/txErrors";
+import { useWeb3AuthResuming } from "../lib/wallet";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -116,6 +117,7 @@ export function LandingWalletSection() {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [signInError, setSignInError] = useState("");
+  const resuming = useWeb3AuthResuming();
   const menuRef = useRef<HTMLDivElement>(null);
   const mp = useMiniPayMode();
 
@@ -301,10 +303,14 @@ export function LandingWalletSection() {
         />
         <div>
           <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
-            {isConnected ? "CELO WALLET" : "CONNECT"}
+            {isConnected ? "CELO WALLET" : resuming ? "WELCOME BACK" : "CONNECT"}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
-            {isConnected && address ? (playerName || formatAddress(address)) : "SIGN IN"}
+            {isConnected && address
+              ? (playerName || formatAddress(address))
+              : resuming
+                ? "SIGNING IN…"
+                : "SIGN IN"}
           </div>
         </div>
       </button>

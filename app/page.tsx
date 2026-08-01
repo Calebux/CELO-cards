@@ -7,6 +7,7 @@ import { useMiniPayMode } from './lib/premiumPayments';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';
+import { hasWeb3AuthSessionHint } from './lib/web3authSession';
 
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
@@ -66,6 +67,18 @@ export default function ActionOrderLandingPage() {
         setShowDeferredWalletUi(true);
       }).catch(() => {});
     };
+
+    // A returning OAuth user needs this immediately: the wallet HUD is what
+    // mounts WalletSync, and WalletSync is what re-attaches the restored session.
+    // Deferring it to idle stacked seconds onto an already slow resume (SDK
+    // download + init) and left the button reading "SIGN IN" the whole time.
+    // Anonymous visitors still get the deferral, so LCP is unaffected for them.
+    if (hasWeb3AuthSessionHint()) {
+      show();
+      return () => {
+        cancelled = true;
+      };
+    }
 
     if (idleWindow.requestIdleCallback) {
       const handle = idleWindow.requestIdleCallback(show, { timeout: 1800 });
