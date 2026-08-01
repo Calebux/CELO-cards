@@ -98,6 +98,7 @@ export function WalletSync() {
 
     attemptedWeb3AuthResumeRef.current = true;
     let cancelled = false;
+    let watchdog = 0;
 
     void (async () => {
       // Returning from an OAuth redirect on mobile, this has to pull the ~1.3 MB
@@ -105,6 +106,10 @@ export function WalletSync() {
       // so the wallet UI can say so instead of sitting on "SIGN IN", which reads
       // as broken and makes people tap it.
       setWeb3AuthResuming(true);
+      // Watchdog: whatever stalls — a hung connect, an SDK that never loads —
+      // the header must not sit on SIGNING IN forever. Falling back to SIGN IN
+      // is honest and leaves the user a working tap.
+      watchdog = window.setTimeout(() => setWeb3AuthResuming(false), 25_000);
       try {
         for (let attempt = 0; attempt < 3; attempt++) {
           if (cancelled) return;
@@ -130,12 +135,14 @@ export function WalletSync() {
           }
         }
       } finally {
+        window.clearTimeout(watchdog);
         if (!cancelled) setWeb3AuthResuming(false);
       }
     })();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(watchdog);
       setWeb3AuthResuming(false);
     };
   }, [connectAsync, connectors, isConnected]);
