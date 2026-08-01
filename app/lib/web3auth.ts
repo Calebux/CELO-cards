@@ -68,8 +68,19 @@ async function getWeb3Auth(): Promise<any> {
     const { Web3Auth: Web3AuthClass, WEB3AUTH_NETWORK, fromViemChain } = await import("@web3auth/modal");
 
     // On mobile browsers popups are blocked — use redirect mode instead.
-    const isMobileBrowser = typeof navigator !== "undefined" &&
-      /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+    //
+    // The UA test alone never matches an iPad: since iPadOS 13 Safari browses
+    // desktop-class and reports "Macintosh", with no iPad token. Same for an
+    // iPhone with "Request Desktop Website" on. Those devices fell through to
+    // popup mode, where the await-heavy init below burns the user-gesture window
+    // and Safari blocks the popup — so the first SIGN IN tap silently did
+    // nothing and only a second tap (SDK now cached) got through. A "Mac" that
+    // reports touch points is the giveaway.
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const isDesktopModeIOS = typeof navigator !== "undefined" &&
+      /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+    const isMobileBrowser =
+      /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(ua) || isDesktopModeIOS;
 
     const instance = new Web3AuthClass({
       clientId: CLIENT_ID,

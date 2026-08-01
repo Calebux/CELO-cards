@@ -9,6 +9,7 @@ import { formatAddress } from "../lib/minipayRuntime";
 import { useGameStore } from "../lib/gameStore";
 import { isMuted } from "../lib/soundManager";
 import { SoundSettings } from "./SoundSettings";
+import { isUserRejectedTx } from "../lib/txErrors";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -115,7 +116,11 @@ export function WebWalletSection() {
                 await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
                 return;
               }
-            } catch {}
+            } catch (e) {
+              // Falling back to the wallet modal is the right recovery for a
+              // real failure, but not for someone who just dismissed the login.
+              if (isUserRejectedTx(e)) return;
+            }
             openConnectModal();
           })();
         };
