@@ -10,6 +10,7 @@ import { useGameStore } from "../lib/gameStore";
 import { isMuted } from "../lib/soundManager";
 import { SoundSettings } from "./SoundSettings";
 import { isUserRejectedTx } from "../lib/txErrors";
+import { useWeb3AuthResuming } from "../lib/wallet";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -90,6 +91,7 @@ export function WebWalletSection() {
   const { playerName } = useGameStore();
   const allConnectors = useConnectors();
   const web3AuthConnector = allConnectors.find((c) => c.id === "web3auth");
+  const resuming = useWeb3AuthResuming();
 
   const base: React.CSSProperties = {
     display: "flex",
@@ -145,10 +147,14 @@ export function WebWalletSection() {
               }} />
               <div>
                 <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
-                  {connected ? "CELO WALLET" : "CONNECT"}
+                  {connected ? "CELO WALLET" : resuming ? "WELCOME BACK" : "CONNECT"}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
-                  {connected ? (playerName || account.displayName || formatAddress(account.address)) : "SIGN IN"}
+                  {connected
+                    ? (playerName || account.displayName || formatAddress(account.address))
+                    : resuming
+                      ? "SIGNING IN…"
+                      : "SIGN IN"}
                 </div>
               </div>
             </button>

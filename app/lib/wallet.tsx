@@ -4,14 +4,26 @@
 // • In MiniPay WebView: auto-connects via the injected provider (no modal)
 // • Everywhere: keeps gameStore.playerAddress + playerName in sync with wagmi address
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 import { useGameStore } from "./gameStore";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
 import { useRef } from "react";
 import type { CardProgressPayload } from "./cardProgress";
 import { celo } from "wagmi/chains";
-import { clearWeb3AuthSessionHint, hasWeb3AuthSessionHint } from "./web3auth";
+import {
+  clearWeb3AuthSessionHint,
+  getWeb3AuthResuming,
+  hasWeb3AuthSessionHint,
+  setWeb3AuthResuming,
+  subscribeWeb3AuthResuming,
+} from "./web3authSession";
+
+// True while a restored Web3Auth session is being re-attached to wagmi after an
+// OAuth redirect. Lets the sign-in button show progress instead of looking dead.
+export function useWeb3AuthResuming(): boolean {
+  return useSyncExternalStore(subscribeWeb3AuthResuming, getWeb3AuthResuming, () => false);
+}
 
 export function WalletSync() {
   const { address, isConnected } = useAccount();
@@ -85,21 +97,47 @@ export function WalletSync() {
     if (!web3AuthConnector) return;
 
     attemptedWeb3AuthResumeRef.current = true;
+    let cancelled = false;
+
     void (async () => {
+      // Returning from an OAuth redirect on mobile, this has to pull the ~1.3 MB
+      // SDK and await init() before it can re-attach — several seconds. Flag it
+      // so the wallet UI can say so instead of sitting on "SIGN IN", which reads
+      // as broken and makes people tap it.
+      setWeb3AuthResuming(true);
       try {
-        // isAuthorized() restores the session and returns true ONLY when it is
-        // actually connected, so a stale hint (e.g. an abandoned sign-in) can
-        // never trigger a fresh login modal/redirect here — we just drop the hint.
-        const authorized = await web3AuthConnector.isAuthorized();
-        if (!authorized) {
-          clearWeb3AuthSessionHint();
-          return;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (cancelled) return;
+          try {
+            // isAuthorized() restores the session and returns true ONLY when it
+            // is actually connected, so a stale hint (e.g. an abandoned sign-in)
+            // can never trigger a fresh login modal/redirect here.
+            const authorized = await web3AuthConnector.isAuthorized();
+            if (cancelled) return;
+            if (!authorized) {
+              // Definitive: the session is genuinely gone, so drop the hint.
+              clearWeb3AuthSessionHint();
+              return;
+            }
+            await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
+            return;
+          } catch {
+            // Transient — a slow SDK load, an init timeout, or a race with
+            // wagmi's own reconnect. Keep the hint so later loads still try,
+            // and back off before retrying.
+            if (attempt === 2 || cancelled) return;
+            await new Promise((resolve) => setTimeout(resolve, 1200 * (attempt + 1)));
+          }
         }
-        await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
-      } catch {
-        clearWeb3AuthSessionHint();
+      } finally {
+        if (!cancelled) setWeb3AuthResuming(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+      setWeb3AuthResuming(false);
+    };
   }, [connectAsync, connectors, isConnected]);
 
   useEffect(() => {
