@@ -67,6 +67,33 @@ function ptsDisplay(pts: number, currency: PremiumPaymentCurrency) {
 type BuyCurrency = PremiumPaymentCurrency;
 type MarketView = "premium" | "forge";
 
+async function registerPremiumPurchase(payload: {
+  address: `0x${string}`;
+  playerName: string | null;
+  cardId: string;
+  currency: BuyCurrency;
+  pricePoints: number;
+  txHash: string;
+}) {
+  let lastError = "Payment verification failed.";
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await fetch("/api/black-market/purchase", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; pending?: boolean };
+    if (res.ok && data.ok) return;
+    lastError = data.error ?? lastError;
+    if (data.pending || res.status === 402 || res.status === 404) {
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+      continue;
+    }
+    throw new Error(lastError);
+  }
+  throw new Error(lastError);
+}
+
 export default function BlackMarket() {
   const isMp = useMiniPayMode();
   const [isMobile, setIsMobile] = useState(false);
@@ -210,22 +237,17 @@ export default function BlackMarket() {
             })
           : await sendTransactionAsync({ to: TREASURY, value: amt, account: activeAddress, chainId: celo.id });
       }
-      // Unlock locally for instant UX (store + localStorage). Pass 0 so points
-      // are untouched. The server verifies the payment on-chain and records
-      // authoritative ownership in the background — no need to block the UI.
+      await registerPremiumPurchase({
+        address: activeAddress,
+        playerName,
+        cardId: id,
+        currency: buyCurrency,
+        pricePoints: price,
+        txHash,
+      });
+      // Unlock only after the backend has verified the on-chain payment and
+      // recorded authoritative ownership.
       unlockCard(id, 0);
-      void fetch("/api/black-market/purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: activeAddress,
-          playerName,
-          cardId: id,
-          currency: buyCurrency,
-          pricePoints: price,
-          txHash,
-        }),
-      }).catch(() => {});
     } catch (e) {
       setBuyError(friendlyTxError(e, "Transaction failed."));
     } finally {

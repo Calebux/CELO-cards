@@ -7,6 +7,7 @@ import { MatchMode, useGameStore } from "../../lib/gameStore";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../../lib/activeMatch";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
+import { useBossOnchainEntry, bossEntryWillCharge } from "../../lib/bossEntry";
 import { WAGERS_ENABLED } from "../../lib/wagerConfig";
 import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
@@ -90,6 +91,9 @@ export default function CreateMatch() {
   const [postWagerDest, setPostWagerDest] = useState<string>("/ready");
   const [isShortLandscape, setIsShortLandscape] = useState(false);
   const [isCompactPhone, setIsCompactPhone] = useState(false);
+  const enterBossOnchain = useBossOnchainEntry();
+  const [bossEntryState, setBossEntryState] = useState<"idle" | "paying" | "error">("idle");
+  const [bossEntryError, setBossEntryError] = useState<string>("");
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
   const setMatchMode = useGameStore((s) => s.setMatchMode);
@@ -274,10 +278,25 @@ export default function CreateMatch() {
 
   const handleCreateMatch = async () => {
     if (!address) return;
+    if (bossEntryState === "paying") return; // don't double-fire the entry tx
     if (matchType === "vshouse") {
       if (!hasSeasonPass && freeGamesLeft <= 0) {
         setShowSeasonPassModal(true);
         return;
+      }
+      // On-chain boss check-in (flag-gated, pay-in only; rewards stay manual).
+      // Skips silently on MiniPay / when disabled. A cancelled or failed entry
+      // keeps the player here to retry or back out rather than dropping in unpaid.
+      if (bossEntryWillCharge(address, isMp)) {
+        setBossEntryError("");
+        setBossEntryState("paying");
+        const res = await enterBossOnchain(address, isMp);
+        if (!res.ok) {
+          setBossEntryError(res.error ?? "Couldn't enter the arena.");
+          setBossEntryState("error");
+          return;
+        }
+        setBossEntryState("idle");
       }
       resetMatch();
       setVsBot(true);
@@ -720,6 +739,53 @@ export default function CreateMatch() {
           onClose={() => setShowSeasonPassModal(false)}
           onActivated={() => setShowSeasonPassModal(false)}
         />
+      )}
+      {bossEntryState !== "idle" && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 10000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(3,6,12,0.82)", backdropFilter: "blur(4px)",
+        }}>
+          <div style={{
+            width: "min(360px, 88vw)", background: "rgba(10,16,28,0.98)",
+            border: "1px solid rgba(86,164,203,0.35)", borderRadius: 10, padding: "26px 24px",
+            textAlign: "center", fontFamily: "inherit",
+          }}>
+            {bossEntryState === "paying" ? (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: "#56a4cb", textTransform: "uppercase", marginBottom: 10 }}>
+                  Entering the Arena
+                </div>
+                <div style={{ fontSize: 13, color: "rgba(185,231,244,0.75)", lineHeight: 1.5 }}>
+                  Confirm the <strong style={{ color: "#b9e7f4" }}>0.000007 CELO</strong> entry in your wallet to record this match on-chain.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: "#f87171", textTransform: "uppercase", marginBottom: 10 }}>
+                  Entry not completed
+                </div>
+                <div style={{ fontSize: 13, color: "rgba(185,231,244,0.75)", lineHeight: 1.5, marginBottom: 18 }}>
+                  {bossEntryError || "Couldn't enter the arena."}
+                </div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                  <button
+                    onClick={() => { setBossEntryState("idle"); void handleCreateMatch(); }}
+                    style={{ flex: 1, padding: "11px 0", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase", color: "#0a101c", background: "#56a4cb", border: "none" }}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => setBossEntryState("idle")}
+                    style={{ flex: 1, padding: "11px 0", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase", color: "#b9e7f4", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(86,164,203,0.3)" }}
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

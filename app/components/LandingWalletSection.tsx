@@ -11,6 +11,7 @@ import { useGameStore } from "../lib/gameStore";
 import { SoundSettings } from "./SoundSettings";
 import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments";
 import { useMiniPayStablecoin } from "../lib/stablecoins";
+import { friendlyTxError, isUserRejectedTx } from "../lib/txErrors";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -114,6 +115,7 @@ export function LandingWalletSection() {
   const [showBalances, setShowBalances] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [signInError, setSignInError] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const mp = useMiniPayMode();
 
@@ -122,6 +124,10 @@ export function LandingWalletSection() {
   const preferredRaw = stableState.balances[stableState.preferred.key];
   const preferredFloat = preferredRaw !== undefined ? parseFloat(formatUnits(preferredRaw, stableState.preferred.decimals)) : null;
   const isLowBalance = mp && preferredFloat !== null && preferredFloat < LOW_BALANCE_THRESHOLD;
+
+  useEffect(() => {
+    if (isConnected) setSignInError("");
+  }, [isConnected]);
 
   useEffect(() => {
     if (!isConnected || !address) {
@@ -242,10 +248,17 @@ export function LandingWalletSection() {
   const handleSignIn = () => {
     const connector = web3AuthConnector ?? fallbackConnector;
     if (!connector) return;
+    setSignInError("");
     void (async () => {
       try {
         await connectAsync({ connector, chainId: celo.id });
-      } catch {}
+      } catch (e) {
+        // Never swallow this silently: a blocked popup or a failed SDK load
+        // otherwise looks identical to a dead button.
+        if (!isUserRejectedTx(e)) {
+          setSignInError(friendlyTxError(e, "Couldn't sign in. Please tap again."));
+        }
+      }
     })();
   };
 
@@ -295,6 +308,28 @@ export function LandingWalletSection() {
           </div>
         </div>
       </button>
+      {!isConnected && signInError ? (
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            maxWidth: 240,
+            padding: "8px 10px",
+            borderRadius: 6,
+            background: "rgba(10,16,28,0.98)",
+            border: "1px solid rgba(248,113,113,0.4)",
+            color: "#f87171",
+            fontSize: 11,
+            fontWeight: 600,
+            lineHeight: 1.4,
+            zIndex: 50,
+          }}
+        >
+          {signInError}
+        </div>
+      ) : null}
       {isConnected && !mp && showAccountMenu ? (
         <div
           style={{

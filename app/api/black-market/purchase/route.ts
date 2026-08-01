@@ -11,6 +11,8 @@ import {
   USDT_CONTRACT,
   USDC_CONTRACT,
   CUSD_CONTRACT,
+  treasurySelfPurchaseViolation,
+  type PurchaseCurrency,
 } from "../../../lib/cusd";
 import { GDOLLAR_CONTRACT } from "../../../lib/gooddollar";
 
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
     address?: string;
     playerName?: string | null;
     cardId?: string;
-    currency?: "celo" | "gdollar" | "usdt" | "usdc" | "cusd";
+    currency?: PurchaseCurrency;
     pricePoints?: number;
     txHash?: string;
   };
@@ -74,6 +76,9 @@ export async function POST(req: NextRequest) {
   const currency = body.currency;
   if (currency !== "celo" && currency !== "gdollar" && currency !== "usdt" && currency !== "usdc" && currency !== "cusd") {
     return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
+  }
+  if (treasurySelfPurchaseViolation(buyer, currency)) {
+    return NextResponse.json({ error: "Payment wallet cannot be the treasury wallet" }, { status: 403 });
   }
   const normalizedTxHash = body.txHash?.trim().toLowerCase();
   if (!normalizedTxHash || !/^0x[0-9a-f]{64}$/.test(normalizedTxHash)) {
@@ -119,7 +124,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function verifyPayment(
-  currency: "celo" | "gdollar" | "usdt" | "usdc" | "cusd",
+  currency: PurchaseCurrency,
   txHash: `0x${string}`,
   buyer: `0x${string}`,
   pricePoints: number,
