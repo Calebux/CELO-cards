@@ -199,6 +199,16 @@ export async function POST(req: NextRequest) {
   }
   const buyer = address as `0x${string}`;
 
+  // A treasury wallet can't buy from itself — a self-send satisfies the transfer
+  // checks below at zero cost. Same rule the black-market route enforces; the
+  // treasury shows up in this contract's purchase history without it.
+  if (
+    buyer.toLowerCase() === TREASURY_ADDRESS.toLowerCase() ||
+    buyer.toLowerCase() === TREASURY_MINIPAY_ADDRESS.toLowerCase()
+  ) {
+    return NextResponse.json({ error: "Payment wallet cannot be the treasury wallet" }, { status: 403 });
+  }
+
   // Transaction dedup is enforced atomically after verification via SET NX
   // (see below) so concurrent requests can't double-credit.
   const txKey = `season-pass-tx:${txHash}`;
