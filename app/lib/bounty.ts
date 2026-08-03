@@ -11,8 +11,26 @@ import { redis } from "./redis";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "./cusd";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const BOUNTY_TOP_N = 3;
-export const BOUNTY_PRIZE_USD = 5;
+// Prize config lives in the dependency-free bountyConfig module so client pages
+// can announce it without pulling redis/viem in. Re-exported here so server
+// callers have a single import.
+import {
+  BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_POOL_USD,
+  BOUNTY_PRIZE_SPLIT_USD,
+  BOUNTY_TOP_N,
+  bountyPrizeForRank,
+  meetsBountyThreshold,
+} from "./bountyConfig";
+
+export {
+  BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_POOL_USD,
+  BOUNTY_PRIZE_SPLIT_USD,
+  BOUNTY_TOP_N,
+  bountyPrizeForRank,
+  meetsBountyThreshold,
+};
 
 // Keep just over a week so recent days can still be reviewed and paid late.
 const BOUNTY_TTL_SECONDS = 8 * 24 * 60 * 60;
@@ -141,6 +159,8 @@ export type BountyStanding = {
   address: string;
   name: string | null;
   points: number;
+  /** Met the daily points threshold, so eligible for a share of the pool. */
+  qualified: boolean;
   prizeUsd: number;
 };
 
@@ -167,18 +187,30 @@ export async function getBountyStandings(
 
   const names = (await redis.hgetall<Record<string, string>>(namesKey(day)).catch(() => null)) ?? {};
 
-  return rows.map((row, index) => ({
-    rank: index + 1,
-    address: row.address,
-    name: names[row.address] ?? null,
-    points: row.points,
-    prizeUsd: index < BOUNTY_TOP_N ? BOUNTY_PRIZE_USD : 0,
-  }));
+  // Rows are sorted by points descending, so everyone meeting the threshold is
+  // a prefix of the list. That means a player below it can never sit above a
+  // qualifier and block a prize slot — rank and prize rank are the same number.
+  return rows.map((row, index) => {
+    const qualified = meetsBountyThreshold(row.points);
+    return {
+      rank: index + 1,
+      address: row.address,
+      name: names[row.address] ?? null,
+      points: row.points,
+      qualified,
+      prizeUsd: qualified ? bountyPrizeForRank(index + 1) : 0,
+    };
+  });
 }
 
+/**
+ * Only players who cleared the daily threshold. On a quiet day this can be
+ * fewer than BOUNTY_TOP_N, or empty — in which case the unclaimed share of the
+ * pool simply isn't paid out rather than going to someone who didn't compete.
+ */
 export async function getBountyWinners(day: string = bountyDayUTC()): Promise<BountyStanding[]> {
   const standings = await getBountyStandings(day, BOUNTY_TOP_N);
-  return standings.slice(0, BOUNTY_TOP_N);
+  return standings.slice(0, BOUNTY_TOP_N).filter((s) => s.qualified);
 }
 
 export async function getBountyPaid(day: string): Promise<BountyPaidRecord | null> {

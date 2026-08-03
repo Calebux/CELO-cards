@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOpsSession } from "../../../lib/admin";
 import {
-  BOUNTY_PRIZE_USD,
+  BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_POOL_USD,
+  BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
   bountyDayUTC,
   getBountyPaid,
@@ -48,7 +50,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     day,
     closed: isBountyDayClosed(day),
-    prizeUsd: BOUNTY_PRIZE_USD,
+    poolUsd: BOUNTY_POOL_USD,
+    minPointsToWin: BOUNTY_MIN_POINTS_TO_WIN,
+    prizeSplitUsd: BOUNTY_PRIZE_SPLIT_USD,
     topN: BOUNTY_TOP_N,
     totalOwedUsd: winners.reduce((sum, w) => sum + w.prizeUsd, 0),
     winners,
