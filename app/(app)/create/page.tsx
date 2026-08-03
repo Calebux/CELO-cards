@@ -32,6 +32,13 @@ function toStoreMode(matchType: MatchType): MatchMode {
   return matchType;
 }
 
+// Multipliers mirror DIFFICULTY_POINT_MULTIPLIER in the vshouse resolve route.
+const DIFFICULTIES: readonly { value: 0 | 1 | 2; label: string; multiplier: string; color: string }[] = [
+  { value: 0, label: "Easy",     multiplier: "1× pts",   color: "#4ade80" },
+  { value: 1, label: "Moderate", multiplier: "1.5× pts", color: "#fbbf24" },
+  { value: 2, label: "Hard",     multiplier: "2× pts",   color: "#f87171" },
+];
+
 const MATCH_TYPES: {
   key: MatchType;
   icon: string;
@@ -100,6 +107,8 @@ export default function CreateMatch() {
   const setPlayerRole = useGameStore((s) => s.setPlayerRole);
   const setWager = useGameStore((s) => s.setWager);
   const setVsBot = useGameStore((s) => s.setVsBot);
+  const aiDifficulty = useGameStore((s) => s.aiDifficulty);
+  const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
   const setUpperChamberActive = useGameStore((s) => s.setUpperChamberActive);
   const markOnboardingStep = useGameStore((s) => s.markOnboardingStep);
   const matchPhase = useGameStore((s) => s.matchPhase);
@@ -500,6 +509,43 @@ export default function CreateMatch() {
                 <div style={{ marginBottom: matchType === "ranked" ? 10 : matchType === "vshouse" ? 16 : 28, padding: "12px 16px", background: `rgba(${selected.color === "#56a4cb" ? "86,164,203" : selected.color === "#f59e0b" ? "245,158,11" : "168,85,247"},0.06)`, border: `1px solid ${selected.color}30`, borderRadius: 6 }}>
                   <p style={{ fontSize: isCompactPhone ? 13 : 12, color: "#9ca3af", lineHeight: 1.7, margin: 0 }}>{selected.desc}</p>
                 </div>
+
+                {/* Difficulty — VS House only. Locked in when the match starts;
+                    the multiplier applies to the points that feed the daily bounty. */}
+                {matchType === "vshouse" && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase" }}>Difficulty</span>
+                      <span style={{ fontSize: 10, color: "#475569", letterSpacing: 0.5 }}>harder boss, more points</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {DIFFICULTIES.map((d) => {
+                        const active = aiDifficulty === d.value;
+                        return (
+                          <button
+                            key={d.value}
+                            onClick={() => setAiDifficulty(d.value)}
+                            style={{
+                              flex: 1, padding: isCompactPhone ? "10px 8px" : "9px 8px",
+                              border: `1.5px solid ${active ? d.color : "#334155"}`,
+                              borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                              background: active ? `${d.color}1f` : "rgba(17,10,24,0.4)",
+                              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                              transition: "all 0.2s",
+                            }}
+                          >
+                            <span style={{ fontSize: isCompactPhone ? 12 : 11, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: active ? d.color : "#6b7280" }}>
+                              {d.label}
+                            </span>
+                            <span style={{ fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, color: active ? "rgba(255,255,255,0.75)" : "#475569" }}>
+                              {d.multiplier}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Season Pass / Free Games callout */}
                 {(matchType === "ranked" || matchType === "vshouse") && hasSeasonPass && (
