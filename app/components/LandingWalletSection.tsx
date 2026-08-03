@@ -13,6 +13,7 @@ import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { friendlyTxError, isUserRejectedTx } from "../lib/txErrors";
 import { useWeb3AuthResuming } from "../lib/wallet";
+import { useRouter } from "next/navigation";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -118,6 +119,7 @@ export function LandingWalletSection() {
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [signInError, setSignInError] = useState("");
   const resuming = useWeb3AuthResuming();
+  const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const mp = useMiniPayMode();
 
@@ -383,7 +385,7 @@ export function LandingWalletSection() {
             ) : null}
           </button>
           <button
-            onClick={() => { setShowAccountMenu(false); window.location.href = "/profile"; }}
+            onClick={() => { setShowAccountMenu(false); router.push("/profile"); }}
             style={{
               width: "100%",
               display: "flex",

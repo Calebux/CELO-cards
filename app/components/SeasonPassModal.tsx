@@ -13,6 +13,7 @@ import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 import { isUserRejectedTx, TX_CANCELLED_MESSAGE } from "../lib/txErrors";
 import { getStablecoin, isMiniPayStableKey, useMiniPayStablecoin } from "../lib/stablecoins";
+import { useRouter } from "next/navigation";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -97,6 +98,7 @@ async function fetchSeasonPass(address: string) {
 export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
   const isMp = useMiniPayMode();
+  const router = useRouter();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [isMobileModal, setIsMobileModal] = useState(false);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
@@ -616,7 +618,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 </button>
               ) : (
                 <button
-                  onClick={() => { window.location.href = "/profile"; }}
+                  onClick={() => { router.push("/profile"); }}
                   style={{
                     padding: isMp ? touchButtonPadding : "12px 32px", minHeight: touchButtonHeight, borderRadius: 7,
                     background: "linear-gradient(135deg, #00C58E22, #00C58E44)",

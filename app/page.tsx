@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { MiniPayImage } from './components/MiniPayImage';
 import { useMiniPayMode } from './lib/premiumPayments';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';
 import { hasWeb3AuthSessionHint } from './lib/web3authSession';
+import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_POOL_USD, BOUNTY_TOP_N } from './lib/bountyConfig';
 
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
@@ -407,7 +409,7 @@ export default function ActionOrderLandingPage() {
 
             {/* ── House Boss Live banner + attached How-to-Play — centered ─ */}
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:isMp ? 186 : 200, zIndex:15, display:"flex", flexDirection:"column", alignItems:"stretch" }}>
-              <a href="/tournament" style={{
+              <Link href="/tournament" style={{
                 display:"flex", alignItems:"center", gap:isMp ? 18 : 16, padding:isMp ? "16px 32px" : "14px 28px",
                 background:"linear-gradient(135deg, rgba(15,12,5,0.92), rgba(40,30,5,0.88))",
                 border:"1.5px solid rgba(251,204,92,0.8)", borderBottom:"none", borderRadius:"8px 8px 0 0",
@@ -421,7 +423,7 @@ export default function ActionOrderLandingPage() {
                 </div>
                 <div style={{ width:1, height:isMp ? 36 : 32, background:"rgba(251,204,92,0.25)" }} />
                 <span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>BEAT THE HOUSE →</span>
-              </a>
+              </Link>
               {/* Attached How-to-Play strip — for everyone, opens the full guide */}
               <button
                 onClick={() => { setHowToPlayVariant("full"); setShowHowToPlay(true); }}
@@ -437,43 +439,64 @@ export default function ActionOrderLandingPage() {
                 <span style={{ fontSize:isMp ? 12 : 11, fontWeight:800, letterSpacing:2, color:"#b9e7f4", textTransform:"uppercase" }}>How to Play</span>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, color:"#4ade80", letterSpacing:1 }}>30-sec guide →</span>
               </button>
+              {/* ── Daily bounty announcement ─────────────────────────── */}
+              {/* Static copy on purpose: the landing defers everything it can
+                  for LCP, and a standings fetch here would undo that. Live
+                  standings live on /leaderboard. */}
+              <Link href="/leaderboard" style={{
+                marginTop:8, display:"flex", alignItems:"center", justifyContent:"center",
+                gap:isMp ? 12 : 10, padding:isMp ? "11px 32px" : "10px 28px",
+                background:"linear-gradient(135deg, rgba(6,20,14,0.96), rgba(12,40,26,0.92))",
+                border:"1.5px solid rgba(74,222,128,0.55)", borderRadius:8,
+                textDecoration:"none", whiteSpace:"nowrap",
+              }}>
+                <span style={{ fontSize:isMp ? 16 : 15 }}>💰</span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:2, color:"#4ade80", textTransform:"uppercase" }}>Daily Bounty</span>
+                <span style={{ fontSize:isMp ? 15 : 14, fontWeight:900, color:"#fff", letterSpacing:-0.3 }}>
+                  ${BOUNTY_POOL_USD}
+                </span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)", textTransform:"uppercase" }}>
+                  top {BOUNTY_TOP_N} · {BOUNTY_MIN_POINTS_TO_WIN}+ pts
+                </span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#4ade80" }}>STANDINGS →</span>
+              </Link>
             </div>
 
             {/* ── Match Resume Banner ──────────────────────────────── */}
             {/* ── Left Nav ─────────────────────────────────────────── */}
-            <a className="ko-nav-btn ko-btn-create" href="/create">
+            <Link className="ko-nav-btn ko-btn-create" href="/create">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
               <span className="ko-btn-label">CREATE MATCH</span>
-            </a>
+            </Link>
 
             {!isMp && (
-            <a className="ko-nav-btn ko-btn-join" href="/join">
+            <Link className="ko-nav-btn ko-btn-join" href="/join">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span className="ko-btn-label">JOIN MATCH</span>
-            </a>
+            </Link>
             )}
 
-            <a className="ko-nav-btn ko-btn-tournament" href="/tournament">
+            <Link className="ko-nav-btn ko-btn-tournament" href="/tournament">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
                 <span className="ko-btn-label">HOUSE EVENT</span>
-            </a>
+            </Link>
 
-            <a className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
+            <Link className="ko-nav-btn ko-btn-leaderboard" href="/leaderboard">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
               <span className="ko-btn-label">LEADERBOARD</span>
-            </a>
+            </Link>
 
-            <a className="ko-nav-btn ko-btn-profile" href="/profile">
+            <Link className="ko-nav-btn ko-btn-profile" href="/profile">
               <svg className="ko-btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               <span className="ko-btn-label">PROFILE</span>
-            </a>
+            </Link>
 
             <LandingProgressBadge isCompact={isCompact} />
 
             {/* ── Centre: CTA ───────────────────────────────────────── */}
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", top:726, zIndex:15, display:"flex", flexDirection:"column", alignItems:"center", gap:isCompact ? 12 : 10 }}>
               <div style={{ display:"flex", gap:isCompact ? 16 : 12 }}>
-                <a href="/black-market" style={{
+                <Link href="/black-market" style={{
                   display:"flex", alignItems:"center", justifyContent:"center", gap:isCompact ? 12 : 8, padding:isCompact ? "15px 30px" : "10px 24px",
                   background:"linear-gradient(135deg,rgba(34,47,66,0.95),rgba(239,68,68,0.3))",
                   border:"1.5px solid #ef4444", borderRadius:6, textDecoration:"none",
@@ -484,7 +507,7 @@ export default function ActionOrderLandingPage() {
                 }}>
                   <svg width={isCompact ? 18 : 16} height={isCompact ? 18 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
                   BLACK MARKET
-                </a>
+                </Link>
                 {showDeferredWalletUi && LandingSeasonPassButtonComponent ? (
                   <LandingSeasonPassButtonComponent isCompact={isCompact} isMiniPay={isMp} />
                 ) : (

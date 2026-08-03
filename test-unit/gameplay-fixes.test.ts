@@ -20,6 +20,17 @@ import {
   receivingTreasuryFor,
   treasurySelfPurchaseViolation,
 } from "../app/lib/cusd";
+import {
+  BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_POOL_USD,
+  BOUNTY_PRIZE_SPLIT_USD,
+  BOUNTY_TOP_N,
+  bountyDayUTC,
+  bountyPrizeForRank,
+  isBountyDayClosed,
+  isBountyExcluded,
+  meetsBountyThreshold,
+} from "../app/lib/bounty";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -260,6 +271,78 @@ test("black market: an ordinary buyer is never blocked", () => {
   // Missing buyer is not a violation — the route rejects it as an invalid address first.
   assert.equal(treasurySelfPurchaseViolation(undefined, "celo"), false);
   assert.equal(treasurySelfPurchaseViolation(null, "celo"), false);
+});
+
+// ── Daily bounty: real money, so who is eligible matters most ────────────────
+test("bounty: treasury and display bots can never win a prize", () => {
+  // The treasury funds the prizes; it must not also collect them.
+  assert.equal(isBountyExcluded(TREASURY_ADDRESS), true);
+  assert.equal(isBountyExcluded(TREASURY_MINIPAY_ADDRESS), true);
+  assert.equal(isBountyExcluded(TREASURY_ADDRESS.toUpperCase()), true);
+
+  // BOT_PLAYERS are merged into /api/leaderboard and share this prefix, so they
+  // would otherwise rank — and they have hundreds of fabricated points.
+  assert.equal(isBountyExcluded("0xB071d7A6F3EA0000000000000000000000000001"), true);
+  assert.equal(isBountyExcluded("0xb071d7a6f3ea000000000000000000000000000A"), true);
+
+  // A real player is eligible.
+  assert.equal(isBountyExcluded("0x1111111111111111111111111111111111111111"), false);
+});
+
+test("bounty: a day is only payable once it has closed", () => {
+  const today = bountyDayUTC();
+  const yesterday = bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000);
+
+  // Paying a day still in progress means standings can still move underneath.
+  assert.equal(isBountyDayClosed(today), false);
+  assert.equal(isBountyDayClosed(yesterday), true);
+
+  // UTC day keys must sort lexicographically for that comparison to hold.
+  assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(yesterday < today);
+});
+
+test("bounty: a player below the daily threshold wins nothing", () => {
+  assert.equal(meetsBountyThreshold(BOUNTY_MIN_POINTS_TO_WIN), true); // boundary is inclusive
+  assert.equal(meetsBountyThreshold(BOUNTY_MIN_POINTS_TO_WIN - 1), false);
+  assert.equal(meetsBountyThreshold(0), false);
+
+  // The threshold exists so a single match on a quiet day can't take the pool.
+  // A ranked win is 150 and a boss win at most 200, so one match must not clear it.
+  assert.ok(BOUNTY_MIN_POINTS_TO_WIN > 200);
+});
+
+test("bounty: an unqualified player can never block a prize slot", () => {
+  // Standings are sorted by points descending, so qualifiers are always a
+  // prefix of the list. If that ever stopped holding, someone below the
+  // threshold could sit at rank 2 and strand the second prize.
+  const points = [900, 700, 400, 100];
+  const qualified = points.map(meetsBountyThreshold);
+  const firstUnqualified = qualified.indexOf(false);
+  assert.ok(firstUnqualified !== -1);
+  // Nothing after the first non-qualifier may qualify.
+  assert.equal(qualified.slice(firstUnqualified).some(Boolean), false);
+  // Sorted descending is the property that guarantees it.
+  for (let i = 1; i < points.length; i++) assert.ok(points[i - 1] >= points[i]);
+});
+
+test("bounty: the tiered split pays out exactly the daily pool, no more", () => {
+  assert.equal(BOUNTY_TOP_N, 3);
+  // The whole point of a fixed pool is that daily spend is bounded — if the
+  // tiers ever stop summing to it, the budget silently drifts.
+  const total = BOUNTY_PRIZE_SPLIT_USD.reduce((sum, n) => sum + n, 0);
+  assert.equal(total, BOUNTY_POOL_USD);
+  assert.equal(BOUNTY_PRIZE_SPLIT_USD.length, BOUNTY_TOP_N);
+
+  // Ranks are 1-indexed and descending; 4th place and beyond win nothing.
+  assert.equal(bountyPrizeForRank(1), 5);
+  assert.equal(bountyPrizeForRank(2), 3);
+  assert.equal(bountyPrizeForRank(3), 2);
+  assert.equal(bountyPrizeForRank(4), 0);
+  assert.equal(bountyPrizeForRank(999), 0);
+  for (let rank = 2; rank <= BOUNTY_TOP_N; rank++) {
+    assert.ok(bountyPrizeForRank(rank - 1) >= bountyPrizeForRank(rank));
+  }
 });
 
 test("black market: each currency maps to the treasury the route verifies against", () => {

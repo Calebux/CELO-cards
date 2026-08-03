@@ -533,11 +533,15 @@ export default function Gameplay() {
     nextRound();
     router.push("/loadout");
     // Fallback: if app-router navigation stalls due poor connection, force route.
+    // This has to stay well clear of a normal mobile transition. At 450ms it was
+    // firing during ordinary play, and a hard reload tears down the JS context —
+    // including the live Web3Auth instance — so the wallet had to re-init from
+    // scratch and the header sat on SIGNING IN mid-match.
     setTimeout(() => {
       if (window.location.pathname.includes("/gameplay")) {
         window.location.replace("/loadout");
       }
-    }, 450);
+    }, 2500);
   };
 
   const handleClaimPayout = async () => {

@@ -8,21 +8,31 @@ import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { useGameFrameScale } from "../../lib/mobile";
+import {
+  BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_POOL_USD,
+  BOUNTY_PRIZE_SPLIT_USD,
+  BOUNTY_TOP_N,
+} from "../../lib/bountyConfig";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
 const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
-type Tab = "casual" | "ranked";
+type Tab = "bounty" | "casual" | "ranked";
 
-type Player = {
+// Casual/ranked are all-time boards with a W/L record; the bounty board is a
+// single UTC day and carries prize state instead. One row shape covers both so
+// the table renders once, with the columns varying per tab.
+type Row = {
   rank: number;
   address: string;
   name?: string;
-  wins: number;
-  losses: number;
   points: number;
-  lastSeen: number;
+  wins?: number;
+  losses?: number;
+  qualified?: boolean;
+  prizeUsd?: number;
 };
 
 function truncateAddress(addr: string): string {
@@ -41,6 +51,21 @@ const RANK_COLORS: Record<number, string> = {
   3: "#CD7F32",
 };
 
+// "Ranked" here means the ranked match mode, NOT wager — isRankedMultiplayerMode
+// is `mode === "ranked"`. The old copy told players to play a wager match, which
+// is a different (and currently disabled) mode, so the board looked unreachable.
+const TABS: readonly { key: Tab; label: string; icon: string; hint: string }[] = [
+  { key: "bounty", label: "Daily",  icon: "paid",            hint: "Today · prizes" },
+  { key: "casual", label: "Casual", icon: "sports_esports",  hint: "All time" },
+  { key: "ranked", label: "Ranked", icon: "emoji_events",    hint: "Ranked PvP" },
+];
+
+const SUBTITLES: Record<Tab, string> = {
+  bounty: `Today's race — $${BOUNTY_POOL_USD} shared by the top ${BOUNTY_TOP_N}, resets 00:00 UTC`,
+  casual: "All matches — VS House and PvP",
+  ranked: "Ranked PvP matches only",
+};
+
 export default function Leaderboard() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -48,8 +73,10 @@ export default function Leaderboard() {
   const { address } = useAccount();
   const [isMobile, setIsMobile] = useState(false);
   const isCompact = isMp || isMobile;
-  const [tab, setTab] = useState<Tab>("casual");
-  const [players, setPlayers] = useState<Player[]>([]);
+  // The bounty board leads: it is the only one that resets, the only one with a
+  // prize, and the only one a new player can realistically enter today.
+  const [tab, setTab] = useState<Tab>("bounty");
+  const [players, setPlayers] = useState<Row[]>([]);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -71,10 +98,11 @@ export default function Leaderboard() {
   const loadLeaderboard = () => {
     setLoading(true);
     setFetchError(false);
-    void fetch(`/api/leaderboard?tab=${tab}&limit=50`)
+    const url = tab === "bounty" ? `/api/bounty?limit=50` : `/api/leaderboard?tab=${tab}&limit=50`;
+    void fetch(url)
       .then((r) => r.json())
-      .then((data: { players: Player[] }) => {
-        const list = data.players ?? [];
+      .then((data: { players?: Row[]; standings?: Row[] }) => {
+        const list = (tab === "bounty" ? data.standings : data.players) ?? [];
         setPlayers(list);
         setLoading(false);
         // Overlay Redis usernames on top of file-based names
@@ -93,6 +121,34 @@ export default function Leaderboard() {
     loadLeaderboard();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Ranked is unreachable in MiniPay (every mode but VS House is coming soon
+  // there), so never leave a MiniPay player parked on an empty board.
+  useEffect(() => {
+    if (isMp && tab === "ranked") setTab("bounty");
+  }, [isMp, tab]);
+
+  // The bounty board has no W/L record — it trades those columns for the prize.
+  const gridCols = tab === "bounty"
+    ? (isCompact ? "64px 1fr 120px 130px" : "48px 1fr 90px 100px")
+    : (isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px");
+  const columns = tab === "bounty"
+    ? ["#", "PLAYER", "POINTS", "PRIZE"]
+    : ["#", "PLAYER", "POINTS", "W", "L", "WIN%"];
+
+  // How many more points the signed-in player needs to hold a prize spot:
+  // enough to clear the qualifying floor AND pass whoever currently sits last
+  // in the money. Null when signed out or not on the bounty board.
+  const pointsToPrize = (() => {
+    if (tab !== "bounty" || !address) return null;
+    const mine = players.find((p) => p.address.toLowerCase() === address.toLowerCase());
+    const minePoints = mine?.points ?? 0;
+    const lastPaid = players.filter((p) => (p.prizeUsd ?? 0) > 0).slice(-1)[0];
+    const contested = players.length >= BOUNTY_TOP_N && lastPaid ? lastPaid.points + 1 : 0;
+    const target = Math.max(BOUNTY_MIN_POINTS_TO_WIN, contested);
+    if (mine && (mine.prizeUsd ?? 0) > 0) return 0;
+    return Math.max(0, target - minePoints);
+  })();
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
@@ -144,18 +200,13 @@ export default function Leaderboard() {
                   Leaderboard
                 </h2>
                 <p style={{ fontSize: isCompact ? 16 : 12, color: "#94a3b8", margin: "4px 0 0", letterSpacing: 0.5 }}>
-                  {tab === "casual"
-                    ? "All matches — VS House, PvP, and wager"
-                    : "Wager matches only — points count toward prizes"}
+                  {SUBTITLES[tab]}
                 </p>
               </div>
 
               {/* Tabs */}
               <div style={{ display: "flex", gap: 8 }}>
-                {([
-                  { key: "casual" as Tab, label: "Casual", icon: "sports_esports", hint: "All matches" },
-                  { key: "ranked" as Tab, label: "Ranked", icon: "emoji_events",   hint: "Wager only" },
-                ] as const).map(({ key, label, icon, hint }) => (
+                {TABS.filter((t) => !(t.key === "ranked" && isMp)).map(({ key, label, icon, hint }) => (
                   <button
                     key={key}
                     onClick={() => setTab(key)}
@@ -186,21 +237,40 @@ export default function Leaderboard() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", marginBottom: 12, background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 5 }}>
                 <span className="material-icons" style={{ fontSize: 14, color: "#fbbf24" }}>toll</span>
                 <span style={{ fontSize: 11, color: "#94a3b8", letterSpacing: 0.3 }}>
-                  Only <strong style={{ color: "#fbbf24" }}>Wager matches</strong> count here. Play a wager match to appear on the ranked board.
+                  Only <strong style={{ color: "#fbbf24" }}>Ranked</strong> matches count here. Create a Ranked match to appear on this board.
                 </span>
+              </div>
+            )}
+
+            {/* Daily bounty explainer + how far you are from a prize */}
+            {tab === "bounty" && (
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 14px", marginBottom: 12, background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.22)", borderRadius: 5 }}>
+                <span className="material-icons" style={{ fontSize: 14, color: "#4ade80" }}>paid</span>
+                <span style={{ fontSize: isCompact ? 13 : 11, color: "#94a3b8", letterSpacing: 0.3 }}>
+                  Top {BOUNTY_TOP_N} split <strong style={{ color: "#4ade80" }}>${BOUNTY_POOL_USD}</strong> every day
+                  {" "}({BOUNTY_PRIZE_SPLIT_USD.map((n) => `$${n}`).join(" / ")}). You need{" "}
+                  <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points to qualify.
+                </span>
+                {pointsToPrize !== null && (
+                  <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#fbbf24", letterSpacing: 0.3 }}>
+                    {pointsToPrize > 0
+                      ? `${pointsToPrize.toLocaleString()} more points for a prize spot`
+                      : "You're in a prize spot — hold it until 00:00 UTC"}
+                  </span>
+                )}
               </div>
             )}
 
             {/* Table header */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px",
+              gridTemplateColumns: gridCols,
               gap: 0,
               padding: isCompact ? "10px 20px" : "8px 16px",
               borderBottom: "1px solid #1e293b",
               marginBottom: 4,
             }}>
-              {["#", "PLAYER", "POINTS", "W", "L", "WIN%"].map((col) => (
+              {columns.map((col) => (
                 <span key={col} style={{ fontSize: isCompact ? 13 : 9, fontWeight: 700, letterSpacing: 1.5, color: "#475569", textTransform: "uppercase" }}>{col}</span>
               ))}
             </div>
@@ -210,13 +280,22 @@ export default function Leaderboard() {
               {loading ? (
                 <div>
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px", gap: 0, padding: isCompact ? "14px 20px" : "12px 16px", borderBottom: "1px solid rgba(30,41,59,0.6)" }}>
-                      <div style={{ width: 24, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
-                      <div style={{ width: `${60 + (i % 3) * 12}%`, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
-                      <div style={{ width: 44, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
-                      <div style={{ width: 20, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
-                      <div style={{ width: 20, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
-                      <div style={{ width: 30, height: 14, borderRadius: 3, background: "rgba(255,255,255,0.06)", animation: "shimmer 1.4s ease-in-out infinite", animationDelay: `${i * 0.08}s` }} />
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: isCompact ? "14px 20px" : "12px 16px", borderBottom: "1px solid rgba(30,41,59,0.6)" }}>
+                      {/* One bar per column, so the skeleton matches whichever
+                          tab is loading instead of spilling onto a second row. */}
+                      {columns.map((col, c) => (
+                        <div
+                          key={col}
+                          style={{
+                            width: c === 1 ? `${60 + (i % 3) * 12}%` : c === 0 ? 24 : 40,
+                            height: 14,
+                            borderRadius: 3,
+                            background: "rgba(255,255,255,0.06)",
+                            animation: "shimmer 1.4s ease-in-out infinite",
+                            animationDelay: `${i * 0.08}s`,
+                          }}
+                        />
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -229,8 +308,14 @@ export default function Leaderboard() {
               ) : players.length === 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 340, gap: 12 }}>
                   <span className="material-icons" style={{ color: "#334155", fontSize: 48 }}>leaderboard</span>
-                  <p style={{ fontSize: 13, color: "#475569", letterSpacing: 1, textTransform: "uppercase" }}>No matches recorded yet</p>
-                  <p style={{ fontSize: 11, color: "#334155", letterSpacing: 0.5 }}>Play a match to appear here</p>
+                  <p style={{ fontSize: 13, color: "#475569", letterSpacing: 1, textTransform: "uppercase" }}>
+                    {tab === "bounty" ? "No points scored today yet" : "No matches recorded yet"}
+                  </p>
+                  <p style={{ fontSize: 11, color: "#334155", letterSpacing: 0.5 }}>
+                    {tab === "bounty"
+                      ? `Be first — ${BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} points takes a share of $${BOUNTY_POOL_USD}`
+                      : "Play a match to appear here"}
+                  </p>
                 </div>
               ) : (
                 players.map((p) => {
@@ -241,7 +326,7 @@ export default function Leaderboard() {
                       key={p.address}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px",
+                        gridTemplateColumns: gridCols,
                         gap: 0,
                         padding: isCompact ? "14px 20px" : "10px 16px",
                         borderBottom: "1px solid rgba(30,41,59,0.6)",
@@ -290,19 +375,40 @@ export default function Leaderboard() {
                         );
                       })()}
 
-                      {/* Points */}
-                      <span style={{ fontSize: isCompact ? 18 : 14, fontWeight: 800, color: "#f1f5f9" }}>
+                      {/* Points — dimmed on the bounty board until they qualify,
+                          so the cutoff is visible rather than just implied. */}
+                      <span style={{
+                        fontSize: isCompact ? 18 : 14,
+                        fontWeight: 800,
+                        color: tab === "bounty" && !p.qualified ? "#64748b" : "#f1f5f9",
+                      }}>
                         {p.points.toLocaleString()}
                       </span>
 
-                      {/* Wins */}
-                      <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#4ade80" }}>{p.wins}</span>
+                      {tab === "bounty" ? (
+                        (p.prizeUsd ?? 0) > 0 ? (
+                          <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 800, color: "#4ade80" }}>
+                            ${p.prizeUsd}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: isCompact ? 13 : 10, fontWeight: 600, color: "#475569", letterSpacing: 0.5 }}>
+                            {p.qualified
+                              ? "—"
+                              : `${(BOUNTY_MIN_POINTS_TO_WIN - p.points).toLocaleString()} to qualify`}
+                          </span>
+                        )
+                      ) : (
+                        <>
+                          {/* Wins */}
+                          <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#4ade80" }}>{p.wins ?? 0}</span>
 
-                      {/* Losses */}
-                      <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#f87171" }}>{p.losses}</span>
+                          {/* Losses */}
+                          <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#f87171" }}>{p.losses ?? 0}</span>
 
-                      {/* Win % */}
-                      <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#94a3b8" }}>{winPct(p.wins, p.losses)}</span>
+                          {/* Win % */}
+                          <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 600, color: "#94a3b8" }}>{winPct(p.wins ?? 0, p.losses ?? 0)}</span>
+                        </>
+                      )}
                     </div>
                   );
                 })

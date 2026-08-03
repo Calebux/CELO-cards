@@ -78,6 +78,14 @@ async function getWeb3Auth(): Promise<any> {
     return instance;
   })();
 
+  // A failed init must not poison every later attempt. Without this, one 15s
+  // timeout leaves a rejected promise cached above, and every subsequent
+  // getWeb3Auth() returns that same rejection instantly — so no retry, and no
+  // amount of tapping, can re-init for the rest of the page's life.
+  initPromise.catch(() => {
+    initPromise = null;
+  });
+
   return initPromise;
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, parseUnits, parseAbiItem } from "viem";
+import { createPublicClient, decodeFunctionData, http, parseUnits, parseAbiItem } from "viem";
 import { celo } from "viem/chains";
 import { CARDS } from "../../../lib/gameData";
 import { recordBlackMarketPurchaseActivity } from "../../../lib/opsActivity";
@@ -21,6 +21,9 @@ export const dynamic = "force-dynamic";
 
 const publicClient = createPublicClient({ chain: celo, transport: http("https://forno.celo.org") });
 const transferEvent = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
+// The client pays with a direct ERC-20 transfer(), so the calldata is a
+// log-independent record of the same payment.
+const transferFn = parseAbiItem("function transfer(address to, uint256 amount) returns (bool)");
 
 // Server-authoritative record of premium cards a wallet has paid for.
 function ownedPremiumKey(address: string) {
@@ -161,11 +164,34 @@ async function verifyPayment(
     args: { from: buyer, to: treasury },
     fromBlock: receipt.blockNumber,
     toBlock: receipt.blockNumber,
-  }).catch(() => []);
+  }).catch(() => null);
 
-  return logs.some(
+  if (logs?.some(
     (l) =>
       l.transactionHash?.toLowerCase() === txHash.toLowerCase() &&
       BigInt((l.args as { value?: bigint }).value ?? 0n) >= minAmount,
-  );
+  )) {
+    return true;
+  }
+
+  // No log is NOT proof of no payment. The query can fail outright, and Celo
+  // RPCs (Forno especially) return an empty array for a valid query without
+  // erroring — so concluding "unpaid" here takes the buyer's money and withholds
+  // the card. This is the same failure that cost season-pass buyers their G$.
+  //
+  // The transaction's own calldata settles it: a success receipt plus a
+  // transfer() to the treasury for at least the price, sent by the crediting
+  // wallet, is the payment. No log query involved.
+  const tx = await publicClient.getTransaction({ hash: txHash }).catch(() => null);
+  if (!tx?.input) return false;
+  if (tx.from?.toLowerCase() !== buyer.toLowerCase()) return false;
+  if (tx.to?.toLowerCase() !== token.toLowerCase()) return false;
+  try {
+    const decoded = decodeFunctionData({ abi: [transferFn], data: tx.input });
+    if (decoded.functionName !== "transfer") return false;
+    const [to, amount] = decoded.args as readonly [`0x${string}`, bigint];
+    return to.toLowerCase() === treasury.toLowerCase() && amount >= minAmount;
+  } catch {
+    return false;
+  }
 }
