@@ -18,6 +18,15 @@ type RedisLike = {
   mget<T>(...keys: string[]): Promise<(T | null)[]>;
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
+  zincrby(key: string, increment: number, member: string): Promise<number>;
+  zrange<T = string>(
+    key: string,
+    start: number,
+    stop: number,
+    options?: { rev?: boolean; withScores?: boolean }
+  ): Promise<T[]>;
+  hset(key: string, kv: Record<string, unknown>): Promise<number>;
+  hgetall<T = Record<string, string>>(key: string): Promise<T | null>;
   lpush(key: string, ...values: string[]): Promise<number>;
   lrange<T>(key: string, start: number, end: number): Promise<T[]>;
   scan(cursor: string, options?: { match?: string; count?: number }): Promise<[string, string[]]>;
@@ -70,6 +79,22 @@ function createDisabledRedis(): RedisLike {
     async expire() {
       warn();
       return 1;
+    },
+    async zincrby() {
+      warn();
+      return 0;
+    },
+    async zrange<T>() {
+      warn();
+      return [] as T[];
+    },
+    async hset() {
+      warn();
+      return 0;
+    },
+    async hgetall<T>() {
+      warn();
+      return null as T | null;
     },
     async lpush() {
       warn();

@@ -20,6 +20,13 @@ import {
   receivingTreasuryFor,
   treasurySelfPurchaseViolation,
 } from "../app/lib/cusd";
+import {
+  BOUNTY_PRIZE_USD,
+  BOUNTY_TOP_N,
+  bountyDayUTC,
+  isBountyDayClosed,
+  isBountyExcluded,
+} from "../app/lib/bounty";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -260,6 +267,40 @@ test("black market: an ordinary buyer is never blocked", () => {
   // Missing buyer is not a violation — the route rejects it as an invalid address first.
   assert.equal(treasurySelfPurchaseViolation(undefined, "celo"), false);
   assert.equal(treasurySelfPurchaseViolation(null, "celo"), false);
+});
+
+// ── Daily bounty: real money, so who is eligible matters most ────────────────
+test("bounty: treasury and display bots can never win a prize", () => {
+  // The treasury funds the prizes; it must not also collect them.
+  assert.equal(isBountyExcluded(TREASURY_ADDRESS), true);
+  assert.equal(isBountyExcluded(TREASURY_MINIPAY_ADDRESS), true);
+  assert.equal(isBountyExcluded(TREASURY_ADDRESS.toUpperCase()), true);
+
+  // BOT_PLAYERS are merged into /api/leaderboard and share this prefix, so they
+  // would otherwise rank — and they have hundreds of fabricated points.
+  assert.equal(isBountyExcluded("0xB071d7A6F3EA0000000000000000000000000001"), true);
+  assert.equal(isBountyExcluded("0xb071d7a6f3ea000000000000000000000000000A"), true);
+
+  // A real player is eligible.
+  assert.equal(isBountyExcluded("0x1111111111111111111111111111111111111111"), false);
+});
+
+test("bounty: a day is only payable once it has closed", () => {
+  const today = bountyDayUTC();
+  const yesterday = bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000);
+
+  // Paying a day still in progress means standings can still move underneath.
+  assert.equal(isBountyDayClosed(today), false);
+  assert.equal(isBountyDayClosed(yesterday), true);
+
+  // UTC day keys must sort lexicographically for that comparison to hold.
+  assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(yesterday < today);
+});
+
+test("bounty: prize config is the agreed $5 to each of the top 3", () => {
+  assert.equal(BOUNTY_TOP_N, 3);
+  assert.equal(BOUNTY_PRIZE_USD, 5);
 });
 
 test("black market: each currency maps to the treasury the route verifies against", () => {

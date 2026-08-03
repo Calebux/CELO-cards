@@ -18,6 +18,7 @@ import {
 } from "../../../lib/redis";
 import { redis } from "../../../lib/redis";
 import { recordMatchResult, recordMatchHistory, recordPlayerMatchOutcome } from "../../../lib/leaderboard";
+import { recordBountyPoints } from "../../../lib/bounty";
 import { withMatchLock } from "../../../lib/matchLock";
 import { MultiplayerMode, isRankedMultiplayerMode } from "../../../lib/matchmaking";
 import { recordRankedMatchTelemetry, recordRankedRoundTelemetry } from "../../../lib/rankedTelemetry";
@@ -959,6 +960,23 @@ async function patchImpl(req: NextRequest, ctx: Ctx) {
       // Server-authoritative daily/streak progression for both players (M-07).
       if (m.host.address) await recordPlayerMatchOutcome(m.host.address, hostWon);
       if (m.joiner.address) await recordPlayerMatchOutcome(m.joiner.address, !hostWon);
+
+      // Daily bounty credit, bound to the actual opponent so two wallets owned
+      // by one person can't mint points by playing each other all day.
+      if (isRankedMultiplayerMode(m.mode)) {
+        await recordBountyPoints(
+          m.host.address,
+          hostWon ? 150 : 25,
+          { kind: "pvp", opponent: m.joiner.address },
+          m.host.playerName,
+        );
+        await recordBountyPoints(
+          m.joiner.address,
+          hostWon ? 25 : 150,
+          { kind: "pvp", opponent: m.host.address },
+          m.joiner.playerName,
+        );
+      }
       if (m.host.address && isRankedMultiplayerMode(m.mode)) {
         await recordMatchResult({
           playerAddress: m.host.address,
