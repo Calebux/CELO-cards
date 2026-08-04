@@ -51,6 +51,12 @@ export function classifyAuthError(err: unknown): string {
   if (/timeout/.test(message)) return "init-timeout";
   if (/reject|denied|cancel/.test(message)) return "user-cancelled";
   if (/popup/.test(message)) return "popup-blocked";
+  // Must come before the network test: a plan/subscription rejection often
+  // surfaces as "could not fetch ...", and calling that a network fault sends
+  // you debugging connectivity when the real fix is in the Web3Auth dashboard.
+  // Requesting a sessionTime the Base plan does not allow failed exactly this
+  // way (error 1003) and reached users as "can't fetch Google API".
+  if (/1003|subscription|plan |not allowed|unauthorized client/.test(message)) return "subscription";
   if (/network|fetch|load|chunk/.test(message)) return "network";
   if (/not available in minipay/.test(message)) return "minipay-unsupported";
   if (/client_?id|not configured/.test(message)) return "misconfigured";

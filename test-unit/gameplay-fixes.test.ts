@@ -32,6 +32,7 @@ import {
   meetsBountyThreshold,
 } from "../app/lib/bounty";
 import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
+import { classifyAuthError } from "../app/lib/authTelemetry";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -272,6 +273,26 @@ test("black market: an ordinary buyer is never blocked", () => {
   // Missing buyer is not a violation — the route rejects it as an invalid address first.
   assert.equal(treasurySelfPurchaseViolation(undefined, "celo"), false);
   assert.equal(treasurySelfPurchaseViolation(null, "celo"), false);
+});
+
+// ── Auth telemetry: mislabelled failures send you debugging the wrong thing ──
+test("auth telemetry: a plan rejection is not reported as a network fault", () => {
+  // Requesting a sessionTime the Base plan disallows failed as error 1003 and
+  // reached users as "can't fetch Google API" — the word "fetch" made it look
+  // like connectivity when the fix was in the Web3Auth dashboard.
+  assert.equal(classifyAuthError(new Error("Could not fetch project config: subscription error 1003")), "subscription");
+  assert.equal(classifyAuthError(new Error("error 1003")), "subscription");
+  assert.equal(classifyAuthError(new Error("unauthorized client")), "subscription");
+
+  // Genuine connectivity still classifies as network.
+  assert.equal(classifyAuthError(new Error("Failed to fetch")), "network");
+  assert.equal(classifyAuthError(new Error("Loading chunk 42 failed")), "network");
+
+  // Other buckets are unaffected.
+  assert.equal(classifyAuthError(new Error("Web3Auth init timeout")), "init-timeout");
+  assert.equal(classifyAuthError(new Error("User rejected the request")), "user-cancelled");
+  assert.equal(classifyAuthError(new Error("popup blocked by browser")), "popup-blocked");
+  assert.equal(classifyAuthError(new Error("")), "unknown");
 });
 
 // ── VS House difficulty: the reward must reflect the match actually played ───

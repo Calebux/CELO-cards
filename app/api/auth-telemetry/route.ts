@@ -13,6 +13,7 @@ const REASONS = new Set([
   "user-cancelled",
   "popup-blocked",
   "network",
+  "subscription",
   "minipay-unsupported",
   "misconfigured",
   "connector-busy",
