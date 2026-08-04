@@ -4,6 +4,12 @@ type RetryOptions = {
   attempts?: number;
   delayMs?: number;
   sleep?: (delayMs: number) => Promise<void>;
+  /**
+   * Stop early and report not-authorized. Used to bail out the moment the user
+   * starts an interactive sign-in, so a poll begun beforehand cannot run on
+   * alongside their attempt.
+   */
+  shouldAbort?: () => boolean;
 };
 
 const defaultSleep = (delayMs: number) =>
@@ -22,13 +28,17 @@ export async function retryWeb3AuthAuthorization(
   const sleep = options.sleep ?? defaultSleep;
   let lastError: unknown;
 
+  const shouldAbort = options.shouldAbort ?? (() => false);
+
   for (let attempt = 0; attempt < attempts; attempt++) {
+    if (shouldAbort()) return false;
     try {
       if (await check()) return true;
       lastError = undefined;
     } catch (error) {
       lastError = error;
     }
+    if (shouldAbort()) return false;
 
     if (attempt < attempts - 1) await sleep(delayMs);
   }

@@ -44,6 +44,25 @@ export function hasWeb3AuthSessionHint(): boolean {
 // "SIGN IN" the whole time, which looks broken and makes people tap it. This
 // lets the wallet UI show that work is in progress.
 
+// ── Interactive sign-in guard ────────────────────────────────────────────────
+// The session hint is written BEFORE web3auth.connect() opens the login, so for
+// the whole time the user is on Google's screen the app looks exactly like
+// someone returning from a redirect. Any resume that starts in that window ends
+// up issuing a second connect on the same instance, on top of the token
+// exchange that is still in progress — which is the googleapis.com step.
+//
+// MetaMask survives it only because it completes in under a second; a Google
+// login is slow enough to be hit every time.
+let signInInFlight = false;
+
+export function setWeb3AuthSignInInFlight(next: boolean) {
+  signInInFlight = next;
+}
+
+export function isWeb3AuthSignInInFlight(): boolean {
+  return signInInFlight;
+}
+
 type Listener = () => void;
 
 let resuming = false;

@@ -8,6 +8,7 @@ import {
   clearWeb3AuthSessionHint as clearHint,
   hasWeb3AuthSessionHint as hasHint,
   persistWeb3AuthSession,
+  setWeb3AuthSignInInFlight,
 } from "./web3authSession";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
@@ -142,7 +143,17 @@ export function createWeb3AuthConnector() {
         // this page load — the hint is what lets WalletSync re-attach the restored
         // session once the OAuth redirect returns (including back to the landing "/").
         persistWeb3AuthSession();
-        provider = await web3auth.connect();
+        // ...but that hint makes an in-progress login indistinguishable from a
+        // returning redirect, so mark the interactive attempt for its whole
+        // duration. Without this, WalletSync starts a resume while the user is
+        // still on Google's screen and fires a competing connect straight into
+        // the token exchange.
+        setWeb3AuthSignInInFlight(true);
+        try {
+          provider = await web3auth.connect();
+        } finally {
+          setWeb3AuthSignInInFlight(false);
+        }
       }
       if (!provider) throw new Error("Web3Auth: no provider after connect");
       persistWeb3AuthSession();

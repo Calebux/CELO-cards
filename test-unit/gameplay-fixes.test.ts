@@ -34,6 +34,7 @@ import {
 import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
 import { classifyAuthError } from "../app/lib/authTelemetry";
 import { friendlyTxError, isGoogleUnreachable } from "../app/lib/txErrors";
+import { retryWeb3AuthAuthorization } from "../app/lib/web3authResume";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -306,6 +307,52 @@ test("auth telemetry: a plan rejection is not reported as a network fault", () =
   assert.equal(classifyAuthError(new Error("User rejected the request")), "user-cancelled");
   assert.equal(classifyAuthError(new Error("popup blocked by browser")), "popup-blocked");
   assert.equal(classifyAuthError(new Error("")), "unknown");
+});
+
+// ── The resume must never race a live sign-in ────────────────────────────────
+// The session hint is written before the login opens, so mid-sign-in the app
+// looks exactly like a returning redirect. A resume starting there issues a
+// second connect on top of the OAuth token exchange — the googleapis.com step —
+// which is why Google logins broke while MetaMask (sub-second) kept working.
+test("resume: polling stops as soon as an interactive sign-in starts", async () => {
+  let checks = 0;
+  let signingIn = false;
+  const authorized = await retryWeb3AuthAuthorization(
+    async () => {
+      checks++;
+      if (checks === 2) signingIn = true; // user taps SIGN IN mid-poll
+      return false;
+    },
+    { attempts: 10, delayMs: 0, shouldAbort: () => signingIn },
+  );
+
+  assert.equal(authorized, false);
+  // It must give up almost immediately, not run all 10 attempts alongside them.
+  assert.ok(checks <= 2, `expected the poll to abort, ran ${checks} checks`);
+});
+
+test("resume: a sign-in already in flight stops the poll before it starts", async () => {
+  let checks = 0;
+  const authorized = await retryWeb3AuthAuthorization(
+    async () => { checks++; return true; },
+    { attempts: 10, delayMs: 0, shouldAbort: () => true },
+  );
+
+  assert.equal(authorized, false);
+  assert.equal(checks, 0); // never even queried
+});
+
+test("resume: with no sign-in in progress it still polls through a transient false", async () => {
+  // The behaviour the poll exists for must survive the abort guard: Modal v10
+  // reports false briefly after init() while the redirect session rehydrates.
+  let checks = 0;
+  const authorized = await retryWeb3AuthAuthorization(
+    async () => { checks++; return checks >= 3; },
+    { attempts: 10, delayMs: 0 },
+  );
+
+  assert.equal(authorized, true);
+  assert.equal(checks, 3);
 });
 
 // ── VS House difficulty: the reward must reflect the match actually played ───

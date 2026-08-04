@@ -16,6 +16,7 @@ import {
   clearWeb3AuthSessionHint,
   getWeb3AuthResuming,
   hasWeb3AuthSessionHint,
+  isWeb3AuthSignInInFlight,
   setWeb3AuthResuming,
   subscribeWeb3AuthResuming,
 } from "./web3authSession";
@@ -94,6 +95,11 @@ export function WalletSync() {
     // the Web3Auth SDK on the landing.
     if (attemptedWeb3AuthResumeRef.current) return;
     if (!hasWeb3AuthSessionHint()) return;
+    // A live sign-in writes the hint before opening the login, so without this
+    // the resume treats someone still on Google's screen as a returning user
+    // and races their own attempt. Do not mark it attempted — this effect
+    // should run normally once the interactive attempt is over.
+    if (isWeb3AuthSignInInFlight()) return;
 
     const web3AuthConnector = connectors.find((connector) => connector.id === "web3auth");
     if (!web3AuthConnector) return;
@@ -118,12 +124,19 @@ export function WalletSync() {
         // false; poll the existing instance without opening the login modal.
         const authorized = await retryWeb3AuthAuthorization(
           () => web3AuthConnector.isAuthorized(),
+          // Stop polling the moment the user starts a real sign-in, so the poll
+          // can never outlive the window this resume was meant for.
+          { shouldAbort: isWeb3AuthSignInInFlight },
         );
-        if (cancelled) return;
+        if (cancelled || isWeb3AuthSignInInFlight()) return;
         if (!authorized) {
           clearWeb3AuthSessionHint();
           return;
         }
+        // Re-check immediately before connecting: the poll can take seconds, and
+        // a second connect landing on top of a live OAuth handshake is what
+        // breaks the googleapis.com token exchange.
+        if (isWeb3AuthSignInInFlight()) return;
         await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
       } catch (e) {
         // Keep the hint after SDK/network failures so a later load can retry.
