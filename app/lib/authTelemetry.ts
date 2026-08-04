@@ -57,6 +57,10 @@ export function classifyAuthError(err: unknown): string {
   // Requesting a sessionTime the Base plan does not allow failed exactly this
   // way (error 1003) and reached users as "can't fetch Google API".
   if (/1003|subscription|plan |not allowed|unauthorized client/.test(message)) return "subscription";
+  // Must also precede the network test. googleapis.com being unreachable is a
+  // specific, actionable failure — the user can sign in with email instead —
+  // and it looks nothing like a general connectivity problem in the fix it needs.
+  if (/googleapis|googleusercontent|accounts\.google/.test(message)) return "google-unreachable";
   if (/network|fetch|load|chunk/.test(message)) return "network";
   if (/not available in minipay/.test(message)) return "minipay-unsupported";
   if (/client_?id|not configured/.test(message)) return "misconfigured";

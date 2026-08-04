@@ -14,6 +14,7 @@ const REASONS = new Set([
   "popup-blocked",
   "network",
   "subscription",
+  "google-unreachable",
   "minipay-unsupported",
   "misconfigured",
   "connector-busy",

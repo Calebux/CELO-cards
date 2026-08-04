@@ -33,6 +33,7 @@ import {
 } from "../app/lib/bounty";
 import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
 import { classifyAuthError } from "../app/lib/authTelemetry";
+import { friendlyTxError, isGoogleUnreachable } from "../app/lib/txErrors";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -287,6 +288,18 @@ test("auth telemetry: a plan rejection is not reported as a network fault", () =
   // Genuine connectivity still classifies as network.
   assert.equal(classifyAuthError(new Error("Failed to fetch")), "network");
   assert.equal(classifyAuthError(new Error("Loading chunk 42 failed")), "network");
+
+  // googleapis.com being unreachable is its own failure: MetaMask still works,
+  // and the user can sign in with email — so it must not hide inside "network".
+  assert.equal(classifyAuthError(new Error("failed to connect to googleapis.com")), "google-unreachable");
+  assert.equal(classifyAuthError(new Error("Failed to fetch https://www.googleapis.com/oauth2/v3/userinfo")), "google-unreachable");
+  assert.equal(isGoogleUnreachable(new Error("failed to connect to googleapis.com")), true);
+  // Nested causes count — SDK errors usually wrap the original.
+  assert.equal(isGoogleUnreachable({ message: "connect failed", cause: new Error("googleapis.com unreachable") }), true);
+  assert.equal(isGoogleUnreachable(new Error("Failed to fetch")), false);
+
+  // The user-facing text names the working alternative rather than just failing.
+  assert.match(friendlyTxError(new Error("failed to connect to googleapis.com"), "x"), /Email/);
 
   // Other buckets are unaffected.
   assert.equal(classifyAuthError(new Error("Web3Auth init timeout")), "init-timeout");
