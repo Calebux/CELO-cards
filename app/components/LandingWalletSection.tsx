@@ -13,6 +13,7 @@ import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { friendlyTxError, isUserRejectedTx } from "../lib/txErrors";
 import { useWeb3AuthResuming } from "../lib/wallet";
+import { reportAuthFailure } from "../lib/authTelemetry";
 import { useRouter } from "next/navigation";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
@@ -262,6 +263,7 @@ export function LandingWalletSection() {
         if (!isUserRejectedTx(e)) {
           setSignInError(friendlyTxError(e, "Couldn't sign in. Please tap again."));
         }
+        reportAuthFailure("sign-in", e);
       }
     })();
   };

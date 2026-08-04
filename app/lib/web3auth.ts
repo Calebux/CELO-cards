@@ -64,14 +64,31 @@ async function getWeb3Auth(): Promise<any> {
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
       chains: [{ ...fromViemChain(celo), rpcTarget: WEB3AUTH_RPC_TARGET }],
       defaultChainId: `0x${celo.id.toString(16)}`,
+      // Default is 7 days. Every expiry forces a full OAuth redirect, and on iOS
+      // Safari's ITP evicts localStorage on a similar 7-day idle clock, so the
+      // two compound into "I keep having to sign in again". 30 days is the max
+      // the SDK allows. Note the Web3Auth dashboard's project config can also
+      // set this (noModal.js reads projectConfig.sessionTime) — if re-logins
+      // still look weekly, check the dashboard.
+      sessionTime: 30 * 86_400,
       ...(isMobileBrowser && {
         uiConfig: { uxMode: "redirect" as const },
       }),
     });
 
-    // Add timeout to prevent infinite hang on mobile
+    // Timeout so a hung init can't block the UI forever. The init keeps running
+    // though: on a slow phone it often lands a second or two late, and throwing
+    // that away meant the next attempt constructed a brand-new Web3Auth and
+    // started the whole download again. Publishing the instance when it does
+    // land means a retry finds it ready instead.
+    const init = instance.init();
+    void init.then(
+      () => { web3authInstance = instance; },
+      () => {},
+    );
+
     await Promise.race([
-      instance.init(),
+      init,
       new Promise((_, reject) => setTimeout(() => reject(new Error("Web3Auth init timeout")), 15_000)),
     ]);
     web3authInstance = instance;

@@ -7,6 +7,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 import { useGameStore } from "./gameStore";
+import { reportAuthFailure } from "./authTelemetry";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
 import { useRef } from "react";
 import type { CardProgressPayload } from "./cardProgress";
@@ -126,11 +127,16 @@ export function WalletSync() {
             }
             await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
             return;
-          } catch {
+          } catch (e) {
             // Transient — a slow SDK load, an init timeout, or a race with
             // wagmi's own reconnect. Keep the hint so later loads still try,
             // and back off before retrying.
-            if (attempt === 2 || cancelled) return;
+            if (attempt === 2 || cancelled) {
+              // Only report once the retries are exhausted, so a single slow
+              // load doesn't look like three separate failures.
+              if (attempt === 2) reportAuthFailure("resume", e);
+              return;
+            }
             await new Promise((resolve) => setTimeout(resolve, 1200 * (attempt + 1)));
           }
         }

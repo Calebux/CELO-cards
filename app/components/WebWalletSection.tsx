@@ -11,6 +11,7 @@ import { isMuted } from "../lib/soundManager";
 import { SoundSettings } from "./SoundSettings";
 import { isUserRejectedTx } from "../lib/txErrors";
 import { useWeb3AuthResuming } from "../lib/wallet";
+import { reportAuthFailure } from "../lib/authTelemetry";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -122,6 +123,7 @@ export function WebWalletSection() {
               // Falling back to the wallet modal is the right recovery for a
               // real failure, but not for someone who just dismissed the login.
               if (isUserRejectedTx(e)) return;
+              reportAuthFailure("sign-in", e);
             }
             openConnectModal();
           })();
