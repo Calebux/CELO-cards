@@ -15,6 +15,8 @@ const REASONS = new Set([
   "network",
   "subscription",
   "google-unreachable",
+  "resume-ok",
+  "resume-gave-up",
   "minipay-unsupported",
   "misconfigured",
   "connector-busy",
@@ -45,7 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  let body: { stage?: string; reason?: string; device?: string; redirectMode?: boolean };
+  let body: { stage?: string; reason?: string; device?: string; redirectMode?: boolean; durationMs?: number };
   try {
     body = await req.json();
   } catch {
@@ -60,6 +62,10 @@ export async function POST(req: NextRequest) {
     reason: REASONS.has(String(body.reason)) ? String(body.reason) : "unknown",
     device: DEVICES.has(String(body.device)) ? String(body.device) : "unknown",
     redirectMode: body.redirectMode === true,
+    // Clamped: a caller-supplied number must not be able to skew ops stats.
+    durationMs: Number.isFinite(body.durationMs)
+      ? Math.min(120_000, Math.max(0, Math.round(Number(body.durationMs))))
+      : undefined,
     failedAt: Date.now(),
   });
 

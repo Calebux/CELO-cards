@@ -18,7 +18,27 @@ export type AuthFailureReport = {
   device: string;
   /** Redirect vs popup decides which whole code path ran. */
   redirectMode: boolean;
+  /** How long the attempt took. The resume competes with the user's patience. */
+  durationMs?: number;
 };
+
+/**
+ * Report how long a session resume took, including successful ones.
+ *
+ * The complaint is not that resume fails — it is that it finishes after the
+ * user has already given up and tapped SIGN IN. Only timings on real devices
+ * can say whether that gap is two seconds or twelve, and therefore whether
+ * shaving the SDK download is enough or the approach has to change.
+ */
+export function reportResumeTiming(ok: boolean, durationMs: number): void {
+  postReport({
+    stage: "resume",
+    reason: ok ? "resume-ok" : "resume-gave-up",
+    device: deviceClass(),
+    redirectMode: isRedirectModeDevice(),
+    durationMs: Math.max(0, Math.round(durationMs)),
+  });
+}
 
 /** Coarse device class. Deliberately not the full UA string. */
 export function deviceClass(): string {
@@ -73,18 +93,21 @@ export function classifyAuthError(err: unknown): string {
  * failing must not become another reason someone can't log in.
  */
 export function reportAuthFailure(stage: AuthFailureStage, err: unknown): void {
+  const reason = classifyAuthError(err);
+  // User cancellation is a choice, not a fault — recording it would drown the
+  // real failures.
+  if (reason === "user-cancelled") return;
+  postReport({
+    stage,
+    reason,
+    device: deviceClass(),
+    redirectMode: isRedirectModeDevice(),
+  });
+}
+
+function postReport(body: AuthFailureReport): void {
   try {
     if (typeof window === "undefined") return;
-    const body: AuthFailureReport = {
-      stage,
-      reason: classifyAuthError(err),
-      device: deviceClass(),
-      redirectMode: isRedirectModeDevice(),
-    };
-    // User cancellation is a choice, not a fault — recording it would drown the
-    // real failures.
-    if (body.reason === "user-cancelled") return;
-
     const payload = JSON.stringify(body);
     // sendBeacon survives the page navigating away, which matters because the
     // redirect flow is exactly when this fires.

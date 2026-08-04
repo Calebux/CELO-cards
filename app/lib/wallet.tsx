@@ -7,7 +7,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 import { useGameStore } from "./gameStore";
-import { reportAuthFailure } from "./authTelemetry";
+import { reportAuthFailure, reportResumeTiming } from "./authTelemetry";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
 import { useRef } from "react";
 import type { CardProgressPayload } from "./cardProgress";
@@ -113,6 +113,7 @@ export function WalletSync() {
       // SDK and await init() before it can re-attach — several seconds. Flag it
       // so the wallet UI can say so instead of sitting on "SIGN IN", which reads
       // as broken and makes people tap it.
+      const startedAt = Date.now();
       setWeb3AuthResuming(true);
       // Watchdog: whatever stalls — a hung connect, an SDK that never loads —
       // the header must not sit on SIGNING IN forever. Falling back to SIGN IN
@@ -138,9 +139,16 @@ export function WalletSync() {
         // breaks the googleapis.com token exchange.
         if (isWeb3AuthSignInInFlight()) return;
         await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
+        // Record how long it took even on success: a resume that lands after
+        // the user has already tapped SIGN IN is still a failed experience, and
+        // only real-device timings show whether that gap is 2s or 12s.
+        if (!cancelled) reportResumeTiming(true, Date.now() - startedAt);
       } catch (e) {
         // Keep the hint after SDK/network failures so a later load can retry.
-        if (!cancelled) reportAuthFailure("resume", e);
+        if (!cancelled) {
+          reportAuthFailure("resume", e);
+          reportResumeTiming(false, Date.now() - startedAt);
+        }
       } finally {
         window.clearTimeout(watchdog);
         if (!cancelled) setWeb3AuthResuming(false);
