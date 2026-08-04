@@ -7,13 +7,12 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 import { useGameStore } from "./gameStore";
-import { reportAuthFailure, reportResumeTiming } from "./authTelemetry";
+import { isRedirectModeDevice, reportAuthFailure, reportResumeTiming } from "./authTelemetry";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
 import { useRef } from "react";
 import type { CardProgressPayload } from "./cardProgress";
 import { celo } from "wagmi/chains";
 import {
-  clearWeb3AuthSessionHint,
   getWeb3AuthResuming,
   hasWeb3AuthSessionHint,
   isWeb3AuthSignInInFlight,
@@ -125,13 +124,29 @@ export function WalletSync() {
         // false; poll the existing instance without opening the login modal.
         const authorized = await retryWeb3AuthAuthorization(
           () => web3AuthConnector.isAuthorized(),
-          // Stop polling the moment the user starts a real sign-in, so the poll
-          // can never outlive the window this resume was meant for.
-          { shouldAbort: isWeb3AuthSignInInFlight },
+          {
+            // The first check is swallowed whole by the SDK download and init(),
+            // and Web3Auth only sets `connected` once redirect rehydration
+            // finishes AFTER init() resolves. The default 10 x 750ms therefore
+            // left barely six seconds of real polling, which a phone loses — the
+            // poll gave up, the user tapped, and the now-ready fast path
+            // connected instantly. That is exactly the reported symptom, so give
+            // the redirect path a much longer runway.
+            attempts: isRedirectModeDevice() ? 30 : 10,
+            // Stop polling the moment the user starts a real sign-in, so the poll
+            // can never outlive the window this resume was meant for.
+            shouldAbort: isWeb3AuthSignInInFlight,
+          },
         );
         if (cancelled || isWeb3AuthSignInInFlight()) return;
         if (!authorized) {
-          clearWeb3AuthSessionHint();
+          // Deliberately does NOT clear the session hint. Exhausting the poll is
+          // not evidence the session is gone — usually it means rehydration was
+          // slower than we waited. Dropping the hint here is the worse error of
+          // the two: a stale hint costs one wasted SDK load on a later visit,
+          // whereas a wrongly-dropped hint disables auto-resume permanently and
+          // guarantees the user has to tap SIGN IN on every future load.
+          reportResumeTiming(false, Date.now() - startedAt);
           return;
         }
         // Re-check immediately before connecting: the poll can take seconds, and
