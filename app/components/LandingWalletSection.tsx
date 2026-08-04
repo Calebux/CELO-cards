@@ -288,12 +288,9 @@ export function LandingWalletSection() {
       {isConnected && address ? <Balances address={address} enabled mp={mp} /> : null}
       <button
         onClick={isConnected ? () => setShowAccountMenu((open) => !open) : handleSignIn}
-        disabled={!isConnected && resuming}
-        aria-busy={!isConnected && resuming}
         style={{
           ...base,
-          cursor: !isConnected && resuming ? "wait" : "pointer",
-          opacity: !isConnected && resuming ? 0.82 : 1,
+          cursor: "pointer",
           background: isConnected
             ? "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))"
             : "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",
