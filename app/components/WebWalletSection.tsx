@@ -134,12 +134,9 @@ export function WebWalletSection() {
             {connected && address && <Balances address={address} />}
             <button
               onClick={connected ? openAccountModal : handleSignIn}
-              disabled={!connected && resuming}
-              aria-busy={!connected && resuming}
               style={{
                 ...base,
-                cursor: !connected && resuming ? "wait" : "pointer",
-                opacity: !connected && resuming ? 0.82 : 1,
+                cursor: "pointer",
                 background: connected
                   ? "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))"
                   : "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",
