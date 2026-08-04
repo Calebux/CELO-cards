@@ -19,6 +19,7 @@ import {
   setWeb3AuthResuming,
   subscribeWeb3AuthResuming,
 } from "./web3authSession";
+import { retryWeb3AuthAuthorization } from "./web3authResume";
 
 // True while a restored Web3Auth session is being re-attached to wagmi after an
 // OAuth redirect. Lets the sign-in button show progress instead of looking dead.
@@ -112,34 +113,21 @@ export function WalletSync() {
       // is honest and leaves the user a working tap.
       watchdog = window.setTimeout(() => setWeb3AuthResuming(false), 25_000);
       try {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          if (cancelled) return;
-          try {
-            // isAuthorized() restores the session and returns true ONLY when it
-            // is actually connected, so a stale hint (e.g. an abandoned sign-in)
-            // can never trigger a fresh login modal/redirect here.
-            const authorized = await web3AuthConnector.isAuthorized();
-            if (cancelled) return;
-            if (!authorized) {
-              // Definitive: the session is genuinely gone, so drop the hint.
-              clearWeb3AuthSessionHint();
-              return;
-            }
-            await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
-            return;
-          } catch (e) {
-            // Transient — a slow SDK load, an init timeout, or a race with
-            // wagmi's own reconnect. Keep the hint so later loads still try,
-            // and back off before retrying.
-            if (attempt === 2 || cancelled) {
-              // Only report once the retries are exhausted, so a single slow
-              // load doesn't look like three separate failures.
-              if (attempt === 2) reportAuthFailure("resume", e);
-              return;
-            }
-            await new Promise((resolve) => setTimeout(resolve, 1200 * (attempt + 1)));
-          }
+        // Modal v10's init() may resolve just before redirect rehydration sets
+        // `connected`. Do not delete the session hint on that first temporary
+        // false; poll the existing instance without opening the login modal.
+        const authorized = await retryWeb3AuthAuthorization(
+          () => web3AuthConnector.isAuthorized(),
+        );
+        if (cancelled) return;
+        if (!authorized) {
+          clearWeb3AuthSessionHint();
+          return;
         }
+        await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
+      } catch (e) {
+        // Keep the hint after SDK/network failures so a later load can retry.
+        if (!cancelled) reportAuthFailure("resume", e);
       } finally {
         window.clearTimeout(watchdog);
         if (!cancelled) setWeb3AuthResuming(false);

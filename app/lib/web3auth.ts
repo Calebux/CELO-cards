@@ -64,13 +64,9 @@ async function getWeb3Auth(): Promise<any> {
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
       chains: [{ ...fromViemChain(celo), rpcTarget: WEB3AUTH_RPC_TARGET }],
       defaultChainId: `0x${celo.id.toString(16)}`,
-      // Default is 7 days. Every expiry forces a full OAuth redirect, and on iOS
-      // Safari's ITP evicts localStorage on a similar 7-day idle clock, so the
-      // two compound into "I keep having to sign in again". 30 days is the max
-      // the SDK allows. Note the Web3Auth dashboard's project config can also
-      // set this (noModal.js reads projectConfig.sessionTime) — if re-logins
-      // still look weekly, check the dashboard.
-      sessionTime: 30 * 86_400,
+      // Let the dashboard supply the session duration. The Base plan only
+      // supports its default duration; requesting 30 days makes Web3Auth reject
+      // social/email initialization with subscription error 1003.
       ...(isMobileBrowser && {
         uiConfig: { uxMode: "redirect" as const },
       }),
