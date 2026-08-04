@@ -83,6 +83,15 @@ export default async function RootLayout({
         <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
         {/* Warm up Alchemy RPC connection before wagmi makes its first call */}
         <link rel="dns-prefetch" href="https://celo-mainnet.g.alchemy.com" />
+        {/* Returning from a mobile OAuth redirect, the page is rebuilt from
+            nothing and the app cannot know who the user is until the Web3Auth
+            SDK has loaded AND talked to these hosts. Opening the connections in
+            the head means the DNS + TLS handshakes are already done by the time
+            init() fires, instead of being serialised in front of it. Costs
+            nothing for visitors who never sign in. */}
+        <link rel="preconnect" href="https://auth.web3auth.io" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://session.web3auth.io" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://api.web3auth.io" />
         <meta name="talentapp:project_verification" content="c7c221089ad6010ee547afb4beee250212ece55e86edb87f06f96fe73b256fa266df345aaee0c47506d8113e41f681c48f3c3603e08952907365b0a3cacf85f1" />
       </head>
       <body style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}>
