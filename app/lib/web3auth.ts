@@ -102,6 +102,26 @@ async function getWeb3Auth(): Promise<any> {
   return initPromise;
 }
 
+/**
+ * Start loading and initialising the SDK before the user commits to signing in.
+ *
+ * The click handler otherwise has to pull ~1.3 MB and await init() before
+ * anything appears on screen, so a cold first click looks like a dead button —
+ * reproduced on desktop, and worse on a phone. Call this on hover/pointerdown
+ * over the sign-in control: by the time the click lands the work is already in
+ * flight, and on mobile it also keeps connect() closer to the user gesture.
+ *
+ * Never called on page load: that would put the SDK back in the critical path
+ * for visitors who never sign in.
+ */
+export function prewarmWeb3Auth(): void {
+  if (typeof window === "undefined") return;
+  if (web3authInstance || initPromise) return;
+  void getWeb3Auth().catch(() => {
+    // Prewarming is best-effort; the real attempt reports its own errors.
+  });
+}
+
 export function createWeb3AuthConnector() {
   return createConnector(() => ({
     id: "web3auth",

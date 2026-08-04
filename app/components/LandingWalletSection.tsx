@@ -14,6 +14,7 @@ import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { friendlyTxError, isUserRejectedTx } from "../lib/txErrors";
 import { useWeb3AuthResuming } from "../lib/wallet";
 import { reportAuthFailure } from "../lib/authTelemetry";
+import { prewarmWeb3Auth } from "../lib/web3auth";
 import { useRouter } from "next/navigation";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
@@ -119,6 +120,7 @@ export function LandingWalletSection() {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [signInError, setSignInError] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
   const resuming = useWeb3AuthResuming();
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -253,7 +255,9 @@ export function LandingWalletSection() {
   const handleSignIn = () => {
     const connector = web3AuthConnector ?? fallbackConnector;
     if (!connector) return;
+    if (signingIn) return; // a second tap mid-attempt just races the first
     setSignInError("");
+    setSigningIn(true);
     void (async () => {
       try {
         await connectAsync({ connector, chainId: celo.id });
@@ -264,6 +268,8 @@ export function LandingWalletSection() {
           setSignInError(friendlyTxError(e, "Couldn't sign in. Please tap again."));
         }
         reportAuthFailure("sign-in", e);
+      } finally {
+        setSigningIn(false);
       }
     })();
   };
@@ -288,6 +294,8 @@ export function LandingWalletSection() {
       {isConnected && address ? <Balances address={address} enabled mp={mp} /> : null}
       <button
         onClick={isConnected ? () => setShowAccountMenu((open) => !open) : handleSignIn}
+        onPointerEnter={isConnected ? undefined : prewarmWeb3Auth}
+        onPointerDown={isConnected ? undefined : prewarmWeb3Auth}
         style={{
           ...base,
           cursor: "pointer",
@@ -307,12 +315,12 @@ export function LandingWalletSection() {
         />
         <div>
           <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", lineHeight: 1 }}>
-            {isConnected ? "CELO WALLET" : resuming ? "WELCOME BACK" : "CONNECT"}
+            {isConnected ? "CELO WALLET" : (resuming || signingIn) ? "WELCOME BACK" : "CONNECT"}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#b9e7f4", letterSpacing: 1, lineHeight: 1.5 }}>
             {isConnected && address
               ? (playerName || formatAddress(address))
-              : resuming
+              : (resuming || signingIn)
                 ? "SIGNING IN…"
                 : "SIGN IN"}
           </div>
