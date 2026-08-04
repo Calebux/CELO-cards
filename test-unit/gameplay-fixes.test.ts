@@ -31,6 +31,7 @@ import {
   isBountyExcluded,
   meetsBountyThreshold,
 } from "../app/lib/bounty";
+import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -271,6 +272,51 @@ test("black market: an ordinary buyer is never blocked", () => {
   // Missing buyer is not a violation — the route rejects it as an invalid address first.
   assert.equal(treasurySelfPurchaseViolation(undefined, "celo"), false);
   assert.equal(treasurySelfPurchaseViolation(null, "celo"), false);
+});
+
+// ── VS House difficulty: the reward must reflect the match actually played ───
+test("house: switching to hard on the winning round cannot buy the hard reward", () => {
+  // The exploit: play the match on easy, send hard on the round that wins it.
+  // Reward is paid on the pinned starting difficulty, so it stays an easy win.
+  const startedOnEasy = houseMatchPoints({ won: true, flawless: false, rewardDifficulty: 0 });
+  const honestHard = houseMatchPoints({ won: true, flawless: false, rewardDifficulty: 2 });
+  assert.equal(startedOnEasy, 100);
+  assert.equal(honestHard, 200);
+  assert.ok(honestHard > startedOnEasy);
+});
+
+test("house: the AI can be escalated mid-match but never eased", () => {
+  // Upper chamber and win streaks legitimately raise difficulty mid-match, and
+  // a harder opponent is never an exploit — so upward is honoured.
+  assert.equal(effectiveAiDifficulty(1, 3), 3);
+  assert.equal(effectiveAiDifficulty(0, 2), 2);
+  // Downward is ignored: a hard match can't be quietly softened round by round.
+  assert.equal(effectiveAiDifficulty(2, 0), 2);
+  assert.equal(effectiveAiDifficulty(2, 1), 2);
+  // Junk input falls back to the pinned value rather than easing the match.
+  assert.equal(effectiveAiDifficulty(2, undefined), 2);
+  assert.equal(effectiveAiDifficulty(2, "nonsense"), 2);
+  assert.equal(effectiveAiDifficulty(1, -5), 1);
+  assert.equal(effectiveAiDifficulty(1, 99), 3); // clamped to the top tier
+});
+
+test("house: harder difficulty pays strictly more, and losing is unaffected", () => {
+  const points = ([0, 1, 2, 3] as const).map((d) =>
+    houseMatchPoints({ won: true, flawless: false, rewardDifficulty: d }),
+  );
+  for (let i = 1; i < points.length; i++) assert.ok(points[i] > points[i - 1]);
+
+  // Flawless scales with difficulty too, so it stays worth chasing on hard.
+  assert.ok(
+    houseMatchPoints({ won: true, flawless: true, rewardDifficulty: 2 }) >
+      houseMatchPoints({ won: true, flawless: true, rewardDifficulty: 0 }),
+  );
+
+  // A loss pays participation only — difficulty must not multiply it, or
+  // losing on hard would out-earn winning on easy.
+  for (const d of [0, 1, 2, 3] as const) {
+    assert.equal(houseMatchPoints({ won: false, flawless: false, rewardDifficulty: d }), 10);
+  }
 });
 
 // ── Daily bounty: real money, so who is eligible matters most ────────────────

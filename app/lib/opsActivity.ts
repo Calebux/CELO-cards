@@ -4,6 +4,7 @@ import { redis } from "./redis";
 const HOUSE_MATCHES_KEY = "ops:activity:house_matches";
 const HOUSE_WINNER_REWARDS_KEY = "ops:activity:house_winner_rewards";
 const BLACK_MARKET_PURCHASES_KEY = "ops:activity:black_market_purchases";
+const AUTH_FAILURES_KEY = "ops:activity:auth_failures";
 const ACTIVITY_TTL_SECONDS = 60 * 60 * 24 * 180;
 const MAX_ACTIVITY_ITEMS = 100;
 
@@ -49,6 +50,17 @@ export type BlackMarketPurchaseActivity = {
   purchasedAt: number;
 };
 
+// A failed sign-in used to leave no trace at all, so every auth bug had to be
+// diagnosed by reading code. Deliberately carries no address or user-agent —
+// only what is needed to tell failure modes apart.
+export type AuthFailureActivity = {
+  stage: "sign-in" | "resume" | "init";
+  reason: string;
+  device: string;
+  redirectMode: boolean;
+  failedAt: number;
+};
+
 async function appendActivity<T>(key: string, entry: T): Promise<void> {
   const existing = (await redis.get<T[]>(key)) ?? [];
   const updated = [entry, ...existing].slice(0, MAX_ACTIVITY_ITEMS);
@@ -79,11 +91,38 @@ export async function getBlackMarketPurchaseActivity(): Promise<BlackMarketPurch
   return (await redis.get<BlackMarketPurchaseActivity[]>(BLACK_MARKET_PURCHASES_KEY)) ?? [];
 }
 
+export async function recordAuthFailureActivity(entry: AuthFailureActivity): Promise<void> {
+  await appendActivity(AUTH_FAILURES_KEY, entry);
+}
+
+export async function getAuthFailureActivity(): Promise<AuthFailureActivity[]> {
+  return (await redis.get<AuthFailureActivity[]>(AUTH_FAILURES_KEY)) ?? [];
+}
+
+/** Failure counts grouped by reason and by device, newest window first. */
+export function summariseAuthFailures(entries: AuthFailureActivity[]) {
+  const byReason: Record<string, number> = {};
+  const byDevice: Record<string, number> = {};
+  const byStage: Record<string, number> = {};
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  let last24h = 0;
+
+  for (const entry of entries) {
+    byReason[entry.reason] = (byReason[entry.reason] ?? 0) + 1;
+    byDevice[entry.device] = (byDevice[entry.device] ?? 0) + 1;
+    byStage[entry.stage] = (byStage[entry.stage] ?? 0) + 1;
+    if (entry.failedAt >= dayAgo) last24h++;
+  }
+
+  return { total: entries.length, last24h, byReason, byDevice, byStage };
+}
+
 export async function getOpsActivitySnapshot() {
-  const [houseMatches, houseWinnerRewards, purchases] = await Promise.all([
+  const [houseMatches, houseWinnerRewards, purchases, authFailures] = await Promise.all([
     getHouseMatchActivity(),
     getHouseWinnerRewardActivity(),
     getBlackMarketPurchaseActivity(),
+    getAuthFailureActivity(),
   ]);
 
   const houseWins = houseMatches.filter((match) => match.outcome === "win").length;
@@ -141,6 +180,10 @@ export async function getOpsActivitySnapshot() {
       celoPurchases,
       revenuePoints: purchaseRevenuePoints,
       recentPurchases: recentBlackMarketPurchases,
+    },
+    auth: {
+      ...summariseAuthFailures(authFailures),
+      recentFailures: authFailures.slice(0, 20),
     },
   };
 }

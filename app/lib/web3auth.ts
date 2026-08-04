@@ -9,6 +9,7 @@ import {
   hasWeb3AuthSessionHint as hasHint,
   persistWeb3AuthSession,
 } from "./web3authSession";
+import { waitForWeb3AuthReady } from "./web3authReady";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
 const DEFAULT_CELO_RPC = "https://forno.celo.org";
@@ -22,6 +23,22 @@ const WEB3AUTH_RPC_TARGET = (() => {
 let web3authInstance: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let initPromise: Promise<any> | null = null;
+
+function withInitTimeout<T>(promise: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Web3Auth init timeout")), 20_000);
+    void promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
 
 // Session-hint helpers live in the dependency-free web3authSession module so the
 // landing page can read them without pulling wagmi into its critical bundle.
@@ -37,12 +54,18 @@ async function getWeb3Auth(): Promise<any> {
   }
   if (!CLIENT_ID) throw new Error("NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is not configured.");
   if (web3authInstance) return web3authInstance;
-  if (initPromise) return initPromise;
+  if (initPromise) return withInitTimeout(initPromise);
 
   initPromise = (async () => {
     // All @web3auth imports are dynamic — nothing from the SDK lands in the
     // critical bundle. The full SDK only loads when user clicks "Social Login".
-    const { Web3Auth: Web3AuthClass, WEB3AUTH_NETWORK, fromViemChain } = await import("@web3auth/modal");
+    const {
+      CONNECTOR_EVENTS,
+      CONNECTOR_STATUS,
+      Web3Auth: Web3AuthClass,
+      WEB3AUTH_NETWORK,
+      fromViemChain,
+    } = await import("@web3auth/modal");
 
     // On mobile browsers popups are blocked — use redirect mode instead.
     //
@@ -64,29 +87,41 @@ async function getWeb3Auth(): Promise<any> {
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
       chains: [{ ...fromViemChain(celo), rpcTarget: WEB3AUTH_RPC_TARGET }],
       defaultChainId: `0x${celo.id.toString(16)}`,
+      // Default is 7 days. Every expiry forces a full OAuth redirect, and on iOS
+      // Safari's ITP evicts localStorage on a similar 7-day idle clock, so the
+      // two compound into "I keep having to sign in again". 30 days is the max
+      // the SDK allows. Note the Web3Auth dashboard's project config can also
+      // set this (noModal.js reads projectConfig.sessionTime) — if re-logins
+      // still look weekly, check the dashboard.
+      sessionTime: 30 * 86_400,
       ...(isMobileBrowser && {
         uiConfig: { uxMode: "redirect" as const },
       }),
     });
 
-    // Add timeout to prevent infinite hang on mobile
-    await Promise.race([
-      instance.init(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Web3Auth init timeout")), 15_000)),
-    ]);
-    web3authInstance = instance;
+    await instance.init();
+    // Modal v10 starts connector initialization from an async event handler,
+    // so init() may resolve while status is still NOT_READY/CONNECTING. On an
+    // OAuth return, checking `connected` in that gap is the exact race that
+    // leaves the homepage on SIGN IN until the user taps it a second time.
+    await waitForWeb3AuthReady(instance, CONNECTOR_EVENTS, CONNECTOR_STATUS);
     return instance;
   })();
 
-  // A failed init must not poison every later attempt. Without this, one 15s
-  // timeout leaves a rejected promise cached above, and every subsequent
-  // getWeb3Auth() returns that same rejection instantly — so no retry, and no
-  // amount of tapping, can re-init for the rest of the page's life.
-  initPromise.catch(() => {
-    initPromise = null;
-  });
+  const currentInit = initPromise;
+  void currentInit.then(
+    (instance) => {
+      web3authInstance = instance;
+    },
+    () => {
+      // A real SDK failure can be retried. Per-call timeouts do not reject this
+      // shared promise, so a slow phone keeps warming the same instance instead
+      // of constructing competing Web3Auth clients.
+      if (initPromise === currentInit) initPromise = null;
+    },
+  );
 
-  return initPromise;
+  return withInitTimeout(currentInit);
 }
 
 export function createWeb3AuthConnector() {

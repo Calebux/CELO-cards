@@ -13,6 +13,7 @@ import { MINIPAY_DEPOSIT_DEEPLINK, useMiniPayMode } from "../lib/premiumPayments
 import { useMiniPayStablecoin } from "../lib/stablecoins";
 import { friendlyTxError, isUserRejectedTx } from "../lib/txErrors";
 import { useWeb3AuthResuming } from "../lib/wallet";
+import { reportAuthFailure } from "../lib/authTelemetry";
 import { useRouter } from "next/navigation";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
@@ -262,6 +263,7 @@ export function LandingWalletSection() {
         if (!isUserRejectedTx(e)) {
           setSignInError(friendlyTxError(e, "Couldn't sign in. Please tap again."));
         }
+        reportAuthFailure("sign-in", e);
       }
     })();
   };
@@ -286,9 +288,12 @@ export function LandingWalletSection() {
       {isConnected && address ? <Balances address={address} enabled mp={mp} /> : null}
       <button
         onClick={isConnected ? () => setShowAccountMenu((open) => !open) : handleSignIn}
+        disabled={!isConnected && resuming}
+        aria-busy={!isConnected && resuming}
         style={{
           ...base,
-          cursor: "pointer",
+          cursor: !isConnected && resuming ? "wait" : "pointer",
+          opacity: !isConnected && resuming ? 0.82 : 1,
           background: isConnected
             ? "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))"
             : "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",

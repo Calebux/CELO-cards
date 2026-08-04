@@ -11,6 +11,7 @@ import { isMuted } from "../lib/soundManager";
 import { SoundSettings } from "./SoundSettings";
 import { isUserRejectedTx } from "../lib/txErrors";
 import { useWeb3AuthResuming } from "../lib/wallet";
+import { reportAuthFailure } from "../lib/authTelemetry";
 
 const GDOLLAR_CONTRACT = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A" as `0x${string}`;
 const BALANCE_ABI = [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
@@ -122,6 +123,7 @@ export function WebWalletSection() {
               // Falling back to the wallet modal is the right recovery for a
               // real failure, but not for someone who just dismissed the login.
               if (isUserRejectedTx(e)) return;
+              reportAuthFailure("sign-in", e);
             }
             openConnectModal();
           })();
@@ -132,9 +134,12 @@ export function WebWalletSection() {
             {connected && address && <Balances address={address} />}
             <button
               onClick={connected ? openAccountModal : handleSignIn}
+              disabled={!connected && resuming}
+              aria-busy={!connected && resuming}
               style={{
                 ...base,
-                cursor: "pointer",
+                cursor: !connected && resuming ? "wait" : "pointer",
+                opacity: !connected && resuming ? 0.82 : 1,
                 background: connected
                   ? "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(86,164,203,0.18))"
                   : "linear-gradient(135deg, rgba(34,47,66,0.95), rgba(86,164,203,0.28))",

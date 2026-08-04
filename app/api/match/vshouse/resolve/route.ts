@@ -7,6 +7,7 @@ import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult, recordPlayerMatchOutcome } from "../../../../lib/leaderboard";
 import { recordBountyPoints } from "../../../../lib/bounty";
+import { clampDifficulty, effectiveAiDifficulty, houseMatchPoints } from "../../../../lib/houseDifficulty";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
@@ -24,6 +25,22 @@ interface HouseMatchState {
   attunementSurgeUsed: boolean;
   usedCardIds: string[];
   previousAiOrderIds: string[];
+  /**
+   * The difficulty the match STARTED on, pinned at creation and never taken
+   * from the request again. Rewards are paid on this.
+   *
+   * It used to be read from the body every round and the end-of-match reward
+   * used whatever the last round sent — so a player could clear four rounds on
+   * easy, send hard on the round that won it, and collect the hard reward. Only
+   * worth a points bonus today; it would be the whole prize the moment
+   * difficulty is worth money.
+   *
+   * The client still escalates the AI mid-match on purpose (upper chamber, win
+   * streaks), so the request may ask for something harder — that is honoured for
+   * the AI itself, since it can only make the match harder. It just cannot raise
+   * the payout.
+   */
+  difficulty: 0 | 1 | 2 | 3;
 }
 
 async function ensureHouseEntryTx(matchId: string): Promise<string | null> {
@@ -109,6 +126,8 @@ export async function POST(req: NextRequest) {
       attunementSurgeUsed: false,
       usedCardIds: [],
       previousAiOrderIds: [],
+      // Locked in here for the life of the match.
+      difficulty: clampDifficulty(difficulty),
     };
 
     if (wagered && allowTreasuryEntry) {
@@ -136,7 +155,12 @@ export async function POST(req: NextRequest) {
     previousAiOrderIds: state.previousAiOrderIds,
     roundNumber: state.roundNumber,
   };
-  const aiDifficulty = Math.max(0, Math.min(3, Number(difficulty) || 1)) as 0 | 1 | 2 | 3;
+  // Rewards are paid on the difficulty the match started at. The `??` covers
+  // matches already in flight from before difficulty was persisted.
+  const rewardDifficulty: 0 | 1 | 2 | 3 = state.difficulty ?? clampDifficulty(difficulty);
+  state.difficulty = rewardDifficulty;
+
+  const aiDifficulty = effectiveAiDifficulty(rewardDifficulty, difficulty);
   const resolvedRound = state.roundNumber;
   state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 
@@ -175,13 +199,13 @@ export async function POST(req: NextRequest) {
   if (isMatchOver) {
     const playerWon = state.playerRoundsWon >= 3;
     if (playerWon) {
-      // Points calculation logic (mirrors gameStore.ts)
-      pointsEarned = 100; // Base win
-      if (aiDifficulty >= 1) pointsEarned += 25; // Difficulty bonus
-      if (aiDifficulty >= 2) pointsEarned += 25;
-      if (state.opponentRoundsWon === 0) pointsEarned += 50; // Flawless bonus
+      // Base win plus a flawless bonus, scaled by the difficulty the match was
+      // actually played on. A multiplier rather than a flat bonus so hard mode
+      // is a genuinely faster route to the daily bounty, which keeps the reward
+      // for difficulty inside the fixed daily pool instead of a separate payout.
+      pointsEarned = houseMatchPoints({ won: true, flawless: state.opponentRoundsWon === 0, rewardDifficulty });
     } else {
-      pointsEarned = 10; // Participation points
+      pointsEarned = houseMatchPoints({ won: false, flawless: false, rewardDifficulty });
     }
 
     await recordMatchResult({
