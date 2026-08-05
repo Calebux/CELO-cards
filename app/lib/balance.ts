@@ -9,6 +9,7 @@ import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "./gdollar
 import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "./signupsContract";
 import { IDENTITY_CONTRACT, IDENTITY_ABI } from "./gooddollar";
 import { getOnChainWallets } from "./onChainWallets";
+import { getSignupMetrics } from "./signupMetrics";
 import { ServerMatch } from "./serverMatch";
 import type { ServerMatchRecord } from "./leaderboard";
 
@@ -493,12 +494,21 @@ export async function getBalanceDashboard() {
     withFallback(getRetentionMetrics(), emptyRetention, "retention"),
     withFallback(getTransactionHealthMetrics(), emptyTxHealth, "tx health"),
   ]);
+
+  const signups = await withFallback(
+    getSignupMetrics(),
+    { today: 0, yesterday: 0, last24h: 0, last7d: 0, trackedTotal: 0 },
+    "signup metrics",
+  );
   return {
     snapshot,
     policy: BALANCE_POLICY,
     watchlist: buildBalanceWatchlist(snapshot),
     activity,
     audience,
+    // Distinct from audience.totalPlayers: this counts first username claims by
+    // date, so it answers "who joined today" rather than "who exists".
+    signups,
     onChain,
     retention,
     transactionHealth,
