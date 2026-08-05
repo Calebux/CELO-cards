@@ -14,6 +14,7 @@ import {
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
+  formatGdollar,
 } from "../../lib/bountyConfig";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -64,7 +65,7 @@ const TABS: readonly { key: Tab; label: string; icon: string; hint: string }[] =
 ];
 
 const SUBTITLES: Record<Tab, string> = {
-  bounty: `Today's race — $${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD} in prizes, resets 00:00 UTC`,
+  bounty: `Today's race — $${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD} (≈${formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}), resets 00:00 UTC`,
   casual: "All matches — VS House and PvP",
   ranked: "Ranked PvP matches only",
 };
@@ -255,6 +256,7 @@ export default function Leaderboard() {
                   <strong style={{ color: "#4ade80" }}>${BOUNTY_PARTICIPATION_POOL_USD}</strong> is shared by
                   {" "}<em>everyone</em> who reaches{" "}
                   <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points.
+                  {" "}Paid in G$ — 1st takes ≈{formatGdollar(BOUNTY_PRIZE_SPLIT_USD[0])}.
                 </span>
                 {pointsToPrize !== null && (
                   <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#fbbf24", letterSpacing: 0.3 }}>
@@ -396,13 +398,11 @@ export default function Leaderboard() {
                             <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 800, color: "#4ade80" }}>
                               ${p.totalUsd}
                             </span>
-                            {/* Show the make-up when both pools contribute, so a
-                                podium player can see the share is on top. */}
-                            {(p.prizeUsd ?? 0) > 0 && (p.participationUsd ?? 0) > 0 && (
-                              <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 0.3 }}>
-                                ${p.prizeUsd} + ${p.participationUsd}
-                              </span>
-                            )}
+                            {/* G$ is what players actually receive, so show it
+                                rather than making them convert from dollars. */}
+                            <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 0.3 }}>
+                              ≈{formatGdollar(p.totalUsd ?? 0)}
+                            </span>
                           </span>
                         ) : (
                           <span style={{ fontSize: isCompact ? 13 : 10, fontWeight: 600, color: "#475569", letterSpacing: 0.5 }}>

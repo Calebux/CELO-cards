@@ -62,3 +62,17 @@ export const BOUNTY_GDOLLAR_PER_USD = 8600;
 export function usdToGdollar(usd: number): number {
   return Math.round(usd * BOUNTY_GDOLLAR_PER_USD);
 }
+
+/**
+ * Compact G$ for UI, e.g. "43K G$". Players hold and earn G$, not dollars, so a
+ * prize in dollars alone is an abstraction they have to convert themselves.
+ * Rounded to 3 significant-ish figures because the rate moves and false
+ * precision would imply a promise we are not making.
+ */
+export function formatGdollar(usd: number): string {
+  const amount = usdToGdollar(usd);
+  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1).replace(/\.0$/, "")}M G$`;
+  if (amount >= 10_000) return `${Math.round(amount / 1000)}K G$`;
+  if (amount >= 1_000) return `${(amount / 1000).toFixed(1).replace(/\.0$/, "")}K G$`;
+  return `${amount} G$`;
+}
