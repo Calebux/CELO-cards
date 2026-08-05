@@ -6,6 +6,7 @@ import {
   BOUNTY_TOP_N,
   bountyDayUTC,
   getBountyStandings,
+  getPlayerBountyToday,
 } from "../../lib/bounty";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,13 @@ export async function GET(req: NextRequest) {
 
   const standings = await getBountyStandings(day, limit);
 
+  // ?address= returns that player's own standing even when they are far down
+  // the board, so the UI can show the number that actually decides payment.
+  const requestedAddress = req.nextUrl.searchParams.get("address");
+  const you = requestedAddress && /^0x[0-9a-fA-F]{40}$/.test(requestedAddress)
+    ? await getPlayerBountyToday(requestedAddress, day)
+    : null;
+
   return NextResponse.json({
     day,
     isToday: day === bountyDayUTC(),
@@ -30,5 +38,6 @@ export async function GET(req: NextRequest) {
     prizeSplitUsd: BOUNTY_PRIZE_SPLIT_USD,
     topN: BOUNTY_TOP_N,
     standings,
+    you,
   });
 }

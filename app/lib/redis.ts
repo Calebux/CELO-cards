@@ -23,6 +23,7 @@ type RedisLike = {
     opts: { nx?: boolean; xx?: boolean },
     ...members: { score: number; member: string }[]
   ): Promise<number | null>;
+  zscore(key: string, member: string): Promise<number | null>;
   zincrby(key: string, increment: number, member: string): Promise<number>;
   zcount(key: string, min: number | string, max: number | string): Promise<number>;
   zrange<T = string>(
@@ -89,6 +90,10 @@ function createDisabledRedis(): RedisLike {
     async zadd() {
       warn();
       return 0;
+    },
+    async zscore() {
+      warn();
+      return null;
     },
     async zincrby() {
       warn();
