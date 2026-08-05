@@ -22,6 +22,7 @@ import {
 } from "../app/lib/cusd";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
@@ -29,7 +30,9 @@ import {
   bountyPrizeForRank,
   isBountyDayClosed,
   isBountyExcluded,
+  bountyParticipationShareUsd,
   meetsBountyThreshold,
+  usdToGdollar,
 } from "../app/lib/bounty";
 import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
 import { classifyAuthError } from "../app/lib/authTelemetry";
@@ -451,6 +454,39 @@ test("bounty: an unqualified player can never block a prize slot", () => {
   assert.equal(qualified.slice(firstUnqualified).some(Boolean), false);
   // Sorted descending is the property that guarantees it.
   for (let i = 1; i < points.length; i++) assert.ok(points[i - 1] >= points[i]);
+});
+
+test("bounty: the participation pool is capped no matter how many qualify", () => {
+  // A fixed pool, not a fixed per-head amount — otherwise the daily cost grows
+  // without limit as the player base does.
+  for (const n of [1, 3, 7, 40, 500]) {
+    const share = bountyParticipationShareUsd(n);
+    // Flooring to whole cents can leave the pool slightly underspent, never over.
+    assert.ok(share * n <= BOUNTY_PARTICIPATION_POOL_USD, `pool overspent at ${n} qualifiers`);
+    assert.ok(share >= 0);
+  }
+  assert.equal(bountyParticipationShareUsd(4), 1);
+  assert.equal(bountyParticipationShareUsd(0), 0); // nobody qualified → nothing paid
+});
+
+test("bounty: total daily spend stays within both pools combined", () => {
+  // The whole point of fixed pools is a predictable daily number.
+  const qualifiers = 12;
+  const share = bountyParticipationShareUsd(qualifiers);
+  const tiered = BOUNTY_PRIZE_SPLIT_USD.reduce((sum, n) => sum + n, 0);
+  const worstCase = tiered + share * qualifiers;
+  assert.ok(
+    worstCase <= BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD,
+    `daily spend ${worstCase} exceeds the two pools`,
+  );
+});
+
+test("bounty: USD converts to whole G$ for the manual payout block", () => {
+  // Emitted into scripts/reward-players.mjs, which takes whole-token amounts.
+  assert.equal(Number.isInteger(usdToGdollar(5)), true);
+  assert.equal(Number.isInteger(usdToGdollar(1.33)), true);
+  assert.equal(usdToGdollar(0), 0);
+  assert.ok(usdToGdollar(5) > usdToGdollar(3));
 });
 
 test("bounty: the tiered split pays out exactly the daily pool, no more", () => {

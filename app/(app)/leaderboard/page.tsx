@@ -10,6 +10,7 @@ import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { useGameFrameScale } from "../../lib/mobile";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
@@ -33,6 +34,8 @@ type Row = {
   losses?: number;
   qualified?: boolean;
   prizeUsd?: number;
+  participationUsd?: number;
+  totalUsd?: number;
 };
 
 function truncateAddress(addr: string): string {
@@ -61,7 +64,7 @@ const TABS: readonly { key: Tab; label: string; icon: string; hint: string }[] =
 ];
 
 const SUBTITLES: Record<Tab, string> = {
-  bounty: `Today's race — $${BOUNTY_POOL_USD} shared by the top ${BOUNTY_TOP_N}, resets 00:00 UTC`,
+  bounty: `Today's race — $${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD} in prizes, resets 00:00 UTC`,
   casual: "All matches — VS House and PvP",
   ranked: "Ranked PvP matches only",
 };
@@ -247,9 +250,11 @@ export default function Leaderboard() {
               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 14px", marginBottom: 12, background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.22)", borderRadius: 5 }}>
                 <span className="material-icons" style={{ fontSize: 14, color: "#4ade80" }}>paid</span>
                 <span style={{ fontSize: isCompact ? 13 : 11, color: "#94a3b8", letterSpacing: 0.3 }}>
-                  Top {BOUNTY_TOP_N} split <strong style={{ color: "#4ade80" }}>${BOUNTY_POOL_USD}</strong> every day
-                  {" "}({BOUNTY_PRIZE_SPLIT_USD.map((n) => `$${n}`).join(" / ")}). You need{" "}
-                  <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points to qualify.
+                  Top {BOUNTY_TOP_N} split <strong style={{ color: "#4ade80" }}>${BOUNTY_POOL_USD}</strong>
+                  {" "}({BOUNTY_PRIZE_SPLIT_USD.map((n) => `$${n}`).join(" / ")}), and a further{" "}
+                  <strong style={{ color: "#4ade80" }}>${BOUNTY_PARTICIPATION_POOL_USD}</strong> is shared by
+                  {" "}<em>everyone</em> who reaches{" "}
+                  <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points.
                 </span>
                 {pointsToPrize !== null && (
                   <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#fbbf24", letterSpacing: 0.3 }}>
@@ -386,9 +391,18 @@ export default function Leaderboard() {
                       </span>
 
                       {tab === "bounty" ? (
-                        (p.prizeUsd ?? 0) > 0 ? (
-                          <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 800, color: "#4ade80" }}>
-                            ${p.prizeUsd}
+                        (p.totalUsd ?? 0) > 0 ? (
+                          <span style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                            <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 800, color: "#4ade80" }}>
+                              ${p.totalUsd}
+                            </span>
+                            {/* Show the make-up when both pools contribute, so a
+                                podium player can see the share is on top. */}
+                            {(p.prizeUsd ?? 0) > 0 && (p.participationUsd ?? 0) > 0 && (
+                              <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 0.3 }}>
+                                ${p.prizeUsd} + ${p.participationUsd}
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <span style={{ fontSize: isCompact ? 13 : 10, fontWeight: 600, color: "#475569", letterSpacing: 0.5 }}>

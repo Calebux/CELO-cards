@@ -9,7 +9,7 @@ import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';
 import { hasWeb3AuthSessionHint, setWeb3AuthResuming } from './lib/web3authSession';
-import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_POOL_USD, BOUNTY_TOP_N } from './lib/bountyConfig';
+import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_PARTICIPATION_POOL_USD, BOUNTY_POOL_USD } from './lib/bountyConfig';
 
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
@@ -470,10 +470,10 @@ export default function ActionOrderLandingPage() {
                 <span style={{ fontSize:isMp ? 16 : 15 }}>💰</span>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:2, color:"#4ade80", textTransform:"uppercase" }}>Daily Bounty</span>
                 <span style={{ fontSize:isMp ? 15 : 14, fontWeight:900, color:"#fff", letterSpacing:-0.3 }}>
-                  ${BOUNTY_POOL_USD}
+                  ${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD}
                 </span>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)", textTransform:"uppercase" }}>
-                  top {BOUNTY_TOP_N} · {BOUNTY_MIN_POINTS_TO_WIN}+ pts
+                  daily · {BOUNTY_MIN_POINTS_TO_WIN}+ pts to share
                 </span>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#4ade80" }}>STANDINGS →</span>
               </Link>

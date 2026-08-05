@@ -28,3 +28,37 @@ export const BOUNTY_MIN_POINTS_TO_WIN = 500;
 export function meetsBountyThreshold(points: number): boolean {
   return points >= BOUNTY_MIN_POINTS_TO_WIN;
 }
+
+// A second, separately funded pool split evenly between EVERYONE who cleared the
+// threshold that day — top 3 included. The tiered pool rewards winning; this one
+// rewards turning up, which is what keeps the 4th-place player coming back once
+// they can see they won't catch 1st today.
+//
+// A fixed pool rather than a fixed per-head amount, so the daily cost is capped
+// no matter how many qualify. The trade-off is that each share shrinks as more
+// people qualify: fine at 5 players, thin at 40 — see bountyParticipationShareUsd.
+export const BOUNTY_PARTICIPATION_POOL_USD = 4;
+
+/**
+ * Even split of the participation pool, floored to whole cents.
+ *
+ * Floored, not rounded: rounding a sub-cent share UP overspends the pool by the
+ * rounding error times the number of qualifiers. At 500 qualifiers a $0.008
+ * share rounds to $0.01 and pays out $5 from a $4 pool. Flooring can leave a
+ * few cents unspent, which is the safe direction for a fixed budget.
+ */
+export function bountyParticipationShareUsd(qualifierCount: number): number {
+  if (qualifierCount <= 0) return 0;
+  return Math.floor((BOUNTY_PARTICIPATION_POOL_USD / qualifierCount) * 100) / 100;
+}
+
+// Rough G$ per USD, used only to pre-fill the manual payout block so a rate does
+// not have to be looked up every morning — the friction that quietly stops a
+// daily payout happening. Matches the landing banner's own conversion
+// (431,000 G$ shown as ~$50). Nothing is paid automatically from this; it is a
+// starting number a human edits.
+export const BOUNTY_GDOLLAR_PER_USD = 8600;
+
+export function usdToGdollar(usd: number): number {
+  return Math.round(usd * BOUNTY_GDOLLAR_PER_USD);
+}
