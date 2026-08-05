@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
-import { BOUNTY_MIN_POINTS_TO_WIN } from "../lib/bountyConfig";
+import { BOUNTY_CLAIM_URL, BOUNTY_MIN_POINTS_TO_WIN } from "../lib/bountyConfig";
 
 type BountyMe = { points: number; rank: number | null; qualified: boolean; totalUsd: number };
 
@@ -62,11 +62,20 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
             <div style={{ width: "100%", height: 3, borderRadius: 2, background: "rgba(148,163,184,0.2)", marginTop: 3, overflow: "hidden" }}>
               <div style={{ width: `${pct}%`, height: "100%", background: qualified ? "#4ade80" : "#56a4cb", transition: "width .3s" }} />
             </div>
-            <span style={{ fontSize: 9, fontWeight: 600, color: qualified ? "#4ade80" : "#64748b", letterSpacing: 0.3, marginTop: 2 }}>
-              {qualified
-                ? `In the money${me?.totalUsd ? ` · $${me.totalUsd}` : ""}`
-                : `${remaining.toLocaleString()} to qualify`}
-            </span>
+            {qualified ? (
+              <a
+                href={BOUNTY_CLAIM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: 0.3, marginTop: 2, textDecoration: "none" }}
+              >
+                💰 Claim{me?.totalUsd ? ` $${me.totalUsd}` : ""} →
+              </a>
+            ) : (
+              <span style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.3, marginTop: 2 }}>
+                {remaining.toLocaleString()} to qualify
+              </span>
+            )}
           </>
         )}
       </div>
