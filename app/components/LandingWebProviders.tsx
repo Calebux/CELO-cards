@@ -9,6 +9,7 @@ import { WalletSync } from "../lib/wallet";
 import { createWeb3AuthConnector } from "../lib/web3auth";
 
 const UsernameModal = dynamic(() => import("./UsernameModal").then(m => ({ default: m.UsernameModal })), { ssr: false });
+const VerifyPromptModal = dynamic(() => import("./VerifyPromptModal").then(m => ({ default: m.VerifyPromptModal })), { ssr: false });
 
 const config = createConfig({
   chains: [celo, celoAlfajores],
@@ -38,6 +39,7 @@ export function LandingWebProviders({ children }: { children: React.ReactNode })
       <QueryClientProvider client={queryClient}>
         <WalletSync />
         <UsernameModal />
+        <VerifyPromptModal />
         {children}
       </QueryClientProvider>
     </WagmiProvider>

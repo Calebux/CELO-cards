@@ -16,6 +16,7 @@ import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
 // Heavy modals — load after initial paint so they don't block first interaction
 const DailyReward    = dynamic(() => import("./components/DailyReward").then(m => ({ default: m.DailyReward })), { ssr: false });
 const UsernameModal  = dynamic(() => import("./components/UsernameModal").then(m => ({ default: m.UsernameModal })), { ssr: false });
+const VerifyPromptModal = dynamic(() => import("./components/VerifyPromptModal").then(m => ({ default: m.VerifyPromptModal })), { ssr: false });
 const TutorialModal  = dynamic(() => import("./components/TutorialModal").then(m => ({ default: m.TutorialModal })), { ssr: false });
 
 // WalletConnect (getDefaultWallets) removed from initial bundle — saves ~1MB on mobile parse time.
@@ -56,6 +57,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <DeferredGlobalOverlays>
             <DailyReward />
             <UsernameModal />
+            <VerifyPromptModal />
             <TutorialModal />
           </DeferredGlobalOverlays>
           {children}
