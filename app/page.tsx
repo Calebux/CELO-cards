@@ -8,8 +8,8 @@ import { useMiniPayMode } from './lib/premiumPayments';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';
-import { hasWeb3AuthSessionHint } from './lib/web3authSession';
-import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_POOL_USD, BOUNTY_TOP_N } from './lib/bountyConfig';
+import { hasWeb3AuthSessionHint, setWeb3AuthResuming } from './lib/web3authSession';
+import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_PARTICIPATION_POOL_USD, BOUNTY_POOL_USD, formatGdollar } from './lib/bountyConfig';
 
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
@@ -76,9 +76,26 @@ export default function ActionOrderLandingPage() {
     // download + init) and left the button reading "SIGN IN" the whole time.
     // Anonymous visitors still get the deferral, so LCP is unaffected for them.
     if (hasWeb3AuthSessionHint()) {
+      // Returning from an OAuth redirect, everything downstream is waiting on
+      // one thing: the ~1.3 MB SDK and its init(). Previously that download did
+      // not begin until the HUD chunk had loaded, WalletSync had mounted and its
+      // effect had reached isAuthorized() — five to thirteen seconds on a phone,
+      // with the button reading SIGN IN throughout. People tap long before that,
+      // and the tap appears to work only because it lands on a warm SDK.
+      //
+      // So start the download at first paint, in parallel with the HUD, and show
+      // the signing-in state straight away so the button is never a lie.
+      // Imported lazily: a static import would pull wagmi into the landing's
+      // critical bundle for visitors who never sign in.
+      setWeb3AuthResuming(true);
+      const safety = window.setTimeout(() => setWeb3AuthResuming(false), 30_000);
+      void import('./lib/web3auth')
+        .then((m) => m.prewarmWeb3Auth())
+        .catch(() => setWeb3AuthResuming(false));
       show();
       return () => {
         cancelled = true;
+        window.clearTimeout(safety);
       };
     }
 
@@ -453,10 +470,13 @@ export default function ActionOrderLandingPage() {
                 <span style={{ fontSize:isMp ? 16 : 15 }}>💰</span>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:2, color:"#4ade80", textTransform:"uppercase" }}>Daily Bounty</span>
                 <span style={{ fontSize:isMp ? 15 : 14, fontWeight:900, color:"#fff", letterSpacing:-0.3 }}>
-                  ${BOUNTY_POOL_USD}
+                  ${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD}
+                </span>
+                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"#4ade80" }}>
+                  ≈{formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}
                 </span>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)", textTransform:"uppercase" }}>
-                  top {BOUNTY_TOP_N} · {BOUNTY_MIN_POINTS_TO_WIN}+ pts
+                  daily · {BOUNTY_MIN_POINTS_TO_WIN}+ pts
                 </span>
                 <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#4ade80" }}>STANDINGS →</span>
               </Link>

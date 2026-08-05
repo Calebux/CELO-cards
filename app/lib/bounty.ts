@@ -16,20 +16,28 @@ import { privateKeyToAccount } from "viem/accounts";
 // callers have a single import.
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
+  BOUNTY_GDOLLAR_PER_USD,
+  bountyParticipationShareUsd,
   bountyPrizeForRank,
   meetsBountyThreshold,
+  usdToGdollar,
 } from "./bountyConfig";
 
 export {
   BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
+  BOUNTY_GDOLLAR_PER_USD,
+  bountyParticipationShareUsd,
   bountyPrizeForRank,
   meetsBountyThreshold,
+  usdToGdollar,
 };
 
 // Keep just over a week so recent days can still be reviewed and paid late.
@@ -161,7 +169,12 @@ export type BountyStanding = {
   points: number;
   /** Met the daily points threshold, so eligible for a share of the pool. */
   qualified: boolean;
+  /** Tiered prize for finishing in the top 3. Zero for everyone else. */
   prizeUsd: number;
+  /** Even share of the participation pool — every qualifier gets this. */
+  participationUsd: number;
+  /** What this player is actually owed for the day. */
+  totalUsd: number;
 };
 
 export type BountyPaidRecord = {
@@ -170,6 +183,17 @@ export type BountyPaidRecord = {
   note?: string;
   winners: { address: string; points: number; prizeUsd: number }[];
 };
+
+/**
+ * How many players cleared the threshold today. Needed to size the participation
+ * share, which depends on ALL qualifiers — not just the page of standings being
+ * displayed.
+ */
+export async function countBountyQualifiers(day: string = bountyDayUTC()): Promise<number> {
+  return await redis
+    .zcount(pointsKey(day), BOUNTY_MIN_POINTS_TO_WIN, "+inf")
+    .catch(() => 0);
+}
 
 export async function getBountyStandings(
   day: string = bountyDayUTC(),
@@ -186,19 +210,25 @@ export async function getBountyStandings(
   }
 
   const names = (await redis.hgetall<Record<string, string>>(namesKey(day)).catch(() => null)) ?? {};
+  const qualifierCount = await countBountyQualifiers(day);
+  const share = bountyParticipationShareUsd(qualifierCount);
 
   // Rows are sorted by points descending, so everyone meeting the threshold is
   // a prefix of the list. That means a player below it can never sit above a
   // qualifier and block a prize slot — rank and prize rank are the same number.
   return rows.map((row, index) => {
     const qualified = meetsBountyThreshold(row.points);
+    const prizeUsd = qualified ? bountyPrizeForRank(index + 1) : 0;
+    const participationUsd = qualified ? share : 0;
     return {
       rank: index + 1,
       address: row.address,
       name: names[row.address] ?? null,
       points: row.points,
       qualified,
-      prizeUsd: qualified ? bountyPrizeForRank(index + 1) : 0,
+      prizeUsd,
+      participationUsd,
+      totalUsd: Math.round((prizeUsd + participationUsd) * 100) / 100,
     };
   });
 }
@@ -211,6 +241,18 @@ export async function getBountyStandings(
 export async function getBountyWinners(day: string = bountyDayUTC()): Promise<BountyStanding[]> {
   const standings = await getBountyStandings(day, BOUNTY_TOP_N);
   return standings.slice(0, BOUNTY_TOP_N).filter((s) => s.qualified);
+}
+
+/**
+ * Everyone owed anything for the day: the top 3 for their tiered prize, plus
+ * every other qualifier for their share of the participation pool. This is what
+ * actually gets paid, so it is deliberately not limited to the podium.
+ */
+export async function getBountyPayouts(day: string = bountyDayUTC()): Promise<BountyStanding[]> {
+  const qualifierCount = await countBountyQualifiers(day);
+  if (qualifierCount === 0) return [];
+  const standings = await getBountyStandings(day, Math.max(qualifierCount, BOUNTY_TOP_N));
+  return standings.filter((s) => s.totalUsd > 0);
 }
 
 export async function getBountyPaid(day: string): Promise<BountyPaidRecord | null> {

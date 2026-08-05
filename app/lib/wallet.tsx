@@ -7,15 +7,15 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 import { useGameStore } from "./gameStore";
-import { reportAuthFailure } from "./authTelemetry";
+import { isRedirectModeDevice, reportAuthFailure, reportResumeTiming } from "./authTelemetry";
 import { getMiniPayConnector, isMiniPay } from "./minipay";
 import { useRef } from "react";
 import type { CardProgressPayload } from "./cardProgress";
 import { celo } from "wagmi/chains";
 import {
-  clearWeb3AuthSessionHint,
   getWeb3AuthResuming,
   hasWeb3AuthSessionHint,
+  isWeb3AuthSignInInFlight,
   setWeb3AuthResuming,
   subscribeWeb3AuthResuming,
 } from "./web3authSession";
@@ -94,6 +94,11 @@ export function WalletSync() {
     // the Web3Auth SDK on the landing.
     if (attemptedWeb3AuthResumeRef.current) return;
     if (!hasWeb3AuthSessionHint()) return;
+    // A live sign-in writes the hint before opening the login, so without this
+    // the resume treats someone still on Google's screen as a returning user
+    // and races their own attempt. Do not mark it attempted — this effect
+    // should run normally once the interactive attempt is over.
+    if (isWeb3AuthSignInInFlight()) return;
 
     const web3AuthConnector = connectors.find((connector) => connector.id === "web3auth");
     if (!web3AuthConnector) return;
@@ -107,6 +112,7 @@ export function WalletSync() {
       // SDK and await init() before it can re-attach — several seconds. Flag it
       // so the wallet UI can say so instead of sitting on "SIGN IN", which reads
       // as broken and makes people tap it.
+      const startedAt = Date.now();
       setWeb3AuthResuming(true);
       // Watchdog: whatever stalls — a hung connect, an SDK that never loads —
       // the header must not sit on SIGNING IN forever. Falling back to SIGN IN
@@ -114,24 +120,50 @@ export function WalletSync() {
       watchdog = window.setTimeout(() => setWeb3AuthResuming(false), 25_000);
       try {
         // Modal v10's init() may resolve just before redirect rehydration sets
-        // `connected`. A false value during that gap is temporary, not proof
-        // that the Google session is gone. Poll the existing instance only;
-        // isAuthorized() never opens the login modal.
+        // `connected`. Do not delete the session hint on that first temporary
+        // false; poll the existing instance without opening the login modal.
         const authorized = await retryWeb3AuthAuthorization(
           () => web3AuthConnector.isAuthorized(),
+          {
+            // The first check is swallowed whole by the SDK download and init(),
+            // and Web3Auth only sets `connected` once redirect rehydration
+            // finishes AFTER init() resolves. The default 10 x 750ms therefore
+            // left barely six seconds of real polling, which a phone loses — the
+            // poll gave up, the user tapped, and the now-ready fast path
+            // connected instantly. That is exactly the reported symptom, so give
+            // the redirect path a much longer runway.
+            attempts: isRedirectModeDevice() ? 30 : 10,
+            // Stop polling the moment the user starts a real sign-in, so the poll
+            // can never outlive the window this resume was meant for.
+            shouldAbort: isWeb3AuthSignInInFlight,
+          },
         );
-        if (cancelled) return;
+        if (cancelled || isWeb3AuthSignInInFlight()) return;
         if (!authorized) {
-          // Ten consecutive false results after initialization are enough to
-          // treat this as a genuinely expired or abandoned session.
-          clearWeb3AuthSessionHint();
+          // Deliberately does NOT clear the session hint. Exhausting the poll is
+          // not evidence the session is gone — usually it means rehydration was
+          // slower than we waited. Dropping the hint here is the worse error of
+          // the two: a stale hint costs one wasted SDK load on a later visit,
+          // whereas a wrongly-dropped hint disables auto-resume permanently and
+          // guarantees the user has to tap SIGN IN on every future load.
+          reportResumeTiming(false, Date.now() - startedAt);
           return;
         }
+        // Re-check immediately before connecting: the poll can take seconds, and
+        // a second connect landing on top of a live OAuth handshake is what
+        // breaks the googleapis.com token exchange.
+        if (isWeb3AuthSignInInFlight()) return;
         await connectAsync({ connector: web3AuthConnector, chainId: celo.id });
+        // Record how long it took even on success: a resume that lands after
+        // the user has already tapped SIGN IN is still a failed experience, and
+        // only real-device timings show whether that gap is 2s or 12s.
+        if (!cancelled) reportResumeTiming(true, Date.now() - startedAt);
       } catch (e) {
-        // Keep the hint after SDK/network failures so a later page load can
-        // retry. Only an extended run of clean false results clears it above.
-        if (!cancelled) reportAuthFailure("resume", e);
+        // Keep the hint after SDK/network failures so a later load can retry.
+        if (!cancelled) {
+          reportAuthFailure("resume", e);
+          reportResumeTiming(false, Date.now() - startedAt);
+        }
       } finally {
         window.clearTimeout(watchdog);
         if (!cancelled) setWeb3AuthResuming(false);

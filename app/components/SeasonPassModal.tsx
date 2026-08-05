@@ -14,6 +14,7 @@ import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLI
 import { isUserRejectedTx, TX_CANCELLED_MESSAGE } from "../lib/txErrors";
 import { getStablecoin, isMiniPayStableKey, useMiniPayStablecoin } from "../lib/stablecoins";
 import { useRouter } from "next/navigation";
+import { VerifyButton, useIsVerified } from "./VerifyButton";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -99,6 +100,7 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   const { address, isConnected, chainId } = useAccount();
   const isMp = useMiniPayMode();
   const router = useRouter();
+  const isVerifiedForClaim = useIsVerified();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [isMobileModal, setIsMobileModal] = useState(false);
   const activeAddressRef = useRef<`0x${string}` | null>(null);
@@ -592,7 +594,9 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 : isMiniPayStableKey(currency)
                 ? `Your ${getStablecoin(currency).symbol} balance is too low to complete this purchase. Add cash to continue.`
                 : currency === "gdollar"
-                ? "Your G$ balance is too low for this purchase. Claim your daily G$ on your Profile, or come back after tomorrow's claim."
+                ? isVerifiedForClaim === false
+                  ? "Your G$ balance is too low. Verify your identity once to unlock free G$ every day — a few claims cover this pass."
+                  : "Your G$ balance is too low for this purchase. Claim your daily G$ on your Profile, or come back after tomorrow's claim."
                 : "Your CELO balance is too low to complete this purchase."}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -616,6 +620,8 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
                 >
                   💳 Add Cash
                 </button>
+              ) : currency === "gdollar" && isVerifiedForClaim === false && !isMp ? (
+                <VerifyButton label="Verify & unlock free G$" style={{ minHeight: touchButtonHeight }} />
               ) : (
                 <button
                   onClick={() => { router.push("/profile"); }}

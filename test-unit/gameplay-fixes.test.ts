@@ -22,6 +22,7 @@ import {
 } from "../app/lib/cusd";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
@@ -29,9 +30,14 @@ import {
   bountyPrizeForRank,
   isBountyDayClosed,
   isBountyExcluded,
+  bountyParticipationShareUsd,
   meetsBountyThreshold,
+  usdToGdollar,
 } from "../app/lib/bounty";
 import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
+import { classifyAuthError } from "../app/lib/authTelemetry";
+import { friendlyTxError, isGoogleUnreachable } from "../app/lib/txErrors";
+import { retryWeb3AuthAuthorization } from "../app/lib/web3authResume";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -274,6 +280,84 @@ test("black market: an ordinary buyer is never blocked", () => {
   assert.equal(treasurySelfPurchaseViolation(null, "celo"), false);
 });
 
+// ── Auth telemetry: mislabelled failures send you debugging the wrong thing ──
+test("auth telemetry: a plan rejection is not reported as a network fault", () => {
+  // Requesting a sessionTime the Base plan disallows failed as error 1003 and
+  // reached users as "can't fetch Google API" — the word "fetch" made it look
+  // like connectivity when the fix was in the Web3Auth dashboard.
+  assert.equal(classifyAuthError(new Error("Could not fetch project config: subscription error 1003")), "subscription");
+  assert.equal(classifyAuthError(new Error("error 1003")), "subscription");
+  assert.equal(classifyAuthError(new Error("unauthorized client")), "subscription");
+
+  // Genuine connectivity still classifies as network.
+  assert.equal(classifyAuthError(new Error("Failed to fetch")), "network");
+  assert.equal(classifyAuthError(new Error("Loading chunk 42 failed")), "network");
+
+  // googleapis.com being unreachable is its own failure: MetaMask still works,
+  // and the user can sign in with email — so it must not hide inside "network".
+  assert.equal(classifyAuthError(new Error("failed to connect to googleapis.com")), "google-unreachable");
+  assert.equal(classifyAuthError(new Error("Failed to fetch https://www.googleapis.com/oauth2/v3/userinfo")), "google-unreachable");
+  assert.equal(isGoogleUnreachable(new Error("failed to connect to googleapis.com")), true);
+  // Nested causes count — SDK errors usually wrap the original.
+  assert.equal(isGoogleUnreachable({ message: "connect failed", cause: new Error("googleapis.com unreachable") }), true);
+  assert.equal(isGoogleUnreachable(new Error("Failed to fetch")), false);
+
+  // The user-facing text names the working alternative rather than just failing.
+  assert.match(friendlyTxError(new Error("failed to connect to googleapis.com"), "x"), /Email/);
+
+  // Other buckets are unaffected.
+  assert.equal(classifyAuthError(new Error("Web3Auth init timeout")), "init-timeout");
+  assert.equal(classifyAuthError(new Error("User rejected the request")), "user-cancelled");
+  assert.equal(classifyAuthError(new Error("popup blocked by browser")), "popup-blocked");
+  assert.equal(classifyAuthError(new Error("")), "unknown");
+});
+
+// ── The resume must never race a live sign-in ────────────────────────────────
+// The session hint is written before the login opens, so mid-sign-in the app
+// looks exactly like a returning redirect. A resume starting there issues a
+// second connect on top of the OAuth token exchange — the googleapis.com step —
+// which is why Google logins broke while MetaMask (sub-second) kept working.
+test("resume: polling stops as soon as an interactive sign-in starts", async () => {
+  let checks = 0;
+  let signingIn = false;
+  const authorized = await retryWeb3AuthAuthorization(
+    async () => {
+      checks++;
+      if (checks === 2) signingIn = true; // user taps SIGN IN mid-poll
+      return false;
+    },
+    { attempts: 10, delayMs: 0, shouldAbort: () => signingIn },
+  );
+
+  assert.equal(authorized, false);
+  // It must give up almost immediately, not run all 10 attempts alongside them.
+  assert.ok(checks <= 2, `expected the poll to abort, ran ${checks} checks`);
+});
+
+test("resume: a sign-in already in flight stops the poll before it starts", async () => {
+  let checks = 0;
+  const authorized = await retryWeb3AuthAuthorization(
+    async () => { checks++; return true; },
+    { attempts: 10, delayMs: 0, shouldAbort: () => true },
+  );
+
+  assert.equal(authorized, false);
+  assert.equal(checks, 0); // never even queried
+});
+
+test("resume: with no sign-in in progress it still polls through a transient false", async () => {
+  // The behaviour the poll exists for must survive the abort guard: Modal v10
+  // reports false briefly after init() while the redirect session rehydrates.
+  let checks = 0;
+  const authorized = await retryWeb3AuthAuthorization(
+    async () => { checks++; return checks >= 3; },
+    { attempts: 10, delayMs: 0 },
+  );
+
+  assert.equal(authorized, true);
+  assert.equal(checks, 3);
+});
+
 // ── VS House difficulty: the reward must reflect the match actually played ───
 test("house: switching to hard on the winning round cannot buy the hard reward", () => {
   // The exploit: play the match on easy, send hard on the round that wins it.
@@ -370,6 +454,39 @@ test("bounty: an unqualified player can never block a prize slot", () => {
   assert.equal(qualified.slice(firstUnqualified).some(Boolean), false);
   // Sorted descending is the property that guarantees it.
   for (let i = 1; i < points.length; i++) assert.ok(points[i - 1] >= points[i]);
+});
+
+test("bounty: the participation pool is capped no matter how many qualify", () => {
+  // A fixed pool, not a fixed per-head amount — otherwise the daily cost grows
+  // without limit as the player base does.
+  for (const n of [1, 3, 7, 40, 500]) {
+    const share = bountyParticipationShareUsd(n);
+    // Flooring to whole cents can leave the pool slightly underspent, never over.
+    assert.ok(share * n <= BOUNTY_PARTICIPATION_POOL_USD, `pool overspent at ${n} qualifiers`);
+    assert.ok(share >= 0);
+  }
+  assert.equal(bountyParticipationShareUsd(4), 1);
+  assert.equal(bountyParticipationShareUsd(0), 0); // nobody qualified → nothing paid
+});
+
+test("bounty: total daily spend stays within both pools combined", () => {
+  // The whole point of fixed pools is a predictable daily number.
+  const qualifiers = 12;
+  const share = bountyParticipationShareUsd(qualifiers);
+  const tiered = BOUNTY_PRIZE_SPLIT_USD.reduce((sum, n) => sum + n, 0);
+  const worstCase = tiered + share * qualifiers;
+  assert.ok(
+    worstCase <= BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD,
+    `daily spend ${worstCase} exceeds the two pools`,
+  );
+});
+
+test("bounty: USD converts to whole G$ for the manual payout block", () => {
+  // Emitted into scripts/reward-players.mjs, which takes whole-token amounts.
+  assert.equal(Number.isInteger(usdToGdollar(5)), true);
+  assert.equal(Number.isInteger(usdToGdollar(1.33)), true);
+  assert.equal(usdToGdollar(0), 0);
+  assert.ok(usdToGdollar(5) > usdToGdollar(3));
 });
 
 test("bounty: the tiered split pays out exactly the daily pool, no more", () => {

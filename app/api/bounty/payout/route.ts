@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireOpsSession } from "../../../lib/admin";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
+  BOUNTY_GDOLLAR_PER_USD,
+  BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
   bountyDayUTC,
   getBountyPaid,
-  getBountyWinners,
+  getBountyPayouts,
   isBountyDayClosed,
   markBountyPaid,
+  usdToGdollar,
 } from "../../../lib/bounty";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +34,9 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const day = resolveDay(req);
-  const [winners, paid] = await Promise.all([getBountyWinners(day), getBountyPaid(day)]);
+  // Everyone owed anything, not just the podium: 4th place onward is owed a
+  // participation share even without a tiered prize.
+  const [winners, paid] = await Promise.all([getBountyPayouts(day), getBountyPaid(day)]);
 
   // reward-players.mjs takes whole-token amounts, so the USD prize has to be
   // converted at whatever rate is being used at payout time. Left to the human:
@@ -41,7 +46,8 @@ export async function GET(req: NextRequest) {
         "const PAYOUTS = [",
         ...winners.map(
           (w) =>
-            `  { to: "${w.address}", amount: "<amount>" }, // rank ${w.rank} · ${w.points} pts · $${w.prizeUsd}${w.name ? ` · ${w.name}` : ""}`,
+            `  { to: "${w.address}", amount: "${usdToGdollar(w.totalUsd)}" }, // rank ${w.rank} · ${w.points} pts · $${w.totalUsd}` +
+            ` (prize $${w.prizeUsd} + share $${w.participationUsd})${w.name ? ` · ${w.name}` : ""}`,
         ),
         "];",
       ].join("\n")
@@ -51,10 +57,15 @@ export async function GET(req: NextRequest) {
     day,
     closed: isBountyDayClosed(day),
     poolUsd: BOUNTY_POOL_USD,
+    participationPoolUsd: BOUNTY_PARTICIPATION_POOL_USD,
     minPointsToWin: BOUNTY_MIN_POINTS_TO_WIN,
     prizeSplitUsd: BOUNTY_PRIZE_SPLIT_USD,
     topN: BOUNTY_TOP_N,
-    totalOwedUsd: winners.reduce((sum, w) => sum + w.prizeUsd, 0),
+    qualifiers: winners.length,
+    gdollarPerUsd: BOUNTY_GDOLLAR_PER_USD,
+    // Each share is rounded to whole cents, so the participation pool can land a
+    // cent or two under its nominal value. This is what is actually owed.
+    totalOwedUsd: Math.round(winners.reduce((sum, w) => sum + w.totalUsd, 0) * 100) / 100,
     winners,
     paid,
     payoutsBlock,
@@ -91,7 +102,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Already marked paid", paid: existing }, { status: 409 });
   }
 
-  const winners = await getBountyWinners(day);
+  const winners = await getBountyPayouts(day);
   if (!winners.length) {
     return NextResponse.json({ error: "No eligible winners for that day" }, { status: 400 });
   }

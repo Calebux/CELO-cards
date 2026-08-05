@@ -8,6 +8,7 @@ import {
   clearWeb3AuthSessionHint as clearHint,
   hasWeb3AuthSessionHint as hasHint,
   persistWeb3AuthSession,
+  setWeb3AuthSignInInFlight,
 } from "./web3authSession";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
@@ -64,13 +65,9 @@ async function getWeb3Auth(): Promise<any> {
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
       chains: [{ ...fromViemChain(celo), rpcTarget: WEB3AUTH_RPC_TARGET }],
       defaultChainId: `0x${celo.id.toString(16)}`,
-      // Default is 7 days. Every expiry forces a full OAuth redirect, and on iOS
-      // Safari's ITP evicts localStorage on a similar 7-day idle clock, so the
-      // two compound into "I keep having to sign in again". 30 days is the max
-      // the SDK allows. Note the Web3Auth dashboard's project config can also
-      // set this (noModal.js reads projectConfig.sessionTime) — if re-logins
-      // still look weekly, check the dashboard.
-      sessionTime: 30 * 86_400,
+      // Let the dashboard supply the session duration. The Base plan only
+      // supports its default duration; requesting 30 days makes Web3Auth reject
+      // social/email initialization with subscription error 1003.
       ...(isMobileBrowser && {
         uiConfig: { uxMode: "redirect" as const },
       }),
@@ -106,6 +103,26 @@ async function getWeb3Auth(): Promise<any> {
   return initPromise;
 }
 
+/**
+ * Start loading and initialising the SDK before the user commits to signing in.
+ *
+ * The click handler otherwise has to pull ~1.3 MB and await init() before
+ * anything appears on screen, so a cold first click looks like a dead button —
+ * reproduced on desktop, and worse on a phone. Call this on hover/pointerdown
+ * over the sign-in control: by the time the click lands the work is already in
+ * flight, and on mobile it also keeps connect() closer to the user gesture.
+ *
+ * Never called on page load: that would put the SDK back in the critical path
+ * for visitors who never sign in.
+ */
+export function prewarmWeb3Auth(): void {
+  if (typeof window === "undefined") return;
+  if (web3authInstance || initPromise) return;
+  void getWeb3Auth().catch(() => {
+    // Prewarming is best-effort; the real attempt reports its own errors.
+  });
+}
+
 export function createWeb3AuthConnector() {
   return createConnector(() => ({
     id: "web3auth",
@@ -126,7 +143,17 @@ export function createWeb3AuthConnector() {
         // this page load — the hint is what lets WalletSync re-attach the restored
         // session once the OAuth redirect returns (including back to the landing "/").
         persistWeb3AuthSession();
-        provider = await web3auth.connect();
+        // ...but that hint makes an in-progress login indistinguishable from a
+        // returning redirect, so mark the interactive attempt for its whole
+        // duration. Without this, WalletSync starts a resume while the user is
+        // still on Google's screen and fires a competing connect straight into
+        // the token exchange.
+        setWeb3AuthSignInInFlight(true);
+        try {
+          provider = await web3auth.connect();
+        } finally {
+          setWeb3AuthSignInInFlight(false);
+        }
       }
       if (!provider) throw new Error("Web3Auth: no provider after connect");
       persistWeb3AuthSession();

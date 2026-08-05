@@ -58,6 +58,8 @@ export type AuthFailureActivity = {
   reason: string;
   device: string;
   redirectMode: boolean;
+  /** Present for resume reports: how long it took before it landed or gave up. */
+  durationMs?: number;
   failedAt: number;
 };
 
@@ -114,7 +116,28 @@ export function summariseAuthFailures(entries: AuthFailureActivity[]) {
     if (entry.failedAt >= dayAgo) last24h++;
   }
 
-  return { total: entries.length, last24h, byReason, byDevice, byStage };
+  // Resume timings are the point: a resume that succeeds after the user has
+  // already tapped SIGN IN is still a failed experience.
+  const resumeMs = entries
+    .filter((e) => e.stage === "resume" && typeof e.durationMs === "number")
+    .map((e) => e.durationMs as number)
+    .sort((a, b) => a - b);
+  const medianResumeMs = resumeMs.length
+    ? resumeMs[Math.floor(resumeMs.length / 2)]
+    : null;
+  const slowResumes = resumeMs.filter((ms) => ms > 3000).length;
+
+  return {
+    total: entries.length,
+    last24h,
+    byReason,
+    byDevice,
+    byStage,
+    resumeSamples: resumeMs.length,
+    medianResumeMs,
+    // Over ~3s people stop waiting and tap, which is the reported complaint.
+    resumesSlowerThan3s: slowResumes,
+  };
 }
 
 export async function getOpsActivitySnapshot() {

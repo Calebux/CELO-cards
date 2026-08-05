@@ -19,6 +19,7 @@ type RedisLike = {
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
   zincrby(key: string, increment: number, member: string): Promise<number>;
+  zcount(key: string, min: number | string, max: number | string): Promise<number>;
   zrange<T = string>(
     key: string,
     start: number,
@@ -81,6 +82,10 @@ function createDisabledRedis(): RedisLike {
       return 1;
     },
     async zincrby() {
+      warn();
+      return 0;
+    },
+    async zcount() {
       warn();
       return 0;
     },
