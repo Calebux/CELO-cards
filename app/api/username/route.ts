@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
 import { checkRateLimit } from "../../lib/rateLimit";
+import { recordUsernameClaim } from "../../lib/signupMetrics";
 
 // GET /api/username?address=0x...          → { address, username }
 // GET /api/username?addresses=0x1,0x2,...  → { map: Record<address, username> }
@@ -87,6 +88,10 @@ export async function POST(req: NextRequest) {
   // Persist both directions (no expiry — usernames are permanent)
   await redis.set(`user:addr:${addr}`, trimmed);
   await redis.set(nameKey, addr);
+
+  // Stamp the first claim so "how many players joined today" is answerable.
+  // NX inside, so a rename never re-dates an existing player as a new signup.
+  await recordUsernameClaim(addr);
 
   return NextResponse.json({ ok: true, username: trimmed });
 }

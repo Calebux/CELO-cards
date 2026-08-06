@@ -21,6 +21,8 @@ import {
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
   BOUNTY_GDOLLAR_PER_USD,
+  BOUNTY_CLAIM_URL,
+  bountyParticipationRecipients,
   bountyParticipationShareUsd,
   bountyPrizeForRank,
   meetsBountyThreshold,
@@ -34,6 +36,8 @@ export {
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
   BOUNTY_GDOLLAR_PER_USD,
+  BOUNTY_CLAIM_URL,
+  bountyParticipationRecipients,
   bountyParticipationShareUsd,
   bountyPrizeForRank,
   meetsBountyThreshold,
@@ -211,17 +215,20 @@ export async function getBountyStandings(
 
   const names = (await redis.hgetall<Record<string, string>>(namesKey(day)).catch(() => null)) ?? {};
   const qualifierCount = await countBountyQualifiers(day);
-  const share = bountyParticipationShareUsd(qualifierCount);
+  const share = bountyParticipationShareUsd(bountyParticipationRecipients(qualifierCount));
 
   // Rows are sorted by points descending, so everyone meeting the threshold is
   // a prefix of the list. That means a player below it can never sit above a
   // qualifier and block a prize slot — rank and prize rank are the same number.
   return rows.map((row, index) => {
     const qualified = meetsBountyThreshold(row.points);
-    const prizeUsd = qualified ? bountyPrizeForRank(index + 1) : 0;
-    const participationUsd = qualified ? share : 0;
+    const rank = index + 1;
+    const prizeUsd = qualified ? bountyPrizeForRank(rank) : 0;
+    // Podium finishers take the tiered prize only — the participation pool is
+    // for players who turned up without placing.
+    const participationUsd = qualified && rank > BOUNTY_TOP_N ? share : 0;
     return {
-      rank: index + 1,
+      rank,
       address: row.address,
       name: names[row.address] ?? null,
       points: row.points,
@@ -253,6 +260,42 @@ export async function getBountyPayouts(day: string = bountyDayUTC()): Promise<Bo
   if (qualifierCount === 0) return [];
   const standings = await getBountyStandings(day, Math.max(qualifierCount, BOUNTY_TOP_N));
   return standings.filter((s) => s.totalUsd > 0);
+}
+
+/**
+ * One player's standing today, regardless of whether they are on the visible
+ * page of the board. The client used to show a locally-computed points total
+ * that scores per ROUND, while the bounty scores per completed MATCH — so a
+ * player could see 620 on the home screen, believe they had cleared the 500
+ * threshold, and be paid nothing. This is the number that decides payment, so
+ * it is the number the UI has to show.
+ */
+export async function getPlayerBountyToday(
+  address: string,
+  day: string = bountyDayUTC(),
+): Promise<{ points: number; rank: number | null; qualified: boolean; prizeUsd: number; participationUsd: number; totalUsd: number }> {
+  const addr = address.toLowerCase();
+  const points = Number(await redis.zscore(pointsKey(day), addr).catch(() => null)) || 0;
+  if (points <= 0) {
+    return { points: 0, rank: null, qualified: false, prizeUsd: 0, participationUsd: 0, totalUsd: 0 };
+  }
+  // Rank = how many players are strictly ahead, plus one. Ties share a rank,
+  // which is fine for a progress indicator.
+  const ahead = await redis.zcount(pointsKey(day), points + 1, "+inf").catch(() => 0);
+  const rank = ahead + 1;
+  const qualified = meetsBountyThreshold(points);
+  const share = qualified && rank > BOUNTY_TOP_N
+    ? bountyParticipationShareUsd(bountyParticipationRecipients(await countBountyQualifiers(day)))
+    : 0;
+  const prizeUsd = qualified ? bountyPrizeForRank(rank) : 0;
+  return {
+    points,
+    rank,
+    qualified,
+    prizeUsd,
+    participationUsd: share,
+    totalUsd: Math.round((prizeUsd + share) * 100) / 100,
+  };
 }
 
 export async function getBountyPaid(day: string): Promise<BountyPaidRecord | null> {

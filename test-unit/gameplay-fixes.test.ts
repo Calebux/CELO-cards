@@ -30,6 +30,7 @@ import {
   bountyPrizeForRank,
   isBountyDayClosed,
   isBountyExcluded,
+  bountyParticipationRecipients,
   bountyParticipationShareUsd,
   meetsBountyThreshold,
   usdToGdollar,
@@ -462,11 +463,40 @@ test("bounty: the participation pool is capped no matter how many qualify", () =
   for (const n of [1, 3, 7, 40, 500]) {
     const share = bountyParticipationShareUsd(n);
     // Flooring to whole cents can leave the pool slightly underspent, never over.
-    assert.ok(share * n <= BOUNTY_PARTICIPATION_POOL_USD, `pool overspent at ${n} qualifiers`);
+    assert.ok(share * n <= BOUNTY_PARTICIPATION_POOL_USD, `pool overspent at ${n} recipients`);
     assert.ok(share >= 0);
   }
   assert.equal(bountyParticipationShareUsd(4), 1);
-  assert.equal(bountyParticipationShareUsd(0), 0); // nobody qualified → nothing paid
+  assert.equal(bountyParticipationShareUsd(0), 0); // nobody eligible → nothing paid
+});
+
+test("bounty: a lone winner takes the prize only, never the participation pool", () => {
+  // The bug this fixes: one qualifier finished 1st and collected $5 + the whole
+  // $4 pool, so a "$5 for winning" day paid $9. The pool is for players who
+  // turned up without placing, so the podium is excluded from it.
+  assert.equal(bountyParticipationRecipients(1), 0);
+  assert.equal(bountyParticipationRecipients(3), 0); // podium only — nobody below it
+  assert.equal(bountyParticipationRecipients(4), 1); // 4th place alone
+  assert.equal(bountyParticipationRecipients(10), 7);
+  assert.equal(bountyParticipationRecipients(0), 0);
+
+  // With a single qualifier the winner is owed exactly the first-place prize.
+  const loneWinner = bountyPrizeForRank(1) + bountyParticipationShareUsd(bountyParticipationRecipients(1));
+  assert.equal(loneWinner, 5);
+});
+
+test("bounty: total daily spend never exceeds the two pools, at any turnout", () => {
+  for (const qualifiers of [0, 1, 3, 4, 12, 60]) {
+    const recipients = bountyParticipationRecipients(qualifiers);
+    const tiered = BOUNTY_PRIZE_SPLIT_USD
+      .slice(0, Math.min(qualifiers, BOUNTY_TOP_N))
+      .reduce((sum, n) => sum + n, 0);
+    const spend = tiered + bountyParticipationShareUsd(recipients) * recipients;
+    assert.ok(
+      spend <= BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD,
+      `spend ${spend} exceeds pools at ${qualifiers} qualifiers`,
+    );
+  }
 });
 
 test("bounty: total daily spend stays within both pools combined", () => {

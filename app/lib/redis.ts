@@ -18,6 +18,12 @@ type RedisLike = {
   mget<T>(...keys: string[]): Promise<(T | null)[]>;
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
+  zadd(
+    key: string,
+    opts: { nx?: boolean; xx?: boolean },
+    ...members: { score: number; member: string }[]
+  ): Promise<number | null>;
+  zscore(key: string, member: string): Promise<number | null>;
   zincrby(key: string, increment: number, member: string): Promise<number>;
   zcount(key: string, min: number | string, max: number | string): Promise<number>;
   zrange<T = string>(
@@ -80,6 +86,14 @@ function createDisabledRedis(): RedisLike {
     async expire() {
       warn();
       return 1;
+    },
+    async zadd() {
+      warn();
+      return 0;
+    },
+    async zscore() {
+      warn();
+      return null;
     },
     async zincrby() {
       warn();

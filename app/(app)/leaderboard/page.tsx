@@ -13,6 +13,7 @@ import {
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
+  BOUNTY_CLAIM_URL,
   BOUNTY_TOP_N,
   formatGdollar,
 } from "../../lib/bountyConfig";
@@ -143,6 +144,13 @@ export default function Leaderboard() {
   // How many more points the signed-in player needs to hold a prize spot:
   // enough to clear the qualifying floor AND pass whoever currently sits last
   // in the money. Null when signed out or not on the bounty board.
+  // What the signed-in player is owed today, if anything.
+  const myPayout = (() => {
+    if (tab !== "bounty" || !address) return 0;
+    const mine = players.find((p) => p.address.toLowerCase() === address.toLowerCase());
+    return mine?.totalUsd ?? 0;
+  })();
+
   const pointsToPrize = (() => {
     if (tab !== "bounty" || !address) return null;
     const mine = players.find((p) => p.address.toLowerCase() === address.toLowerCase());
@@ -258,6 +266,23 @@ export default function Leaderboard() {
                   <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points.
                   {" "}Paid in G$ — 1st takes ≈{formatGdollar(BOUNTY_PRIZE_SPLIT_USD[0])}.
                 </span>
+                {/* Payouts are manual, so someone who has qualified needs a place
+                    to actually collect rather than waiting and wondering. */}
+                {myPayout > 0 && (
+                  <a
+                    href={BOUNTY_CLAIM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: isCompact ? "8px 16px" : "6px 14px", borderRadius: 6,
+                      background: "#4ade80", color: "#052e16", textDecoration: "none",
+                      fontSize: isCompact ? 13 : 11, fontWeight: 800, letterSpacing: 0.5,
+                    }}
+                  >
+                    💰 Claim your ${myPayout} →
+                  </a>
+                )}
                 {pointsToPrize !== null && (
                   <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#fbbf24", letterSpacing: 0.3 }}>
                     {pointsToPrize > 0

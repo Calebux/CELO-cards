@@ -29,18 +29,29 @@ export function meetsBountyThreshold(points: number): boolean {
   return points >= BOUNTY_MIN_POINTS_TO_WIN;
 }
 
-// A second, separately funded pool split evenly between EVERYONE who cleared the
-// threshold that day — top 3 included. The tiered pool rewards winning; this one
-// rewards turning up, which is what keeps the 4th-place player coming back once
-// they can see they won't catch 1st today.
+// A second, separately funded pool split evenly between qualifiers who did NOT
+// place in the top 3. The tiered pool rewards winning; this one rewards turning
+// up, which is what keeps the 4th-place player coming back once they can see
+// they won't catch 1st today.
+//
+// Explicitly excludes the podium: paying it to winners too meant a lone
+// qualifier collected $5 for first place AND the entire $4 pool, so a "$5 for
+// winning" day paid out $9. On a quiet day the pool now simply goes unspent,
+// which is the right outcome — there is nobody it was meant for.
 //
 // A fixed pool rather than a fixed per-head amount, so the daily cost is capped
 // no matter how many qualify. The trade-off is that each share shrinks as more
 // people qualify: fine at 5 players, thin at 40 — see bountyParticipationShareUsd.
 export const BOUNTY_PARTICIPATION_POOL_USD = 4;
 
+/** Qualifiers eligible for the participation pool: everyone below the podium. */
+export function bountyParticipationRecipients(qualifierCount: number): number {
+  return Math.max(0, qualifierCount - BOUNTY_TOP_N);
+}
+
 /**
- * Even split of the participation pool, floored to whole cents.
+ * Even split of the participation pool between its recipients, floored to whole
+ * cents. Takes the RECIPIENT count, not the qualifier count.
  *
  * Floored, not rounded: rounding a sub-cent share UP overspends the pool by the
  * rounding error times the number of qualifiers. At 500 qualifiers a $0.008
@@ -76,3 +87,7 @@ export function formatGdollar(usd: number): string {
   if (amount >= 1_000) return `${(amount / 1000).toFixed(1).replace(/\.0$/, "")}K G$`;
   return `${amount} G$`;
 }
+
+// Where winners go to claim. Payouts are manual, so a player who qualifies needs
+// somewhere to actually collect rather than waiting and wondering.
+export const BOUNTY_CLAIM_URL = "https://t.me/actionorder/3";
