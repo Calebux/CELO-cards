@@ -11,8 +11,12 @@ Use these addresses in every query:
 -- Wager / arena contract
 0x80b10a44b0ea03473707660bc5767099710bbfe0
 
--- Season pass contract
+-- Season pass contract (CELO) — deployed, but has never had a purchase
 0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+
+-- Season pass contract (G$) — every pass ever sold went through this one.
+-- Omitting it hid 100% of pass revenue from the dashboard.
+0xc032b8efca84eacfe38a432ac30ca3684854981b
 
 -- Treasury
 0xba37dd0890afc659a25331871319f66e7eba3522
@@ -59,7 +63,10 @@ where contract_address = 0x80b10a44b0ea03473707660bc5767099710bbfe0
 select
   count(*) as season_passes_sold
 from celo.logs
-where contract_address = 0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+where contract_address in (
+  0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,  -- CELO pass (no sales to date)
+  0xc032b8efca84eacfe38a432ac30ca3684854981b   -- G$ pass (all sales)
+)
   and topic0 = 0xd10f1b5a89924ee5fc5846d29052675620b15b414336aff9d0a75e15cc4dc5bb;
 ```
 
@@ -71,7 +78,8 @@ with wallets as (
   from celo.transactions
   where "to" in (
     0x80b10a44b0ea03473707660bc5767099710bbfe0,
-    0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+    0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
+    0xc032b8efca84eacfe38a432ac30ca3684854981b
   )
     and success = true
 
@@ -81,7 +89,8 @@ with wallets as (
   from celo.logs
   where contract_address in (
     0x80b10a44b0ea03473707660bc5767099710bbfe0,
-    0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+    0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
+    0xc032b8efca84eacfe38a432ac30ca3684854981b
   )
     and topic0 in (
       0xda05313f705d2c2458a909375b2e8e79aebefde11f06cd34997b644c8eb46dbc,
@@ -104,6 +113,7 @@ from celo.transactions
 where "to" in (
   0x80b10a44b0ea03473707660bc5767099710bbfe0,
   0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
+  0xc032b8efca84eacfe38a432ac30ca3684854981b,
   0xba37dd0890afc659a25331871319f66e7eba3522,
   0xbea347eebdb3dcb0bd1fec287561504804f4ba4b
 );
@@ -131,7 +141,10 @@ select
   count(*) as passes_sold,
   count(distinct varbinary_substring(topic1, 13, 20)) as unique_buyers
 from celo.logs
-where contract_address = 0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+where contract_address in (
+  0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,  -- CELO pass (no sales to date)
+  0xc032b8efca84eacfe38a432ac30ca3684854981b   -- G$ pass (all sales)
+)
   and topic0 = 0xd10f1b5a89924ee5fc5846d29052675620b15b414336aff9d0a75e15cc4dc5bb
 group by 1
 order by 1;
@@ -149,6 +162,7 @@ from celo.transactions
 where "to" in (
   0x80b10a44b0ea03473707660bc5767099710bbfe0,
   0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
+  0xc032b8efca84eacfe38a432ac30ca3684854981b,
   0xba37dd0890afc659a25331871319f66e7eba3522,
   0xbea347eebdb3dcb0bd1fec287561504804f4ba4b
 )
@@ -159,28 +173,122 @@ order by 1;
 
 ## 8. KPI / Chart: USDT and G$ Volume
 
-If `tokens.transfers` is available for Celo in your Dune workspace, use:
+Two things this query got wrong before, both of which made the dashboard
+under-report by a wide margin:
+
+1. It filtered on `"to" in (...)` only, so every reward paid OUT of the treasury
+   was invisible. Payouts are the main thing the app does with G$.
+2. Its address list omitted the **G$ season pass contract**. Every pass sale has
+   been in G$, so none of them were counted, while the CELO contract it did
+   track has never had a single transaction.
+
+### 8a. Total volume moved (in + out)
+
+This is the headline number: everything that moved through app-controlled
+addresses, in either direction.
 
 ```sql
+with app_addresses as (
+  select address from (values
+    (0x80b10a44b0ea03473707660bc5767099710bbfe0),  -- arena
+    (0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb),  -- season pass (CELO)
+    (0xc032b8efca84eacfe38a432ac30ca3684854981b),  -- season pass (G$)
+    (0xba37dd0890afc659a25331871319f66e7eba3522),  -- treasury
+    (0xbea347eebdb3dcb0bd1fec287561504804f4ba4b)   -- MiniPay treasury
+  ) as t(address)
+)
+select
+  symbol,
+  sum(amount)                                          as total_volume,
+  sum(case when "to"   in (select address from app_addresses) then amount else 0 end) as inbound,
+  sum(case when "from" in (select address from app_addresses) then amount else 0 end) as outbound,
+  count(*)                                             as transfers,
+  count(distinct case
+    when "to" in (select address from app_addresses) then "from" else "to"
+  end)                                                 as counterparties
+from tokens.transfers
+where blockchain = 'celo'
+  and contract_address in (
+    0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e,  -- USDT
+    0x62b8b11039fcfe5ab0c56e502b1c372a3d2a9c7a   -- G$
+  )
+  and (
+    "to"   in (select address from app_addresses)
+    or "from" in (select address from app_addresses)
+  )
+group by 1;
+```
+
+### 8b. Daily volume chart
+
+```sql
+with app_addresses as (
+  select address from (values
+    (0x80b10a44b0ea03473707660bc5767099710bbfe0),
+    (0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb),
+    (0xc032b8efca84eacfe38a432ac30ca3684854981b),
+    (0xba37dd0890afc659a25331871319f66e7eba3522),
+    (0xbea347eebdb3dcb0bd1fec287561504804f4ba4b)
+  ) as t(address)
+)
 select
   date_trunc('day', block_time) as day,
   symbol,
-  sum(amount) as token_volume
+  sum(case when "to"   in (select address from app_addresses) then amount else 0 end) as inbound,
+  sum(case when "from" in (select address from app_addresses) then amount else 0 end) as outbound,
+  sum(amount)                                                                          as total_volume
 from tokens.transfers
 where blockchain = 'celo'
   and contract_address in (
     0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e,
     0x62b8b11039fcfe5ab0c56e502b1c372a3d2a9c7a
   )
-  and "to" in (
-    0x80b10a44b0ea03473707660bc5767099710bbfe0,
-    0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
-    0xba37dd0890afc659a25331871319f66e7eba3522,
-    0xbea347eebdb3dcb0bd1fec287561504804f4ba4b
+  and (
+    "to"   in (select address from app_addresses)
+    or "from" in (select address from app_addresses)
   )
 group by 1, 2
 order by 1, 2;
 ```
+
+### 8c. Rewards distributed to players
+
+Outbound only, excluding app-controlled addresses on the receiving end, so
+internal movement between our own wallets is not counted as a payout.
+
+```sql
+with app_addresses as (
+  select address from (values
+    (0x80b10a44b0ea03473707660bc5767099710bbfe0),
+    (0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb),
+    (0xc032b8efca84eacfe38a432ac30ca3684854981b),
+    (0xba37dd0890afc659a25331871319f66e7eba3522),
+    (0xbea347eebdb3dcb0bd1fec287561504804f4ba4b)
+  ) as t(address)
+)
+select
+  symbol,
+  sum(amount)             as rewards_distributed,
+  count(*)                as payouts,
+  count(distinct "to")    as players_paid
+from tokens.transfers
+where blockchain = 'celo'
+  and contract_address = 0x62b8b11039fcfe5ab0c56e502b1c372a3d2a9c7a
+  and "from" in (select address from app_addresses)
+  and "to" not in (select address from app_addresses)
+group by 1;
+```
+
+**Expected values as of 2026-08-06** (G$, treasury only — verified against
+Blockscout). Use these to confirm the queries are returning sane figures:
+
+| metric | value |
+|---|---|
+| total moved (in + out) | ~931,000 G$ |
+| inbound | ~633,000 G$ |
+| outbound | ~299,000 G$ |
+| transfers | 178 |
+| counterparties | 41 |
 
 ## 9. KPI: Transaction Health
 
@@ -194,6 +302,7 @@ from celo.transactions
 where "to" in (
   0x80b10a44b0ea03473707660bc5767099710bbfe0,
   0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
+  0xc032b8efca84eacfe38a432ac30ca3684854981b,
   0xba37dd0890afc659a25331871319f66e7eba3522,
   0xbea347eebdb3dcb0bd1fec287561504804f4ba4b
 );
@@ -213,7 +322,8 @@ select
 from celo.transactions
 where "to" in (
   0x80b10a44b0ea03473707660bc5767099710bbfe0,
-  0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+  0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
+  0xc032b8efca84eacfe38a432ac30ca3684854981b
 )
 group by 1, 2
 order by 1, 2;
@@ -249,7 +359,7 @@ select
 from celo.logs l
 left join celo.transactions t
   on t.hash = l.tx_hash
-where l.contract_address = 0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+where l.contract_address in (0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb, 0xc032b8efca84eacfe38a432ac30ca3684854981b)
   and l.topic0 = 0xd10f1b5a89924ee5fc5846d29052675620b15b414336aff9d0a75e15cc4dc5bb
 order by l.block_time desc
 limit 100;
@@ -263,7 +373,8 @@ with activity as (
   from celo.transactions
   where "to" in (
     0x80b10a44b0ea03473707660bc5767099710bbfe0,
-    0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb
+    0x445fce73fa5b87ca9ff84e4fabd27f26aee92cfb,
+    0xc032b8efca84eacfe38a432ac30ca3684854981b
   )
     and success = true
 )
