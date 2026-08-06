@@ -8,6 +8,7 @@ import {
   getBountyStandings,
   getPlayerBountyToday,
 } from "../../lib/bounty";
+import { getPlayerServerStats } from "../../lib/leaderboard";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ export async function GET(req: NextRequest) {
     ? await getPlayerBountyToday(requestedAddress, day)
     : null;
 
+  // Career total, so the UI can lead with the number that never resets. The
+  // daily bounty bucket is separate and starts at zero each midnight; showing
+  // only that made players think a reset had wiped their points.
+  const career = requestedAddress && /^0x[0-9a-fA-F]{40}$/.test(requestedAddress)
+    ? await getPlayerServerStats(requestedAddress).catch(() => null)
+    : null;
+
   return NextResponse.json({
     day,
     isToday: day === bountyDayUTC(),
@@ -39,5 +47,6 @@ export async function GET(req: NextRequest) {
     topN: BOUNTY_TOP_N,
     standings,
     you,
+    careerPoints: career?.playerPoints ?? null,
   });
 }

@@ -9,7 +9,9 @@ import {
   BOUNTY_TOP_N,
   bountyDayUTC,
   getBountyPaid,
+  getBountyDayResult,
   getBountyPayouts,
+  snapshotBountyDay,
   isBountyDayClosed,
   markBountyPaid,
   usdToGdollar,
@@ -36,7 +38,11 @@ export async function GET(req: NextRequest) {
   const day = resolveDay(req);
   // Everyone owed anything, not just the podium: 4th place onward is owed a
   // participation share even without a tiered prize.
-  const [winners, paid] = await Promise.all([getBountyPayouts(day), getBountyPaid(day)]);
+  // Viewing a closed day also freezes it, so the record outlives the live keys.
+  const [winners, paid] = await Promise.all([
+    isBountyDayClosed(day) ? snapshotBountyDay(day) : getBountyPayouts(day),
+    getBountyPaid(day),
+  ]);
 
   // reward-players.mjs takes whole-token amounts, so the USD prize has to be
   // converted at whatever rate is being used at payout time. Left to the human:
@@ -102,7 +108,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Already marked paid", paid: existing }, { status: 409 });
   }
 
-  const winners = await getBountyPayouts(day);
+  const winners = await getBountyDayResult(day);
   if (!winners.length) {
     return NextResponse.json({ error: "No eligible winners for that day" }, { status: 400 });
   }

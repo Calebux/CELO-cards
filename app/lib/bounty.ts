@@ -73,6 +73,7 @@ const houseCountKey = (day: string, addr: string) => `bounty:house:${day}:${addr
 const pairCountKey = (day: string, addr: string, opponent: string) =>
   `bounty:pair:${day}:${addr}:${opponent}`;
 const paidKey = (day: string) => `bounty:paid:${day}`;
+const snapshotKey = (day: string) => `bounty:snapshot:${day}`;
 
 // ── Eligibility ──────────────────────────────────────────────────────────────
 // Bot wallets are derived from the BOT_WALLET_* keys already in the server env
@@ -296,6 +297,33 @@ export async function getPlayerBountyToday(
     participationUsd: share,
     totalUsd: Math.round((prizeUsd + share) * 100) / 100,
   };
+}
+
+/**
+ * Freeze a closed day's result so it survives the 8-day working TTL.
+ *
+ * The live points bucket expires — it has to, or every day's keys accumulate
+ * forever — but the record of who was owed what must not. Without a snapshot,
+ * a day that goes unpaid for over a week becomes unpayable because there is no
+ * longer any record of who won it. Idempotent, so it can be called repeatedly.
+ */
+export async function snapshotBountyDay(day: string): Promise<BountyStanding[]> {
+  const existing = await redis.get<BountyStanding[]>(snapshotKey(day)).catch(() => null);
+  if (existing?.length) return existing;
+
+  const payouts = await getBountyPayouts(day);
+  if (payouts.length) {
+    // Kept for a year: long enough that a forgotten day is still auditable.
+    await redis.set(snapshotKey(day), payouts, { ex: 365 * 24 * 60 * 60 });
+  }
+  return payouts;
+}
+
+/** A closed day's winners, from the snapshot if the live keys have expired. */
+export async function getBountyDayResult(day: string): Promise<BountyStanding[]> {
+  const snap = await redis.get<BountyStanding[]>(snapshotKey(day)).catch(() => null);
+  if (snap?.length) return snap;
+  return getBountyPayouts(day);
 }
 
 export async function getBountyPaid(day: string): Promise<BountyPaidRecord | null> {

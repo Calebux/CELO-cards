@@ -5,6 +5,7 @@ import { useGameStore } from "../lib/gameStore";
 import { BOUNTY_CLAIM_URL, BOUNTY_MIN_POINTS_TO_WIN } from "../lib/bountyConfig";
 
 type BountyMe = { points: number; rank: number | null; qualified: boolean; totalUsd: number };
+type BountyResponse = { you?: BountyMe | null; careerPoints?: number | null };
 
 /**
  * Shows today's bounty points, from the server.
@@ -26,6 +27,7 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
   // store is the safe source for a component that lives outside the tree.
   const address = useGameStore((state) => state.playerAddress);
   const [me, setMe] = useState<BountyMe | null>(null);
+  const [career, setCareer] = useState<number | null>(null);
 
   useEffect(() => {
     if (!address) { setMe(null); return; }
@@ -33,7 +35,11 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
     const load = () => {
       void fetch(`/api/bounty?address=${address.toLowerCase()}&limit=1&t=${Date.now()}`, { cache: "no-store" })
         .then((r) => r.json())
-        .then((d: { you?: BountyMe | null }) => { if (!cancelled) setMe(d.you ?? null); })
+        .then((d: BountyResponse) => {
+          if (cancelled) return;
+          setMe(d.you ?? null);
+          setCareer(typeof d.careerPoints === "number" ? d.careerPoints : null);
+        })
         .catch(() => {});
     };
     load();
@@ -52,19 +58,17 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
   return (
     <div className="ko-points-badge" style={{ top: isCompact ? 656 : 596 }}>
       <span style={{ fontSize: 16, flexShrink: 0 }}>{qualified ? "💰" : "⚡"}</span>
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 96 }}>
-        <span className="ko-points-label">{address ? "Today's Points" : "Total Points"}</span>
-        <span className="ko-points-value" style={qualified ? { color: "#4ade80", textShadow: "0 0 12px rgba(74,222,128,0.5)" } : undefined}>
-          {(address ? points : localPoints).toLocaleString()}
-          {address && !qualified && (
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}> / {BOUNTY_MIN_POINTS_TO_WIN}</span>
-          )}
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 92 }}>
+        {/* Career total leads. It never resets, so it is the number a player
+            identifies with — the daily bounty bucket starting at zero each
+            midnight read as "my points were wiped". */}
+        <span className="ko-points-label">Total Points</span>
+        <span className="ko-points-value">
+          {(career ?? localPoints).toLocaleString()}
         </span>
         {address && (
           <>
-            {/* The bar makes "am I getting paid today" readable at a glance,
-                which the raw number alone never did. */}
-            <div style={{ width: "100%", height: 3, borderRadius: 2, background: "rgba(148,163,184,0.2)", marginTop: 3, overflow: "hidden" }}>
+            <div style={{ width: "100%", height: 3, borderRadius: 2, background: "rgba(148,163,184,0.2)", marginTop: 4, overflow: "hidden" }}>
               <div style={{ width: `${pct}%`, height: "100%", background: qualified ? "#4ade80" : "#56a4cb", transition: "width .3s" }} />
             </div>
             {qualified ? (
@@ -78,7 +82,7 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
               </a>
             ) : (
               <span style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.3, marginTop: 2 }}>
-                {remaining.toLocaleString()} to qualify
+                Today {points.toLocaleString()} · {remaining.toLocaleString()} to bounty
               </span>
             )}
           </>
