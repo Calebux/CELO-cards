@@ -370,13 +370,28 @@ export default function Gameplay() {
     }
   }, [matchPhase, markOnboardingStep]);
 
+  // True only if the page was ALREADY showing a finished match when this
+  // component first mounted — i.e. stale state restored from the persisted
+  // store, not a match that just ended in front of the player.
+  const arrivedOnFinishedMatch = useRef(matchPhase === "match-end").current;
+
   useEffect(() => {
     if (matchPhase !== "match-end" || typeof window === "undefined") return;
+    // Only a restored, already-finished match should be discarded. A match that
+    // ends live must keep its result screen.
+    //
+    // This used to check the navigation type alone, but
+    // PerformanceNavigationTiming describes the DOCUMENT load and never changes
+    // across client-side routing — so one refresh anywhere earlier in the tab
+    // left type = "reload" for the whole session, and every match completed
+    // afterwards was reset and bounced to the landing page before its stats
+    // could render.
+    if (!arrivedOnFinishedMatch) return;
     const navEntry = window.performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
     if (navEntry?.type !== "reload") return;
     resetMatch();
     router.replace("/");
-  }, [matchPhase, resetMatch, router]);
+  }, [arrivedOnFinishedMatch, matchPhase, resetMatch, router]);
 
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
