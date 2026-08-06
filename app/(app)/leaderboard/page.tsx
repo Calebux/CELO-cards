@@ -8,12 +8,12 @@ import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { useGameFrameScale } from "../../lib/mobile";
+import { ClaimBountyButton } from "../../components/ClaimBountyButton";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
-  BOUNTY_CLAIM_URL,
   BOUNTY_TOP_N,
   formatGdollar,
 } from "../../lib/bountyConfig";
@@ -268,21 +268,9 @@ export default function Leaderboard() {
                 </span>
                 {/* Payouts are manual, so someone who has qualified needs a place
                     to actually collect rather than waiting and wondering. */}
-                {myPayout > 0 && (
-                  <a
-                    href={BOUNTY_CLAIM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: isCompact ? "8px 16px" : "6px 14px", borderRadius: 6,
-                      background: "#4ade80", color: "#052e16", textDecoration: "none",
-                      fontSize: isCompact ? 13 : 11, fontWeight: 800, letterSpacing: 0.5,
-                    }}
-                  >
-                    💰 Claim your ${myPayout} →
-                  </a>
-                )}
+                {/* Yesterday's prize, paid straight to the wallet. Today's
+                    board is still moving, so there is nothing to claim yet. */}
+                <ClaimBountyButton compact={isCompact} />
                 {pointsToPrize !== null && (
                   <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#fbbf24", letterSpacing: 0.3 }}>
                     {pointsToPrize > 0

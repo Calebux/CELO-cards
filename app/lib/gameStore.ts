@@ -179,6 +179,7 @@ interface GameState {
 
     // Premium Cards
     unlockedPremiumCards: string[];
+    hydrateUnlockedCards: (cardIds: string[]) => void;
     attunedCardIds: string[];
     activeAttunedCardIds: string[];
     attunementSurgeUsed: boolean;
@@ -314,6 +315,15 @@ export const useGameStore = create<GameState>()(
     ultimateUsed: false,
     playerTaunt: null,
     unlockedPremiumCards: [],
+    // Server is the authority on what a player owns: it is written only after a
+    // payment is verified on-chain, and trades remove from it. Replacing rather
+    // than merging keeps a traded-away card from lingering locally forever.
+    hydrateUnlockedCards: (cardIds) => set((state) => {
+        const next = [...new Set(cardIds)].sort();
+        const current = [...state.unlockedPremiumCards].sort();
+        if (next.length === current.length && next.every((id, i) => id === current[i])) return state;
+        return { unlockedPremiumCards: next };
+    }),
     attunedCardIds: [],
     activeAttunedCardIds: [],
     attunementSurgeUsed: false,

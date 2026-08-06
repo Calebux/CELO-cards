@@ -39,6 +39,7 @@ import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficu
 import { classifyAuthError } from "../app/lib/authTelemetry";
 import { friendlyTxError, isGoogleUnreachable } from "../app/lib/txErrors";
 import { retryWeb3AuthAuthorization } from "../app/lib/web3authResume";
+import { buildBountyClaimAuthMessage } from "../app/lib/treasuryAuth";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -402,6 +403,39 @@ test("house: harder difficulty pays strictly more, and losing is unaffected", ()
   for (const d of [0, 1, 2, 3] as const) {
     assert.equal(houseMatchPoints({ won: false, flawless: false, rewardDifficulty: d }), 10);
   }
+});
+
+// ── Bounty claim auth: the signature must not be replayable ──────────────────
+test("bounty claim: a signature is bound to one wallet and one day", () => {
+  const A = "0x1111111111111111111111111111111111111111";
+  const B = "0x2222222222222222222222222222222222222222";
+
+  // Same inputs are stable, so a valid signature verifies.
+  assert.equal(buildBountyClaimAuthMessage(A, "2026-08-05"), buildBountyClaimAuthMessage(A, "2026-08-05"));
+  // A different day must not verify against yesterday's signature, or a winner
+  // could replay one claim across every day.
+  assert.notEqual(buildBountyClaimAuthMessage(A, "2026-08-05"), buildBountyClaimAuthMessage(A, "2026-08-06"));
+  // Nor should another wallet's signature work.
+  assert.notEqual(buildBountyClaimAuthMessage(A, "2026-08-05"), buildBountyClaimAuthMessage(B, "2026-08-05"));
+  // Address case must not change the message, or the same wallet could claim twice.
+  assert.equal(buildBountyClaimAuthMessage(A.toUpperCase(), "2026-08-05"), buildBountyClaimAuthMessage(A, "2026-08-05"));
+
+  // The message states what is being authorised, in plain language.
+  const msg = buildBountyClaimAuthMessage(A, "2026-08-05");
+  assert.match(msg, /Daily Bounty Claim/);
+  assert.match(msg, /2026-08-05/);
+});
+
+test("bounty claim: one day can never pay out more than both pools", () => {
+  // Backstop independent of anything read from Redis — the ceiling the claim
+  // endpoint checks every payout against.
+  const ceiling = usdToGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD);
+  assert.equal(ceiling, usdToGdollar(14));
+  // A single first-place prize must sit well inside it.
+  assert.ok(usdToGdollar(BOUNTY_PRIZE_SPLIT_USD[0]) < ceiling);
+  // And the full podium plus the participation pool must exactly reach it.
+  const everything = BOUNTY_PRIZE_SPLIT_USD.reduce((s, n) => s + n, 0) + BOUNTY_PARTICIPATION_POOL_USD;
+  assert.equal(usdToGdollar(everything), ceiling);
 });
 
 // ── Daily bounty: real money, so who is eligible matters most ────────────────

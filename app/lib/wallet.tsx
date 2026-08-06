@@ -34,6 +34,7 @@ export function WalletSync() {
   const setPlayerAddress = useGameStore((s) => s.setPlayerAddress);
   const setPlayerName = useGameStore((s) => s.setPlayerName);
   const hydrateCardProgress = useGameStore((s) => s.hydrateCardProgress);
+  const hydrateUnlockedCards = useGameStore((s) => s.hydrateUnlockedCards);
   const clearCardProgress = useGameStore((s) => s.clearCardProgress);
   const playerName = useGameStore((s) => s.playerName);
   const progressAddressRef = useRef<string | null>(null);
@@ -207,6 +208,20 @@ export function WalletSync() {
     }
 
     let cancelled = false;
+
+    // Premium card ownership is server-authoritative, but the client kept its
+    // own copy in localStorage — so clearing local progress (a different wallet
+    // on the same device, a new browser) made paid-for cards disappear with no
+    // way back, even though the server record was intact. Restore it here, the
+    // same way card progress is restored.
+    void fetch(`/api/black-market/purchase?address=${lower}&t=${Date.now()}`, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { owned?: string[] } | null) => {
+        if (cancelled || !data?.owned) return;
+        hydrateUnlockedCards(data.owned);
+      })
+      .catch(() => {});
+
     void fetch(`/api/card-progress?address=${lower}&t=${Date.now()}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((data: CardProgressPayload | null) => {
@@ -222,7 +237,7 @@ export function WalletSync() {
     return () => {
       cancelled = true;
     };
-  }, [address, clearCardProgress, hydrateCardProgress]);
+  }, [address, clearCardProgress, hydrateCardProgress, hydrateUnlockedCards]);
 
   return null;
 }
