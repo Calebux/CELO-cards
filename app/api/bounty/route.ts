@@ -9,6 +9,7 @@ import {
   getPlayerBountyToday,
 } from "../../lib/bounty";
 import { getPlayerServerStats } from "../../lib/leaderboard";
+import { checkRateLimit } from "../../lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,14 @@ const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 // Public daily standings. Addresses are returned because the leaderboard
 // already exposes them; the UI shows names and truncates.
 export async function GET(req: NextRequest) {
+  // Generous, but this endpoint now reads the whole leaderboard blob when an
+  // address is supplied, and the home badge polls it on every window focus.
+  // One counter increment is far cheaper than an unbounded full read.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (!(await checkRateLimit(`bounty-read:${ip}`, 60, 60))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const requested = req.nextUrl.searchParams.get("day");
   const day = requested && DAY_PATTERN.test(requested) ? requested : bountyDayUTC();
   const limit = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("limit") ?? "25", 10) || 25, 1), 100);

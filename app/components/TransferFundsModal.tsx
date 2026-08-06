@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { isAddress, formatUnits, parseUnits } from "viem";
+import { isAddress, formatUnits, parseEther, parseUnits } from "viem";
 import { celo } from "wagmi/chains";
 import {
   useAccount,
@@ -49,6 +49,14 @@ type Step = "form" | "review" | "sending" | "done";
 
 const ACCENT = "#56a4cb";
 
+// A Celo transfer costs a small fraction of this; reserving it means "Max" on
+// the native asset still leaves enough to pay the fee. Sending the entire
+// balance would always fail at signing.
+const GAS_RESERVE_WEI = parseEther("0.01");
+// Enough for at least one transfer. A dust balance is not gas — checking only
+// for "> 0" told the player they were fine and then failed anyway.
+const MIN_GAS_WEI = parseEther("0.001");
+
 export function TransferFundsModal({ onClose }: { onClose: () => void }) {
   const { address } = useAccount();
   const [asset, setAsset] = useState<Asset>("gdollar");
@@ -70,11 +78,20 @@ export function TransferFundsModal({ onClose }: { onClose: () => void }) {
   const { writeContractAsync } = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
-  const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash ?? undefined });
+  const { isSuccess, isError: receiptFailed } = useWaitForTransactionReceipt({ hash: txHash ?? undefined });
 
   useEffect(() => {
     if (isSuccess) { setStep("done"); void refetchGd(); }
   }, [isSuccess, refetchGd]);
+
+  // A reverted transaction used to leave the modal stuck on "Sending…" with the
+  // Back button disabled — the worst possible state on a screen that moves
+  // money, because the player cannot tell whether the funds left.
+  useEffect(() => {
+    if (!receiptFailed) return;
+    setError("The transaction did not go through — nothing was sent. You can inspect it below and try again.");
+    setStep("form");
+  }, [receiptFailed]);
 
   const decimals = 18;
   const raw = asset === "gdollar" ? (gdBalance as bigint | undefined) : celoBalance?.value;
@@ -86,7 +103,7 @@ export function TransferFundsModal({ onClose }: { onClose: () => void }) {
 
   // Sending the whole native balance always fails — there is nothing left to
   // pay the fee with. ERC-20 sends still need CELO for gas, checked separately.
-  const hasGas = (celoBalance?.value ?? 0n) > 0n;
+  const hasGas = (celoBalance?.value ?? 0n) >= MIN_GAS_WEI;
 
   const parsed = useMemo(() => {
     if (!amount.trim()) return null;
@@ -110,6 +127,8 @@ export function TransferFundsModal({ onClose }: { onClose: () => void }) {
     : !amount.trim() ? "Enter an amount"
     : parsed === null ? "Enter a valid amount above zero"
     : overBalance ? `You only have ${balanceLabel} ${symbol}`
+    : asset === "celo" && parsed !== null && balance - parsed < GAS_RESERVE_WEI
+      ? "Leave a little CELO behind to cover the network fee — use Max for the most you can send"
     : !hasGas ? "You need a little CELO to cover the network fee. Claim your daily G$ — it tops up CELO."
     : null;
 
@@ -201,6 +220,21 @@ export function TransferFundsModal({ onClose }: { onClose: () => void }) {
             {step === "sending" ? "Sending…" : "Confirm send"}
           </button>
         </div>
+        {step === "sending" && txHash && (
+          // Confirmation can take a while. The transfer completes on-chain
+          // whether or not this modal stays open, so trapping them here helps
+          // nobody — give them the receipt and let them go.
+          <p style={{ margin: "12px 0 0", fontSize: 11, color: "#64748b", textAlign: "center", lineHeight: 1.6 }}>
+            Taking a while?{" "}
+            <a href={`https://celoscan.io/tx/${txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: ACCENT }}>
+              Track it on Celoscan
+            </a>{" "}
+            ·{" "}
+            <button onClick={onClose} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 11, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "inherit" }}>
+              close
+            </button>
+          </p>
+        )}
       </>
     );
   }
@@ -243,7 +277,13 @@ export function TransferFundsModal({ onClose }: { onClose: () => void }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 14 }}>
         <label style={lbl}>Amount</label>
         <button
-          onClick={() => setAmount(formatUnits(balance, decimals))}
+          onClick={() => {
+            // Native sends must keep enough back to pay their own fee.
+            const spendable = asset === "celo"
+              ? (balance > GAS_RESERVE_WEI ? balance - GAS_RESERVE_WEI : 0n)
+              : balance;
+            setAmount(formatUnits(spendable, decimals));
+          }}
           style={{ background: "none", border: "none", color: ACCENT, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0 }}
         >
           Balance: {balanceLabel} {symbol} · Max
@@ -260,6 +300,15 @@ export function TransferFundsModal({ onClose }: { onClose: () => void }) {
       {(problem || error) && (
         <div style={{ fontSize: 11.5, color: problem && !error ? "#94a3b8" : "#f87171", marginTop: 10, lineHeight: 1.5 }}>
           {error || problem}
+          {error && txHash && (
+            <>
+              {" "}
+              <a href={`https://celoscan.io/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
+                style={{ color: ACCENT, textDecoration: "underline" }}>
+                View transaction →
+              </a>
+            </>
+          )}
         </div>
       )}
 
