@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { BOUNTY_CLAIM_URL, BOUNTY_MIN_POINTS_TO_WIN } from "../lib/bountyConfig";
 
@@ -19,7 +18,13 @@ type BountyMe = { points: number; rank: number | null; qualified: boolean; total
  */
 export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
   const winStreak = useGameStore((state) => state.winStreak);
-  const { address } = useAccount();
+  const localPoints = useGameStore((state) => state.playerPoints);
+  // Deliberately NOT useAccount(): this badge renders on the landing page
+  // OUTSIDE LandingWalletHud, which is what mounts WagmiProvider — any wagmi
+  // hook here throws "useConfig must be used within WagmiProvider" on render.
+  // WalletSync already mirrors the connected address into the store, so the
+  // store is the safe source for a component that lives outside the tree.
+  const address = useGameStore((state) => state.playerAddress);
   const [me, setMe] = useState<BountyMe | null>(null);
 
   useEffect(() => {
@@ -50,7 +55,7 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
       <div style={{ display: "flex", flexDirection: "column", minWidth: 96 }}>
         <span className="ko-points-label">{address ? "Today's Points" : "Total Points"}</span>
         <span className="ko-points-value" style={qualified ? { color: "#4ade80", textShadow: "0 0 12px rgba(74,222,128,0.5)" } : undefined}>
-          {points.toLocaleString()}
+          {(address ? points : localPoints).toLocaleString()}
           {address && !qualified && (
             <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}> / {BOUNTY_MIN_POINTS_TO_WIN}</span>
           )}
