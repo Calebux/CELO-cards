@@ -56,7 +56,16 @@ const BOUNTY_TTL_SECONDS = 8 * 24 * 60 * 60;
 // the price of one weekly pass a script could play all night and hold every
 // prize slot indefinitely. Only the first N boss results each day count toward
 // the bounty; play beyond that still scores normally on the leaderboard.
-export const HOUSE_RESULTS_COUNTED_PER_DAY = 10;
+// Wins are what a farmer needs, so wins are what the allowance limits. Counting
+// LOSSES against it punished exactly the players the bounty exists to pull in: a
+// 22%-win-rate player burned all ten slots on defeats worth 10 points each and
+// became mathematically unable to reach the threshold, with nothing on screen
+// saying why.
+export const HOUSE_WINS_COUNTED_PER_DAY = 10;
+
+// Losses no longer consume the win allowance, so they need their own ceiling —
+// otherwise losing on purpose becomes unlimited points. Ten losses' worth.
+export const HOUSE_LOSS_POINTS_PER_DAY = 100;
 
 // PvP is farmable with two wallets you own playing each other: a ranked match
 // mints 150 + 25 points regardless of who wins. Capping how many times a single
@@ -69,7 +78,8 @@ export function bountyDayUTC(at: number = Date.now()): string {
 
 const pointsKey = (day: string) => `bounty:points:${day}`;
 const namesKey = (day: string) => `bounty:names:${day}`;
-const houseCountKey = (day: string, addr: string) => `bounty:house:${day}:${addr}`;
+const houseWinsKey = (day: string, addr: string) => `bounty:house-wins:${day}:${addr}`;
+const houseLossPointsKey = (day: string, addr: string) => `bounty:house-losspts:${day}:${addr}`;
 const pairCountKey = (day: string, addr: string, opponent: string) =>
   `bounty:pair:${day}:${addr}:${opponent}`;
 const paidKey = (day: string) => `bounty:paid:${day}`;
@@ -110,7 +120,7 @@ export function isBountyExcluded(address: string): boolean {
 // ── Recording ────────────────────────────────────────────────────────────────
 
 export type BountySource =
-  | { kind: "house" }
+  | { kind: "house"; won: boolean }
   | { kind: "pvp"; opponent: string | null | undefined };
 
 /**
@@ -134,10 +144,19 @@ export async function recordBountyPoints(
     const day = bountyDayUTC();
 
     if (source.kind === "house") {
-      const key = houseCountKey(day, addr);
-      const counted = await redis.incr(key);
-      if (counted === 1) await redis.expire(key, BOUNTY_TTL_SECONDS);
-      if (counted > HOUSE_RESULTS_COUNTED_PER_DAY) return false;
+      if (source.won) {
+        const key = houseWinsKey(day, addr);
+        const wins = await redis.incr(key);
+        if (wins === 1) await redis.expire(key, BOUNTY_TTL_SECONDS);
+        if (wins > HOUSE_WINS_COUNTED_PER_DAY) return false;
+      } else {
+        // Track loss POINTS rather than loss count, so the ceiling holds even if
+        // participation scoring changes later.
+        const key = houseLossPointsKey(day, addr);
+        const soFar = Number(await redis.get<number>(key).catch(() => 0)) || 0;
+        if (soFar >= HOUSE_LOSS_POINTS_PER_DAY) return false;
+        await redis.set(key, soFar + points, { ex: BOUNTY_TTL_SECONDS });
+      }
     } else {
       const opponent = source.opponent?.toLowerCase();
       // No opponent, playing yourself, or farming against a bot: no bounty credit.
@@ -274,14 +293,15 @@ export async function getBountyPayouts(day: string = bountyDayUTC()): Promise<Bo
 export async function getPlayerBountyToday(
   address: string,
   day: string = bountyDayUTC(),
-): Promise<{ points: number; rank: number | null; qualified: boolean; prizeUsd: number; participationUsd: number; totalUsd: number }> {
+): Promise<{ points: number; rank: number | null; qualified: boolean; prizeUsd: number; participationUsd: number; totalUsd: number; winsUsed: number; winsAllowed: number }> {
   const addr = address.toLowerCase();
   const points = Number(await redis.zscore(pointsKey(day), addr).catch(() => null)) || 0;
   if (points <= 0) {
-    return { points: 0, rank: null, qualified: false, prizeUsd: 0, participationUsd: 0, totalUsd: 0 };
+    return { points: 0, rank: null, qualified: false, prizeUsd: 0, participationUsd: 0, totalUsd: 0, winsUsed: 0, winsAllowed: HOUSE_WINS_COUNTED_PER_DAY };
   }
   // Rank = how many players are strictly ahead, plus one. Ties share a rank,
   // which is fine for a progress indicator.
+  const winsUsed = Number(await redis.get<number>(houseWinsKey(day, addr)).catch(() => 0)) || 0;
   const ahead = await redis.zcount(pointsKey(day), points + 1, "+inf").catch(() => 0);
   const rank = ahead + 1;
   const qualified = meetsBountyThreshold(points);
@@ -296,6 +316,8 @@ export async function getPlayerBountyToday(
     prizeUsd,
     participationUsd: share,
     totalUsd: Math.round((prizeUsd + share) * 100) / 100,
+    winsUsed,
+    winsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
   };
 }
 

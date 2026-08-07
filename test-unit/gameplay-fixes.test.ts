@@ -32,6 +32,8 @@ import {
   isBountyExcluded,
   bountyParticipationRecipients,
   bountyParticipationShareUsd,
+  HOUSE_LOSS_POINTS_PER_DAY,
+  HOUSE_WINS_COUNTED_PER_DAY,
   meetsBountyThreshold,
   usdToGdollar,
 } from "../app/lib/bounty";
@@ -358,6 +360,33 @@ test("resume: with no sign-in in progress it still polls through a transient fal
 
   assert.equal(authorized, true);
   assert.equal(checks, 3);
+});
+
+// ── Bounty caps: bound farming without punishing weak players ────────────────
+test("bounty: the daily allowance is spent by wins, not by losing", () => {
+  // Counting losses against it meant a 22%-win-rate player burned all ten slots
+  // on defeats worth 10 points each and could never reach the 500 threshold —
+  // the bounty locked out exactly the players it exists to attract.
+  assert.equal(HOUSE_WINS_COUNTED_PER_DAY, 10);
+
+  // A realistic session for a struggling player still gets them there: their
+  // win slots are untouched by defeats, and losses top up alongside.
+  const lossPoints = HOUSE_LOSS_POINTS_PER_DAY;          // 100, hit after 10 losses
+  const winsNeeded = Math.ceil((BOUNTY_MIN_POINTS_TO_WIN - lossPoints) / 150); // moderate wins
+  assert.ok(winsNeeded <= HOUSE_WINS_COUNTED_PER_DAY, "threshold must be reachable within the allowance");
+  assert.equal(winsNeeded, 3);
+});
+
+test("bounty: losing on purpose cannot be farmed", () => {
+  // Losses no longer consume the win allowance, so they need their own ceiling
+  // or defeat becomes an unlimited source of points.
+  assert.equal(HOUSE_LOSS_POINTS_PER_DAY, 100);
+  // Losses alone must never reach the threshold, however many are played.
+  assert.ok(HOUSE_LOSS_POINTS_PER_DAY < BOUNTY_MIN_POINTS_TO_WIN);
+
+  // And the whole day is bounded: max wins at the best rate, plus the loss cap.
+  const maxHouse = HOUSE_WINS_COUNTED_PER_DAY * 300 + HOUSE_LOSS_POINTS_PER_DAY; // 300 = hard + flawless
+  assert.equal(maxHouse, 3100);
 });
 
 // ── VS House difficulty: the player gets the tier they picked ────────────────

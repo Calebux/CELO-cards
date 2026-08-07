@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
     // Daily bounty credit. Capped per day inside recordBountyPoints: a season
     // pass grants unlimited boss matches, so uncapped this would be farmable by
     // volume alone. Leaderboard scoring above is unaffected by the cap.
-    await recordBountyPoints(addr, pointsEarned, { kind: "house" }, sanitizedPlayerName);
+    await recordBountyPoints(addr, pointsEarned, { kind: "house", won: playerWon }, sanitizedPlayerName);
 
     await recordHouseMatchActivity({
       matchId,
