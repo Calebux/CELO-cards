@@ -56,3 +56,27 @@ export function effectiveAiDifficulty(
 ): HouseDifficulty {
   return Math.max(pinned, clampDifficulty(requested)) as HouseDifficulty;
 }
+
+/**
+ * Which difficulty the AI should play at for a VS House round.
+ *
+ * The House Boss finale still escalates to the boss tier — that fight is meant
+ * to be hard, and the player has opted into it.
+ *
+ * What it no longer does is quietly promote a player to Hard for winning. A
+ * two-match win streak used to force difficulty 2 regardless of what they
+ * picked, so Easy and Moderate stopped being easy exactly when someone started
+ * doing well — and because the reward is pinned to the CHOSEN difficulty, they
+ * faced a harder opponent for the same points. If a player wants Hard they can
+ * select it.
+ */
+export function resolveAiDifficulty(params: {
+  chosen: 0 | 1 | 2;
+  upperChamberActive: boolean;
+  upperChamberRound: number;
+}): HouseDifficulty {
+  // The House Boss finale (round 4 onward) is the one place difficulty is
+  // allowed to exceed what the player selected.
+  if (params.upperChamberActive && params.upperChamberRound >= 3) return 3;
+  return params.chosen;
+}

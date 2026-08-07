@@ -616,7 +616,12 @@ export function generateAIOrder(
     // Easy mode: random selection with no strategy
     if (difficulty === 0) {
         const valid = CARDS.filter((c) => !c.isWild && c.energyCost <= energyPool);
-        const shuffled = shuffleCards(valid);
+        // Random alone still rolled a top-tier hand often enough to beat a new
+        // player on luck, which is not what Easy is for. Drawing from the weaker
+        // end caps the ceiling while keeping every round different.
+        const byKnock = [...valid].sort((a, b) => a.knock - b.knock);
+        const pool = byKnock.slice(0, Math.max(5, Math.ceil(byKnock.length * 0.7)));
+        const shuffled = shuffleCards(pool);
         const picks: Card[] = [];
         let usedEnergy = 0;
         for (const card of shuffled) {
@@ -667,14 +672,18 @@ export function generateAIOrder(
         score += c.energyCost === 0 ? 2 : c.knock / (c.energyCost + 0.5);
 
         // Counter-type bonus (normal: +2, hard: +4)
-        if (c.type === counterType) score += difficulty >= 3 ? 5 : difficulty === 2 ? 4 : 2;
+        if (c.type === counterType) score += difficulty >= 3 ? 5 : difficulty === 2 ? 4 : 1;
 
         // Mild anti-repeat bias so house rounds do not keep surfacing the same 5 cards.
         if (previousAiOrderSet.has(c.id)) score -= difficulty >= 3 ? 1.6 : difficulty === 2 ? 1.2 : 0.8;
 
         // Aggression adjustment
-        if (isLosing)  score += c.knock * 0.3;           // prioritise damage when behind
-        if (isWinning) score += c.priority * 0.4;        // prioritise priority/safety when ahead
+        // Comeback aggression is a Hard/Boss behaviour. On Moderate it meant the
+        // AI got sharpest precisely when the player was ahead, so a winning
+        // match kept slipping away — the tier felt harder than Hard to anyone
+        // actually beating it.
+        if (isLosing)  score += c.knock * (difficulty >= 2 ? 0.3 : 0.1);
+        if (isWinning) score += c.priority * (difficulty >= 2 ? 0.4 : 0.15);
 
         // Hard mode: extra weight on high-priority and high-knock
         if (difficulty >= 2) score += c.priority * 0.3 + c.knock * 0.2;
@@ -684,8 +693,9 @@ export function generateAIOrder(
             if (c.id === "disrupt" || c.id === "anticipation" || c.id === "reversal_edge") score += 1.4;
         }
 
-        // Normal mode: small random noise to feel human
-        if (difficulty === 1) score += Math.random() * 1.5;
+        // Moderate plays like a decent human, not an optimiser: enough noise to
+        // misjudge a slot and leave the player a way in.
+        if (difficulty === 1) score += Math.random() * 3.5;
 
         return { card: c, score };
     });

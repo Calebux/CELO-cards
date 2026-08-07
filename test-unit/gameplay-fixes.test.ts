@@ -35,7 +35,7 @@ import {
   meetsBountyThreshold,
   usdToGdollar,
 } from "../app/lib/bounty";
-import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
+import { effectiveAiDifficulty, houseMatchPoints, resolveAiDifficulty } from "../app/lib/houseDifficulty";
 import { classifyAuthError } from "../app/lib/authTelemetry";
 import { friendlyTxError, isGoogleUnreachable } from "../app/lib/txErrors";
 import { retryWeb3AuthAuthorization } from "../app/lib/web3authResume";
@@ -358,6 +358,32 @@ test("resume: with no sign-in in progress it still polls through a transient fal
 
   assert.equal(authorized, true);
   assert.equal(checks, 3);
+});
+
+// ── VS House difficulty: the player gets the tier they picked ────────────────
+test("house: winning does not silently promote a player to Hard", () => {
+  // A two-match win streak used to force difficulty 2 whatever the player had
+  // selected, so Easy and Moderate stopped being easy exactly when someone
+  // started winning — and the reward stayed pinned to the chosen tier, so it
+  // was a harder opponent for the same points.
+  for (const chosen of [0, 1, 2] as const) {
+    assert.equal(
+      resolveAiDifficulty({ chosen, upperChamberActive: false, upperChamberRound: 0 }),
+      chosen,
+      `chosen ${chosen} should be honoured`,
+    );
+  }
+});
+
+test("house: only the Boss finale exceeds the chosen difficulty", () => {
+  // The finale is meant to be hard and the player opted into it.
+  assert.equal(resolveAiDifficulty({ chosen: 0, upperChamberActive: true, upperChamberRound: 3 }), 3);
+  assert.equal(resolveAiDifficulty({ chosen: 1, upperChamberActive: true, upperChamberRound: 4 }), 3);
+  // Earlier chamber rounds still play at the selected tier.
+  assert.equal(resolveAiDifficulty({ chosen: 0, upperChamberActive: true, upperChamberRound: 0 }), 0);
+  assert.equal(resolveAiDifficulty({ chosen: 1, upperChamberActive: true, upperChamberRound: 2 }), 1);
+  // And the chamber flag alone changes nothing.
+  assert.equal(resolveAiDifficulty({ chosen: 1, upperChamberActive: false, upperChamberRound: 9 }), 1);
 });
 
 // ── VS House difficulty: the reward must reflect the match actually played ───

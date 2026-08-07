@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
 import { MultiplayerMode } from "./matchmaking";
+import { resolveAiDifficulty } from "./houseDifficulty";
 import { createEmptyOnboardingProgress, getOnboardingSteps, isOnboardingComplete, OnboardingProgress, OnboardingStepId } from "./onboarding";
 import { isMiniPay } from "./minipayRuntime";
 import { emptyCardPerformance } from "./cardProgress";
@@ -623,14 +624,11 @@ export const useGameStore = create<GameState>()(
     lockOrder: async () => {
         const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed, upperChamberActive, upperChamberRound } = get();
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
-        const difficulty: 0 | 1 | 2 | 3 =
-            upperChamberActive && upperChamberRound >= 3
-                ? 3
-                : aiDifficulty === 0
-                    ? 0
-                    : winStreak >= 2
-                        ? 2
-                        : aiDifficulty;
+        const difficulty: 0 | 1 | 2 | 3 = resolveAiDifficulty({
+            chosen: aiDifficulty,
+            upperChamberActive,
+            upperChamberRound,
+        });
 
         if (!playerRole) {
             // VS House path — use server-side resolution
@@ -706,14 +704,11 @@ export const useGameStore = create<GameState>()(
     autoLockOrder: async () => {
         const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed, upperChamberActive, upperChamberRound } = get();
         const autoOrder = playerDeck.slice(0, 5);
-        const difficulty: 0 | 1 | 2 | 3 =
-            upperChamberActive && upperChamberRound >= 3
-                ? 3
-                : aiDifficulty === 0
-                    ? 0
-                    : winStreak >= 2
-                        ? 2
-                        : aiDifficulty;
+        const difficulty: 0 | 1 | 2 | 3 = resolveAiDifficulty({
+            chosen: aiDifficulty,
+            upperChamberActive,
+            upperChamberRound,
+        });
 
         if (!playerRole) {
             // VS House path — use server-side resolution
