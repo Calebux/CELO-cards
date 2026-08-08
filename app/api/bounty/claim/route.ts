@@ -114,11 +114,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Set the moment the transfer is broadcast. After that point the slot must
+  // never be released, whatever else fails — the money has already gone.
+  let broadcastTx: `0x${string}` | null = null;
+
   try {
     // Per-day ceiling across ALL claimants, so even a bad standings record
     // cannot pay out more than one day's pools in total.
-    const spent = Number(await redis.get<number>(daySpendKey(day)).catch(() => 0)) || 0;
-    if (spent + amountGdollar > MAX_DAY_PAYOUT_GDOLLAR) {
+    //
+    // Incremented first and rolled back if it overshoots: reading then writing
+    // would let two simultaneous claims both see the old total and each believe
+    // there was room, quietly taking the day over budget.
+    const spentAfter = await redis.incrby(daySpendKey(day), amountGdollar);
+    if (spentAfter === amountGdollar) {
+      await redis.expire(daySpendKey(day), 365 * 24 * 60 * 60);
+    }
+    if (spentAfter > MAX_DAY_PAYOUT_GDOLLAR) {
+      await redis.incrby(daySpendKey(day), -amountGdollar);
       await redis.del(claimKey(day, address));
       return NextResponse.json({ error: "This day's payout budget is exhausted." }, { status: 409 });
     }
@@ -139,6 +151,7 @@ export async function POST(req: NextRequest) {
       args: [account.address],
     });
     if (balance < value) {
+      await redis.incrby(daySpendKey(day), -amountGdollar).catch(() => {});
       await redis.del(claimKey(day, address));
       return NextResponse.json(
         { error: "The prize pot is topping up — please try again shortly." },
@@ -154,15 +167,24 @@ export async function POST(req: NextRequest) {
       args: [address as `0x${string}`, value],
     });
     const txHash = await walletClient.writeContract(request);
+    broadcastTx = txHash;
 
     await redis.set(claimKey(day, address), { txHash, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: 365 * 24 * 60 * 60 });
-    await redis.set(daySpendKey(day), spent + amountGdollar, { ex: 365 * 24 * 60 * 60 });
 
     return NextResponse.json({ ok: true, txHash, amountGdollar, usd: mine.totalUsd });
   } catch (e) {
-    // Release the slot so a genuine failure can be retried — but only on a
-    // failure that happened BEFORE broadcast. Once writeContract returns, the
-    // claim record above is already written.
+    if (broadcastTx) {
+      // The transfer is already on-chain. Releasing the slot here — which is
+      // what a blanket delete used to do if the bookkeeping write failed —
+      // would let the same player claim again and be paid twice. Record what we
+      // know instead, and never free the slot.
+      await redis
+        .set(claimKey(day, address), { txHash: broadcastTx, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: 365 * 24 * 60 * 60 })
+        .catch(() => {});
+      return NextResponse.json({ ok: true, txHash: broadcastTx, amountGdollar, usd: mine.totalUsd });
+    }
+    // Nothing was sent, so give back the reservation and the budget.
+    await redis.incrby(daySpendKey(day), -amountGdollar).catch(() => {});
     await redis.del(claimKey(day, address)).catch(() => {});
     const message = e instanceof Error ? e.message : "Payout failed";
     return NextResponse.json({ error: message.slice(0, 140) }, { status: 500 });
