@@ -105,7 +105,7 @@ export default function Leaderboard() {
   type HistoryDay = {
     day: string;
     totalPaidUsd: number;
-    winners: { rank: number; address: string; name: string | null; points: number; usd: number; claimed: boolean }[];
+    winners: { rank: number; address: string; name: string | null; points: number; usd: number; claimed: boolean; txHash: string | null }[];
   };
   const [history, setHistory] = useState<HistoryDay[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
@@ -361,16 +361,31 @@ export default function Leaderboard() {
                                 {isMe && <span style={{ color: "#56a4cb", fontSize: 10, marginLeft: 6 }}>YOU</span>}
                               </span>
                               <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#94a3b8" }}>{w.points.toLocaleString()}</span>
-                              <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 800, color: w.claimed ? "#4ade80" : "#fbbf24", textAlign: "right" }}>
-                                ${w.usd}{w.claimed ? "" : "*"}
-                              </span>
+                              {/* A paid prize links to the transaction that paid
+                                  it. "We paid out $X" is a claim; a tx hash is
+                                  something anyone can check. */}
+                              {w.claimed && w.txHash ? (
+                                <a
+                                  href={`https://celoscan.io/tx/${w.txHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: isCompact ? 13 : 11, fontWeight: 800, color: "#4ade80", textAlign: "right", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}
+                                >
+                                  ${w.usd}
+                                  <span className="material-icons" style={{ fontSize: isCompact ? 13 : 11, opacity: 0.75 }}>open_in_new</span>
+                                </a>
+                              ) : (
+                                <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 800, color: w.claimed ? "#4ade80" : "#fbbf24", textAlign: "right" }}>
+                                  ${w.usd}{w.claimed ? "" : "*"}
+                                </span>
+                              )}
                             </div>
                           );
                         })}
                       </div>
                     ))}
                     <p style={{ textAlign: "center", fontSize: 10, color: "#334155", letterSpacing: 0.5, padding: "4px 0 12px" }}>
-                      * awaiting claim
+                      * awaiting claim · tap a paid prize to view it on Celoscan
                     </p>
                   </>
                 )}

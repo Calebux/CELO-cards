@@ -99,7 +99,10 @@ export default function CreateMatch() {
   const [isShortLandscape, setIsShortLandscape] = useState(false);
   const [isCompactPhone, setIsCompactPhone] = useState(false);
   const enterBossOnchain = useBossOnchainEntry();
-  const [bossEntryState, setBossEntryState] = useState<"idle" | "paying" | "error">("idle");
+  // "needs-funding" is deliberately distinct from "error": an empty wallet is
+  // not a failure the player can retry their way out of, and offering Retry
+  // there just produces the same failure until they give up.
+  const [bossEntryState, setBossEntryState] = useState<"idle" | "paying" | "error" | "needs-funding">("idle");
   const [bossEntryError, setBossEntryError] = useState<string>("");
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
@@ -302,7 +305,7 @@ export default function CreateMatch() {
         const res = await enterBossOnchain(address, isMp);
         if (!res.ok) {
           setBossEntryError(res.error ?? "Couldn't enter the arena.");
-          setBossEntryState("error");
+          setBossEntryState(res.needsFunding ? "needs-funding" : "error");
           return;
         }
         setBossEntryState("idle");
@@ -803,7 +806,31 @@ export default function CreateMatch() {
                   Entering the Arena
                 </div>
                 <div style={{ fontSize: 13, color: "rgba(185,231,244,0.75)", lineHeight: 1.5 }}>
-                  Confirm the <strong style={{ color: "#b9e7f4" }}>0.000007 CELO</strong> entry in your wallet to record this match on-chain.
+                  Confirm in your wallet to record this run on-chain. The entry is
+                  <strong style={{ color: "#b9e7f4" }}> 0.000007</strong> of whichever coin you hold — a marker, not a fee.
+                </div>
+              </>
+            ) : bossEntryState === "needs-funding" ? (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24", textTransform: "uppercase", marginBottom: 10 }}>
+                  Wallet needs a top-up
+                </div>
+                <div style={{ fontSize: 13, color: "rgba(185,231,244,0.75)", lineHeight: 1.5, marginBottom: 18 }}>
+                  {bossEntryError}
+                </div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                  <button
+                    onClick={() => window.open("https://t.me/actionorder", "_blank", "noopener,noreferrer")}
+                    style={{ flex: 1, padding: "11px 0", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase", color: "#0a101c", background: "#fbbf24", border: "none" }}
+                  >
+                    Ask for gas
+                  </button>
+                  <button
+                    onClick={() => setBossEntryState("idle")}
+                    style={{ flex: 1, padding: "11px 0", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase", color: "#b9e7f4", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(86,164,203,0.3)" }}
+                  >
+                    Back
+                  </button>
                 </div>
               </>
             ) : (

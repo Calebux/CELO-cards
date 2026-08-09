@@ -38,8 +38,25 @@ export function isGoogleUnreachable(err: unknown): boolean {
   return typeof e === "object" && e !== null ? isGoogleUnreachable(e.cause) : false;
 }
 
+// A wallet with nothing in it cannot be fixed by retrying, so "please try
+// again" is the one thing this must never say — the player retries, fails, and
+// reports the game as broken instead of asking for the top-up that would fix it.
+export const NO_GAS_MESSAGE =
+  "Your wallet needs a little CELO to cover network fees. Message t.me/actionorder and we'll send you some — it only takes a minute.";
+
+export function isInsufficientFunds(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { message?: unknown; shortMessage?: unknown; name?: unknown; cause?: unknown };
+  const text = [e.message, e.shortMessage, e.name].filter((v) => typeof v === "string").join(" ");
+  if (/insufficient funds|insufficient balance|exceeds balance|gas required exceeds|InsufficientFunds/i.test(text)) {
+    return true;
+  }
+  return isInsufficientFunds(e.cause);
+}
+
 export function friendlyTxError(err: unknown, fallback: string): string {
   if (isUserRejectedTx(err)) return TX_CANCELLED_MESSAGE;
   if (isGoogleUnreachable(err)) return GOOGLE_UNREACHABLE_MESSAGE;
+  if (isInsufficientFunds(err)) return NO_GAS_MESSAGE;
   return err instanceof Error && err.message ? err.message.slice(0, 120) : fallback;
 }
