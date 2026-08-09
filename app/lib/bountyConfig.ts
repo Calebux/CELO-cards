@@ -20,10 +20,15 @@ export function bountyPrizeForRank(rank: number): number {
 // a single match could take the pool — which rewards showing up at the right
 // moment rather than actually competing.
 //
-// For scale: a boss win pays 100–200, a ranked PvP win 150 and a loss 25. So
-// 500 is roughly three to four decent wins — enough to mean "played today",
-// low enough to stay reachable in one sitting.
-export const BOUNTY_MIN_POINTS_TO_WIN = 500;
+// Set against real boards rather than guessed. At 500 almost anyone who turned
+// up qualified; at 1500 four of the five days measured would have paid nobody —
+// one winner scored 1475 and missed by twenty-five points. 1000 filters casual
+// play while staying reachable for the people actually competing, and sits just
+// under a typical third place.
+//
+// For scale: a hard boss win pays 200 (300 flawless), a ranked PvP win 150, and
+// the daily cap of ten counted wins puts the ceiling near 3,100.
+export const BOUNTY_MIN_POINTS_TO_WIN = 1000;
 
 export function meetsBountyThreshold(points: number): boolean {
   return points >= BOUNTY_MIN_POINTS_TO_WIN;

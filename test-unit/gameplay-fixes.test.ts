@@ -369,12 +369,17 @@ test("bounty: the daily allowance is spent by wins, not by losing", () => {
   // the bounty locked out exactly the players it exists to attract.
   assert.equal(HOUSE_WINS_COUNTED_PER_DAY, 10);
 
-  // A realistic session for a struggling player still gets them there: their
-  // win slots are untouched by defeats, and losses top up alongside.
-  const lossPoints = HOUSE_LOSS_POINTS_PER_DAY;          // 100, hit after 10 losses
-  const winsNeeded = Math.ceil((BOUNTY_MIN_POINTS_TO_WIN - lossPoints) / 150); // moderate wins
-  assert.ok(winsNeeded <= HOUSE_WINS_COUNTED_PER_DAY, "threshold must be reachable within the allowance");
-  assert.equal(winsNeeded, 3);
+  // A struggling player can still get there: defeats never eat their win slots,
+  // and loss points top up alongside. Asserted as a property rather than a
+  // fixed number, so tuning the threshold cannot silently make the bounty
+  // unwinnable — raising it to 1500 would need 10 of the 10 available wins.
+  const winsNeeded = Math.ceil((BOUNTY_MIN_POINTS_TO_WIN - HOUSE_LOSS_POINTS_PER_DAY) / 150);
+  assert.ok(
+    winsNeeded <= HOUSE_WINS_COUNTED_PER_DAY,
+    `threshold needs ${winsNeeded} moderate wins but only ${HOUSE_WINS_COUNTED_PER_DAY} count per day`,
+  );
+  // And it should leave headroom rather than demanding a perfect day.
+  assert.ok(winsNeeded <= HOUSE_WINS_COUNTED_PER_DAY - 2, "threshold leaves no margin for a bad round");
 });
 
 test("bounty: losing on purpose cannot be farmed", () => {
@@ -565,8 +570,17 @@ test("bounty: a player below the daily threshold wins nothing", () => {
   assert.equal(meetsBountyThreshold(0), false);
 
   // The threshold exists so a single match on a quiet day can't take the pool.
-  // A ranked win is 150 and a boss win at most 200, so one match must not clear it.
-  assert.ok(BOUNTY_MIN_POINTS_TO_WIN > 200);
+  // A ranked win is 150 and a boss win at most 300 flawless, so no single match
+  // can clear it.
+  assert.ok(BOUNTY_MIN_POINTS_TO_WIN > 300);
+
+  // And it must stay reachable inside the daily cap, or the bounty is
+  // unwinnable by design: ten counted wins is the most anyone can score.
+  const ceilingPerDay = HOUSE_WINS_COUNTED_PER_DAY * 300 + HOUSE_LOSS_POINTS_PER_DAY;
+  assert.ok(
+    BOUNTY_MIN_POINTS_TO_WIN < ceilingPerDay / 2,
+    "threshold should need well under a perfect day",
+  );
 });
 
 test("bounty: an unqualified player can never block a prize slot", () => {
