@@ -29,47 +29,6 @@ const PENDING_MESSAGE =
 function isVerifiedReward(r: HouseWinnerRewardActivity): boolean {
   return r.status === "verified" && !!r.rewardCode;
 }
-const SHOWCASE_WINNERS: Array<{
-  playerAddress: string;
-  playerName: string;
-  playerCharacterId: string;
-  opponentCharacterId: string;
-  rewardCode: string;
-  verifiedAt: number;
-}> = [
-  {
-    playerAddress: "0xA6F46Dcaa07C6b56D02379Ec3b2AafDFe3BA0DfA",
-    playerName: "Calebux",
-    playerCharacterId: "kaira",
-    opponentCharacterId: "kaira",
-    rewardCode: "HOUSE-CBX501",
-    verifiedAt: Date.UTC(2026, 4, 25, 9, 18, 0),
-  },
-  {
-    playerAddress: "0x6cA0F5B5a0A5d5E1E5f0B5f0C5d1A7B7A0cD1002",
-    playerName: "NovaMint",
-    playerCharacterId: "kenji",
-    opponentCharacterId: "kenji",
-    rewardCode: "HOUSE-NVM502",
-    verifiedAt: Date.UTC(2026, 4, 24, 18, 42, 0),
-  },
-  {
-    playerAddress: "0x7bD1E0fC1A5A2c9B6D4f8B2A0c5D8e7F2aBc3003",
-    playerName: "AgentRiven",
-    playerCharacterId: "riven",
-    opponentCharacterId: "riven",
-    rewardCode: "HOUSE-AGT503",
-    verifiedAt: Date.UTC(2026, 4, 24, 13, 11, 0),
-  },
-  {
-    playerAddress: "0x8cE2F1dA2B6B3d0C7E5a9C3B1d6E9f8A3bCd4004",
-    playerName: "ZaneLock",
-    playerCharacterId: "zane",
-    opponentCharacterId: "zane",
-    rewardCode: "HOUSE-ZLK504",
-    verifiedAt: Date.UTC(2026, 4, 23, 21, 36, 0),
-  },
-];
 
 type ClaimBody = {
   matchId?: string;
@@ -115,43 +74,53 @@ async function recordPending(
 }
 
 export async function GET() {
-  // Only verified rewards are shown publicly — pending (unverified, possibly
-  // forged) claims never appear as winners (M-07).
-  const rewards = (await getHouseWinnerRewardActivity()).filter(isVerifiedReward);
-  const actualWinners = rewards.slice(0, 20).map((reward, index) => ({
-    rank: index + 1,
-    playerAddress: reward.playerAddress,
-    playerName: reward.playerName,
-    playerCharacterId: reward.playerCharacterId,
-    opponentCharacterId: reward.opponentCharacterId,
-    rewardCode: reward.rewardCode,
-    rewardUsd: reward.rewardUsd,
-    verifiedAt: reward.verifiedAt,
-  }));
-  const fallbackWinners = SHOWCASE_WINNERS
-    .filter((winner) => !actualWinners.some((actual) => actual.rewardCode === winner.rewardCode))
-    .map((winner) => ({
-      rank: 0,
-      playerAddress: winner.playerAddress,
-      playerName: winner.playerName,
-      playerCharacterId: winner.playerCharacterId,
-      opponentCharacterId: winner.opponentCharacterId,
-      rewardCode: winner.rewardCode,
-      rewardUsd: REWARD_USD,
-      verifiedAt: winner.verifiedAt,
-    }));
-  const combined = [...actualWinners, ...fallbackWinners]
+  // No placeholder winners. This page used to pad an empty board with four
+  // invented players and report $20 of the pool as claimed when nothing had
+  // been — while a real winner stayed hidden, because only "verified" entries
+  // were shown and genuine wins land as "pending". Anyone checking those
+  // addresses on-chain would have found nothing.
+  const all = await getHouseWinnerRewardActivity();
+  const verified = all.filter(isVerifiedReward);
+  const pending = all.filter((r) => !isVerifiedReward(r));
+
+  const winners = [
+    ...verified.map((reward) => ({
+      playerAddress: reward.playerAddress,
+      playerName: reward.playerName,
+      playerCharacterId: reward.playerCharacterId,
+      opponentCharacterId: reward.opponentCharacterId,
+      rewardCode: reward.rewardCode,
+      rewardUsd: reward.rewardUsd,
+      verifiedAt: reward.verifiedAt,
+      status: "verified" as const,
+    })),
+    // Shown so a player who genuinely won can see their claim was recorded,
+    // rather than looking at a board that omits them. No reward code is
+    // attached: VS House telemetry is forgeable, so a code is only issued after
+    // manual review (M-07). Marking them keeps that distinction visible.
+    ...pending.map((reward) => ({
+      playerAddress: reward.playerAddress,
+      playerName: reward.playerName,
+      playerCharacterId: reward.playerCharacterId,
+      opponentCharacterId: reward.opponentCharacterId,
+      rewardCode: null,
+      rewardUsd: reward.rewardUsd,
+      verifiedAt: reward.verifiedAt,
+      status: "pending" as const,
+    })),
+  ]
     .sort((a, b) => b.verifiedAt - a.verifiedAt)
     .slice(0, 20)
     .map((winner, index) => ({ ...winner, rank: index + 1 }));
-  const claimedUsd = Math.max(
-    rewards.reduce((sum, reward) => sum + reward.rewardUsd, 0),
-    Math.min(POOL_PRIZE_USD, combined.length * REWARD_USD),
-  );
+
+  // Only rewards actually paid count against the pool. The old figure took the
+  // max of real payouts and (winner count x $5), so padding inflated it.
+  const claimedUsd = verified.reduce((sum, reward) => sum + reward.rewardUsd, 0);
 
   return NextResponse.json({
-    recentWinners: combined,
-    totalWinners: Math.max(rewards.length, combined.length),
+    recentWinners: winners,
+    totalWinners: verified.length,
+    pendingWinners: pending.length,
     claimedUsd,
     poolPrizeUsd: POOL_PRIZE_USD,
     poolRemainingUsd: Math.max(0, POOL_PRIZE_USD - claimedUsd),

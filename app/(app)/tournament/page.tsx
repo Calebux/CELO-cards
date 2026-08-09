@@ -16,7 +16,8 @@ type WinnerRow = {
   playerName: string | null;
   playerCharacterId: string;
   opponentCharacterId: string;
-  rewardCode: string;
+  rewardCode: string | null;
+  status?: "verified" | "pending";
   rewardUsd: number;
   verifiedAt: number;
 };
@@ -24,6 +25,7 @@ type WinnerRow = {
 type HouseWinnerResponse = {
   recentWinners: WinnerRow[];
   totalWinners: number;
+  pendingWinners?: number;
   claimedUsd: number;
   poolPrizeUsd: number;
   poolRemainingUsd: number;
@@ -210,12 +212,12 @@ export default function HouseBossChallengePage() {
                   </div>
                 ) : !data || data.recentWinners.length === 0 ? (
                   <div style={{ padding: "34px 20px", textAlign: "center", color: "#334155", fontSize: 12 }}>
-                    No verified 5/5 House winners yet. Be the first to clear the final mirror fight.
+                    No one has beaten the House Boss yet. Be the first to clear the full 5/5 streak on Hard.
                   </div>
                 ) : (
                   <div>
                     {data.recentWinners.map((winner, index) => (
-                      <div key={`${winner.playerAddress}-${winner.rewardCode}`} style={{
+                      <div key={`${winner.playerAddress}-${winner.verifiedAt}`} style={{
                         display: "flex", alignItems: "center", gap: 14, padding: "13px 20px",
                         background: index === 0 ? "rgba(251,204,92,0.04)" : "transparent",
                         borderBottom: "1px solid rgba(255,255,255,0.03)",
@@ -227,20 +229,27 @@ export default function HouseBossChallengePage() {
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {winner.playerName || fallbackName(winner.playerAddress, isMp)}
                           </div>
-                          <div style={{ fontSize: 10, color: "#475569", marginTop: 1, fontFamily: "monospace" }}>
-                            {winner.rewardCode}
+                          <div style={{ fontSize: 10, marginTop: 1, fontFamily: winner.rewardCode ? "monospace" : "inherit", color: winner.rewardCode ? "#475569" : "#fbbf24" }}>
+                            {/* A pending win carries no redeemable code — the
+                                telemetry is forgeable, so codes are issued only
+                                after review. Saying so beats hiding the player. */}
+                            {winner.rewardCode ?? "Pending verification"}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 16, alignItems: "center", flexShrink: 0 }}>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: 15, fontWeight: 800, color: "#4ade80" }}>${winner.rewardUsd.toFixed(0)}</div>
-                            <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>REWARD</div>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: winner.status === "pending" ? "#fbbf24" : "#4ade80" }}>${winner.rewardUsd.toFixed(0)}</div>
+                            <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>
+                              {winner.status === "pending" ? "IN REVIEW" : "REWARD"}
+                            </div>
                           </div>
                           <div style={{ textAlign: "right" }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "#b9e7f4" }}>
                               {new Date(winner.verifiedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             </div>
-                            <div style={{ fontSize: 9, color: "#475569" }}>VERIFIED</div>
+                            <div style={{ fontSize: 9, color: "#475569" }}>
+                              {winner.status === "pending" ? "SUBMITTED" : "VERIFIED"}
+                            </div>
                           </div>
                         </div>
                       </div>
