@@ -58,7 +58,7 @@ export default function HouseBossChallengePage() {
     {
       step: "02",
       title: "CLEAR ALL 5 FIGHTS",
-      body: "You only qualify if you beat the full 5/5 streak, including the final mirror fight against your own fighter.",
+      body: "You must select HARD difficulty. You only qualify if you beat the full 5/5 streak on Hard, including the final mirror fight against your own fighter.",
       icon: "🏆",
       color: "#fbbf24",
     },
@@ -153,7 +153,7 @@ export default function HouseBossChallengePage() {
             HOUSE BOSS CHALLENGE
           </div>
           <div style={{ fontSize: 15, color: "#9ca3af", letterSpacing: 0.5, textAlign: "center", maxWidth: 640, lineHeight: 1.6 }}>
-            Beat our House AI through the full 5/5 Upper Chamber streak. Clear the final mirror fight, get your verified winner code, and claim from the {poolPrizeDisplay} pool prize.
+            Beat our House AI through the full 5/5 Upper Chamber streak on HARD difficulty. Clear the final mirror fight, get your verified winner code, and claim from the {poolPrizeDisplay} pool prize. Wins on Easy or Moderate do not qualify.
           </div>
 
           <div style={{ display: "flex", gap: 40, marginTop: 6, alignItems: "flex-start" }}>
@@ -269,7 +269,7 @@ export default function HouseBossChallengePage() {
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(86,164,203,0.18)", borderRadius: 8, padding: "16px 18px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>EVENT RULE</div>
               <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.65 }}>
-                This is not a ranked leaderboard race. The prize is for players who beat the full House 5/5 streak and get a verified winner code from the final match.
+                This is not a ranked leaderboard race. The prize is for players who beat the full House 5/5 streak on HARD difficulty and get a verified winner code from the final match.
               </div>
             </div>
 

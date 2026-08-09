@@ -14,7 +14,15 @@ export type HouseMatchActivity = {
   playerName: string | null;
   playerCharacterId: string;
   opponentCharacterId: string;
+  /** Effective difficulty the AI played at, including chamber escalation. */
   difficulty: number;
+  /**
+   * The tier the player SELECTED. The chamber forces difficulty 3 for its final
+   * rounds whatever was chosen, so the effective value says nothing about how
+   * hard the player opted to make it — and the House Boss prize is meant to
+   * reward choosing Hard.
+   */
+  chosenDifficulty?: number;
   wagered: boolean;
   outcome: "win" | "loss";
   pointsEarned: number;

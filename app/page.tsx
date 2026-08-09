@@ -32,7 +32,7 @@ export default function ActionOrderLandingPage() {
   const [howToPlayVariant, setHowToPlayVariant] = useState<"quickstart" | "full">("full");
   const tournamentPrizeDisplay = "431,000 G$";
   const tournamentPrizeLabel = "POOL PRIZE";
-  const tournamentRewardCopy = "Beat our House AI in the full 5/5 streak to claim from the 431,000 G$ (≈$50) pool prize.";
+  const tournamentRewardCopy = "Beat our House AI on HARD in the full 5/5 streak to claim from the 431,000 G$ (≈$50) pool prize.";
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {
@@ -577,7 +577,7 @@ export default function ActionOrderLandingPage() {
               <p style={{ color:"#fff", fontSize:isMp ? 18 : 16, fontWeight:900, letterSpacing:-0.5, lineHeight:1.2, marginBottom:6 }}>{tournamentPrizeDisplay}<br/><span style={{ fontSize:isMp ? 12 : 11, fontWeight:700, color:"#b9e7f4", letterSpacing:1 }}>{tournamentPrizeLabel}</span></p>
               <div style={{ height:1, background:"rgba(251,204,92,0.2)", margin:"8px 0" }} />
               <p style={{ color:"#9ca3af", fontSize:isMp ? 12 : 11, lineHeight:1.5, marginBottom:6 }}>{tournamentRewardCopy}</p>
-              <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:0.5 }}>Beat the 5/5 House streak to qualify →</p>
+              <p style={{ color:"#4ade80", fontSize:isMp ? 12 : 11, fontWeight:700, letterSpacing:0.5 }}>Beat the 5/5 House streak on HARD to qualify →</p>
             </div>
 
             <div className="ko-scrollbar-track" />

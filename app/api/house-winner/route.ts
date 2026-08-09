@@ -195,14 +195,21 @@ export async function POST(req: NextRequest) {
     match.playerAddress.toLowerCase() === playerAddress &&
     match.outcome === "win" &&
     match.playerRoundsWon >= 3 &&
-    match.difficulty >= 2 &&
+    // The prize requires CHOOSING Hard. The chamber escalates to difficulty 3
+    // for its final rounds regardless, so checking the effective value let an
+    // Easy run qualify — points paid at Easy's 1x while the same match cleared
+    // the bar for a $5 code.
+    (match.chosenDifficulty ?? -1) >= 2 &&
     match.playerCharacterId === playerCharacterId &&
     match.opponentCharacterId === opponentCharacterId &&
     match.playerCharacterId === match.opponentCharacterId
   );
 
   if (!verifiedMatch) {
-    return NextResponse.json({ error: "Winning house telemetry not found for this final match" }, { status: 403 });
+    return NextResponse.json(
+      { error: "No qualifying win found. The House Boss prize requires beating the full streak on Hard difficulty." },
+      { status: 403 },
+    );
   }
 
   const baseEntry = {

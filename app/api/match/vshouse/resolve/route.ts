@@ -232,6 +232,7 @@ export async function POST(req: NextRequest) {
       playerCharacterId,
       opponentCharacterId,
       difficulty: aiDifficulty,
+      chosenDifficulty: rewardDifficulty,
       wagered,
       outcome: playerWon ? "win" : "loss",
       pointsEarned,
