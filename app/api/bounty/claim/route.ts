@@ -36,6 +36,12 @@ const ERC20_TRANSFER_ABI = [
 ] as const;
 
 const claimKey = (day: string, addr: string) => `bounty:claim:${day}:${addr}`;
+
+// A claim record must outlive the standings it was paid against. Day snapshots
+// keep for a year, so the reservation does too — at 7 days it could expire while
+// the day was still claimable, and a crash between broadcasting the transfer and
+// recording it would leave the slot free for a second payout.
+const CLAIM_RECORD_TTL_SECONDS = 365 * 24 * 60 * 60;
 const daySpendKey = (day: string) => `bounty:claim-spend:${day}`;
 
 // Hard ceiling on what a single day can ever pay out, independent of anything
@@ -105,7 +111,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Claim the slot BEFORE sending. If two requests race, only one proceeds.
-  const reserved = await redis.set(claimKey(day, address), "pending", { nx: true, ex: 7 * 24 * 60 * 60 });
+  const reserved = await redis.set(claimKey(day, address), "pending", { nx: true, ex: CLAIM_RECORD_TTL_SECONDS });
   if (!reserved) {
     const existing = await redis.get<{ txHash?: string }>(claimKey(day, address)).catch(() => null);
     return NextResponse.json(
@@ -169,7 +175,7 @@ export async function POST(req: NextRequest) {
     const txHash = await walletClient.writeContract(request);
     broadcastTx = txHash;
 
-    await redis.set(claimKey(day, address), { txHash, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: 365 * 24 * 60 * 60 });
+    await redis.set(claimKey(day, address), { txHash, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: CLAIM_RECORD_TTL_SECONDS });
 
     return NextResponse.json({ ok: true, txHash, amountGdollar, usd: mine.totalUsd });
   } catch (e) {
@@ -179,7 +185,7 @@ export async function POST(req: NextRequest) {
       // would let the same player claim again and be paid twice. Record what we
       // know instead, and never free the slot.
       await redis
-        .set(claimKey(day, address), { txHash: broadcastTx, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: 365 * 24 * 60 * 60 })
+        .set(claimKey(day, address), { txHash: broadcastTx, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: CLAIM_RECORD_TTL_SECONDS })
         .catch(() => {});
       return NextResponse.json({ ok: true, txHash: broadcastTx, amountGdollar, usd: mine.totalUsd });
     }

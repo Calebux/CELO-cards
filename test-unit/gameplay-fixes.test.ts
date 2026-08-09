@@ -460,6 +460,43 @@ test("house: harder difficulty pays strictly more, and losing is unaffected", ()
   }
 });
 
+// ── Bounty claim timing: nothing is payable until the day has closed ─────────
+test("bounty claim: today and future days are never claimable", () => {
+  const today = bountyDayUTC();
+  const yesterday = bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000);
+  const tomorrow = bountyDayUTC(Date.now() + 24 * 60 * 60 * 1000);
+  const nextYear = bountyDayUTC(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  // Paying a live day would let someone claim 1st place and then be overtaken.
+  assert.equal(isBountyDayClosed(today), false);
+  // A caller-supplied future date must not slip past the check either.
+  assert.equal(isBountyDayClosed(tomorrow), false);
+  assert.equal(isBountyDayClosed(nextYear), false);
+  // Only a finished day pays.
+  assert.equal(isBountyDayClosed(yesterday), true);
+  assert.equal(isBountyDayClosed("2020-01-01"), true);
+});
+
+test("bounty claim: day keys compare correctly as strings", () => {
+  // isBountyDayClosed relies on lexicographic comparison of ISO dates, so the
+  // zero-padding matters — "2026-9-01" would sort wrong and open a live day.
+  assert.match(bountyDayUTC(), /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok("2026-08-09" < "2026-08-10");
+  assert.ok("2026-08-31" < "2026-09-01");
+  assert.ok("2026-12-31" < "2027-01-01");
+});
+
+test("bounty claim: one day can never pay more than both pools", () => {
+  // The ceiling the endpoint checks every payout and every day total against,
+  // computed independently of anything stored in Redis.
+  const ceiling = usdToGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD);
+  // Even first place plus the entire participation pool stays inside it.
+  assert.ok(usdToGdollar(BOUNTY_PRIZE_SPLIT_USD[0] + BOUNTY_PARTICIPATION_POOL_USD) <= ceiling);
+  // And the full podium plus the pool is exactly the ceiling, never above.
+  const everything = BOUNTY_PRIZE_SPLIT_USD.reduce((a, b) => a + b, 0) + BOUNTY_PARTICIPATION_POOL_USD;
+  assert.equal(usdToGdollar(everything), ceiling);
+});
+
 // ── Bounty claim auth: the signature must not be replayable ──────────────────
 test("bounty claim: a signature is bound to one wallet and one day", () => {
   const A = "0x1111111111111111111111111111111111111111";
