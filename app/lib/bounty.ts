@@ -22,6 +22,7 @@ import {
   BOUNTY_TOP_N,
   BOUNTY_GDOLLAR_PER_USD,
   BOUNTY_CLAIM_URL,
+  BOUNTY_WINS_PER_DAY,
   bountyParticipationRecipients,
   bountyParticipationShareUsd,
   bountyPrizeForRank,
@@ -61,7 +62,7 @@ const BOUNTY_TTL_SECONDS = 8 * 24 * 60 * 60;
 // 22%-win-rate player burned all ten slots on defeats worth 10 points each and
 // became mathematically unable to reach the threshold, with nothing on screen
 // saying why.
-export const HOUSE_WINS_COUNTED_PER_DAY = 10;
+export const HOUSE_WINS_COUNTED_PER_DAY = BOUNTY_WINS_PER_DAY;
 
 // Losses no longer consume the win allowance, so they need their own ceiling —
 // otherwise losing on purpose becomes unlimited points. Ten losses' worth.
@@ -80,9 +81,9 @@ export const HOUSE_LOSS_POINTS_PER_DAY = 100;
 // The ceiling below is defence in depth rather than a limit anyone should meet.
 export const HOUSE_BOSS_WINS_COUNTED_PER_DAY = 10;
 
-// Applied from this UTC day onward, so a rule change mid-day cannot reshuffle
-// standings that people are still playing under the old rules.
-export const BOSS_WINS_UNCAPPED_FROM_DAY = "2026-08-10";
+// Applied from this UTC day onward. Days before it keep the rules they were
+// played under, so closed standings and anything already claimed stay fixed.
+export const BOSS_WINS_UNCAPPED_FROM_DAY = "2026-08-09";
 
 /**
  * Whether a House win skips the ordinary daily win allowance.
@@ -107,6 +108,18 @@ const namesKey = (day: string) => `bounty:names:${day}`;
 const houseWinsKey = (day: string, addr: string) => `bounty:house-wins:${day}:${addr}`;
 const houseLossPointsKey = (day: string, addr: string) => `bounty:house-losspts:${day}:${addr}`;
 const houseBossWinsKey = (day: string, addr: string) => `bounty:house-bosswins:${day}:${addr}`;
+
+// A player's day is scored from components rather than accumulated in place, so
+// that the BEST ten wins count instead of the first ten. Incrementing a running
+// total cannot do that: once a win is added it can never be displaced by a
+// better one later.
+const houseWinPtsKey = (day: string, addr: string) => `bounty:house-winpts:${day}:${addr}`;
+const houseBossPtsKey = (day: string, addr: string) => `bounty:house-bosspts:${day}:${addr}`;
+const pvpPointsKey = (day: string, addr: string) => `bounty:pvp-pts:${day}:${addr}`;
+// Points earned before this scoring model existed, or from matches too old to
+// be reconstructed. Without it, switching to component scoring would wipe
+// whatever a player had already banked today.
+const carryOverKey = (day: string, addr: string) => `bounty:carryover:${day}:${addr}`;
 const pairCountKey = (day: string, addr: string, opponent: string) =>
   `bounty:pair:${day}:${addr}:${opponent}`;
 const paidKey = (day: string) => `bounty:paid:${day}`;
@@ -159,6 +172,54 @@ export type BountySource =
  * Returns whether the points actually counted, which is useful for ops
  * visibility into how often caps bite.
  */
+/** Sum of the best `HOUSE_WINS_COUNTED_PER_DAY` win values. */
+export function bestWinPointsTotal(winPoints: readonly number[]): number {
+  return [...winPoints]
+    .sort((a, b) => b - a)
+    .slice(0, HOUSE_WINS_COUNTED_PER_DAY)
+    .reduce((sum, n) => sum + n, 0);
+}
+
+/**
+ * Recompute and store a player's total for the day from its parts.
+ *
+ * Components are each written atomically, so a recompute can only ever be a
+ * little stale rather than wrong — the next result corrects it.
+ */
+async function recomputeDayTotal(day: string, addr: string): Promise<number> {
+  const [winPts, bossPts, lossPts, pvpPts, carry] = await Promise.all([
+    redis.get<number[]>(houseWinPtsKey(day, addr)).catch(() => null),
+    redis.get<number>(houseBossPtsKey(day, addr)).catch(() => null),
+    redis.get<number>(houseLossPointsKey(day, addr)).catch(() => null),
+    redis.get<number>(pvpPointsKey(day, addr)).catch(() => null),
+    redis.get<number>(carryOverKey(day, addr)).catch(() => null),
+  ]);
+  const total =
+    (Number(carry) || 0) +
+    bestWinPointsTotal(Array.isArray(winPts) ? winPts : []) +
+    (Number(bossPts) || 0) +
+    (Number(lossPts) || 0) +
+    (Number(pvpPts) || 0);
+
+  await redis.zadd(pointsKey(day), {}, { score: total, member: addr });
+  await redis.expire(pointsKey(day), BOUNTY_TTL_SECONDS);
+  return total;
+}
+
+/**
+ * Preserve anything already banked today before components take over.
+ *
+ * Runs once per player per day. On a day that started under the old running
+ * total, the existing score becomes the carry-over so nobody loses points at
+ * the moment the scoring model changes.
+ */
+async function ensureCarryOver(day: string, addr: string): Promise<void> {
+  const existing = await redis.get<number>(carryOverKey(day, addr)).catch(() => null);
+  if (existing !== null && existing !== undefined) return;
+  const banked = Number(await redis.zscore(pointsKey(day), addr).catch(() => null)) || 0;
+  await redis.set(carryOverKey(day, addr), banked, { ex: BOUNTY_TTL_SECONDS });
+}
+
 export async function recordBountyPoints(
   address: string | null | undefined,
   points: number,
@@ -172,23 +233,49 @@ export async function recordBountyPoints(
 
     const day = bountyDayUTC();
 
+    await ensureCarryOver(day, addr);
+    let counted = true;
+
     if (source.kind === "house") {
       if (source.won) {
-        // Boss fights count against their own ceiling, so they neither consume
-        // the ordinary allowance nor get blocked once it is spent.
-        const isBossFight = bossWinIsUncapped(source.difficulty, day);
-        const key = isBossFight ? houseBossWinsKey(day, addr) : houseWinsKey(day, addr);
-        const limit = isBossFight ? HOUSE_BOSS_WINS_COUNTED_PER_DAY : HOUSE_WINS_COUNTED_PER_DAY;
-        const wins = await redis.incr(key);
-        if (wins === 1) await redis.expire(key, BOUNTY_TTL_SECONDS);
-        if (wins > limit) return false;
+        if (bossWinIsUncapped(source.difficulty, day)) {
+          // Boss fights sit outside the ordinary allowance entirely: they
+          // neither consume it nor get blocked once it is spent.
+          const countKey = houseBossWinsKey(day, addr);
+          const bossWins = await redis.incr(countKey);
+          if (bossWins === 1) await redis.expire(countKey, BOUNTY_TTL_SECONDS);
+          if (bossWins > HOUSE_BOSS_WINS_COUNTED_PER_DAY) return false;
+          await redis.incrby(houseBossPtsKey(day, addr), points);
+          await redis.expire(houseBossPtsKey(day, addr), BOUNTY_TTL_SECONDS);
+        } else {
+          // Kept as the best ten win values rather than a count, so a later,
+          // better win displaces an earlier, weaker one.
+          //
+          // Counting the FIRST ten punished exactly the behaviour the tiers are
+          // meant to encourage: warm up on Easy, switch to Hard, and every Hard
+          // win is worth nothing because the allowance is already spent. Storing
+          // only the top ten also keeps this bounded no matter how much is played.
+          const winsKey = houseWinsKey(day, addr);
+          const played = await redis.incr(winsKey);
+          if (played === 1) await redis.expire(winsKey, BOUNTY_TTL_SECONDS);
+
+          const key = houseWinPtsKey(day, addr);
+          const kept = (await redis.get<number[]>(key).catch(() => null)) ?? [];
+          const before = bestWinPointsTotal(kept);
+          const next = [...kept, points]
+            .sort((a, b) => b - a)
+            .slice(0, HOUSE_WINS_COUNTED_PER_DAY);
+          await redis.set(key, next, { ex: BOUNTY_TTL_SECONDS });
+          // Only false when the win could not beat any of the ten already held.
+          counted = bestWinPointsTotal(next) > before;
+        }
       } else {
         // Track loss POINTS rather than loss count, so the ceiling holds even if
         // participation scoring changes later.
         const key = houseLossPointsKey(day, addr);
         const soFar = Number(await redis.get<number>(key).catch(() => 0)) || 0;
         if (soFar >= HOUSE_LOSS_POINTS_PER_DAY) return false;
-        await redis.set(key, soFar + points, { ex: BOUNTY_TTL_SECONDS });
+        await redis.set(key, Math.min(HOUSE_LOSS_POINTS_PER_DAY, soFar + points), { ex: BOUNTY_TTL_SECONDS });
       }
     } else {
       const opponent = source.opponent?.toLowerCase();
@@ -197,21 +284,21 @@ export async function recordBountyPoints(
       // Directional, so each player counts their own matches against that
       // opponent and the cap means "matches", not "half a match".
       const key = pairCountKey(day, addr, opponent);
-      const counted = await redis.incr(key);
-      if (counted === 1) await redis.expire(key, BOUNTY_TTL_SECONDS);
-      if (counted > PVP_RESULTS_COUNTED_PER_OPPONENT_PER_DAY) return false;
+      const pairResults = await redis.incr(key);
+      if (pairResults === 1) await redis.expire(key, BOUNTY_TTL_SECONDS);
+      if (pairResults > PVP_RESULTS_COUNTED_PER_OPPONENT_PER_DAY) return false;
+      await redis.incrby(pvpPointsKey(day, addr), points);
+      await redis.expire(pvpPointsKey(day, addr), BOUNTY_TTL_SECONDS);
     }
 
-    const key = pointsKey(day);
-    await redis.zincrby(key, points, addr);
-    await redis.expire(key, BOUNTY_TTL_SECONDS);
+    await recomputeDayTotal(day, addr);
 
     const trimmed = playerName?.trim();
     if (trimmed) {
       await redis.hset(namesKey(day), { [addr]: trimmed.slice(0, 24) });
       await redis.expire(namesKey(day), BOUNTY_TTL_SECONDS);
     }
-    return true;
+    return counted;
   } catch {
     return false;
   }

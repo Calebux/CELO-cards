@@ -6,7 +6,7 @@ import { celo } from "viem/chains";
 import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult, recordPlayerMatchOutcome } from "../../../../lib/leaderboard";
-import { recordBountyPoints } from "../../../../lib/bounty";
+import { HOUSE_WINS_COUNTED_PER_DAY, recordBountyPoints } from "../../../../lib/bounty";
 import { clampDifficulty, effectiveAiDifficulty, houseMatchPoints } from "../../../../lib/houseDifficulty";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
@@ -194,6 +194,10 @@ export async function POST(req: NextRequest) {
 
   const isMatchOver = state.playerRoundsWon >= 3 || state.opponentRoundsWon >= 3;
   let pointsEarned = 0;
+  // Whether the win actually moved the player's bounty total. A win past the
+  // daily allowance still scores on the career leaderboard but adds nothing to
+  // the bounty, and with no signal for that the game just looks broken.
+  let bountyCounted = false;
 
   // 5. If Match Ended, Update Leaderboard Securely
   if (isMatchOver) {
@@ -223,7 +227,7 @@ export async function POST(req: NextRequest) {
     // Daily bounty credit. Capped per day inside recordBountyPoints: a season
     // pass grants unlimited boss matches, so uncapped this would be farmable by
     // volume alone. Leaderboard scoring above is unaffected by the cap.
-    await recordBountyPoints(
+    bountyCounted = await recordBountyPoints(
       addr,
       pointsEarned,
       { kind: "house", won: playerWon, difficulty: aiDifficulty },
@@ -278,6 +282,11 @@ export async function POST(req: NextRequest) {
     roundWinner: resolution.roundWinner,
     isMatchOver,
     pointsEarned,
+    // Only meaningful on a completed win: it means the win scored on the career
+    // leaderboard but the daily bounty allowance was already spent.
+    bountyCounted,
+    bountyCapReached: isMatchOver && state.playerRoundsWon >= 3 && !bountyCounted,
+    bountyWinsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
     playerRoundsWon: state.playerRoundsWon,
     opponentRoundsWon: state.opponentRoundsWon,
   });

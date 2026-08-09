@@ -33,6 +33,7 @@ import {
   bountyParticipationRecipients,
   bountyParticipationShareUsd,
   bossWinIsUncapped,
+  bestWinPointsTotal,
   HOUSE_LOSS_POINTS_PER_DAY,
   HOUSE_WINS_COUNTED_PER_DAY,
   meetsBountyThreshold,
@@ -410,11 +411,31 @@ test("house: winning does not silently promote a player to Hard", () => {
   }
 });
 
+test("bounty: the BEST ten wins score, not the first ten", () => {
+  // Ten Easy wins then four Hard wins. Counting the first ten scored 1300 and
+  // threw the Hard wins away, so a player who warmed up on Easy and then moved
+  // up was punished for improving. The best ten must displace the weak ones.
+  const easyThenHard = [100, 150, 150, 150, 150, 100, 100, 150, 150, 100, 200, 200, 200, 300];
+  assert.equal(bestWinPointsTotal(easyThenHard), 300 + 200 + 200 + 200 + 150 * 6);
+
+  // Order must not matter — the same day's matches score the same however they
+  // are played.
+  const shuffled = [...easyThenHard].reverse();
+  assert.equal(bestWinPointsTotal(shuffled), bestWinPointsTotal(easyThenHard));
+
+  // Under ten wins, everything counts.
+  assert.equal(bestWinPointsTotal([200, 100, 150]), 450);
+  assert.equal(bestWinPointsTotal([]), 0);
+
+  // Never more than ten, however much is played.
+  assert.equal(bestWinPointsTotal(new Array(50).fill(300)), 3000);
+});
+
 test("bounty: House Boss wins are exempt from the daily win allowance", () => {
   // A run is five fights and each spends a win slot, so ten wins is two runs.
   // The boss is fights 4 and 5, so a clear reliably lands past the cap — which
   // is how a genuine House Boss win scored zero points.
-  assert.equal(bossWinIsUncapped(3, "2026-08-10"), true);
+  assert.equal(bossWinIsUncapped(3, "2026-08-09"), true);
   assert.equal(bossWinIsUncapped(3, "2026-09-01"), true);
 
   // Only the boss tier. Easy/Moderate/Hard volume stays capped, which is what
@@ -424,10 +445,10 @@ test("bounty: House Boss wins are exempt from the daily win allowance", () => {
   assert.equal(bossWinIsUncapped(2, "2026-09-01"), false);
   assert.equal(bossWinIsUncapped(undefined, "2026-09-01"), false);
 
-  // And never retroactively: days already played out keep the rules they were
-  // played under, so a mid-day change cannot reshuffle live standings.
-  assert.equal(bossWinIsUncapped(3, "2026-08-09"), false);
+  // Never retroactive: days that already closed keep the rules they were played
+  // under, so settled standings and anything already claimed stay fixed.
   assert.equal(bossWinIsUncapped(3, "2026-08-08"), false);
+  assert.equal(bossWinIsUncapped(3, "2026-07-31"), false);
 });
 
 test("house: only the Boss finale exceeds the chosen difficulty", () => {

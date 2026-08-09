@@ -96,3 +96,8 @@ export function formatGdollar(usd: number): string {
 // Where winners go to claim. Payouts are manual, so a player who qualifies needs
 // somewhere to actually collect rather than waiting and wondering.
 export const BOUNTY_CLAIM_URL = "https://t.me/actionorder/3";
+
+// Daily House wins that count toward the bounty. Lives here rather than in
+// bounty.ts so client components can show the limit without pulling in redis.
+// bounty.ts re-exports it as HOUSE_WINS_COUNTED_PER_DAY.
+export const BOUNTY_WINS_PER_DAY = 10;

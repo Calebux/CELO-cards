@@ -22,7 +22,7 @@ const WalletSection = dynamic(() => import("../../components/WalletSection").the
 
 const BG_IMAGE = "/new-assets/gameplay-landing-lite.webp";
 
-type Tab = "bounty" | "casual" | "ranked";
+type Tab = "bounty" | "past" | "casual" | "ranked";
 
 // Casual/ranked are all-time boards with a W/L record; the bounty board is a
 // single UTC day and carries prize state instead. One row shape covers both so
@@ -61,12 +61,14 @@ const RANK_COLORS: Record<number, string> = {
 // is a different (and currently disabled) mode, so the board looked unreachable.
 const TABS: readonly { key: Tab; label: string; icon: string; hint: string }[] = [
   { key: "bounty", label: "Daily",  icon: "paid",            hint: "Today · prizes" },
+  { key: "past",   label: "Winners", icon: "military_tech",   hint: "Past days" },
   { key: "casual", label: "Casual", icon: "sports_esports",  hint: "All time" },
   { key: "ranked", label: "Ranked", icon: "emoji_events",    hint: "Ranked PvP" },
 ];
 
 const SUBTITLES: Record<Tab, string> = {
   bounty: `Today's race — $${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD} (≈${formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}), resets 00:00 UTC`,
+  past: "Who won on previous days, and what they were paid",
   casual: "All matches — VS House and PvP",
   ranked: "Ranked PvP matches only",
 };
@@ -100,6 +102,27 @@ export default function Leaderboard() {
     };
   }, []);
 
+  type HistoryDay = {
+    day: string;
+    totalPaidUsd: number;
+    winners: { rank: number; address: string; name: string | null; points: number; usd: number; claimed: boolean }[];
+  };
+  const [history, setHistory] = useState<HistoryDay[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+
+  const loadHistory = () => {
+    setLoading(true);
+    setFetchError(false);
+    void fetch("/api/bounty/history?days=30")
+      .then((r) => r.json())
+      .then((data: { days?: HistoryDay[]; totalPaidUsd?: number }) => {
+        setHistory(data.days ?? []);
+        setHistoryTotal(data.totalPaidUsd ?? 0);
+        setLoading(false);
+      })
+      .catch(() => { setLoading(false); setFetchError(true); });
+  };
+
   const loadLeaderboard = () => {
     setLoading(true);
     setFetchError(false);
@@ -123,7 +146,8 @@ export default function Leaderboard() {
   };
 
   useEffect(() => {
-    loadLeaderboard();
+    if (tab === "past") loadHistory();
+    else loadLeaderboard();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -281,6 +305,78 @@ export default function Leaderboard() {
               </div>
             )}
 
+            {/* Past winners is grouped by day rather than a flat ranking, so it
+                replaces the table instead of trying to reuse its columns. */}
+            {tab === "past" ? (
+              <div style={{ minHeight: isCompact ? 460 : 380, maxHeight: isCompact ? 460 : 380, overflowY: "auto", paddingTop: 4 }}>
+                {loading ? (
+                  <p style={{ textAlign: "center", padding: 40, fontSize: 12, color: "#475569", letterSpacing: 1 }}>Loading…</p>
+                ) : fetchError ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 340, gap: 12 }}>
+                    <span style={{ fontSize: 32 }}>⚠️</span>
+                    <p style={{ fontSize: 13, color: "#f87171", letterSpacing: 1 }}>Failed to load past winners</p>
+                    <button onClick={loadHistory} style={{ background: "rgba(86,164,203,0.12)", border: "1px solid rgba(86,164,203,0.3)", borderRadius: 6, padding: "8px 20px", color: "#56a4cb", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}>RETRY</button>
+                  </div>
+                ) : history.length === 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 340, gap: 12 }}>
+                    <span className="material-icons" style={{ color: "#334155", fontSize: 48 }}>military_tech</span>
+                    <p style={{ fontSize: 13, color: "#475569", letterSpacing: 1, textTransform: "uppercase" }}>No days settled yet</p>
+                    <p style={{ fontSize: 11, color: "#334155", letterSpacing: 0.5 }}>The first winners appear after 00:00 UTC</p>
+                  </div>
+                ) : (
+                  <>
+                    {historyTotal > 0 && (
+                      <div style={{ margin: "0 0 12px", padding: "10px 14px", background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 6, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: "#4ade80", textTransform: "uppercase" }}>Paid out so far</span>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: "#4ade80" }}>${historyTotal.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {history.map((d) => (
+                      <div key={d.day} style={{ marginBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "0 4px 6px" }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#94a3b8" }}>
+                            {new Date(`${d.day}T00:00:00Z`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}
+                          </span>
+                          <span style={{ fontSize: 10, color: "#475569", letterSpacing: 0.5 }}>${d.totalPaidUsd} paid</span>
+                        </div>
+                        {d.winners.map((w) => {
+                          const isMe = address && w.address.toLowerCase() === address.toLowerCase();
+                          const rankColor = RANK_COLORS[w.rank] ?? "#64748b";
+                          return (
+                            <div key={w.address} style={{
+                              display: "grid",
+                              gridTemplateColumns: isCompact ? "40px 1fr 90px 84px" : "34px 1fr 76px 74px",
+                              alignItems: "center",
+                              padding: isCompact ? "10px 12px" : "8px 10px",
+                              borderRadius: 6,
+                              marginBottom: 3,
+                              background: isMe ? "rgba(86,164,203,0.10)" : "rgba(255,255,255,0.02)",
+                              border: `1px solid ${isMe ? "rgba(86,164,203,0.35)" : "rgba(255,255,255,0.04)"}`,
+                            }}>
+                              <span style={{ fontSize: isCompact ? 14 : 12, fontWeight: 800, color: rankColor }}>
+                                {w.rank === 1 ? "🥇" : w.rank === 2 ? "🥈" : w.rank === 3 ? "🥉" : `#${w.rank}`}
+                              </span>
+                              <span style={{ fontSize: isCompact ? 14 : 12, fontWeight: 700, color: isMe ? "#b9e7f4" : "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {usernames[w.address.toLowerCase()] || w.name || `${w.address.slice(0, 6)}…${w.address.slice(-4)}`}
+                                {isMe && <span style={{ color: "#56a4cb", fontSize: 10, marginLeft: 6 }}>YOU</span>}
+                              </span>
+                              <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#94a3b8" }}>{w.points.toLocaleString()}</span>
+                              <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 800, color: w.claimed ? "#4ade80" : "#fbbf24", textAlign: "right" }}>
+                                ${w.usd}{w.claimed ? "" : "*"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                    <p style={{ textAlign: "center", fontSize: 10, color: "#334155", letterSpacing: 0.5, padding: "4px 0 12px" }}>
+                      * awaiting claim
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : (
+            <>
             {/* Table header */}
             <div style={{
               display: "grid",
@@ -441,6 +537,8 @@ export default function Leaderboard() {
                 })
               )}
             </div>
+            </>
+            )}
 
             {/* Footer / back */}
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 20 }}>

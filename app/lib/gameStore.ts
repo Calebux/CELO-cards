@@ -95,6 +95,11 @@ interface GameState {
     aiDifficulty: 0 | 1 | 2;
     setAiDifficulty: (d: 0 | 1 | 2) => void;
 
+    // True when the last finished win scored on the career leaderboard but not
+    // toward the daily bounty, because the day's win allowance was spent. Shown
+    // on the result screen — a silent cap reads as the game being broken.
+    bountyCapReached: boolean;
+
     // Upper Chamber — 5-fight streak mode
     upperChamberActive: boolean;
     upperChamberRound: number;   // 0-indexed (0–4)
@@ -237,6 +242,7 @@ export const useGameStore = create<GameState>()(
     setVsBot: (v) => set({ vsBot: v }),
     aiDifficulty: 1,
     setAiDifficulty: (d) => set({ aiDifficulty: d }),
+    bountyCapReached: false,
     upperChamberActive: false,
     upperChamberRound: 0,
     setUpperChamberActive: (v) => set({ upperChamberActive: v }),
@@ -657,6 +663,7 @@ export const useGameStore = create<GameState>()(
                         matchPhase: "combat",
                         revealedSlots: 0,
                         currentRoundResult: null,
+                        bountyCapReached: !!data.bountyCapReached,
                         ultimateUsed: ultimateActivated ? true : get().ultimateUsed,
                         ultimateActivated: false,
                     });
@@ -737,6 +744,7 @@ export const useGameStore = create<GameState>()(
                         matchPhase: "combat",
                         revealedSlots: 0,
                         currentRoundResult: null,
+                        bountyCapReached: !!data.bountyCapReached,
                     });
                     return;
                 }
