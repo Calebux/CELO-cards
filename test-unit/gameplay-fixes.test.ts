@@ -32,6 +32,7 @@ import {
   isBountyExcluded,
   bountyParticipationRecipients,
   bountyParticipationShareUsd,
+  bossWinIsUncapped,
   HOUSE_LOSS_POINTS_PER_DAY,
   HOUSE_WINS_COUNTED_PER_DAY,
   meetsBountyThreshold,
@@ -407,6 +408,26 @@ test("house: winning does not silently promote a player to Hard", () => {
       `chosen ${chosen} should be honoured`,
     );
   }
+});
+
+test("bounty: House Boss wins are exempt from the daily win allowance", () => {
+  // A run is five fights and each spends a win slot, so ten wins is two runs.
+  // The boss is fights 4 and 5, so a clear reliably lands past the cap — which
+  // is how a genuine House Boss win scored zero points.
+  assert.equal(bossWinIsUncapped(3, "2026-08-10"), true);
+  assert.equal(bossWinIsUncapped(3, "2026-09-01"), true);
+
+  // Only the boss tier. Easy/Moderate/Hard volume stays capped, which is what
+  // stops a season pass turning into unlimited points.
+  assert.equal(bossWinIsUncapped(0, "2026-09-01"), false);
+  assert.equal(bossWinIsUncapped(1, "2026-09-01"), false);
+  assert.equal(bossWinIsUncapped(2, "2026-09-01"), false);
+  assert.equal(bossWinIsUncapped(undefined, "2026-09-01"), false);
+
+  // And never retroactively: days already played out keep the rules they were
+  // played under, so a mid-day change cannot reshuffle live standings.
+  assert.equal(bossWinIsUncapped(3, "2026-08-09"), false);
+  assert.equal(bossWinIsUncapped(3, "2026-08-08"), false);
 });
 
 test("house: only the Boss finale exceeds the chosen difficulty", () => {

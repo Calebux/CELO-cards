@@ -67,6 +67,32 @@ export const HOUSE_WINS_COUNTED_PER_DAY = 10;
 // otherwise losing on purpose becomes unlimited points. Ten losses' worth.
 export const HOUSE_LOSS_POINTS_PER_DAY = 100;
 
+// House Boss fights (the AI at tier 3) sit outside the win allowance entirely.
+//
+// A run is five fights and every fight spends a win slot, so ten wins is exactly
+// two complete runs — while the boss is fights 4 and 5, meaning each failed
+// attempt still burns three or four slots on the early fights. The result was
+// that the rarest outcome in the game was the one most likely to land past the
+// cap and score nothing at all. It is not farmable the way easy volume is: the
+// boss wins roughly 96% of the time, and asking the server for tier 3 means
+// actually facing tier 3, so the only way to reach this branch is to beat it.
+//
+// The ceiling below is defence in depth rather than a limit anyone should meet.
+export const HOUSE_BOSS_WINS_COUNTED_PER_DAY = 10;
+
+// Applied from this UTC day onward, so a rule change mid-day cannot reshuffle
+// standings that people are still playing under the old rules.
+export const BOSS_WINS_UNCAPPED_FROM_DAY = "2026-08-10";
+
+/**
+ * Whether a House win skips the ordinary daily win allowance.
+ *
+ * `day` is an ISO date, which compares correctly as a string.
+ */
+export function bossWinIsUncapped(difficulty: number | undefined, day: string): boolean {
+  return difficulty === 3 && day >= BOSS_WINS_UNCAPPED_FROM_DAY;
+}
+
 // PvP is farmable with two wallets you own playing each other: a ranked match
 // mints 150 + 25 points regardless of who wins. Capping how many times a single
 // pairing can pay out makes that grind worse than simply playing real opponents.
@@ -80,6 +106,7 @@ const pointsKey = (day: string) => `bounty:points:${day}`;
 const namesKey = (day: string) => `bounty:names:${day}`;
 const houseWinsKey = (day: string, addr: string) => `bounty:house-wins:${day}:${addr}`;
 const houseLossPointsKey = (day: string, addr: string) => `bounty:house-losspts:${day}:${addr}`;
+const houseBossWinsKey = (day: string, addr: string) => `bounty:house-bosswins:${day}:${addr}`;
 const pairCountKey = (day: string, addr: string, opponent: string) =>
   `bounty:pair:${day}:${addr}:${opponent}`;
 const paidKey = (day: string) => `bounty:paid:${day}`;
@@ -120,7 +147,9 @@ export function isBountyExcluded(address: string): boolean {
 // ── Recording ────────────────────────────────────────────────────────────────
 
 export type BountySource =
-  | { kind: "house"; won: boolean }
+  // `difficulty` is the tier the AI actually played at, not the one the match
+  // was started on — tier 3 is the House Boss and is exempt from the win cap.
+  | { kind: "house"; won: boolean; difficulty?: number }
   | { kind: "pvp"; opponent: string | null | undefined };
 
 /**
@@ -145,10 +174,14 @@ export async function recordBountyPoints(
 
     if (source.kind === "house") {
       if (source.won) {
-        const key = houseWinsKey(day, addr);
+        // Boss fights count against their own ceiling, so they neither consume
+        // the ordinary allowance nor get blocked once it is spent.
+        const isBossFight = bossWinIsUncapped(source.difficulty, day);
+        const key = isBossFight ? houseBossWinsKey(day, addr) : houseWinsKey(day, addr);
+        const limit = isBossFight ? HOUSE_BOSS_WINS_COUNTED_PER_DAY : HOUSE_WINS_COUNTED_PER_DAY;
         const wins = await redis.incr(key);
         if (wins === 1) await redis.expire(key, BOUNTY_TTL_SECONDS);
-        if (wins > HOUSE_WINS_COUNTED_PER_DAY) return false;
+        if (wins > limit) return false;
       } else {
         // Track loss POINTS rather than loss count, so the ceiling holds even if
         // participation scoring changes later.
