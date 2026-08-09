@@ -27,6 +27,14 @@ export function useWeb3AuthResuming(): boolean {
   return useSyncExternalStore(subscribeWeb3AuthResuming, getWeb3AuthResuming, () => false);
 }
 
+// Once per page load, NOT once per mount.
+//
+// This was a useRef, which resets whenever WalletSync remounts — every route
+// change. A second resume then started while the first was still running, both
+// called connectAsync, and wagmi rejected the later one with "already pending".
+// That is 30 of the recorded resume failures, against 2 successful resumes.
+let web3AuthResumeAttempted = false;
+
 export function WalletSync() {
   const { address, isConnected } = useAccount();
   const { connectAsync } = useConnect();
@@ -38,7 +46,9 @@ export function WalletSync() {
   const clearCardProgress = useGameStore((s) => s.clearCardProgress);
   const playerName = useGameStore((s) => s.playerName);
   const progressAddressRef = useRef<string | null>(null);
-  const attemptedWeb3AuthResumeRef = useRef(false);
+  // Resume state lives at module scope (see web3AuthResumeAttempted) rather
+  // than in a ref, so it survives the remounts that were starting second
+  // resumes on top of running ones.
 
   useEffect(() => {
     if (!isMiniPay() || isConnected) return;
@@ -84,7 +94,7 @@ export function WalletSync() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isMiniPay() || isConnected) {
-      attemptedWeb3AuthResumeRef.current = false;
+      web3AuthResumeAttempted = false;
       return;
     }
     // Runs on every web page INCLUDING the landing "/": a mobile OAuth sign-in
@@ -93,7 +103,7 @@ export function WalletSync() {
     // so the account is recognised immediately — no manual second sign-in on
     // another page. Gated by the session hint, so anonymous visitors never load
     // the Web3Auth SDK on the landing.
-    if (attemptedWeb3AuthResumeRef.current) return;
+    if (web3AuthResumeAttempted) return;
     if (!hasWeb3AuthSessionHint()) return;
     // A live sign-in writes the hint before opening the login, so without this
     // the resume treats someone still on Google's screen as a returning user
@@ -104,8 +114,7 @@ export function WalletSync() {
     const web3AuthConnector = connectors.find((connector) => connector.id === "web3auth");
     if (!web3AuthConnector) return;
 
-    attemptedWeb3AuthResumeRef.current = true;
-    let cancelled = false;
+    web3AuthResumeAttempted = true;
     let watchdog = 0;
 
     void (async () => {
@@ -139,7 +148,7 @@ export function WalletSync() {
             shouldAbort: isWeb3AuthSignInInFlight,
           },
         );
-        if (cancelled || isWeb3AuthSignInInFlight()) return;
+        if (isWeb3AuthSignInInFlight()) return;
         if (!authorized) {
           // Deliberately does NOT clear the session hint. Exhausting the poll is
           // not evidence the session is gone — usually it means rehydration was
@@ -158,24 +167,23 @@ export function WalletSync() {
         // Record how long it took even on success: a resume that lands after
         // the user has already tapped SIGN IN is still a failed experience, and
         // only real-device timings show whether that gap is 2s or 12s.
-        if (!cancelled) reportResumeTiming(true, Date.now() - startedAt);
+        reportResumeTiming(true, Date.now() - startedAt);
       } catch (e) {
         // Keep the hint after SDK/network failures so a later load can retry.
-        if (!cancelled) {
-          reportAuthFailure("resume", e);
-          reportResumeTiming(false, Date.now() - startedAt);
-        }
+        reportAuthFailure("resume", e);
+        reportResumeTiming(false, Date.now() - startedAt);
       } finally {
         window.clearTimeout(watchdog);
-        if (!cancelled) setWeb3AuthResuming(false);
+        setWeb3AuthResuming(false);
       }
     })();
 
-    return () => {
-      cancelled = true;
-      window.clearTimeout(watchdog);
-      setWeb3AuthResuming(false);
-    };
+    // No cleanup on purpose. Re-attaching the wallet is app-global work, not
+    // this mount's work, and the resume takes ~10s on a phone. Tearing it down
+    // on unmount meant that tapping PLAY during those seconds aborted the
+    // resume outright — the user was still signed in, and the app had just
+    // stopped trying to notice. The watchdog and the finally both clear the
+    // resuming flag, so nothing can be left hanging.
   }, [connectAsync, connectors, isConnected]);
 
   useEffect(() => {
