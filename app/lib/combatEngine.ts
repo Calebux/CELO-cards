@@ -501,7 +501,10 @@ function buildBossOrders(
     previousAiOrderIds: string[],
     typeLimit: number,
 ): Card[][] {
-    const source = scoredCards.slice(0, 8);
+    // The boss searches wider than any other tier: more cards considered, more
+    // legal combinations, more orderings of each. This is the only opponent
+    // allowed to actually think, and it is only ever reached at the end of a run.
+    const source = scoredCards.slice(0, 10);
     const results: Card[][] = [];
 
     const walk = (
@@ -510,7 +513,7 @@ function buildBossOrders(
         startIndex: number,
         typeCount: Record<CardType, number>,
     ) => {
-        if (results.length >= 28) return;
+        if (results.length >= 48) return;
         if (picks.length === 5) {
             results.push([...picks]);
             return;
@@ -539,7 +542,7 @@ function buildBossOrders(
         const used = Array(cards.length).fill(false);
         const current: Card[] = [];
         const recurse = () => {
-            if (out.length >= 14) return;
+            if (out.length >= 24) return;
             if (current.length === cards.length) {
                 out.push([...current]);
                 return;
@@ -558,7 +561,7 @@ function buildBossOrders(
     };
 
     const allOrders: Card[][] = [];
-    for (const combo of results.slice(0, 6)) {
+    for (const combo of results.slice(0, 10)) {
         allOrders.push(...permutationsFor(combo));
     }
 
@@ -751,7 +754,12 @@ export function generateAIOrder(
                 }),
             }))
             .sort((a, b) => b.score - a.score);
-        const finalistPool = scoredBoss.slice(0, Math.min(3, scoredBoss.length));
+        // Previously a random pick from the top THREE lines, which meant the
+        // boss regularly declined to play its best answer — the single biggest
+        // reason the final fight played softer than its billing. Narrowed to the
+        // top two so it stays unpredictable across attempts (a fixed line would
+        // just be memorised and farmed) without handing back the round.
+        const finalistPool = scoredBoss.slice(0, Math.min(2, scoredBoss.length));
         const weightedPick = finalistPool[Math.floor(Math.random() * finalistPool.length)] ?? scoredBoss[0];
         if (weightedPick?.order) return weightedPick.order;
     }
