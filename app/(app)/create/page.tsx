@@ -816,8 +816,9 @@ export default function CreateMatch() {
                   Entering the Arena
                 </div>
                 <div style={{ fontSize: 13, color: "rgba(185,231,244,0.75)", lineHeight: 1.5 }}>
-                  Confirm in your wallet to record this run on-chain. The entry is
-                  <strong style={{ color: "#b9e7f4" }}> 0.000007</strong> of whichever coin you hold — a marker, not a fee.
+                  Confirm in your wallet to record this run on-chain.
+                  <strong style={{ color: "#b9e7f4" }}> Nothing is charged</strong> — it only costs network gas, and the
+                  run becomes publicly verifiable on Celoscan.
                 </div>
               </>
             ) : bossEntryState === "needs-funding" ? (
