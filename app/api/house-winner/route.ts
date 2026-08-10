@@ -13,6 +13,9 @@ import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
 import { IDENTITY_CONTRACT, IDENTITY_ABI } from "../../lib/gooddollar";
 
+// A House Boss run is five consecutive fights.
+const CHAMBER_FIGHTS = 5;
+
 export const dynamic = "force-dynamic";
 
 const REWARD_USD = 5;
@@ -159,6 +162,38 @@ export async function POST(req: NextRequest) {
   }
 
   const houseMatches = await getHouseMatchActivity();
+
+  /**
+   * Whether the run LEADING INTO a finale was played on Hard.
+   *
+   * The finale cannot answer this by itself. Each chamber fight is its own
+   * match, and the finale starts at difficulty 3, so its `chosenDifficulty` is
+   * pinned to 3 whatever tier the player actually selected — an Easy run's
+   * final fight looks identical to a Hard one in the stored record. Checking
+   * only the finale let an Easy run collect the Hard-mode prize.
+   *
+   * So walk back through the player's preceding matches instead. A loss ends
+   * the streak, and every fight in it must have been chosen at Hard or above.
+   */
+  const runPlayedOnHard = (finale: (typeof houseMatches)[number]): boolean => {
+    const earlier = houseMatches
+      .filter((m) =>
+        m.playerAddress.toLowerCase() === playerAddress &&
+        (m.completedAt ?? 0) < (finale.completedAt ?? 0))
+      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+
+    let wins = 0;
+    for (const m of earlier) {
+      if (m.outcome !== "win") break;            // the streak ended here
+      if ((m.chosenDifficulty ?? -1) < 2) return false; // an Easy/Moderate fight disqualifies the run
+      if (++wins >= CHAMBER_FIGHTS - 1) return true;    // four wins plus the finale
+    }
+    // Fewer than four preceding wins are on record. The activity log is a
+    // rolling window, so this can be a genuine run whose start has aged out —
+    // fail closed and let manual review decide rather than paying on a guess.
+    return false;
+  };
+
   const verifiedMatch = houseMatches.find((match) =>
     match.matchId === matchId &&
     match.playerAddress.toLowerCase() === playerAddress &&
@@ -171,7 +206,8 @@ export async function POST(req: NextRequest) {
     (match.chosenDifficulty ?? -1) >= 2 &&
     match.playerCharacterId === playerCharacterId &&
     match.opponentCharacterId === opponentCharacterId &&
-    match.playerCharacterId === match.opponentCharacterId
+    match.playerCharacterId === match.opponentCharacterId &&
+    runPlayedOnHard(match)
   );
 
   if (!verifiedMatch) {
