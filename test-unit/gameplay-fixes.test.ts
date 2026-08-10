@@ -411,6 +411,24 @@ test("house: winning does not silently promote a player to Hard", () => {
   }
 });
 
+test("house: an Easy-only day cannot reach the bounty threshold", () => {
+  // Easy is practice. The best possible Easy day is ten flawless wins plus the
+  // whole loss allowance, and that must still fall short of qualifying —
+  // otherwise the tier with the highest win rate is also the cheapest route to
+  // the prize pool.
+  const bestEasyWin = houseMatchPoints({ won: true, flawless: true, rewardDifficulty: 0 });
+  const perfectEasyDay = bestEasyWin * HOUSE_WINS_COUNTED_PER_DAY + HOUSE_LOSS_POINTS_PER_DAY;
+  assert.ok(
+    perfectEasyDay < BOUNTY_MIN_POINTS_TO_WIN,
+    `a flawless Easy day scores ${perfectEasyDay}, which qualifies at ${BOUNTY_MIN_POINTS_TO_WIN}`,
+  );
+
+  // Moderate remains a real route in, so the bounty is not Hard-only.
+  const bestModerateDay =
+    houseMatchPoints({ won: true, flawless: true, rewardDifficulty: 1 }) * HOUSE_WINS_COUNTED_PER_DAY;
+  assert.ok(bestModerateDay > BOUNTY_MIN_POINTS_TO_WIN);
+});
+
 test("bounty: the BEST ten wins score, not the first ten", () => {
   // Ten Easy wins then four Hard wins. Counting the first ten scored 1300 and
   // threw the Hard wins away, so a player who warmed up on Easy and then moved
@@ -468,7 +486,7 @@ test("house: switching to hard on the winning round cannot buy the hard reward",
   // Reward is paid on the pinned starting difficulty, so it stays an easy win.
   const startedOnEasy = houseMatchPoints({ won: true, flawless: false, rewardDifficulty: 0 });
   const honestHard = houseMatchPoints({ won: true, flawless: false, rewardDifficulty: 2 });
-  assert.equal(startedOnEasy, 100);
+  assert.equal(startedOnEasy, 50); // Easy is 0.5x — a practice tier
   assert.equal(honestHard, 200);
   assert.ok(honestHard > startedOnEasy);
 });

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../../lib/gameStore";
+import { BOUNTY_MIN_POINTS_TO_WIN } from "../../lib/bountyConfig";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../../lib/activeMatch";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
@@ -32,9 +33,11 @@ function toStoreMode(matchType: MatchType): MatchMode {
   return matchType;
 }
 
-// Multipliers mirror DIFFICULTY_POINT_MULTIPLIER in the vshouse resolve route.
+// Multipliers mirror DIFFICULTY_POINT_MULTIPLIER in app/lib/houseDifficulty.ts.
+// Keep them in step — a picker that promises points the server will not pay is
+// the same silent-rule problem as an invisible daily cap.
 const DIFFICULTIES: readonly { value: 0 | 1 | 2; label: string; multiplier: string; color: string }[] = [
-  { value: 0, label: "Easy",     multiplier: "1× pts",   color: "#4ade80" },
+  { value: 0, label: "Easy",     multiplier: "0.5× pts", color: "#4ade80" },
   { value: 1, label: "Moderate", multiplier: "1.5× pts", color: "#fbbf24" },
   { value: 2, label: "Hard",     multiplier: "2× pts",   color: "#f87171" },
 ];
@@ -547,6 +550,13 @@ export default function CreateMatch() {
                         );
                       })}
                     </div>
+                    {aiDifficulty === 0 && (
+                      <p style={{ margin: "8px 0 0", fontSize: 10, lineHeight: 1.6, color: "#64748b", letterSpacing: 0.3 }}>
+                        Easy is practice — it builds your total points and leaderboard rank, but
+                        a full Easy day tops out below the {BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} needed for the daily bounty.
+                        Play <span style={{ color: "#fbbf24", fontWeight: 700 }}>Moderate</span> or higher to compete for the pool.
+                      </p>
+                    )}
                   </div>
                 )}
 

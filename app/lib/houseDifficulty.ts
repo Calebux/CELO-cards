@@ -11,8 +11,18 @@ export function clampDifficulty(value: unknown): HouseDifficulty {
 // Beating a harder boss is worth proportionally more toward the daily bounty,
 // which keeps the reward for difficulty inside the fixed daily pool rather than
 // creating a second, unbounded payout.
+// Easy is a practice tier, not a bounty route.
+//
+// At 0.5 the very best Easy day — ten flawless wins plus the full loss
+// allowance — reaches 850, which sits below BOUNTY_MIN_POINTS_TO_WIN. So Easy
+// alone can no longer qualify for a share of the pool, and the entry point for
+// the bounty becomes Moderate. It stays worth playing for career points, the
+// leaderboard and challenges, none of which are capped or tiered.
+//
+// This does not make Easy harder to win — only worth less. Real win rates when
+// this was set: Easy 76%, Hard 45%, Boss 5%.
 export const DIFFICULTY_POINT_MULTIPLIER: Record<HouseDifficulty, number> = {
-  0: 1,
+  0: 0.5,
   1: 1.5,
   2: 2,
   3: 2.5,
