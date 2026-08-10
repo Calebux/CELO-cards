@@ -106,6 +106,9 @@ export default function CreateMatch() {
   // not a failure the player can retry their way out of, and offering Retry
   // there just produces the same failure until they give up.
   const [bossEntryState, setBossEntryState] = useState<"idle" | "paying" | "error" | "needs-funding">("idle");
+  // Set by "Play anyway". A ref, not state: handleCreateMatch is re-invoked in
+  // the same tick and would still read the old value from its closure.
+  const skipOnchainRef = useRef(false);
   const [bossEntryError, setBossEntryError] = useState<string>("");
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
@@ -299,19 +302,24 @@ export default function CreateMatch() {
         setShowSeasonPassModal(true);
         return;
       }
-      // On-chain boss check-in (flag-gated, pay-in only; rewards stay manual).
-      // Skips silently on MiniPay / when disabled. A cancelled or failed entry
-      // keeps the player here to retry or back out rather than dropping in unpaid.
-      if (bossEntryWillCharge(address, isMp)) {
+      // On-chain record of the run, signed by the player (flag-gated).
+      //
+      // Best-effort, matching how the lobby treats the same registry: this
+      // charges nothing and only proves the run happened, so a wallet with no
+      // gas must never be locked out of the game. VS House is the only mode
+      // MiniPay players can reach, so blocking here would take the whole game
+      // away from them. An unfunded wallet is told how to fix it and can still
+      // play; everything else fails quietly and the run simply goes unrecorded.
+      if (bossEntryWillCharge(address, isMp) && !skipOnchainRef.current) {
         setBossEntryError("");
         setBossEntryState("paying");
         const res = await enterBossOnchain(address, isMp);
-        if (!res.ok) {
-          setBossEntryError(res.error ?? "Couldn't enter the arena.");
-          setBossEntryState(res.needsFunding ? "needs-funding" : "error");
-          return;
-        }
         setBossEntryState("idle");
+        if (!res.ok && res.needsFunding) {
+          setBossEntryError(res.error ?? "");
+          setBossEntryState("needs-funding");
+          return; // the panel offers "Play anyway", which re-enters below
+        }
       }
       resetMatch();
       setVsBot(true);
@@ -837,10 +845,10 @@ export default function CreateMatch() {
                     Ask for gas
                   </button>
                   <button
-                    onClick={() => setBossEntryState("idle")}
+                    onClick={() => { skipOnchainRef.current = true; setBossEntryState("idle"); void handleCreateMatch(); }}
                     style={{ flex: 1, padding: "11px 0", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase", color: "#b9e7f4", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(86,164,203,0.3)" }}
                   >
-                    Back
+                    Play anyway
                   </button>
                 </div>
               </>
