@@ -217,6 +217,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // One House Boss prize per player per UTC day. A strong player can clear the
+  // chamber repeatedly in an afternoon — it happened twice inside half an hour —
+  // and without this the $50 pool drains to whoever is best rather than
+  // rewarding the achievement.
+  const today = new Date().toISOString().slice(0, 10);
+  const dailyKey = `house-winner-day:${today}:${playerAddress}`;
+  const firstToday = await redis.set(dailyKey, matchId, { nx: true, ex: 60 * 60 * 48 });
+  if (!firstToday) {
+    return NextResponse.json(
+      { error: "You've already claimed the House Boss prize today. It resets at 00:00 UTC." },
+      { status: 429 },
+    );
+  }
+
   const baseEntry = {
     matchId,
     playerAddress,
