@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { redis } from "../../../lib/redis";
 import { checkRateLimit } from "../../../lib/rateLimit";
-import { GDOLLAR_CONTRACT } from "../../../lib/gooddollar";
+import { GDOLLAR_CONTRACT, fetchGoodDollarStatus } from "../../../lib/gooddollar";
 import { buildBountyClaimAuthMessage, verifyTreasuryActionSignature } from "../../../lib/treasuryAuth";
 import {
   BOUNTY_PARTICIPATION_POOL_USD,
@@ -34,6 +34,10 @@ const ERC20_TRANSFER_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
+
+// Identity is checked before the claim slot is reserved, so it needs its own
+// client — the transfer builds one later, inside the payout path.
+const identityClient = createPublicClient({ chain: celo, transport: http("https://forno.celo.org") });
 
 const claimKey = (day: string, addr: string) => `bounty:claim:${day}:${addr}`;
 
@@ -103,6 +107,33 @@ export async function POST(req: NextRequest) {
   const mine = standings.find((s) => s.address.toLowerCase() === address);
   if (!mine || mine.totalUsd <= 0) {
     return NextResponse.json({ error: "Nothing to claim for that day." }, { status: 403 });
+  }
+
+  // Prize money leaves the treasury, so it goes only to a verified human. This
+  // is the same sybil gate the House prize and daily reward already use: without
+  // it, a day's standings can be farmed across throwaway wallets. Checked after
+  // the standings lookup so someone with nothing to claim is told that, rather
+  // than being sent to verify for a prize they did not win.
+  //
+  // Fails closed — an RPC failure must not pay out an unverified wallet — and
+  // resolves through the identity root so a linked wallet counts as verified.
+  let identityStatus;
+  try {
+    identityStatus = await fetchGoodDollarStatus(identityClient, address);
+  } catch {
+    return NextResponse.json({ error: "Could not check your verification. Please try again." }, { status: 503 });
+  }
+  if (identityStatus.status !== "verified") {
+    return NextResponse.json(
+      {
+        error:
+          identityStatus.status === "expired"
+            ? "Your G$ Verification has expired. Renew it to claim your winnings — your prize stays claimable."
+            : "Claiming winnings needs a G$ Verified wallet. Verify once, then claim.",
+        reason: identityStatus.status === "expired" ? "verification-expired" : "verification-required",
+      },
+      { status: 403 },
+    );
   }
 
   const amountGdollar = usdToGdollar(mine.totalUsd);

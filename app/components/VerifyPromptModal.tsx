@@ -5,7 +5,8 @@ import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { isMiniPay } from "../lib/minipay";
 import { GDOLLAR_CONNECT_WALLET_DOCS } from "../lib/gooddollar";
-import { VerifyButton, useIsVerified } from "./VerifyButton";
+import { useGoodDollarStatus } from "../lib/useGoodDollarStatus";
+import { VerifyButton } from "./VerifyButton";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
@@ -32,7 +33,7 @@ const ACCENT = "#00C58E";
 export function VerifyPromptModal() {
   const { address, isConnected } = useAccount();
   const playerName = useGameStore((s) => s.playerName);
-  const isVerified = useIsVerified();
+  const status = useGoodDollarStatus();
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,9 +44,12 @@ export function VerifyPromptModal() {
     if (!isConnected || !address) return;
     // Only once they have a name: before that the username modal owns the screen.
     if (!playerName) return;
-    // undefined means the on-chain check is still loading — do not flash this at
-    // someone who turns out to be verified already.
-    if (isVerified !== false) return;
+    // Only for players who have never verified. Someone whose verification
+    // lapsed also reads as unverified, but this modal's copy is a first-time
+    // pitch — ReverifyModal owns that case, and both firing at once would stack
+    // two dialogs on one player. undefined means the chain read is still in
+    // flight; do not flash this at someone who turns out to be verified.
+    if (status?.status !== "never") return;
     try {
       if (window.localStorage.getItem(SEEN_KEY) === "1") return;
     } catch {}
@@ -53,12 +57,12 @@ export function VerifyPromptModal() {
     // Let the username modal finish its own close animation first.
     const timer = window.setTimeout(() => setShow(true), 1200);
     return () => window.clearTimeout(timer);
-  }, [address, isConnected, playerName, isVerified]);
+  }, [address, isConnected, playerName, status?.status]);
 
   // Verifying navigates away and back; if they return verified, never re-ask.
   useEffect(() => {
-    if (isVerified === true) setShow(false);
-  }, [isVerified]);
+    if (status?.status === "verified") setShow(false);
+  }, [status?.status]);
 
   const dismiss = () => {
     try {
