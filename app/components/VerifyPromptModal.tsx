@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { isMiniPay } from "../lib/minipay";
+import { GDOLLAR_CONNECT_WALLET_DOCS } from "../lib/gooddollar";
 import { VerifyButton, useIsVerified } from "./VerifyButton";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
@@ -95,9 +96,27 @@ export function VerifyPromptModal() {
         <h2 style={{ margin: 0, fontSize: 25, fontWeight: 900, color: "#fff", lineHeight: 1.2 }}>
           You&apos;re in{playerName ? `, ${playerName}` : ""} 👋
         </h2>
-        <p style={{ margin: "10px 0 18px", fontSize: 14, color: "#94a3b8", lineHeight: 1.6 }}>
-          Verify your identity once to unlock <strong style={{ color: ACCENT }}>free G$ every day</strong>.
+        <p style={{ margin: "10px 0 12px", fontSize: 14, color: "#94a3b8", lineHeight: 1.6 }}>
+          Get <strong style={{ color: ACCENT }}>G$ Verified</strong> once to unlock{" "}
+          <strong style={{ color: ACCENT }}>free G$ every day</strong>.
           That pays for your Season Pass — so you can compete without spending your own money.
+        </p>
+
+        {/* Verification is one-per-person, not one-per-wallet: anyone already G$
+            Verified elsewhere gets rejected as a duplicate if they try again,
+            and the only way through is linking that wallet to this one. Said up
+            front because the rejection itself explains none of this. */}
+        <p style={{ margin: "0 0 18px", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+          Already G$ Verified on another wallet? You can&apos;t verify twice —{" "}
+          <a
+            href={GDOLLAR_CONNECT_WALLET_DOCS}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#94a3b8", textDecoration: "underline" }}
+          >
+            link that wallet to this one
+          </a>{" "}
+          instead.
         </p>
 
         {/* The chain, in the order they'll actually experience it. */}

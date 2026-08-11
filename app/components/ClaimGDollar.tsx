@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useWalletClient, usePublicClient } from "wagmi";
 import { celo } from "wagmi/chains";
-import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR } from "../lib/gooddollar";
+import { UBISCHEME_CONTRACT, UBISCHEME_ABI, IDENTITY_CONTRACT, IDENTITY_ABI, GDOLLAR_COLOR, GDOLLAR_CONNECT_WALLET_DOCS } from "../lib/gooddollar";
 import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "../lib/signupsContract";
 import { formatUnits } from "viem";
 import { useGameStore } from "../lib/gameStore";
@@ -12,14 +12,25 @@ import { isUserRejectedTx } from "../lib/txErrors";
 export function ClaimGDollar() {
   const { address, isConnected } = useAccount();
 
-  const { data: isWhitelisted } = useReadContract({
+  // Verification is resolved through the identity root, not the connected
+  // wallet: a player can link several wallets to one G$ identity and a linked
+  // wallet reads as unverified on its own, which would send an already-verified
+  // human back into face verification that can only fail as a duplicate.
+  //
+  // The entitlement read below deliberately stays on the connected wallet,
+  // since that is the address the UBIScheme `claim()` transaction is sent from.
+  const { data: whitelistedRoot } = useReadContract({
     address: IDENTITY_CONTRACT,
     abi: IDENTITY_ABI,
-    functionName: "isWhitelisted",
+    functionName: "getWhitelistedRoot",
     args: address ? [address] : undefined,
     chainId: celo.id,
     query: { enabled: !!address },
   });
+  const isWhitelisted =
+    whitelistedRoot === undefined
+      ? undefined
+      : !!whitelistedRoot && whitelistedRoot !== "0x0000000000000000000000000000000000000000";
 
   const { data: entitlement, refetch } = useReadContract({
     address: UBISCHEME_CONTRACT,
@@ -132,7 +143,7 @@ export function ClaimGDollar() {
         /* Not verified on GoodDollar */
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ fontSize: 9, color: "#6b7280", lineHeight: "13px" }}>
-            Not verified. Get your GoodDollar identity to claim daily G$.
+            Not verified yet. Get G$ Verified to claim daily G$.
           </p>
           <button
             disabled={isVerifying || !walletClient || !publicClient || !address}
@@ -176,6 +187,17 @@ export function ClaimGDollar() {
           >
             {isVerifying ? "Signing…" : "Get Verified →"}
           </button>
+          {/* A player who is already G$ Verified on another wallet cannot verify
+              again — face verification rejects them as a duplicate — and without
+              this they hit that wall with no idea linking is even an option. */}
+          <a
+            href={GDOLLAR_CONNECT_WALLET_DOCS}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 9, color: "#6b7280", lineHeight: "13px", textDecoration: "underline" }}
+          >
+            Already G$ Verified on another wallet? Link it instead.
+          </a>
         </div>
       ) : isWhitelisted === true && entitlement === 0n ? (
         /* Verified but already claimed today */

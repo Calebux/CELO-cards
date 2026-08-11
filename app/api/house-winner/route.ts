@@ -11,7 +11,7 @@ import { sanitizePlayerName } from "../../lib/rateLimit";
 import { HOUSE_AUTO_REWARDS_ENABLED } from "../../lib/houseConfig";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
-import { IDENTITY_CONTRACT, IDENTITY_ABI } from "../../lib/gooddollar";
+import { resolveGoodDollarIdentity, type GoodDollarIdentity } from "../../lib/gooddollar";
 
 // A House Boss run is five consecutive fights.
 const CHAMBER_FIGHTS = 5;
@@ -47,19 +47,17 @@ function buildRewardCode() {
 
 const celoClient = createPublicClient({ chain: celo, transport: http() });
 
-// Fail closed: any RPC error returns false, so a reward is never auto-issued
-// unless the wallet is provably GoodDollar-verified on-chain.
-async function isGoodDollarVerified(address: string): Promise<boolean> {
+// Fail closed: any RPC error resolves to unverified, so a reward is never
+// auto-issued unless the player is provably G$ verified on-chain.
+//
+// Resolves through the identity root so a wallet linked to a verified identity
+// counts as verified — it reads as unverified when checked on its own — and so
+// the per-human limits below key on the identity rather than the wallet.
+async function resolveHouseIdentity(address: string): Promise<GoodDollarIdentity> {
   try {
-    const ok = await celoClient.readContract({
-      address: IDENTITY_CONTRACT,
-      abi: IDENTITY_ABI,
-      functionName: "isWhitelisted",
-      args: [address as `0x${string}`],
-    });
-    return ok === true;
+    return await resolveGoodDollarIdentity(celoClient, address);
   } catch {
-    return false;
+    return { isVerified: false, root: null, identityKey: address.toLowerCase() };
   }
 }
 
@@ -217,12 +215,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Resolved before the daily limit below, because "per player" has to mean per
+  // human: a player can link several wallets to one G$ identity, and keying the
+  // limits on the connected wallet would let one person collect once per wallet.
+  // Falls back to the connected wallet when the read fails, which is exactly the
+  // pre-wallet-link behaviour.
+  const identity = await resolveHouseIdentity(playerAddress);
+
   // One House Boss prize per player per UTC day. A strong player can clear the
   // chamber repeatedly in an afternoon — it happened twice inside half an hour —
   // and without this the $50 pool drains to whoever is best rather than
   // rewarding the achievement.
   const today = new Date().toISOString().slice(0, 10);
-  const dailyKey = `house-winner-day:${today}:${playerAddress}`;
+  const dailyKey = `house-winner-day:${today}:${identity.identityKey}`;
   const firstToday = await redis.set(dailyKey, matchId, { nx: true, ex: 60 * 60 * 48 });
   if (!firstToday) {
     return NextResponse.json(
@@ -252,10 +257,14 @@ export async function POST(req: NextRequest) {
   // computed server-side), but the resolve route isn't yet identity-bound or
   // ownership-checked, so bound the exposure of auto-issued codes — a farmed
   // win can't mint unlimited value:
-  //   1. GoodDollar-verified wallets only — sybil-resistant, ~one human each
-  //   2. one auto-reward per wallet, ever
+  //   1. G$ verified identities only — sybil-resistant, ~one human each
+  //   2. one auto-reward per identity, ever
   //   3. stop auto-issuing once the pool cap is reached
-  if (!(await isGoodDollarVerified(playerAddress))) {
+  //
+  // Both limits key on the identity root, not the connected wallet. The
+  // sybil-resistance in (1) comes from one face being one identity, so (2) has
+  // to count the same way or linking wallets multiplies the cap.
+  if (!identity.isVerified) {
     return recordPending(
       rewardKey,
       baseEntry,
@@ -263,12 +272,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const walletRewardKey = `house-reward-wallet:${playerAddress}`;
+  const walletRewardKey = `house-reward-wallet:${identity.identityKey}`;
   if (await redis.get(walletRewardKey)) {
     return NextResponse.json({
       ok: true,
       pending: true,
-      message: "You've already claimed your House reward — it's one per wallet.",
+      message: "You've already claimed your House reward — it's one per player.",
     });
   }
 
@@ -285,7 +294,7 @@ export async function POST(req: NextRequest) {
 
   await Promise.all([
     redis.set(rewardKey, rewardEntry, { ex: 60 * 60 * 24 * 180 }),
-    redis.set(walletRewardKey, "1"), // permanent lifetime marker — one reward per wallet
+    redis.set(walletRewardKey, "1"), // permanent lifetime marker — one reward per identity
     redis.incr("house-reward-issued-count"),
     recordHouseWinnerRewardActivity(rewardEntry),
   ]);

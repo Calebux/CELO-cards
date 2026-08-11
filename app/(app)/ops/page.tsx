@@ -228,6 +228,7 @@ export default function OpsPage() {
             { label: "Distinct Real Wallets", value: onChain.distinctRealWallets.toLocaleString(), note: "signups ∪ pass buyers" },
             { label: "GoodDollar Verified", value: onChain.verifiedGoodDollar.toLocaleString(), note: share(onChain.verifiedGoodDollar, onChain.distinctRealWallets) },
             { label: "Unverified", value: onChain.unverified.toLocaleString(), note: share(onChain.unverified, onChain.distinctRealWallets) },
+            { label: "Verified Identities", value: onChain.verifiedIdentities.toLocaleString(), note: "distinct humans — linked wallets collapse to one" },
             { label: "Passes Sold — GoodDollar (G$)", value: onChain.passesSoldGdollar.toLocaleString(), note: "" },
             { label: "Passes Sold — CELO", value: onChain.passesSoldCelo.toLocaleString(), note: "" },
             { label: "Total Passes Sold", value: onChain.totalPassesSold.toLocaleString(), note: "" },
