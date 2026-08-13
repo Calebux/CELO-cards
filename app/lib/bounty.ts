@@ -22,9 +22,14 @@ import {
   BOUNTY_TOP_N,
   BOUNTY_GDOLLAR_PER_USD,
   BOUNTY_CLAIM_URL,
+  BOUNTY_PAUSED_FROM_DAY,
+  BOUNTY_RESUMES_ON_DAY,
   BOUNTY_WINS_PER_DAY,
+  bountyDayUTC,
+  bountyIsFinalPayingDay,
   bountyParticipationRecipients,
   bountyParticipationShareUsd,
+  bountyPausedOn,
   bountyPrizeForRank,
   meetsBountyThreshold,
   usdToGdollar,
@@ -38,8 +43,13 @@ export {
   BOUNTY_TOP_N,
   BOUNTY_GDOLLAR_PER_USD,
   BOUNTY_CLAIM_URL,
+  BOUNTY_PAUSED_FROM_DAY,
+  BOUNTY_RESUMES_ON_DAY,
+  bountyDayUTC,
+  bountyIsFinalPayingDay,
   bountyParticipationRecipients,
   bountyParticipationShareUsd,
+  bountyPausedOn,
   bountyPrizeForRank,
   meetsBountyThreshold,
   usdToGdollar,
@@ -98,10 +108,6 @@ export function bossWinIsUncapped(difficulty: number | undefined, day: string): 
 // mints 150 + 25 points regardless of who wins. Capping how many times a single
 // pairing can pay out makes that grind worse than simply playing real opponents.
 export const PVP_RESULTS_COUNTED_PER_OPPONENT_PER_DAY = 3;
-
-export function bountyDayUTC(at: number = Date.now()): string {
-  return new Date(at).toISOString().slice(0, 10);
-}
 
 const pointsKey = (day: string) => `bounty:points:${day}`;
 const namesKey = (day: string) => `bounty:names:${day}`;
@@ -356,6 +362,10 @@ export async function getBountyStandings(
   const names = (await redis.hgetall<Record<string, string>>(namesKey(day)).catch(() => null)) ?? {};
   const qualifierCount = await countBountyQualifiers(day);
   const share = bountyParticipationShareUsd(bountyParticipationRecipients(qualifierCount));
+  // A paused day still ranks players — the board keeps running — but nothing on
+  // it is owed. Everything that decides a payout reads through here, so zeroing
+  // the money once covers standings, payouts, snapshots and claims alike.
+  const paused = bountyPausedOn(day);
 
   // Rows are sorted by points descending, so everyone meeting the threshold is
   // a prefix of the list. That means a player below it can never sit above a
@@ -363,10 +373,10 @@ export async function getBountyStandings(
   return rows.map((row, index) => {
     const qualified = meetsBountyThreshold(row.points);
     const rank = index + 1;
-    const prizeUsd = qualified ? bountyPrizeForRank(rank) : 0;
+    const prizeUsd = qualified && !paused ? bountyPrizeForRank(rank) : 0;
     // Podium finishers take the tiered prize only — the participation pool is
     // for players who turned up without placing.
-    const participationUsd = qualified && rank > BOUNTY_TOP_N ? share : 0;
+    const participationUsd = qualified && !paused && rank > BOUNTY_TOP_N ? share : 0;
     return {
       rank,
       address: row.address,
@@ -413,11 +423,12 @@ export async function getBountyPayouts(day: string = bountyDayUTC()): Promise<Bo
 export async function getPlayerBountyToday(
   address: string,
   day: string = bountyDayUTC(),
-): Promise<{ points: number; rank: number | null; qualified: boolean; prizeUsd: number; participationUsd: number; totalUsd: number; winsUsed: number; winsAllowed: number }> {
+): Promise<{ points: number; rank: number | null; qualified: boolean; paused: boolean; prizeUsd: number; participationUsd: number; totalUsd: number; winsUsed: number; winsAllowed: number }> {
   const addr = address.toLowerCase();
+  const paused = bountyPausedOn(day);
   const points = Number(await redis.zscore(pointsKey(day), addr).catch(() => null)) || 0;
   if (points <= 0) {
-    return { points: 0, rank: null, qualified: false, prizeUsd: 0, participationUsd: 0, totalUsd: 0, winsUsed: 0, winsAllowed: HOUSE_WINS_COUNTED_PER_DAY };
+    return { points: 0, rank: null, qualified: false, paused, prizeUsd: 0, participationUsd: 0, totalUsd: 0, winsUsed: 0, winsAllowed: HOUSE_WINS_COUNTED_PER_DAY };
   }
   // Rank = how many players are strictly ahead, plus one. Ties share a rank,
   // which is fine for a progress indicator.
@@ -425,14 +436,15 @@ export async function getPlayerBountyToday(
   const ahead = await redis.zcount(pointsKey(day), points + 1, "+inf").catch(() => 0);
   const rank = ahead + 1;
   const qualified = meetsBountyThreshold(points);
-  const share = qualified && rank > BOUNTY_TOP_N
+  const share = qualified && !paused && rank > BOUNTY_TOP_N
     ? bountyParticipationShareUsd(bountyParticipationRecipients(await countBountyQualifiers(day)))
     : 0;
-  const prizeUsd = qualified ? bountyPrizeForRank(rank) : 0;
+  const prizeUsd = qualified && !paused ? bountyPrizeForRank(rank) : 0;
   return {
     points,
     rank,
     qualified,
+    paused,
     prizeUsd,
     participationUsd: share,
     totalUsd: Math.round((prizeUsd + share) * 100) / 100,

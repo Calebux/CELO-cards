@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../../lib/gameStore";
-import { BOUNTY_MIN_POINTS_TO_WIN } from "../../lib/bountyConfig";
+import { BOUNTY_MIN_POINTS_TO_WIN, bountyPausedOn } from "../../lib/bountyConfig";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../../lib/activeMatch";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
@@ -560,9 +560,23 @@ export default function CreateMatch() {
                     </div>
                     {aiDifficulty === 0 && (
                       <p style={{ margin: "8px 0 0", fontSize: 10, lineHeight: 1.6, color: "#64748b", letterSpacing: 0.3 }}>
-                        Easy is practice — it builds your total points and leaderboard rank, but
-                        a full Easy day tops out below the {BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} needed for the daily bounty.
-                        Play <span style={{ color: "#fbbf24", fontWeight: 700 }}>Moderate</span> or higher to compete for the pool.
+                        {/* The reason to leave Easy is the daily pool while it is
+                            running, and simply the points while it is paused —
+                            pointing at a threshold that pays nothing today would
+                            just be a number with no consequence attached. */}
+                        {bountyPausedOn() ? (
+                          <>
+                            Easy is practice — it builds your total points and leaderboard rank, but it
+                            scores the least of any tier.
+                            Play <span style={{ color: "#fbbf24", fontWeight: 700 }}>Moderate</span> or higher to climb faster.
+                          </>
+                        ) : (
+                          <>
+                            Easy is practice — it builds your total points and leaderboard rank, but
+                            a full Easy day tops out below the {BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} needed for the daily bounty.
+                            Play <span style={{ color: "#fbbf24", fontWeight: 700 }}>Moderate</span> or higher to compete for the pool.
+                          </>
+                        )}
                       </p>
                     )}
                   </div>

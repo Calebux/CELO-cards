@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../../lib/gameStore";
-import { BOUNTY_WINS_PER_DAY } from "../../lib/bountyConfig";
+import { BOUNTY_WINS_PER_DAY, bountyPausedOn } from "../../lib/bountyConfig";
 import { Card, getArenaBackground, CHARACTERS } from "../../lib/gameData";
 import { SlotResult } from "../../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic } from "../../lib/soundManager";
@@ -1734,7 +1734,10 @@ export default function Gameplay() {
                       career leaderboard, but the bounty total did not move — and
                       without saying so the player just watches the number refuse
                       to change and assumes it is broken. */}
-                  {won && bountyCapReached && (
+                  {/* Nothing to explain while the prize is paused: the notice
+                      exists only to account for a bounty total that refused to
+                      move, and there is no bounty total at stake right now. */}
+                  {won && bountyCapReached && !bountyPausedOn() && (
                     <div style={{ marginBottom: 14, padding: "10px 14px", background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                         <span style={{ fontSize: 13 }}>⏳</span>

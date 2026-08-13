@@ -10,10 +10,13 @@ import {
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
   bountyDayUTC,
+  bountyPausedOn,
   getBountyDayResult,
   isBountyDayClosed,
   usdToGdollar,
 } from "../../../lib/bounty";
+// Pure config helper, so it comes straight from the dependency-free module.
+import { lastPayingDayAtOrBefore } from "../../../lib/bountyConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,14 +87,31 @@ export async function POST(req: NextRequest) {
   if (!address || !/^0x[0-9a-f]{40}$/.test(address)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
+  // Defaults to the last day that actually paid, which is yesterday while the
+  // bounty is running and the final pre-pause day while it is paused — a prize
+  // that is still owed must stay reachable, not fall behind a moving default.
   const day = body.day && /^\d{4}-\d{2}-\d{2}$/.test(body.day)
     ? body.day
-    : bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000);
+    : lastPayingDayAtOrBefore(bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000));
 
   // A day still in progress can still change places. Paying it early would let
   // someone claim first place and then be overtaken.
   if (!isBountyDayClosed(day)) {
     return NextResponse.json({ error: "That day hasn't finished yet. Claims open at 00:00 UTC." }, { status: 409 });
+  }
+
+  // Paused days pay nothing. Their standings already come back with zero money,
+  // so this is defence in depth — but it is also the honest error to show, since
+  // "nothing to claim for that day" would read as a bug to someone who topped a
+  // paused board. Days before the pause are unaffected and stay claimable.
+  if (bountyPausedOn(day)) {
+    return NextResponse.json(
+      {
+        error: "The daily bounty is paused, so that day has no prize. Prizes you won before the pause are still claimable.",
+        reason: "bounty-paused",
+      },
+      { status: 403 },
+    );
   }
 
   // Proves the caller controls the wallet. Without this anyone could claim
@@ -237,7 +257,7 @@ export async function GET(req: NextRequest) {
   const requested = req.nextUrl.searchParams.get("day");
   const day = requested && /^\d{4}-\d{2}-\d{2}$/.test(requested)
     ? requested
-    : bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000);
+    : lastPayingDayAtOrBefore(bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000));
 
   const [standings, claimed] = await Promise.all([
     getBountyDayResult(day),
@@ -248,6 +268,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     day,
     closed: isBountyDayClosed(day),
+    paused: bountyPausedOn(day),
     usd: mine?.totalUsd ?? 0,
     amountGdollar: mine?.totalUsd ? usdToGdollar(mine.totalUsd) : 0,
     rank: mine?.rank ?? null,

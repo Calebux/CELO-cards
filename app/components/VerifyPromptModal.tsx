@@ -11,6 +11,7 @@ import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
+  bountyPausedOn,
   formatGdollar,
 } from "../lib/bountyConfig";
 
@@ -129,7 +130,11 @@ export function VerifyPromptModal() {
             ["1", "Verify once", "Takes a minute. Lasts 6 months."],
             ["2", "Claim G$ daily", "Free, every single day."],
             ["3", "Buy a Season Pass", "100 G$ — your claims cover it."],
-            ["4", `Compete for $${total}`, `${BOUNTY_MIN_POINTS_TO_WIN}+ points a day (≈${formatGdollar(total)})`],
+            // Step 4 must not sell a prize that is currently paused — the
+            // sign-up promise is the one place a stale number does real damage.
+            bountyPausedOn()
+              ? ["4", "Climb the boards", "Daily prizes are paused for now — points still count"]
+              : ["4", `Compete for $${total}`, `${BOUNTY_MIN_POINTS_TO_WIN}+ points a day (≈${formatGdollar(total)})`],
           ].map(([n, title, body]) => (
             <div key={n} style={{ display: "flex", alignItems: "center", gap: 11 }}>
               <div style={{

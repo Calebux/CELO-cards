@@ -9,7 +9,7 @@ import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';
 import { hasWeb3AuthSessionHint, setWeb3AuthResuming } from './lib/web3authSession';
-import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_PARTICIPATION_POOL_USD, BOUNTY_POOL_USD, formatGdollar } from './lib/bountyConfig';
+import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_PARTICIPATION_POOL_USD, BOUNTY_POOL_USD, bountyIsFinalPayingDay, bountyPausedOn, formatGdollar } from './lib/bountyConfig';
 
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
@@ -459,27 +459,59 @@ export default function ActionOrderLandingPage() {
               {/* ── Daily bounty announcement ─────────────────────────── */}
               {/* Static copy on purpose: the landing defers everything it can
                   for LCP, and a standings fetch here would undo that. Live
-                  standings live on /leaderboard. */}
-              <Link href="/leaderboard" style={{
-                marginTop:8, display:"flex", alignItems:"center", justifyContent:"center",
-                gap:isMp ? 12 : 10, padding:isMp ? "11px 32px" : "10px 28px",
-                background:"linear-gradient(135deg, rgba(6,20,14,0.96), rgba(12,40,26,0.92))",
-                border:"1.5px solid rgba(74,222,128,0.55)", borderRadius:8,
-                textDecoration:"none", whiteSpace:"nowrap",
-              }}>
-                <span style={{ fontSize:isMp ? 16 : 15 }}>💰</span>
-                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:2, color:"#4ade80", textTransform:"uppercase" }}>Daily Bounty</span>
-                <span style={{ fontSize:isMp ? 15 : 14, fontWeight:900, color:"#fff", letterSpacing:-0.3 }}>
-                  ${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD}
-                </span>
-                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"#4ade80" }}>
-                  ≈{formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}
-                </span>
-                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)", textTransform:"uppercase" }}>
-                  daily · {BOUNTY_MIN_POINTS_TO_WIN}+ pts
-                </span>
-                <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#4ade80" }}>STANDINGS →</span>
-              </Link>
+                  standings live on /leaderboard.
+
+                  Three states, because the prize is paused: the pause notice,
+                  the last paying day (warned in advance rather than vanishing
+                  overnight), and the ordinary prize banner for when it resumes.
+                  A banner still advertising a prize we no longer pay would be
+                  the one thing on this page that isn't true. */}
+              {bountyPausedOn() ? (
+                <Link href="/leaderboard" style={{
+                  marginTop:8, display:"flex", alignItems:"center", justifyContent:"center",
+                  gap:isMp ? 12 : 10, padding:isMp ? "11px 32px" : "10px 28px",
+                  background:"linear-gradient(135deg, rgba(20,16,6,0.96), rgba(40,30,12,0.92))",
+                  border:"1.5px solid rgba(251,191,36,0.5)", borderRadius:8,
+                  textDecoration:"none", whiteSpace:"nowrap",
+                }}>
+                  <span style={{ fontSize:isMp ? 16 : 15 }}>⏸</span>
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase" }}>Daily Bounty</span>
+                  <span style={{ fontSize:isMp ? 14 : 13, fontWeight:900, color:"#fff", letterSpacing:0.5, textTransform:"uppercase" }}>
+                    Paused
+                  </span>
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)" }}>
+                    Resuming soon · points still count
+                  </span>
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#fbbf24" }}>STANDINGS →</span>
+                </Link>
+              ) : (
+                <Link href="/leaderboard" style={{
+                  marginTop:8, display:"flex", alignItems:"center", justifyContent:"center",
+                  gap:isMp ? 12 : 10, padding:isMp ? "11px 32px" : "10px 28px",
+                  background:"linear-gradient(135deg, rgba(6,20,14,0.96), rgba(12,40,26,0.92))",
+                  border:"1.5px solid rgba(74,222,128,0.55)", borderRadius:8,
+                  textDecoration:"none", whiteSpace:"nowrap",
+                }}>
+                  <span style={{ fontSize:isMp ? 16 : 15 }}>💰</span>
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:2, color:"#4ade80", textTransform:"uppercase" }}>Daily Bounty</span>
+                  <span style={{ fontSize:isMp ? 15 : 14, fontWeight:900, color:"#fff", letterSpacing:-0.3 }}>
+                    ${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD}
+                  </span>
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"#4ade80" }}>
+                    ≈{formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}
+                  </span>
+                  {bountyIsFinalPayingDay() ? (
+                    <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#fbbf24", textTransform:"uppercase" }}>
+                      Final day · pauses 00:00 UTC
+                    </span>
+                  ) : (
+                    <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)", textTransform:"uppercase" }}>
+                      daily · {BOUNTY_MIN_POINTS_TO_WIN}+ pts
+                    </span>
+                  )}
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#4ade80" }}>STANDINGS →</span>
+                </Link>
+              )}
             </div>
 
             {/* ── Match Resume Banner ──────────────────────────────── */}

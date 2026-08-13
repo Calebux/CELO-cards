@@ -24,9 +24,13 @@ import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
+  BOUNTY_PAUSED_FROM_DAY,
   BOUNTY_PRIZE_SPLIT_USD,
+  BOUNTY_RESUMES_ON_DAY,
   BOUNTY_TOP_N,
   bountyDayUTC,
+  bountyIsFinalPayingDay,
+  bountyPausedOn,
   bountyPrizeForRank,
   isBountyDayClosed,
   isBountyExcluded,
@@ -523,6 +527,40 @@ test("house: harder difficulty pays strictly more, and losing is unaffected", ()
   for (const d of [0, 1, 2, 3] as const) {
     assert.equal(houseMatchPoints({ won: false, flawless: false, rewardDifficulty: d }), 10);
   }
+});
+
+// ── Bounty pause: the window is closed, and it never moves backwards ─────────
+test("bounty pause: paused days pay nothing, earlier days keep their prize", () => {
+  const dayBefore = bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+
+  // The whole point of a window rather than a boolean: a day played before the
+  // pause was played for money and must stay claimable forever.
+  assert.equal(bountyPausedOn(dayBefore), false);
+  assert.equal(bountyPausedOn("2026-01-01"), false);
+  // The first paused day, and everything after it while the window is open.
+  assert.equal(bountyPausedOn(BOUNTY_PAUSED_FROM_DAY), true);
+
+  if (BOUNTY_RESUMES_ON_DAY) {
+    // Once a resume day is set, it and everything after it pays again, and the
+    // days inside the window stay unpaid rather than becoming claimable at once.
+    assert.equal(bountyPausedOn(BOUNTY_RESUMES_ON_DAY), false);
+    assert.ok(BOUNTY_RESUMES_ON_DAY > BOUNTY_PAUSED_FROM_DAY);
+    const lastPaused = bountyDayUTC(Date.parse(`${BOUNTY_RESUMES_ON_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+    assert.equal(bountyPausedOn(lastPaused), true);
+  } else {
+    // Open-ended pause: no future day pays.
+    assert.equal(bountyPausedOn("2099-01-01"), true);
+  }
+});
+
+test("bounty pause: the final paying day is the one before the window", () => {
+  // Drives the "last paying day" warning, so players are told before the prize
+  // stops rather than finding out from an empty prize column.
+  const dayBefore = bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+  assert.equal(bountyIsFinalPayingDay(dayBefore), true);
+  // Not the paused day itself, and not any ordinary paying day before it.
+  assert.equal(bountyIsFinalPayingDay(BOUNTY_PAUSED_FROM_DAY), false);
+  assert.equal(bountyIsFinalPayingDay(bountyDayUTC(Date.parse(`${dayBefore}T00:00:00Z`) - 24 * 60 * 60 * 1000)), false);
 });
 
 // ── Bounty claim timing: nothing is payable until the day has closed ─────────

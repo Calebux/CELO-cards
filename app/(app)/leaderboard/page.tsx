@@ -12,9 +12,13 @@ import { ClaimBountyButton } from "../../components/ClaimBountyButton";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
+  BOUNTY_PAUSE_BLURB,
+  BOUNTY_PAUSE_HEADLINE,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
+  bountyIsFinalPayingDay,
+  bountyPausedOn,
   formatGdollar,
 } from "../../lib/bountyConfig";
 
@@ -83,6 +87,11 @@ export default function Leaderboard() {
   // The bounty board leads: it is the only one that resets, the only one with a
   // prize, and the only one a new player can realistically enter today.
   const [tab, setTab] = useState<Tab>("bounty");
+  // The daily prize is paused, so this board is a points race for now. Every
+  // piece of prize copy below keys off this rather than being deleted, so
+  // resuming is a one-line change in bountyConfig.
+  const bountyPaused = bountyPausedOn();
+  const bountyFinalDay = bountyIsFinalPayingDay();
   const [players, setPlayers] = useState<Row[]>([]);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -158,11 +167,16 @@ export default function Leaderboard() {
   }, [isMp, tab]);
 
   // The bounty board has no W/L record — it trades those columns for the prize.
+  // While paused there is no prize to show, so the column goes rather than
+  // standing there empty or, worse, telling everyone how far they are from a
+  // payout that isn't coming.
   const gridCols = tab === "bounty"
-    ? (isCompact ? "64px 1fr 120px 130px" : "48px 1fr 90px 100px")
+    ? bountyPaused
+      ? (isCompact ? "64px 1fr 120px" : "48px 1fr 90px")
+      : (isCompact ? "64px 1fr 120px 130px" : "48px 1fr 90px 100px")
     : (isCompact ? "64px 1fr 120px 76px 76px 90px" : "48px 1fr 90px 60px 60px 70px");
   const columns = tab === "bounty"
-    ? ["#", "PLAYER", "POINTS", "PRIZE"]
+    ? (bountyPaused ? ["#", "PLAYER", "POINTS"] : ["#", "PLAYER", "POINTS", "PRIZE"])
     : ["#", "PLAYER", "POINTS", "W", "L", "WIN%"];
 
   // How many more points the signed-in player needs to hold a prize spot:
@@ -236,7 +250,9 @@ export default function Leaderboard() {
                   Leaderboard
                 </h2>
                 <p style={{ fontSize: isCompact ? 16 : 12, color: "#94a3b8", margin: "4px 0 0", letterSpacing: 0.5 }}>
-                  {SUBTITLES[tab]}
+                  {tab === "bounty" && bountyPaused
+                    ? "Today's points race — daily prizes are paused, resuming soon"
+                    : SUBTITLES[tab]}
                 </p>
               </div>
 
@@ -262,7 +278,9 @@ export default function Leaderboard() {
                       <span className="material-icons" style={{ fontSize: isCompact ? 18 : 13, color: tab === key ? "#56a4cb" : "#475569" }}>{icon}</span>
                       <span style={{ fontSize: isCompact ? 15 : 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
                     </div>
-                    <span style={{ fontSize: isCompact ? 12 : 9, color: tab === key ? "#56a4cb99" : "#334155", letterSpacing: 0.5, textTransform: "uppercase" }}>{hint}</span>
+                    <span style={{ fontSize: isCompact ? 12 : 9, color: tab === key ? "#56a4cb99" : "#334155", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                      {key === "bounty" && bountyPaused ? "Today · paused" : hint}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -278,8 +296,29 @@ export default function Leaderboard() {
               </div>
             )}
 
+            {/* Paused announcement. Replaces the prize explainer rather than
+                sitting beside it: two callouts, one promising a prize pool and
+                one saying it is paused, is worse than either alone.
+
+                The claim button stays — prizes won before the pause are still
+                owed, and it hides itself when there is nothing to collect. */}
+            {tab === "bounty" && bountyPaused && (
+              <div style={{ display: "flex", alignItems: "flex-start", flexWrap: "wrap", gap: 10, padding: "10px 14px", marginBottom: 12, background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.28)", borderRadius: 5 }}>
+                <span className="material-icons" style={{ fontSize: 15, color: "#fbbf24", marginTop: 1 }}>pause_circle</span>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ fontSize: isCompact ? 14 : 12, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                    {BOUNTY_PAUSE_HEADLINE} · resuming soon
+                  </div>
+                  <p style={{ margin: "4px 0 0", fontSize: isCompact ? 13 : 11, color: "#94a3b8", lineHeight: 1.55, letterSpacing: 0.3 }}>
+                    {BOUNTY_PAUSE_BLURB}
+                  </p>
+                </div>
+                <ClaimBountyButton compact={isCompact} />
+              </div>
+            )}
+
             {/* Daily bounty explainer + how far you are from a prize */}
-            {tab === "bounty" && (
+            {tab === "bounty" && !bountyPaused && (
               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 14px", marginBottom: 12, background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.22)", borderRadius: 5 }}>
                 <span className="material-icons" style={{ fontSize: 14, color: "#4ade80" }}>paid</span>
                 <span style={{ fontSize: isCompact ? 13 : 11, color: "#94a3b8", letterSpacing: 0.3 }}>
@@ -290,6 +329,13 @@ export default function Leaderboard() {
                   <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points.
                   {" "}Paid in G$ — 1st takes ≈{formatGdollar(BOUNTY_PRIZE_SPLIT_USD[0])}.
                 </span>
+                {/* Said on the last paying day, so the prize does not simply
+                    disappear overnight without warning. */}
+                {bountyFinalDay && (
+                  <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.3 }}>
+                    Last paying day — the bounty pauses at 00:00 UTC and resumes soon. Today still pays.
+                  </span>
+                )}
                 {/* Payouts are manual, so someone who has qualified needs a place
                     to actually collect rather than waiting and wondering. */}
                 {/* Yesterday's prize, paid straight to the wallet. Today's
@@ -443,9 +489,11 @@ export default function Leaderboard() {
                     {tab === "bounty" ? "No points scored today yet" : "No matches recorded yet"}
                   </p>
                   <p style={{ fontSize: 11, color: "#334155", letterSpacing: 0.5 }}>
-                    {tab === "bounty"
-                      ? `Be first — ${BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} points takes a share of $${BOUNTY_POOL_USD}`
-                      : "Play a match to appear here"}
+                    {tab !== "bounty"
+                      ? "Play a match to appear here"
+                      : bountyPaused
+                        ? "Play a match to take the top of today's board"
+                        : `Be first — ${BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} points takes a share of $${BOUNTY_POOL_USD}`}
                   </p>
                 </div>
               ) : (
@@ -511,13 +559,13 @@ export default function Leaderboard() {
                       <span style={{
                         fontSize: isCompact ? 18 : 14,
                         fontWeight: 800,
-                        color: tab === "bounty" && !p.qualified ? "#64748b" : "#f1f5f9",
+                        color: tab === "bounty" && !bountyPaused && !p.qualified ? "#64748b" : "#f1f5f9",
                       }}>
                         {p.points.toLocaleString()}
                       </span>
 
                       {tab === "bounty" ? (
-                        (p.totalUsd ?? 0) > 0 ? (
+                        bountyPaused ? null : (p.totalUsd ?? 0) > 0 ? (
                           <span style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                             <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 800, color: "#4ade80" }}>
                               ${p.totalUsd}

@@ -46,6 +46,16 @@ export function ClaimBountyButton({ compact = false }: { compact?: boolean }) {
 
   const done = info.alreadyClaimed || !!txHash;
 
+  // Which day this prize is for. Unstated while the bounty ran — it was always
+  // yesterday — but during the pause the claimable day stops moving, so a bare
+  // "Claim $5" would look like a prize for a day that paid nothing.
+  const dayLabel =
+    info.day === new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      ? null
+      : new Date(`${info.day}T00:00:00Z`).toLocaleDateString(undefined, {
+          weekday: "short", day: "numeric", month: "short", timeZone: "UTC",
+        });
+
   const claim = async () => {
     setError("");
     setBusy(true);
@@ -78,7 +88,7 @@ export function ClaimBountyButton({ compact = false }: { compact?: boolean }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         <span style={{ fontSize: compact ? 12 : 11, fontWeight: 800, color: "#4ade80", letterSpacing: 0.3 }}>
-          ✅ Paid · {formatGdollar(info.usd)}
+          ✅ Paid · {formatGdollar(info.usd)}{dayLabel ? ` · ${dayLabel}` : ""}
         </span>
         {txHash && (
           <a href={`https://celoscan.io/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
@@ -103,7 +113,9 @@ export function ClaimBountyButton({ compact = false }: { compact?: boolean }) {
           opacity: busy ? 0.7 : 1,
         }}
       >
-        {busy ? "Claiming…" : `💰 Claim $${info.usd} (${formatGdollar(info.usd)})`}
+        {busy
+          ? "Claiming…"
+          : `💰 Claim $${info.usd} (${formatGdollar(info.usd)})${dayLabel ? ` · ${dayLabel}` : ""}`}
       </button>
       {error && (
         <span role="alert" style={{ fontSize: compact ? 11 : 9.5, color: "#f87171", lineHeight: 1.4 }}>{error}</span>

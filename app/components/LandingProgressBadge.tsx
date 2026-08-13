@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useGameStore } from "../lib/gameStore";
-import { BOUNTY_MIN_POINTS_TO_WIN } from "../lib/bountyConfig";
+import { BOUNTY_MIN_POINTS_TO_WIN, bountyPausedOn } from "../lib/bountyConfig";
 
 type BountyMe = { points: number; rank: number | null; qualified: boolean; totalUsd: number; winsUsed: number; winsAllowed: number };
 type BountyResponse = { you?: BountyMe | null; careerPoints?: number | null };
@@ -51,10 +51,14 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
   }, [address]);
 
   const points = me?.points ?? 0;
-  const qualified = me?.qualified ?? false;
+  // While the daily prize is paused, nothing here is a race to a threshold, so
+  // the progress bar and the "N to bounty" nudge would be measuring a distance
+  // to nowhere. Today's points still show — they still count on the boards.
+  const paused = bountyPausedOn();
+  const qualified = !paused && (me?.qualified ?? false);
   const remaining = Math.max(0, BOUNTY_MIN_POINTS_TO_WIN - points);
   const pct = Math.min(100, (points / BOUNTY_MIN_POINTS_TO_WIN) * 100);
-  const capReached = !!me && me.winsAllowed > 0 && me.winsUsed >= me.winsAllowed;
+  const capReached = !paused && !!me && me.winsAllowed > 0 && me.winsUsed >= me.winsAllowed;
 
   return (
     <div className="ko-points-badge" style={{ top: isCompact ? 656 : 596 }}>
@@ -69,11 +73,15 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
         </span>
         {address && (
           <>
-            <div style={{ width: "100%", height: 3, borderRadius: 2, background: "rgba(148,163,184,0.2)", marginTop: 4, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: qualified ? "#4ade80" : "#56a4cb", transition: "width .3s" }} />
-            </div>
+            {!paused && (
+              <div style={{ width: "100%", height: 3, borderRadius: 2, background: "rgba(148,163,184,0.2)", marginTop: 4, overflow: "hidden" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: qualified ? "#4ade80" : "#56a4cb", transition: "width .3s" }} />
+              </div>
+            )}
             <span style={{ fontSize: 9, fontWeight: 600, color: qualified ? "#4ade80" : capReached ? "#fbbf24" : "#64748b", letterSpacing: 0.3, marginTop: 2 }}>
-              {qualified
+              {paused
+                ? `Today ${points.toLocaleString()} pts · bounty paused`
+                : qualified
                 ? `Today ${points.toLocaleString()} · in the money`
                 : capReached
                   // A silent limit is the worst version of this: the player keeps
