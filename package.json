@@ -18,6 +18,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@goodagent/widget": "0.3.5",
     "@goodsdks/citizen-sdk": "^1.2.7",
     "@rainbow-me/rainbowkit": "^2.2.4",
     "@tanstack/react-query": "^5.72.2",
