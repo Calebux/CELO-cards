@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../../lib/gameStore";
+import { BOUNTY_WINS_PER_DAY, bountyPausedOn } from "../../lib/bountyConfig";
 import { Card, getArenaBackground, CHARACTERS } from "../../lib/gameData";
 import { SlotResult } from "../../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic } from "../../lib/soundManager";
@@ -101,6 +102,7 @@ export default function Gameplay() {
     upperChamberRound,
     advanceUpperChamber,
     addBonusPoints,
+    bountyCapReached,
   } = useGameStore();
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -370,13 +372,28 @@ export default function Gameplay() {
     }
   }, [matchPhase, markOnboardingStep]);
 
+  // True only if the page was ALREADY showing a finished match when this
+  // component first mounted — i.e. stale state restored from the persisted
+  // store, not a match that just ended in front of the player.
+  const arrivedOnFinishedMatch = useRef(matchPhase === "match-end").current;
+
   useEffect(() => {
     if (matchPhase !== "match-end" || typeof window === "undefined") return;
+    // Only a restored, already-finished match should be discarded. A match that
+    // ends live must keep its result screen.
+    //
+    // This used to check the navigation type alone, but
+    // PerformanceNavigationTiming describes the DOCUMENT load and never changes
+    // across client-side routing — so one refresh anywhere earlier in the tab
+    // left type = "reload" for the whole session, and every match completed
+    // afterwards was reset and bounced to the landing page before its stats
+    // could render.
+    if (!arrivedOnFinishedMatch) return;
     const navEntry = window.performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
     if (navEntry?.type !== "reload") return;
     resetMatch();
     router.replace("/");
-  }, [matchPhase, resetMatch, router]);
+  }, [arrivedOnFinishedMatch, matchPhase, resetMatch, router]);
 
   const applyScale = useCallback(() => {
     if (!wrapRef.current) return;
@@ -1710,6 +1727,30 @@ export default function Gameplay() {
                       <span style={{ fontSize: 12, fontWeight: 700, color: winStreak >= 5 ? "#fbbf24" : "#fb923c", letterSpacing: 0.5 }}>
                         {winStreak >= 5 ? "2× BONUS" : "1.5× BONUS"} ACTIVE
                       </span>
+                    </div>
+                  )}
+
+                  {/* Daily bounty allowance spent. The win still scored on the
+                      career leaderboard, but the bounty total did not move — and
+                      without saying so the player just watches the number refuse
+                      to change and assumes it is broken. */}
+                  {/* Nothing to explain while the prize is paused: the notice
+                      exists only to account for a bounty total that refused to
+                      move, and there is no bounty total at stake right now. */}
+                  {won && bountyCapReached && !bountyPausedOn() && (
+                    <div style={{ marginBottom: 14, padding: "10px 14px", background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 13 }}>⏳</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase" }}>
+                          Didn&apos;t beat your top {BOUNTY_WINS_PER_DAY}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: "#cbd5e1" }}>
+                        Your <strong style={{ color: "#e2e8f0" }}>best {BOUNTY_WINS_PER_DAY} House wins</strong> each day count toward the bounty, and this one
+                        didn&apos;t beat any of them. It still counts toward your total points and the leaderboard. Resets 00:00 UTC.
+                        <br />
+                        <span style={{ color: "#fbbf24", fontWeight: 700 }}>Win on a harder tier and it replaces a weaker one:</span> Hard pays 2× per win, Boss fights always count.
+                      </p>
                     </div>
                   )}
 

@@ -7,8 +7,7 @@ import {
   GDOLLAR_CONTRACT,
   GDOLLAR_ABI,
   PAYOUT_AMOUNT_GDOLLAR,
-  IDENTITY_CONTRACT,
-  IDENTITY_ABI,
+  resolveGoodDollarIdentity,
 } from "../../lib/gooddollar";
 import { checkRateLimit } from "../../lib/rateLimit";
 
@@ -50,29 +49,33 @@ export async function POST(req: NextRequest) {
 
   const publicClient = createPublicClient({ chain: celo, transport: http() });
 
-  // Eligibility (C-04): only a GoodDollar-verified wallet can claim, matching
-  // the real UBI claim's gate. This ties the free G$ to a unique verified human
+  // Eligibility (C-04): only a G$ verified identity can claim, matching the
+  // real UBI claim's gate. This ties the free G$ to a unique verified human
   // instead of any address, so the treasury can't be sprayed across throwaways.
-  let isVerified = false;
+  //
+  // Resolved through the identity root, not the connected wallet: a player can
+  // link several wallets to one G$ identity, and a linked wallet reads as
+  // unverified on its own.
+  let identity;
   try {
-    isVerified = await publicClient.readContract({
-      address: IDENTITY_CONTRACT,
-      abi: IDENTITY_ABI,
-      functionName: "isWhitelisted",
-      args: [address as `0x${string}`],
-    });
+    identity = await resolveGoodDollarIdentity(publicClient, address);
   } catch {
     // Identity read failed — fail closed rather than paying an unverified wallet.
     return NextResponse.json({ error: "Could not verify eligibility. Try again." }, { status: 503 });
   }
-  if (!isVerified) {
+  if (!identity.isVerified) {
     return NextResponse.json({ error: "Claim your GoodDollar verification to receive daily rewards." }, { status: 403 });
   }
 
   // Atomic one-time-per-day claim (C-04): reserve the day key before paying so
   // concurrent requests can't both pass and double-pay. Reserving up front also
   // means a failed transfer below releases the key so the user can retry.
-  const claimKey = `daily-reward:${address.toLowerCase()}:${todayStr()}`;
+  //
+  // Keyed on the identity root rather than the connected wallet — otherwise a
+  // player with N linked wallets draws N daily rewards from the treasury. The
+  // key is unchanged for a wallet that is its own root, which is every wallet
+  // that has not linked.
+  const claimKey = `daily-reward:${identity.identityKey}:${todayStr()}`;
   const reserved = await redis.set(claimKey, "1", { nx: true, ex: secondsUntilUtcMidnight() });
   if (!reserved) {
     return NextResponse.json({ claimed: true });

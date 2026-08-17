@@ -449,8 +449,12 @@ async function getOnChainStats() {
         .multicall({
           contracts: realWallets.map((wallet) => ({
             address: IDENTITY_CONTRACT,
+            // getWhitelistedRoot, not isWhitelisted: a wallet linked to a G$
+            // identity reads as unverified when asked about itself, so the old
+            // count silently understated how many of our players are verified.
+            // A non-zero root means verified.
             abi: IDENTITY_ABI,
-            functionName: "isWhitelisted" as const,
+            functionName: "getWhitelistedRoot" as const,
             args: [wallet as `0x${string}`],
           })),
           allowFailure: true,
@@ -458,11 +462,22 @@ async function getOnChainStats() {
         .catch(() => [])
     : [];
 
-  const verifiedGoodDollar = verifiedResults.filter((r) => r.status === "success" && r.result === true).length;
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  const roots = verifiedResults
+    .filter((r) => r.status === "success" && typeof r.result === "string" && r.result.toLowerCase() !== ZERO)
+    .map((r) => (r.result as string).toLowerCase());
+
+  // Wallets belonging to a verified identity. Kept wallet-denominated so it
+  // stays comparable to distinctRealWallets on the same row.
+  const verifiedGoodDollar = roots.length;
+  // Distinct humans behind those wallets: several linked wallets collapse to
+  // one root, so this is the honest "verified users" figure.
+  const verifiedIdentities = new Set(roots).size;
 
   return {
     distinctRealWallets: realWallets.length,
     verifiedGoodDollar,
+    verifiedIdentities,
     unverified: realWallets.length - verifiedGoodDollar,
     passesSoldGdollar: Number(passesSoldGdollar),
     passesSoldCelo: Number(passesSoldCelo),
@@ -490,7 +505,7 @@ export async function getBalanceDashboard() {
     withFallback(getRankedDashboardSnapshot(), { aggregate: { updatedAt: 0, totalMatches: 0, totalRounds: 0, totalMatchDurationMs: 0, totalRoundDurationMs: 0, cards: {}, characters: {}, skillBuckets: {}, matchups: {} }, totalCardPicks: 0, averageMatchMinutes: 0, averageRoundSeconds: 0, mirrorMatchRate: 0, topCards: [], characterRows: [], skillRows: [] }, "ranked snapshot"),
     withFallback(getOpsActivitySnapshot(), { house: { totalMatches: 0, winRate: 0, wageredMatches: 0, averagePointsEarned: 0, recentMatches: [], winnerRewardsIssued: 0, winnerRewardUsdTotal: 0, recentWinnerRewards: [] }, blackMarket: { totalPurchases: 0, uniqueBuyers: 0, gdollarPurchases: 0, usdtPurchases: 0, celoPurchases: 0, revenuePoints: 0, recentPurchases: [] }, auth: { total: 0, last24h: 0, byReason: {}, byDevice: {}, byStage: {}, resumeSamples: 0, medianResumeMs: null, resumesSlowerThan3s: 0, recentFailures: [] } }, "ops activity"),
     withFallback(getAudienceMetrics(), { totalPlayers: 0, dailyPlayers: 0, weeklyPlayers: 0, monthlyPlayers: 0, transactions: 0, transactions24h: 0, transactions7d: 0, transactions30d: 0, trackedVolumeUsdt: 0, trackedVolumeCelo: 0, trackedVolumeGdollar: 0 }, "audience metrics"),
-    withFallback(getOnChainStats(), { distinctRealWallets: 0, verifiedGoodDollar: 0, unverified: 0, passesSoldGdollar: 0, passesSoldCelo: 0, totalPassesSold: 0, walletsComplete: false }, "on-chain stats"),
+    withFallback(getOnChainStats(), { distinctRealWallets: 0, verifiedGoodDollar: 0, verifiedIdentities: 0, unverified: 0, passesSoldGdollar: 0, passesSoldCelo: 0, totalPassesSold: 0, walletsComplete: false }, "on-chain stats"),
     withFallback(getRetentionMetrics(), emptyRetention, "retention"),
     withFallback(getTransactionHealthMetrics(), emptyTxHealth, "tx health"),
   ]);

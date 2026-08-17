@@ -17,6 +17,7 @@ type RedisLike = {
   smembers(key: string): Promise<string[]>;
   mget<T>(...keys: string[]): Promise<(T | null)[]>;
   incr(key: string): Promise<number>;
+  incrby(key: string, increment: number): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
   zadd(
     key: string,
@@ -82,6 +83,10 @@ function createDisabledRedis(): RedisLike {
     async incr() {
       warn();
       return 1;
+    },
+    async incrby() {
+      warn();
+      return 0;
     },
     async expire() {
       warn();

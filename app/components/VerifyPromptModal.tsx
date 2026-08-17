@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { isMiniPay } from "../lib/minipay";
-import { VerifyButton, useIsVerified } from "./VerifyButton";
+import { GDOLLAR_CONNECT_WALLET_DOCS } from "../lib/gooddollar";
+import { useGoodDollarStatus } from "../lib/useGoodDollarStatus";
+import { VerifyButton } from "./VerifyButton";
 import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
+  bountyPausedOn,
   formatGdollar,
 } from "../lib/bountyConfig";
 
@@ -31,7 +34,7 @@ const ACCENT = "#00C58E";
 export function VerifyPromptModal() {
   const { address, isConnected } = useAccount();
   const playerName = useGameStore((s) => s.playerName);
-  const isVerified = useIsVerified();
+  const status = useGoodDollarStatus();
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
 
@@ -42,9 +45,12 @@ export function VerifyPromptModal() {
     if (!isConnected || !address) return;
     // Only once they have a name: before that the username modal owns the screen.
     if (!playerName) return;
-    // undefined means the on-chain check is still loading — do not flash this at
-    // someone who turns out to be verified already.
-    if (isVerified !== false) return;
+    // Only for players who have never verified. Someone whose verification
+    // lapsed also reads as unverified, but this modal's copy is a first-time
+    // pitch — ReverifyModal owns that case, and both firing at once would stack
+    // two dialogs on one player. undefined means the chain read is still in
+    // flight; do not flash this at someone who turns out to be verified.
+    if (status?.status !== "never") return;
     try {
       if (window.localStorage.getItem(SEEN_KEY) === "1") return;
     } catch {}
@@ -52,12 +58,12 @@ export function VerifyPromptModal() {
     // Let the username modal finish its own close animation first.
     const timer = window.setTimeout(() => setShow(true), 1200);
     return () => window.clearTimeout(timer);
-  }, [address, isConnected, playerName, isVerified]);
+  }, [address, isConnected, playerName, status?.status]);
 
   // Verifying navigates away and back; if they return verified, never re-ask.
   useEffect(() => {
-    if (isVerified === true) setShow(false);
-  }, [isVerified]);
+    if (status?.status === "verified") setShow(false);
+  }, [status?.status]);
 
   const dismiss = () => {
     try {
@@ -95,9 +101,27 @@ export function VerifyPromptModal() {
         <h2 style={{ margin: 0, fontSize: 25, fontWeight: 900, color: "#fff", lineHeight: 1.2 }}>
           You&apos;re in{playerName ? `, ${playerName}` : ""} 👋
         </h2>
-        <p style={{ margin: "10px 0 18px", fontSize: 14, color: "#94a3b8", lineHeight: 1.6 }}>
-          Verify your identity once to unlock <strong style={{ color: ACCENT }}>free G$ every day</strong>.
+        <p style={{ margin: "10px 0 12px", fontSize: 14, color: "#94a3b8", lineHeight: 1.6 }}>
+          Get <strong style={{ color: ACCENT }}>G$ Verified</strong> once to unlock{" "}
+          <strong style={{ color: ACCENT }}>free G$ every day</strong>.
           That pays for your Season Pass — so you can compete without spending your own money.
+        </p>
+
+        {/* Verification is one-per-person, not one-per-wallet: anyone already G$
+            Verified elsewhere gets rejected as a duplicate if they try again,
+            and the only way through is linking that wallet to this one. Said up
+            front because the rejection itself explains none of this. */}
+        <p style={{ margin: "0 0 18px", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+          Already G$ Verified on another wallet? You can&apos;t verify twice —{" "}
+          <a
+            href={GDOLLAR_CONNECT_WALLET_DOCS}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#94a3b8", textDecoration: "underline" }}
+          >
+            link that wallet to this one
+          </a>{" "}
+          instead.
         </p>
 
         {/* The chain, in the order they'll actually experience it. */}
@@ -106,7 +130,11 @@ export function VerifyPromptModal() {
             ["1", "Verify once", "Takes a minute. Lasts 6 months."],
             ["2", "Claim G$ daily", "Free, every single day."],
             ["3", "Buy a Season Pass", "100 G$ — your claims cover it."],
-            ["4", `Compete for $${total}`, `${BOUNTY_MIN_POINTS_TO_WIN}+ points a day (≈${formatGdollar(total)})`],
+            // Step 4 must not sell a prize that is currently paused — the
+            // sign-up promise is the one place a stale number does real damage.
+            bountyPausedOn()
+              ? ["4", "Climb the boards", "Daily prizes are paused for now — points still count"]
+              : ["4", `Compete for $${total}`, `${BOUNTY_MIN_POINTS_TO_WIN}+ points a day (≈${formatGdollar(total)})`],
           ].map(([n, title, body]) => (
             <div key={n} style={{ display: "flex", alignItems: "center", gap: 11 }}>
               <div style={{

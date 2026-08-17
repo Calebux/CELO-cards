@@ -4,6 +4,74 @@
 // importing it from bounty.ts would pull redis and viem into the LCP-critical
 // client bundle. Server logic re-exports these from bounty.ts.
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE DAILY BOUNTY IS PAUSED.
+//
+// Days inside the pause window score points as normal but pay no prize, and
+// that is enforced server-side — standings return zero money and
+// /api/bounty/claim refuses the day outright, so a stale client cannot claim
+// one. Days BEFORE the window keep everything they were owed and stay
+// claimable, because ending the bounty must not strand money already earned.
+//
+// A window rather than an on/off switch, because the question is always "was
+// THIS day playing for money", and the answer for a day already played must
+// never change. A boolean flipped back on would retroactively make every paused
+// day claimable at once.
+//
+// To resume: set BOUNTY_RESUMES_ON_DAY to the first UTC day that pays again.
+// Days inside the window stay permanently unpaid.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * First UTC day that pays nothing — the day the bounty stopped.
+ *
+ * Today, so today's board pays nothing and never becomes claimable. Days before
+ * it are untouched: whatever they were owed is still owed, and still claimable.
+ */
+export const BOUNTY_PAUSED_FROM_DAY = "2026-08-13";
+
+/** First UTC day that pays again. Null while the pause is open-ended. */
+export const BOUNTY_RESUMES_ON_DAY: string | null = null;
+
+/** ISO UTC day, e.g. "2026-08-13". ISO dates compare correctly as strings. */
+export function bountyDayUTC(at: number = Date.now()): string {
+  return new Date(at).toISOString().slice(0, 10);
+}
+
+/** Whether a given UTC day pays no prize. */
+export function bountyPausedOn(day: string = bountyDayUTC()): boolean {
+  if (day < BOUNTY_PAUSED_FROM_DAY) return false;
+  return BOUNTY_RESUMES_ON_DAY === null || day < BOUNTY_RESUMES_ON_DAY;
+}
+
+/**
+ * The last day that still pays before the pause begins, so the UI can warn
+ * players in advance instead of the prize silently vanishing overnight.
+ */
+export function bountyIsFinalPayingDay(day: string = bountyDayUTC()): boolean {
+  if (bountyPausedOn(day)) return false;
+  return bountyPausedOn(bountyDayUTC(Date.parse(`${day}T00:00:00Z`) + 24 * 60 * 60 * 1000));
+}
+
+/**
+ * The most recent day that still paid, at or before `day`.
+ *
+ * The claim UI has to keep looking back at that day for as long as the pause
+ * lasts. Defaulting to "yesterday" was fine while the bounty ran, but the moment
+ * yesterday itself falls inside the pause window it reports nothing to claim —
+ * and an unclaimed prize from the last paying day becomes unreachable in the app
+ * even though it is still owed.
+ */
+export function lastPayingDayAtOrBefore(day: string = bountyDayUTC()): string {
+  if (!bountyPausedOn(day)) return day;
+  return bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+}
+
+/** Player-facing pause copy, kept in one place so every surface says the same. */
+export const BOUNTY_PAUSE_HEADLINE = "Daily bounty paused";
+export const BOUNTY_PAUSE_BLURB =
+  "The daily prize pool is on hold for now — it will resume soon. Matches, points and the leaderboards all keep running, and any prize you already won is still claimable.";
+
 // A fixed daily pool shared by the top 3, tiered rather than split evenly: the
 // tiers sum to exactly the pool and keep first place worth chasing, where an
 // even split would be $3.33 each and awkward to pay. Change to [4, 3, 3] (or
@@ -20,10 +88,15 @@ export function bountyPrizeForRank(rank: number): number {
 // a single match could take the pool — which rewards showing up at the right
 // moment rather than actually competing.
 //
-// For scale: a boss win pays 100–200, a ranked PvP win 150 and a loss 25. So
-// 500 is roughly three to four decent wins — enough to mean "played today",
-// low enough to stay reachable in one sitting.
-export const BOUNTY_MIN_POINTS_TO_WIN = 500;
+// Set against real boards rather than guessed. At 500 almost anyone who turned
+// up qualified; at 1500 four of the five days measured would have paid nobody —
+// one winner scored 1475 and missed by twenty-five points. 1000 filters casual
+// play while staying reachable for the people actually competing, and sits just
+// under a typical third place.
+//
+// For scale: a hard boss win pays 200 (300 flawless), a ranked PvP win 150, and
+// the daily cap of ten counted wins puts the ceiling near 3,100.
+export const BOUNTY_MIN_POINTS_TO_WIN = 1000;
 
 export function meetsBountyThreshold(points: number): boolean {
   return points >= BOUNTY_MIN_POINTS_TO_WIN;
@@ -91,3 +164,8 @@ export function formatGdollar(usd: number): string {
 // Where winners go to claim. Payouts are manual, so a player who qualifies needs
 // somewhere to actually collect rather than waiting and wondering.
 export const BOUNTY_CLAIM_URL = "https://t.me/actionorder/3";
+
+// Daily House wins that count toward the bounty. Lives here rather than in
+// bounty.ts so client components can show the limit without pulling in redis.
+// bounty.ts re-exports it as HOUSE_WINS_COUNTED_PER_DAY.
+export const BOUNTY_WINS_PER_DAY = 10;

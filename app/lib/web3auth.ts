@@ -60,14 +60,27 @@ async function getWeb3Auth(): Promise<any> {
     const isMobileBrowser =
       /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(ua) || isDesktopModeIOS;
 
+    // Session length is OPT-IN, and unset by default.
+    //
+    // The dashboard's default is short — around a day — so daily players get
+    // signed out roughly every day. Requesting a longer session is the fix, but
+    // asking for 30 days made Web3Auth reject social login outright with
+    // subscription error 1003 ("can't fetch Google API" to the user), and every
+    // Gmail sign-in broke. Which durations a plan allows is not discoverable
+    // from here, so this stays behind an env var: unset, the code path is
+    // byte-for-byte what ships today and carries no risk. Set it, deploy, try a
+    // Gmail sign-in, and unset it again if 1003 comes back.
+    const sessionDays = Number(process.env.NEXT_PUBLIC_WEB3AUTH_SESSION_DAYS);
+    const sessionTime = Number.isFinite(sessionDays) && sessionDays > 0
+      ? Math.min(30, sessionDays) * 86_400
+      : null;
+
     const instance = new Web3AuthClass({
       clientId: CLIENT_ID,
       web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
       chains: [{ ...fromViemChain(celo), rpcTarget: WEB3AUTH_RPC_TARGET }],
       defaultChainId: `0x${celo.id.toString(16)}`,
-      // Let the dashboard supply the session duration. The Base plan only
-      // supports its default duration; requesting 30 days makes Web3Auth reject
-      // social/email initialization with subscription error 1003.
+      ...(sessionTime !== null && { sessionTime }),
       ...(isMobileBrowser && {
         uiConfig: { uxMode: "redirect" as const },
       }),

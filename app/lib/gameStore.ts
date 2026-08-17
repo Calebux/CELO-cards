@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Card, Character, CARDS, CHARACTERS, buildDeck } from "./gameData";
 import { MultiplayerMode } from "./matchmaking";
+import { resolveAiDifficulty } from "./houseDifficulty";
 import { createEmptyOnboardingProgress, getOnboardingSteps, isOnboardingComplete, OnboardingProgress, OnboardingStepId } from "./onboarding";
 import { isMiniPay } from "./minipayRuntime";
 import { emptyCardPerformance } from "./cardProgress";
@@ -94,6 +95,11 @@ interface GameState {
     aiDifficulty: 0 | 1 | 2;
     setAiDifficulty: (d: 0 | 1 | 2) => void;
 
+    // True when the last finished win scored on the career leaderboard but not
+    // toward the daily bounty, because the day's win allowance was spent. Shown
+    // on the result screen — a silent cap reads as the game being broken.
+    bountyCapReached: boolean;
+
     // Upper Chamber — 5-fight streak mode
     upperChamberActive: boolean;
     upperChamberRound: number;   // 0-indexed (0–4)
@@ -179,6 +185,7 @@ interface GameState {
 
     // Premium Cards
     unlockedPremiumCards: string[];
+    hydrateUnlockedCards: (cardIds: string[]) => void;
     attunedCardIds: string[];
     activeAttunedCardIds: string[];
     attunementSurgeUsed: boolean;
@@ -235,6 +242,7 @@ export const useGameStore = create<GameState>()(
     setVsBot: (v) => set({ vsBot: v }),
     aiDifficulty: 1,
     setAiDifficulty: (d) => set({ aiDifficulty: d }),
+    bountyCapReached: false,
     upperChamberActive: false,
     upperChamberRound: 0,
     setUpperChamberActive: (v) => set({ upperChamberActive: v }),
@@ -314,6 +322,15 @@ export const useGameStore = create<GameState>()(
     ultimateUsed: false,
     playerTaunt: null,
     unlockedPremiumCards: [],
+    // Server is the authority on what a player owns: it is written only after a
+    // payment is verified on-chain, and trades remove from it. Replacing rather
+    // than merging keeps a traded-away card from lingering locally forever.
+    hydrateUnlockedCards: (cardIds) => set((state) => {
+        const next = [...new Set(cardIds)].sort();
+        const current = [...state.unlockedPremiumCards].sort();
+        if (next.length === current.length && next.every((id, i) => id === current[i])) return state;
+        return { unlockedPremiumCards: next };
+    }),
     attunedCardIds: [],
     activeAttunedCardIds: [],
     attunementSurgeUsed: false,
@@ -613,14 +630,11 @@ export const useGameStore = create<GameState>()(
     lockOrder: async () => {
         const { currentOrder, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, ultimateActivated, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed, upperChamberActive, upperChamberRound } = get();
         const playerCards = currentOrder.filter((c): c is Card => c !== null);
-        const difficulty: 0 | 1 | 2 | 3 =
-            upperChamberActive && upperChamberRound >= 3
-                ? 3
-                : aiDifficulty === 0
-                    ? 0
-                    : winStreak >= 2
-                        ? 2
-                        : aiDifficulty;
+        const difficulty: 0 | 1 | 2 | 3 = resolveAiDifficulty({
+            chosen: aiDifficulty,
+            upperChamberActive,
+            upperChamberRound,
+        });
 
         if (!playerRole) {
             // VS House path — use server-side resolution
@@ -649,6 +663,7 @@ export const useGameStore = create<GameState>()(
                         matchPhase: "combat",
                         revealedSlots: 0,
                         currentRoundResult: null,
+                        bountyCapReached: !!data.bountyCapReached,
                         ultimateUsed: ultimateActivated ? true : get().ultimateUsed,
                         ultimateActivated: false,
                     });
@@ -696,14 +711,11 @@ export const useGameStore = create<GameState>()(
     autoLockOrder: async () => {
         const { playerDeck, selectedCharacter, opponentCharacter, playerRoundsWon, opponentRoundsWon, winStreak, aiDifficulty, playerAddress, matchId, playerRole, playerName, wagerActive, activeAttunedCardIds, attunementSurgeUsed, upperChamberActive, upperChamberRound } = get();
         const autoOrder = playerDeck.slice(0, 5);
-        const difficulty: 0 | 1 | 2 | 3 =
-            upperChamberActive && upperChamberRound >= 3
-                ? 3
-                : aiDifficulty === 0
-                    ? 0
-                    : winStreak >= 2
-                        ? 2
-                        : aiDifficulty;
+        const difficulty: 0 | 1 | 2 | 3 = resolveAiDifficulty({
+            chosen: aiDifficulty,
+            upperChamberActive,
+            upperChamberRound,
+        });
 
         if (!playerRole) {
             // VS House path — use server-side resolution
@@ -732,6 +744,7 @@ export const useGameStore = create<GameState>()(
                         matchPhase: "combat",
                         revealedSlots: 0,
                         currentRoundResult: null,
+                        bountyCapReached: !!data.bountyCapReached,
                     });
                     return;
                 }

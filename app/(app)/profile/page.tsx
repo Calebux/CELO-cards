@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../../lib/gameStore";
 import { ClaimGDollar } from "../../components/ClaimGDollar";
+import { TransferFundsModal } from "../../components/TransferFundsModal";
 import { CardPreviewModal } from "../../components/CardPreviewModal";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { CARDS } from "../../lib/gameData";
@@ -56,6 +57,7 @@ export default function ProfilePage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const isMp = useMiniPayMode();
+  const [showTransfer, setShowTransfer] = useState(false);
   const { address } = useAccount();
   const safeTop = "env(safe-area-inset-top)";
   const safeBottom = "env(safe-area-inset-bottom)";
@@ -423,6 +425,25 @@ export default function ProfilePage() {
 
             {/* G$ UBI Claim — hidden in MiniPay (USDT-only env) */}
             {!isMp && <ClaimGDollar />}
+
+            {/* Withdraw — web only. A Web3Auth wallet has no seed phrase to
+                import elsewhere, so without this a player's balance is stuck in
+                the app. MiniPay users already have their own wallet UI. */}
+            {!isMp && address && (
+              <button
+                onClick={() => setShowTransfer(true)}
+                style={{
+                  width: "100%", marginTop: 10, padding: isProfileCompact ? "14px 0" : "11px 0",
+                  borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                  background: "rgba(0,197,142,0.10)", border: "1px solid rgba(0,197,142,0.35)",
+                  color: "#00C58E", fontSize: isProfileCompact ? 13 : 12, fontWeight: 800,
+                  letterSpacing: 1.2, textTransform: "uppercase",
+                }}
+              >
+                ↗ Send funds out
+              </button>
+            )}
+            {showTransfer && <TransferFundsModal onClose={() => setShowTransfer(false)} />}
 
             {/* Season Pass status */}
             {address && (

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useGameStore } from "../lib/gameStore";
-import { BOUNTY_CLAIM_URL, BOUNTY_MIN_POINTS_TO_WIN } from "../lib/bountyConfig";
+import { BOUNTY_MIN_POINTS_TO_WIN, bountyPausedOn } from "../lib/bountyConfig";
 
-type BountyMe = { points: number; rank: number | null; qualified: boolean; totalUsd: number };
+type BountyMe = { points: number; rank: number | null; qualified: boolean; totalUsd: number; winsUsed: number; winsAllowed: number };
+type BountyResponse = { you?: BountyMe | null; careerPoints?: number | null };
 
 /**
  * Shows today's bounty points, from the server.
@@ -26,6 +27,7 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
   // store is the safe source for a component that lives outside the tree.
   const address = useGameStore((state) => state.playerAddress);
   const [me, setMe] = useState<BountyMe | null>(null);
+  const [career, setCareer] = useState<number | null>(null);
 
   useEffect(() => {
     if (!address) { setMe(null); return; }
@@ -33,7 +35,11 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
     const load = () => {
       void fetch(`/api/bounty?address=${address.toLowerCase()}&limit=1&t=${Date.now()}`, { cache: "no-store" })
         .then((r) => r.json())
-        .then((d: { you?: BountyMe | null }) => { if (!cancelled) setMe(d.you ?? null); })
+        .then((d: BountyResponse) => {
+          if (cancelled) return;
+          setMe(d.you ?? null);
+          setCareer(typeof d.careerPoints === "number" ? d.careerPoints : null);
+        })
         .catch(() => {});
     };
     load();
@@ -45,42 +51,44 @@ export function LandingProgressBadge({ isCompact }: { isCompact: boolean }) {
   }, [address]);
 
   const points = me?.points ?? 0;
-  const qualified = me?.qualified ?? false;
+  // While the daily prize is paused, nothing here is a race to a threshold, so
+  // the progress bar and the "N to bounty" nudge would be measuring a distance
+  // to nowhere. Today's points still show — they still count on the boards.
+  const paused = bountyPausedOn();
+  const qualified = !paused && (me?.qualified ?? false);
   const remaining = Math.max(0, BOUNTY_MIN_POINTS_TO_WIN - points);
   const pct = Math.min(100, (points / BOUNTY_MIN_POINTS_TO_WIN) * 100);
+  const capReached = !paused && !!me && me.winsAllowed > 0 && me.winsUsed >= me.winsAllowed;
 
   return (
     <div className="ko-points-badge" style={{ top: isCompact ? 656 : 596 }}>
       <span style={{ fontSize: 16, flexShrink: 0 }}>{qualified ? "💰" : "⚡"}</span>
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 96 }}>
-        <span className="ko-points-label">{address ? "Today's Points" : "Total Points"}</span>
-        <span className="ko-points-value" style={qualified ? { color: "#4ade80", textShadow: "0 0 12px rgba(74,222,128,0.5)" } : undefined}>
-          {(address ? points : localPoints).toLocaleString()}
-          {address && !qualified && (
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}> / {BOUNTY_MIN_POINTS_TO_WIN}</span>
-          )}
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 92 }}>
+        {/* Career total leads. It never resets, so it is the number a player
+            identifies with — the daily bounty bucket starting at zero each
+            midnight read as "my points were wiped". */}
+        <span className="ko-points-label">Total Points</span>
+        <span className="ko-points-value">
+          {(career ?? localPoints).toLocaleString()}
         </span>
         {address && (
           <>
-            {/* The bar makes "am I getting paid today" readable at a glance,
-                which the raw number alone never did. */}
-            <div style={{ width: "100%", height: 3, borderRadius: 2, background: "rgba(148,163,184,0.2)", marginTop: 3, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: qualified ? "#4ade80" : "#56a4cb", transition: "width .3s" }} />
-            </div>
-            {qualified ? (
-              <a
-                href={BOUNTY_CLAIM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: 0.3, marginTop: 2, textDecoration: "none" }}
-              >
-                💰 Claim{me?.totalUsd ? ` $${me.totalUsd}` : ""} →
-              </a>
-            ) : (
-              <span style={{ fontSize: 9, fontWeight: 600, color: "#64748b", letterSpacing: 0.3, marginTop: 2 }}>
-                {remaining.toLocaleString()} to qualify
-              </span>
+            {!paused && (
+              <div style={{ width: "100%", height: 3, borderRadius: 2, background: "rgba(148,163,184,0.2)", marginTop: 4, overflow: "hidden" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: qualified ? "#4ade80" : "#56a4cb", transition: "width .3s" }} />
+              </div>
             )}
+            <span style={{ fontSize: 9, fontWeight: 600, color: qualified ? "#4ade80" : capReached ? "#fbbf24" : "#64748b", letterSpacing: 0.3, marginTop: 2 }}>
+              {paused
+                ? `Today ${points.toLocaleString()} pts · bounty paused`
+                : qualified
+                ? `Today ${points.toLocaleString()} · in the money`
+                : capReached
+                  // A silent limit is the worst version of this: the player keeps
+                  // playing and watches the number refuse to move.
+                  ? `Today ${points.toLocaleString()} · daily wins used, resets 00:00 UTC`
+                  : `Today ${points.toLocaleString()} · ${remaining.toLocaleString()} to bounty`}
+            </span>
           </>
         )}
       </div>

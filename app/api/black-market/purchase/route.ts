@@ -48,6 +48,27 @@ const STABLE_TOKENS = {
   cusd: { address: CUSD_CONTRACT, decimals: 18 },
 } as const;
 
+/**
+ * GET /api/black-market/purchase?address=0x…  →  { owned: string[] }
+ *
+ * Ownership is recorded server-side on a verified purchase, but nothing ever
+ * served it back — the client kept its own list in localStorage. So when
+ * gameStore cleared local progress (a different wallet signing in on the same
+ * device, cleared storage, a new browser), paid-for cards vanished with no way
+ * to restore them, even though the record here was intact the whole time.
+ */
+export async function GET(req: NextRequest) {
+  const address = req.nextUrl.searchParams.get("address")?.toLowerCase();
+  if (!address || !/^0x[0-9a-f]{40}$/.test(address)) {
+    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+  const owned = await redis.smembers(ownedPremiumKey(address)).catch(() => [] as string[]);
+  // Filter against the catalog so a renamed or retired card cannot leave a
+  // dangling id in the player's deck.
+  const valid = (owned ?? []).filter((id) => CARDS.some((c) => c.id === id && c.isPremium));
+  return NextResponse.json({ address, owned: valid });
+}
+
 export async function POST(req: NextRequest) {
   let body: {
     address?: string;

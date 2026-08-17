@@ -1,59 +1,87 @@
 "use client";
 
 import { useCallback } from "react";
-import { useWriteContract } from "wagmi";
+import { usePublicClient, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
-import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "./arena";
+import { MATCH_REGISTRY, MATCH_REGISTRY_ABI, MATCH_REGISTRY_ACTIVE } from "./matchRegistry";
+import { getMiniPayWriteOverrides } from "./minipay";
+import { friendlyTxError, isInsufficientFunds, NO_GAS_MESSAGE } from "./txErrors";
 
-// On-chain "check-in" for boss (VS House) games. When enabled, starting a boss
-// match fires a one-tap native-CELO `enterMatchWithCelo` on the legacy
-// single-player arena (0x80b10a44…) purely to surface real play as real on-chain
-// activity. It is pay-IN only — rewards stay manual/off-chain — so there is no
-// drain vector and it's safe to run with automated wagers off.
-//
-// Toggle with NEXT_PUBLIC_BOSS_ONCHAIN_ENTRY=true. Off by default.
 export const BOSS_ONCHAIN_ENTRY_ENABLED = process.env.NEXT_PUBLIC_BOSS_ONCHAIN_ENTRY === "true";
 
-// MUST equal the deployed contract's ENTRY_FEE (0.000007 CELO); enterMatchWithCelo
-// reverts on any other msg.value.
-const BOSS_ENTRY_FEE_WEI = 7_000_000_000_000n;
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+// MatchRegistry.recordMatch is ~30,000 gas and moves no money. This covers it
+// several times over so a wallet is never walked into a revert it cannot read.
+const MIN_GAS_WEI = 20_000_000_000_000_000n; // 0.02 CELO
 
-export type BossEntryResult = { ok: boolean; skipped?: boolean; txHash?: `0x${string}`; error?: string };
+export type BossEntryResult = {
+  ok: boolean;
+  skipped?: boolean;
+  txHash?: `0x${string}`;
+  error?: string;
+  /** The wallet has no gas. The UI should point at support, not offer a retry. */
+  needsFunding?: boolean;
+};
 
-// True when a boss start will actually prompt a wallet tx (so the UI can show a
-// "confirm in wallet" step only when there's something to confirm).
-export function bossEntryWillCharge(address: string | undefined, isMiniPay: boolean): boolean {
-  return BOSS_ONCHAIN_ENTRY_ENABLED && !!address && !isMiniPay && ARENA_ADDRESS !== ZERO_ADDRESS;
+/**
+ * True when starting a boss run will prompt a wallet transaction, so the UI can
+ * show a "confirm in wallet" step only when there is something to confirm.
+ */
+export function bossEntryWillCharge(address: string | undefined, _isMiniPay: boolean): boolean {
+  return BOSS_ONCHAIN_ENTRY_ENABLED && !!address && MATCH_REGISTRY_ACTIVE;
 }
 
+/**
+ * Record a boss run on-chain, signed by the player.
+ *
+ * Uses MatchRegistry rather than the Arena. The Arena is a two-player wager
+ * escrow: its tokens are allowlisted (USDT/USDC/USDm — not CELO), and
+ * completeMatch requires two equal stakes and a winner who is one of the
+ * stakers. A boss run has a single player against the AI, so an Arena entry
+ * could never be settled — it would sit Active for 24 hours and then be
+ * refundable. MatchRegistry is the contract built for this: it takes no
+ * payment, needs no approval and no allowlist, keeps a per-player and global
+ * count, and emits MatchRecorded for indexers.
+ *
+ * It has been deployed and wired since May but never fired once, because its
+ * only call site required MiniPay AND a ranked match, and MiniPay players can
+ * only reach VS House.
+ */
 export function useBossOnchainEntry() {
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient({ chainId: celo.id });
+
   return useCallback(
-    async (address: `0x${string}` | undefined, isMiniPay: boolean): Promise<BossEntryResult> => {
-      // Skip silently when off, misconfigured, walletless, or MiniPay (holds
-      // stablecoins, not CELO — a native-CELO entry would just fail there).
-      if (!bossEntryWillCharge(address, isMiniPay)) return { ok: true, skipped: true };
+    async (address: `0x${string}` | undefined, isMiniPayWallet: boolean): Promise<BossEntryResult> => {
+      if (!bossEntryWillCharge(address, isMiniPayWallet) || !address) {
+        return { ok: true, skipped: true };
+      }
+
       try {
-        // Fresh unique matchId each game (keccak of a unique string) so
-        // enterMatchWithCelo never reverts on a reused id.
-        const unique = `boss:${address}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+        // A web wallet pays gas in native CELO, so an empty one is told to ask
+        // for a top-up rather than being handed a failure it can only retry
+        // into. MiniPay pays fees in its own stablecoin and is exempt.
+        if (!isMiniPayWallet && publicClient) {
+          const gas = await publicClient.getBalance({ address });
+          if (gas < MIN_GAS_WEI) return { ok: false, needsFunding: true, error: NO_GAS_MESSAGE };
+        }
+
+        // Unique per run, so each entry is its own record.
+        const matchId = `boss:${address}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
         const txHash = await writeContractAsync({
-          address: ARENA_ADDRESS,
-          abi: ARENA_ABI,
-          functionName: "enterMatchWithCelo",
-          args: [matchIdToBytes32(unique)],
-          value: BOSS_ENTRY_FEE_WEI,
+          address: MATCH_REGISTRY,
+          abi: MATCH_REGISTRY_ABI,
+          functionName: "recordMatch",
+          args: [matchId],
           account: address,
           chainId: celo.id,
+          ...getMiniPayWriteOverrides(),
         });
         return { ok: true, txHash };
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "";
-        const cancelled = /reject|denied|cancel|user rejected/i.test(msg);
-        return { ok: false, error: cancelled ? "Entry cancelled." : "Couldn't enter the arena — please try again." };
+        if (isInsufficientFunds(e)) return { ok: false, needsFunding: true, error: NO_GAS_MESSAGE };
+        return { ok: false, error: friendlyTxError(e, "Couldn't record the run — please try again.") };
       }
     },
-    [writeContractAsync],
+    [writeContractAsync, publicClient],
   );
 }

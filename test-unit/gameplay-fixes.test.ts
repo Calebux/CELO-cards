@@ -24,21 +24,30 @@ import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
+  BOUNTY_PAUSED_FROM_DAY,
   BOUNTY_PRIZE_SPLIT_USD,
+  BOUNTY_RESUMES_ON_DAY,
   BOUNTY_TOP_N,
   bountyDayUTC,
+  bountyIsFinalPayingDay,
+  bountyPausedOn,
   bountyPrizeForRank,
   isBountyDayClosed,
   isBountyExcluded,
   bountyParticipationRecipients,
   bountyParticipationShareUsd,
+  bossWinIsUncapped,
+  bestWinPointsTotal,
+  HOUSE_LOSS_POINTS_PER_DAY,
+  HOUSE_WINS_COUNTED_PER_DAY,
   meetsBountyThreshold,
   usdToGdollar,
 } from "../app/lib/bounty";
-import { effectiveAiDifficulty, houseMatchPoints } from "../app/lib/houseDifficulty";
+import { effectiveAiDifficulty, houseMatchPoints, resolveAiDifficulty } from "../app/lib/houseDifficulty";
 import { classifyAuthError } from "../app/lib/authTelemetry";
 import { friendlyTxError, isGoogleUnreachable } from "../app/lib/txErrors";
 import { retryWeb3AuthAuthorization } from "../app/lib/web3authResume";
+import { buildBountyClaimAuthMessage } from "../app/lib/treasuryAuth";
 
 // Neutral character for both sides — Riven has no slot-level passive in the
 // engine, so results reflect the cards/ults only. Same char both sides cancels
@@ -359,13 +368,129 @@ test("resume: with no sign-in in progress it still polls through a transient fal
   assert.equal(checks, 3);
 });
 
+// ── Bounty caps: bound farming without punishing weak players ────────────────
+test("bounty: the daily allowance is spent by wins, not by losing", () => {
+  // Counting losses against it meant a 22%-win-rate player burned all ten slots
+  // on defeats worth 10 points each and could never reach the 500 threshold —
+  // the bounty locked out exactly the players it exists to attract.
+  assert.equal(HOUSE_WINS_COUNTED_PER_DAY, 10);
+
+  // A struggling player can still get there: defeats never eat their win slots,
+  // and loss points top up alongside. Asserted as a property rather than a
+  // fixed number, so tuning the threshold cannot silently make the bounty
+  // unwinnable — raising it to 1500 would need 10 of the 10 available wins.
+  const winsNeeded = Math.ceil((BOUNTY_MIN_POINTS_TO_WIN - HOUSE_LOSS_POINTS_PER_DAY) / 150);
+  assert.ok(
+    winsNeeded <= HOUSE_WINS_COUNTED_PER_DAY,
+    `threshold needs ${winsNeeded} moderate wins but only ${HOUSE_WINS_COUNTED_PER_DAY} count per day`,
+  );
+  // And it should leave headroom rather than demanding a perfect day.
+  assert.ok(winsNeeded <= HOUSE_WINS_COUNTED_PER_DAY - 2, "threshold leaves no margin for a bad round");
+});
+
+test("bounty: losing on purpose cannot be farmed", () => {
+  // Losses no longer consume the win allowance, so they need their own ceiling
+  // or defeat becomes an unlimited source of points.
+  assert.equal(HOUSE_LOSS_POINTS_PER_DAY, 100);
+  // Losses alone must never reach the threshold, however many are played.
+  assert.ok(HOUSE_LOSS_POINTS_PER_DAY < BOUNTY_MIN_POINTS_TO_WIN);
+
+  // And the whole day is bounded: max wins at the best rate, plus the loss cap.
+  const maxHouse = HOUSE_WINS_COUNTED_PER_DAY * 300 + HOUSE_LOSS_POINTS_PER_DAY; // 300 = hard + flawless
+  assert.equal(maxHouse, 3100);
+});
+
+// ── VS House difficulty: the player gets the tier they picked ────────────────
+test("house: winning does not silently promote a player to Hard", () => {
+  // A two-match win streak used to force difficulty 2 whatever the player had
+  // selected, so Easy and Moderate stopped being easy exactly when someone
+  // started winning — and the reward stayed pinned to the chosen tier, so it
+  // was a harder opponent for the same points.
+  for (const chosen of [0, 1, 2] as const) {
+    assert.equal(
+      resolveAiDifficulty({ chosen, upperChamberActive: false, upperChamberRound: 0 }),
+      chosen,
+      `chosen ${chosen} should be honoured`,
+    );
+  }
+});
+
+test("house: an Easy-only day cannot reach the bounty threshold", () => {
+  // Easy is practice. The best possible Easy day is ten flawless wins plus the
+  // whole loss allowance, and that must still fall short of qualifying —
+  // otherwise the tier with the highest win rate is also the cheapest route to
+  // the prize pool.
+  const bestEasyWin = houseMatchPoints({ won: true, flawless: true, rewardDifficulty: 0 });
+  const perfectEasyDay = bestEasyWin * HOUSE_WINS_COUNTED_PER_DAY + HOUSE_LOSS_POINTS_PER_DAY;
+  assert.ok(
+    perfectEasyDay < BOUNTY_MIN_POINTS_TO_WIN,
+    `a flawless Easy day scores ${perfectEasyDay}, which qualifies at ${BOUNTY_MIN_POINTS_TO_WIN}`,
+  );
+
+  // Moderate remains a real route in, so the bounty is not Hard-only.
+  const bestModerateDay =
+    houseMatchPoints({ won: true, flawless: true, rewardDifficulty: 1 }) * HOUSE_WINS_COUNTED_PER_DAY;
+  assert.ok(bestModerateDay > BOUNTY_MIN_POINTS_TO_WIN);
+});
+
+test("bounty: the BEST ten wins score, not the first ten", () => {
+  // Ten Easy wins then four Hard wins. Counting the first ten scored 1300 and
+  // threw the Hard wins away, so a player who warmed up on Easy and then moved
+  // up was punished for improving. The best ten must displace the weak ones.
+  const easyThenHard = [100, 150, 150, 150, 150, 100, 100, 150, 150, 100, 200, 200, 200, 300];
+  assert.equal(bestWinPointsTotal(easyThenHard), 300 + 200 + 200 + 200 + 150 * 6);
+
+  // Order must not matter — the same day's matches score the same however they
+  // are played.
+  const shuffled = [...easyThenHard].reverse();
+  assert.equal(bestWinPointsTotal(shuffled), bestWinPointsTotal(easyThenHard));
+
+  // Under ten wins, everything counts.
+  assert.equal(bestWinPointsTotal([200, 100, 150]), 450);
+  assert.equal(bestWinPointsTotal([]), 0);
+
+  // Never more than ten, however much is played.
+  assert.equal(bestWinPointsTotal(new Array(50).fill(300)), 3000);
+});
+
+test("bounty: House Boss wins are exempt from the daily win allowance", () => {
+  // A run is five fights and each spends a win slot, so ten wins is two runs.
+  // The boss is fights 4 and 5, so a clear reliably lands past the cap — which
+  // is how a genuine House Boss win scored zero points.
+  assert.equal(bossWinIsUncapped(3, "2026-08-09"), true);
+  assert.equal(bossWinIsUncapped(3, "2026-09-01"), true);
+
+  // Only the boss tier. Easy/Moderate/Hard volume stays capped, which is what
+  // stops a season pass turning into unlimited points.
+  assert.equal(bossWinIsUncapped(0, "2026-09-01"), false);
+  assert.equal(bossWinIsUncapped(1, "2026-09-01"), false);
+  assert.equal(bossWinIsUncapped(2, "2026-09-01"), false);
+  assert.equal(bossWinIsUncapped(undefined, "2026-09-01"), false);
+
+  // Never retroactive: days that already closed keep the rules they were played
+  // under, so settled standings and anything already claimed stay fixed.
+  assert.equal(bossWinIsUncapped(3, "2026-08-08"), false);
+  assert.equal(bossWinIsUncapped(3, "2026-07-31"), false);
+});
+
+test("house: only the Boss finale exceeds the chosen difficulty", () => {
+  // The finale is meant to be hard and the player opted into it.
+  assert.equal(resolveAiDifficulty({ chosen: 0, upperChamberActive: true, upperChamberRound: 3 }), 3);
+  assert.equal(resolveAiDifficulty({ chosen: 1, upperChamberActive: true, upperChamberRound: 4 }), 3);
+  // Earlier chamber rounds still play at the selected tier.
+  assert.equal(resolveAiDifficulty({ chosen: 0, upperChamberActive: true, upperChamberRound: 0 }), 0);
+  assert.equal(resolveAiDifficulty({ chosen: 1, upperChamberActive: true, upperChamberRound: 2 }), 1);
+  // And the chamber flag alone changes nothing.
+  assert.equal(resolveAiDifficulty({ chosen: 1, upperChamberActive: false, upperChamberRound: 9 }), 1);
+});
+
 // ── VS House difficulty: the reward must reflect the match actually played ───
 test("house: switching to hard on the winning round cannot buy the hard reward", () => {
   // The exploit: play the match on easy, send hard on the round that wins it.
   // Reward is paid on the pinned starting difficulty, so it stays an easy win.
   const startedOnEasy = houseMatchPoints({ won: true, flawless: false, rewardDifficulty: 0 });
   const honestHard = houseMatchPoints({ won: true, flawless: false, rewardDifficulty: 2 });
-  assert.equal(startedOnEasy, 100);
+  assert.equal(startedOnEasy, 50); // Easy is 0.5x — a practice tier
   assert.equal(honestHard, 200);
   assert.ok(honestHard > startedOnEasy);
 });
@@ -404,6 +529,110 @@ test("house: harder difficulty pays strictly more, and losing is unaffected", ()
   }
 });
 
+// ── Bounty pause: the window is closed, and it never moves backwards ─────────
+test("bounty pause: paused days pay nothing, earlier days keep their prize", () => {
+  const dayBefore = bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+
+  // The whole point of a window rather than a boolean: a day played before the
+  // pause was played for money and must stay claimable forever.
+  assert.equal(bountyPausedOn(dayBefore), false);
+  assert.equal(bountyPausedOn("2026-01-01"), false);
+  // The first paused day, and everything after it while the window is open.
+  assert.equal(bountyPausedOn(BOUNTY_PAUSED_FROM_DAY), true);
+
+  if (BOUNTY_RESUMES_ON_DAY) {
+    // Once a resume day is set, it and everything after it pays again, and the
+    // days inside the window stay unpaid rather than becoming claimable at once.
+    assert.equal(bountyPausedOn(BOUNTY_RESUMES_ON_DAY), false);
+    assert.ok(BOUNTY_RESUMES_ON_DAY > BOUNTY_PAUSED_FROM_DAY);
+    const lastPaused = bountyDayUTC(Date.parse(`${BOUNTY_RESUMES_ON_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+    assert.equal(bountyPausedOn(lastPaused), true);
+  } else {
+    // Open-ended pause: no future day pays.
+    assert.equal(bountyPausedOn("2099-01-01"), true);
+  }
+});
+
+test("bounty pause: the final paying day is the one before the window", () => {
+  // Drives the "last paying day" warning, so players are told before the prize
+  // stops rather than finding out from an empty prize column.
+  const dayBefore = bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+  assert.equal(bountyIsFinalPayingDay(dayBefore), true);
+  // Not the paused day itself, and not any ordinary paying day before it.
+  assert.equal(bountyIsFinalPayingDay(BOUNTY_PAUSED_FROM_DAY), false);
+  assert.equal(bountyIsFinalPayingDay(bountyDayUTC(Date.parse(`${dayBefore}T00:00:00Z`) - 24 * 60 * 60 * 1000)), false);
+});
+
+// ── Bounty claim timing: nothing is payable until the day has closed ─────────
+test("bounty claim: today and future days are never claimable", () => {
+  const today = bountyDayUTC();
+  const yesterday = bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000);
+  const tomorrow = bountyDayUTC(Date.now() + 24 * 60 * 60 * 1000);
+  const nextYear = bountyDayUTC(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  // Paying a live day would let someone claim 1st place and then be overtaken.
+  assert.equal(isBountyDayClosed(today), false);
+  // A caller-supplied future date must not slip past the check either.
+  assert.equal(isBountyDayClosed(tomorrow), false);
+  assert.equal(isBountyDayClosed(nextYear), false);
+  // Only a finished day pays.
+  assert.equal(isBountyDayClosed(yesterday), true);
+  assert.equal(isBountyDayClosed("2020-01-01"), true);
+});
+
+test("bounty claim: day keys compare correctly as strings", () => {
+  // isBountyDayClosed relies on lexicographic comparison of ISO dates, so the
+  // zero-padding matters — "2026-9-01" would sort wrong and open a live day.
+  assert.match(bountyDayUTC(), /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok("2026-08-09" < "2026-08-10");
+  assert.ok("2026-08-31" < "2026-09-01");
+  assert.ok("2026-12-31" < "2027-01-01");
+});
+
+test("bounty claim: one day can never pay more than both pools", () => {
+  // The ceiling the endpoint checks every payout and every day total against,
+  // computed independently of anything stored in Redis.
+  const ceiling = usdToGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD);
+  // Even first place plus the entire participation pool stays inside it.
+  assert.ok(usdToGdollar(BOUNTY_PRIZE_SPLIT_USD[0] + BOUNTY_PARTICIPATION_POOL_USD) <= ceiling);
+  // And the full podium plus the pool is exactly the ceiling, never above.
+  const everything = BOUNTY_PRIZE_SPLIT_USD.reduce((a, b) => a + b, 0) + BOUNTY_PARTICIPATION_POOL_USD;
+  assert.equal(usdToGdollar(everything), ceiling);
+});
+
+// ── Bounty claim auth: the signature must not be replayable ──────────────────
+test("bounty claim: a signature is bound to one wallet and one day", () => {
+  const A = "0x1111111111111111111111111111111111111111";
+  const B = "0x2222222222222222222222222222222222222222";
+
+  // Same inputs are stable, so a valid signature verifies.
+  assert.equal(buildBountyClaimAuthMessage(A, "2026-08-05"), buildBountyClaimAuthMessage(A, "2026-08-05"));
+  // A different day must not verify against yesterday's signature, or a winner
+  // could replay one claim across every day.
+  assert.notEqual(buildBountyClaimAuthMessage(A, "2026-08-05"), buildBountyClaimAuthMessage(A, "2026-08-06"));
+  // Nor should another wallet's signature work.
+  assert.notEqual(buildBountyClaimAuthMessage(A, "2026-08-05"), buildBountyClaimAuthMessage(B, "2026-08-05"));
+  // Address case must not change the message, or the same wallet could claim twice.
+  assert.equal(buildBountyClaimAuthMessage(A.toUpperCase(), "2026-08-05"), buildBountyClaimAuthMessage(A, "2026-08-05"));
+
+  // The message states what is being authorised, in plain language.
+  const msg = buildBountyClaimAuthMessage(A, "2026-08-05");
+  assert.match(msg, /Daily Bounty Claim/);
+  assert.match(msg, /2026-08-05/);
+});
+
+test("bounty claim: one day can never pay out more than both pools", () => {
+  // Backstop independent of anything read from Redis — the ceiling the claim
+  // endpoint checks every payout against.
+  const ceiling = usdToGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD);
+  assert.equal(ceiling, usdToGdollar(14));
+  // A single first-place prize must sit well inside it.
+  assert.ok(usdToGdollar(BOUNTY_PRIZE_SPLIT_USD[0]) < ceiling);
+  // And the full podium plus the participation pool must exactly reach it.
+  const everything = BOUNTY_PRIZE_SPLIT_USD.reduce((s, n) => s + n, 0) + BOUNTY_PARTICIPATION_POOL_USD;
+  assert.equal(usdToGdollar(everything), ceiling);
+});
+
 // ── Daily bounty: real money, so who is eligible matters most ────────────────
 test("bounty: treasury and display bots can never win a prize", () => {
   // The treasury funds the prizes; it must not also collect them.
@@ -439,8 +668,17 @@ test("bounty: a player below the daily threshold wins nothing", () => {
   assert.equal(meetsBountyThreshold(0), false);
 
   // The threshold exists so a single match on a quiet day can't take the pool.
-  // A ranked win is 150 and a boss win at most 200, so one match must not clear it.
-  assert.ok(BOUNTY_MIN_POINTS_TO_WIN > 200);
+  // A ranked win is 150 and a boss win at most 300 flawless, so no single match
+  // can clear it.
+  assert.ok(BOUNTY_MIN_POINTS_TO_WIN > 300);
+
+  // And it must stay reachable inside the daily cap, or the bounty is
+  // unwinnable by design: ten counted wins is the most anyone can score.
+  const ceilingPerDay = HOUSE_WINS_COUNTED_PER_DAY * 300 + HOUSE_LOSS_POINTS_PER_DAY;
+  assert.ok(
+    BOUNTY_MIN_POINTS_TO_WIN < ceilingPerDay / 2,
+    "threshold should need well under a perfect day",
+  );
 });
 
 test("bounty: an unqualified player can never block a prize slot", () => {

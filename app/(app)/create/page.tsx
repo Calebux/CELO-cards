@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchMode, useGameStore } from "../../lib/gameStore";
+import { BOUNTY_MIN_POINTS_TO_WIN, bountyPausedOn } from "../../lib/bountyConfig";
 import { hydrateActiveMatchResume, useActiveMatchResume } from "../../lib/activeMatch";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
@@ -32,9 +33,11 @@ function toStoreMode(matchType: MatchType): MatchMode {
   return matchType;
 }
 
-// Multipliers mirror DIFFICULTY_POINT_MULTIPLIER in the vshouse resolve route.
+// Multipliers mirror DIFFICULTY_POINT_MULTIPLIER in app/lib/houseDifficulty.ts.
+// Keep them in step — a picker that promises points the server will not pay is
+// the same silent-rule problem as an invisible daily cap.
 const DIFFICULTIES: readonly { value: 0 | 1 | 2; label: string; multiplier: string; color: string }[] = [
-  { value: 0, label: "Easy",     multiplier: "1× pts",   color: "#4ade80" },
+  { value: 0, label: "Easy",     multiplier: "0.5× pts", color: "#4ade80" },
   { value: 1, label: "Moderate", multiplier: "1.5× pts", color: "#fbbf24" },
   { value: 2, label: "Hard",     multiplier: "2× pts",   color: "#f87171" },
 ];
@@ -99,7 +102,13 @@ export default function CreateMatch() {
   const [isShortLandscape, setIsShortLandscape] = useState(false);
   const [isCompactPhone, setIsCompactPhone] = useState(false);
   const enterBossOnchain = useBossOnchainEntry();
-  const [bossEntryState, setBossEntryState] = useState<"idle" | "paying" | "error">("idle");
+  // "needs-funding" is deliberately distinct from "error": an empty wallet is
+  // not a failure the player can retry their way out of, and offering Retry
+  // there just produces the same failure until they give up.
+  const [bossEntryState, setBossEntryState] = useState<"idle" | "paying" | "error" | "needs-funding">("idle");
+  // Set by "Play anyway". A ref, not state: handleCreateMatch is re-invoked in
+  // the same tick and would still read the old value from its closure.
+  const skipOnchainRef = useRef(false);
   const [bossEntryError, setBossEntryError] = useState<string>("");
   const router = useRouter();
   const resetMatch = useGameStore((s) => s.resetMatch);
@@ -293,19 +302,24 @@ export default function CreateMatch() {
         setShowSeasonPassModal(true);
         return;
       }
-      // On-chain boss check-in (flag-gated, pay-in only; rewards stay manual).
-      // Skips silently on MiniPay / when disabled. A cancelled or failed entry
-      // keeps the player here to retry or back out rather than dropping in unpaid.
-      if (bossEntryWillCharge(address, isMp)) {
+      // On-chain record of the run, signed by the player (flag-gated).
+      //
+      // Best-effort, matching how the lobby treats the same registry: this
+      // charges nothing and only proves the run happened, so a wallet with no
+      // gas must never be locked out of the game. VS House is the only mode
+      // MiniPay players can reach, so blocking here would take the whole game
+      // away from them. An unfunded wallet is told how to fix it and can still
+      // play; everything else fails quietly and the run simply goes unrecorded.
+      if (bossEntryWillCharge(address, isMp) && !skipOnchainRef.current) {
         setBossEntryError("");
         setBossEntryState("paying");
         const res = await enterBossOnchain(address, isMp);
-        if (!res.ok) {
-          setBossEntryError(res.error ?? "Couldn't enter the arena.");
-          setBossEntryState("error");
-          return;
-        }
         setBossEntryState("idle");
+        if (!res.ok && res.needsFunding) {
+          setBossEntryError(res.error ?? "");
+          setBossEntryState("needs-funding");
+          return; // the panel offers "Play anyway", which re-enters below
+        }
       }
       resetMatch();
       setVsBot(true);
@@ -544,6 +558,27 @@ export default function CreateMatch() {
                         );
                       })}
                     </div>
+                    {aiDifficulty === 0 && (
+                      <p style={{ margin: "8px 0 0", fontSize: 10, lineHeight: 1.6, color: "#64748b", letterSpacing: 0.3 }}>
+                        {/* The reason to leave Easy is the daily pool while it is
+                            running, and simply the points while it is paused —
+                            pointing at a threshold that pays nothing today would
+                            just be a number with no consequence attached. */}
+                        {bountyPausedOn() ? (
+                          <>
+                            Easy is practice — it builds your total points and leaderboard rank, but it
+                            scores the least of any tier.
+                            Play <span style={{ color: "#fbbf24", fontWeight: 700 }}>Moderate</span> or higher to climb faster.
+                          </>
+                        ) : (
+                          <>
+                            Easy is practice — it builds your total points and leaderboard rank, but
+                            a full Easy day tops out below the {BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} needed for the daily bounty.
+                            Play <span style={{ color: "#fbbf24", fontWeight: 700 }}>Moderate</span> or higher to compete for the pool.
+                          </>
+                        )}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -803,7 +838,32 @@ export default function CreateMatch() {
                   Entering the Arena
                 </div>
                 <div style={{ fontSize: 13, color: "rgba(185,231,244,0.75)", lineHeight: 1.5 }}>
-                  Confirm the <strong style={{ color: "#b9e7f4" }}>0.000007 CELO</strong> entry in your wallet to record this match on-chain.
+                  Confirm in your wallet to record this run on-chain.
+                  <strong style={{ color: "#b9e7f4" }}> Nothing is charged</strong> — it only costs network gas, and the
+                  run becomes publicly verifiable on Celoscan.
+                </div>
+              </>
+            ) : bossEntryState === "needs-funding" ? (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: "#fbbf24", textTransform: "uppercase", marginBottom: 10 }}>
+                  Wallet needs a top-up
+                </div>
+                <div style={{ fontSize: 13, color: "rgba(185,231,244,0.75)", lineHeight: 1.5, marginBottom: 18 }}>
+                  {bossEntryError}
+                </div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                  <button
+                    onClick={() => window.open("https://t.me/actionorder", "_blank", "noopener,noreferrer")}
+                    style={{ flex: 1, padding: "11px 0", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase", color: "#0a101c", background: "#fbbf24", border: "none" }}
+                  >
+                    Ask for gas
+                  </button>
+                  <button
+                    onClick={() => { skipOnchainRef.current = true; setBossEntryState("idle"); void handleCreateMatch(); }}
+                    style={{ flex: 1, padding: "11px 0", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase", color: "#b9e7f4", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(86,164,203,0.3)" }}
+                  >
+                    Play anyway
+                  </button>
                 </div>
               </>
             ) : (

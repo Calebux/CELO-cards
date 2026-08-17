@@ -16,18 +16,28 @@ import { isUserRejectedTx } from "../lib/txErrors";
  * pass, looking at an empty bounty board, or finishing signup.
  */
 
-/** True / false / undefined while the on-chain check is still loading. */
+/**
+ * True / false / undefined while the on-chain check is still loading.
+ *
+ * Reads `getWhitelistedRoot` rather than `isWhitelisted` because a player can
+ * link several wallets to one G$ identity, and `isWhitelisted` is true only for
+ * the root wallet. Asking a linked wallet directly reports "not verified" and
+ * pushes an already-verified human back into face verification, which then
+ * fails as a duplicate — a dead end they cannot get out of on their own.
+ * A non-zero root means verified; the zero address means no identity.
+ */
 export function useIsVerified(): boolean | undefined {
   const { address } = useAccount();
   const { data } = useReadContract({
     address: IDENTITY_CONTRACT,
     abi: IDENTITY_ABI,
-    functionName: "isWhitelisted",
+    functionName: "getWhitelistedRoot",
     args: address ? [address] : undefined,
     chainId: celo.id,
     query: { enabled: !!address },
   });
-  return data as boolean | undefined;
+  if (data === undefined) return undefined;
+  return !!data && data !== "0x0000000000000000000000000000000000000000";
 }
 
 type Props = {
