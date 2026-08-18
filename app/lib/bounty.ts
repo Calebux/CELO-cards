@@ -23,6 +23,7 @@ import {
   BOUNTY_GDOLLAR_PER_USD,
   BOUNTY_CLAIM_URL,
   BOUNTY_PAUSED_FROM_DAY,
+  BOUNTY_PAUSES_AGAIN_ON_DAY,
   BOUNTY_RESUMES_ON_DAY,
   BOUNTY_WINS_PER_DAY,
   bountyDayUTC,
@@ -44,6 +45,7 @@ export {
   BOUNTY_GDOLLAR_PER_USD,
   BOUNTY_CLAIM_URL,
   BOUNTY_PAUSED_FROM_DAY,
+  BOUNTY_PAUSES_AGAIN_ON_DAY,
   BOUNTY_RESUMES_ON_DAY,
   bountyDayUTC,
   bountyIsFinalPayingDay,
@@ -80,9 +82,9 @@ export const HOUSE_LOSS_POINTS_PER_DAY = 100;
 
 // House Boss fights (the AI at tier 3) sit outside the win allowance entirely.
 //
-// A run is five fights and every fight spends a win slot, so ten wins is exactly
-// two complete runs — while the boss is fights 4 and 5, meaning each failed
-// attempt still burns three or four slots on the early fights. The result was
+// A run is five fights and every fight spends a win slot, so the allowance is
+// worth five complete runs — while the boss is fights 4 and 5, meaning each
+// failed attempt still burns three or four slots on the early fights. The result was
 // that the rarest outcome in the game was the one most likely to land past the
 // cap and score nothing at all. It is not farmable the way easy volume is: the
 // boss wins roughly 96% of the time, and asking the server for tier 3 means

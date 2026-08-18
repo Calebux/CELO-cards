@@ -307,7 +307,7 @@ export default function Leaderboard() {
                 <span className="material-icons" style={{ fontSize: 15, color: "#fbbf24", marginTop: 1 }}>pause_circle</span>
                 <div style={{ flex: 1, minWidth: 220 }}>
                   <div style={{ fontSize: isCompact ? 14 : 12, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.5, textTransform: "uppercase" }}>
-                    {BOUNTY_PAUSE_HEADLINE} · resuming soon
+                    {BOUNTY_PAUSE_HEADLINE} · between campaigns
                   </div>
                   <p style={{ margin: "4px 0 0", fontSize: isCompact ? 13 : 11, color: "#94a3b8", lineHeight: 1.55, letterSpacing: 0.3 }}>
                     {BOUNTY_PAUSE_BLURB}
@@ -322,11 +322,10 @@ export default function Leaderboard() {
               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 14px", marginBottom: 12, background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.22)", borderRadius: 5 }}>
                 <span className="material-icons" style={{ fontSize: 14, color: "#4ade80" }}>paid</span>
                 <span style={{ fontSize: isCompact ? 13 : 11, color: "#94a3b8", letterSpacing: 0.3 }}>
-                  Top {BOUNTY_TOP_N} split <strong style={{ color: "#4ade80" }}>${BOUNTY_POOL_USD}</strong>
-                  {" "}({BOUNTY_PRIZE_SPLIT_USD.map((n) => `$${n}`).join(" / ")}), and a further{" "}
-                  <strong style={{ color: "#4ade80" }}>${BOUNTY_PARTICIPATION_POOL_USD}</strong> is shared by
-                  {" "}<em>everyone</em> who reaches{" "}
-                  <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points.
+                  Top {BOUNTY_TOP_N} who reach{" "}
+                  <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points split{" "}
+                  <strong style={{ color: "#4ade80" }}>${BOUNTY_POOL_USD}</strong>
+                  {" "}({BOUNTY_PRIZE_SPLIT_USD.map((n) => `$${n}`).join(" / ")}).
                   {" "}Paid in G$ — 1st takes ≈{formatGdollar(BOUNTY_PRIZE_SPLIT_USD[0])}.
                 </span>
                 {/* Said on the last paying day, so the prize does not simply
@@ -493,7 +492,7 @@ export default function Leaderboard() {
                       ? "Play a match to appear here"
                       : bountyPaused
                         ? "Play a match to take the top of today's board"
-                        : `Be first — ${BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} points takes a share of $${BOUNTY_POOL_USD}`}
+                        : `Reach ${BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()} points to compete for $${BOUNTY_POOL_USD}`}
                   </p>
                 </div>
               ) : (

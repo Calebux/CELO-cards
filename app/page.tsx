@@ -480,7 +480,7 @@ export default function ActionOrderLandingPage() {
                     Paused
                   </span>
                   <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)" }}>
-                    Resuming soon · points still count
+                    Between campaigns · points still count
                   </span>
                   <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#fbbf24" }}>STANDINGS →</span>
                 </Link>

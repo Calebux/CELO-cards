@@ -5,7 +5,7 @@
 // client bundle. Server logic re-exports these from bounty.ts.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE DAILY BOUNTY IS PAUSED.
+// THE DAILY BOUNTY IS PAUSED BETWEEN CAMPAIGNS.
 //
 // Days inside the pause window score points as normal but pay no prize, and
 // that is enforced server-side — standings return zero money and
@@ -19,7 +19,8 @@
 // day claimable at once.
 //
 // To resume: set BOUNTY_RESUMES_ON_DAY to the first UTC day that pays again.
-// Days inside the window stay permanently unpaid.
+// To end a fixed campaign: set BOUNTY_PAUSES_AGAIN_ON_DAY to the first UTC day
+// after the campaign. Days inside either paused window stay permanently unpaid.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -30,8 +31,15 @@
  */
 export const BOUNTY_PAUSED_FROM_DAY = "2026-08-13";
 
-/** First UTC day that pays again. Null while the pause is open-ended. */
-export const BOUNTY_RESUMES_ON_DAY: string | null = null;
+/**
+ * First UTC day that pays again.
+ *
+ * The new $100 campaign starts today, 2026-08-18, and pays through 2026-08-27.
+ */
+export const BOUNTY_RESUMES_ON_DAY: string | null = "2026-08-18";
+
+/** First UTC day after the current 10-day campaign, so it pays 2026-08-18..27. */
+export const BOUNTY_PAUSES_AGAIN_ON_DAY: string | null = "2026-08-28";
 
 /** ISO UTC day, e.g. "2026-08-13". ISO dates compare correctly as strings. */
 export function bountyDayUTC(at: number = Date.now()): string {
@@ -41,7 +49,8 @@ export function bountyDayUTC(at: number = Date.now()): string {
 /** Whether a given UTC day pays no prize. */
 export function bountyPausedOn(day: string = bountyDayUTC()): boolean {
   if (day < BOUNTY_PAUSED_FROM_DAY) return false;
-  return BOUNTY_RESUMES_ON_DAY === null || day < BOUNTY_RESUMES_ON_DAY;
+  if (BOUNTY_RESUMES_ON_DAY === null || day < BOUNTY_RESUMES_ON_DAY) return true;
+  return BOUNTY_PAUSES_AGAIN_ON_DAY !== null && day >= BOUNTY_PAUSES_AGAIN_ON_DAY;
 }
 
 /**
@@ -64,13 +73,16 @@ export function bountyIsFinalPayingDay(day: string = bountyDayUTC()): boolean {
  */
 export function lastPayingDayAtOrBefore(day: string = bountyDayUTC()): string {
   if (!bountyPausedOn(day)) return day;
+  if (BOUNTY_PAUSES_AGAIN_ON_DAY !== null && day >= BOUNTY_PAUSES_AGAIN_ON_DAY) {
+    return bountyDayUTC(Date.parse(`${BOUNTY_PAUSES_AGAIN_ON_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+  }
   return bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
 }
 
 /** Player-facing pause copy, kept in one place so every surface says the same. */
 export const BOUNTY_PAUSE_HEADLINE = "Daily bounty paused";
 export const BOUNTY_PAUSE_BLURB =
-  "The daily prize pool is on hold for now — it will resume soon. Matches, points and the leaderboards all keep running, and any prize you already won is still claimable.";
+  "The daily prize pool is on hold between campaigns. Matches, points and the leaderboards all keep running, and any prize you already won is still claimable.";
 
 // A fixed daily pool shared by the top 3, tiered rather than split evenly: the
 // tiers sum to exactly the pool and keep first place worth chasing, where an
@@ -88,24 +100,17 @@ export function bountyPrizeForRank(rank: number): number {
 // a single match could take the pool — which rewards showing up at the right
 // moment rather than actually competing.
 //
-// Set against real boards rather than guessed. At 500 almost anyone who turned
-// up qualified; at 1500 four of the five days measured would have paid nobody —
-// one winner scored 1475 and missed by twenty-five points. 1000 filters casual
-// play while staying reachable for the people actually competing, and sits just
-// under a typical third place.
-//
-// For scale: a hard boss win pays 200 (300 flawless), a ranked PvP win 150, and
-// the daily cap of ten counted wins puts the ceiling near 3,100.
-export const BOUNTY_MIN_POINTS_TO_WIN = 1000;
+// Current campaign: the $10 daily pool is for players who clear 5,000 bounty
+// points in that UTC day.
+export const BOUNTY_MIN_POINTS_TO_WIN = 5000;
 
 export function meetsBountyThreshold(points: number): boolean {
   return points >= BOUNTY_MIN_POINTS_TO_WIN;
 }
 
 // A second, separately funded pool split evenly between qualifiers who did NOT
-// place in the top 3. The tiered pool rewards winning; this one rewards turning
-// up, which is what keeps the 4th-place player coming back once they can see
-// they won't catch 1st today.
+// place in the top 3. It is disabled for the current $100 campaign so the daily
+// spend stays exactly $10.
 //
 // Explicitly excludes the podium: paying it to winners too meant a lone
 // qualifier collected $5 for first place AND the entire $4 pool, so a "$5 for
@@ -115,7 +120,7 @@ export function meetsBountyThreshold(points: number): boolean {
 // A fixed pool rather than a fixed per-head amount, so the daily cost is capped
 // no matter how many qualify. The trade-off is that each share shrinks as more
 // people qualify: fine at 5 players, thin at 40 — see bountyParticipationShareUsd.
-export const BOUNTY_PARTICIPATION_POOL_USD = 4;
+export const BOUNTY_PARTICIPATION_POOL_USD = 0;
 
 /** Qualifiers eligible for the participation pool: everyone below the podium. */
 export function bountyParticipationRecipients(qualifierCount: number): number {
@@ -168,4 +173,17 @@ export const BOUNTY_CLAIM_URL = "https://t.me/actionorder/3";
 // Daily House wins that count toward the bounty. Lives here rather than in
 // bounty.ts so client components can show the limit without pulling in redis.
 // bounty.ts re-exports it as HOUSE_WINS_COUNTED_PER_DAY.
-export const BOUNTY_WINS_PER_DAY = 10;
+//
+// Raised from 10 to 25 for the 5,000-point campaign, because the threshold and
+// this cap together decide whether the prize can be won at all. At 10 the day
+// topped out at 3,100 (ten flawless Hard wins plus the loss allowance), so a
+// 5,000 threshold could only be cleared by beating the House Boss six to eight
+// times in one UTC day — at a ~5% boss win rate, roughly 150 boss runs. The
+// best score ever recorded on the real board is 2,745. A prize nobody can win
+// is worse than no prize, so the ceiling moves with the bar: at 25 the day tops
+// out at 7,600, and ~25 Hard wins at the typical 200 each reaches 5,000.
+//
+// Keep these two in step. Raising BOUNTY_MIN_POINTS_TO_WIN without raising this
+// makes the campaign unwinnable; the test suite asserts the threshold stays
+// under the ceiling for exactly that reason.
+export const BOUNTY_WINS_PER_DAY = 25;
