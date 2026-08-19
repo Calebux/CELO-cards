@@ -313,7 +313,7 @@ export default function CreateMatch() {
       if (bossEntryWillCharge(address, isMp) && !skipOnchainRef.current) {
         setBossEntryError("");
         setBossEntryState("paying");
-        const res = await enterBossOnchain(address, isMp);
+        const res = await enterBossOnchain(address, isMp, aiDifficulty);
         setBossEntryState("idle");
         if (!res.ok && res.needsFunding) {
           setBossEntryError(res.error ?? "");

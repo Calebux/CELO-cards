@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../../lib/gameStore";
 import { BOUNTY_WINS_PER_DAY, bountyPausedOn } from "../../lib/bountyConfig";
+import { useVsHouseMatchRecorder } from "../../lib/bossEntry";
 import { Card, getArenaBackground, CHARACTERS } from "../../lib/gameData";
 import { SlotResult } from "../../lib/combatEngine";
 import { playSound, startBgMusic, stopBgMusic } from "../../lib/soundManager";
@@ -103,10 +104,16 @@ export default function Gameplay() {
     advanceUpperChamber,
     addBonusPoints,
     bountyCapReached,
+    aiDifficulty,
   } = useGameStore();
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const signMatchAction = useMatchActionAuth();
+  // Every VS House match goes on-chain, not just the one started from /create.
+  // Rematch, new character and the next opponent in a streak all reach the same
+  // game and were the reason the registry saw one event per session instead of
+  // one per match. Fire-and-forget — see useVsHouseMatchRecorder.
+  const recordVsHouseMatch = useVsHouseMatchRecorder();
 
   const isMatchEnd = matchPhase === "match-end";
   const coachReady = useIdleReady(!isMatchEnd, isMp || isMobileViewport ? 1800 : 1200);
@@ -739,6 +746,7 @@ export default function Gameplay() {
           }
         return;
       }
+      recordVsHouseMatch(address, isMp, aiDifficulty);
       resetMatch();
       setVsBot(true);
       setMatchMode("vshouse");
@@ -1778,6 +1786,7 @@ export default function Gameplay() {
                           resetMatch();
                           router.push(matchMode === "ranked" ? "/create?mode=ranked" : "/create?mode=tourney");
                         } else {
+                          recordVsHouseMatch(address, isMp, aiDifficulty);
                           rematch();
                           router.push("/loadout");
                         }
@@ -1788,7 +1797,7 @@ export default function Gameplay() {
                     </button>
                     {/* Play Again — new character */}
                     <button
-                      onClick={() => { resetMatch(); router.push("/select-character"); }}
+                      onClick={() => { recordVsHouseMatch(address, isMp, aiDifficulty); resetMatch(); router.push("/select-character"); }}
                       style={{ flex: 2, height: isCompactPhone ? 60 : 52, background: "linear-gradient(135deg, #1a3a52, #0f2233)", border: "1.5px solid #56a4cb", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 800, fontSize: isCompactPhone ? 13 : 12, letterSpacing: 1.5, color: "#b9e7f4", textTransform: "uppercase", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" }}
                     >
                       NEW MATCH
