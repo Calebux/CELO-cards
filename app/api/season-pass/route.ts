@@ -7,6 +7,7 @@ import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, CUSD_CONTRACT, USDC_CONTRAC
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../../lib/seasonPassContract";
 import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "../../lib/gdollarSeasonPassContract";
 import { SEASON_PLANS, type SeasonPlan } from "../../lib/seasonPassPlans";
+import { evaluateReferralQualification } from "../../lib/referralRewards";
 
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
@@ -378,6 +379,13 @@ export async function POST(req: NextRequest) {
 
   const ttlSec = Math.ceil((expiry - Date.now()) / 1000) + 86400; // +1 day buffer
   await redis.set(passKey(address), { expiry, plan: creditedPlan, txHash }, { ex: ttlSec });
+
+  // Buying a pass is the second half of a cash referral (the first is being G$
+  // verified), so this is the moment one can become payable. Evaluated here as
+  // well as on the ops dashboard because the two conditions land in either
+  // order — best-effort, since a referral must never be able to fail a purchase
+  // the buyer has already paid for. Idempotent, so the double call is free.
+  void evaluateReferralQualification(address).catch(() => {});
 
   return NextResponse.json({ success: true, expiry, plan: creditedPlan });
 }

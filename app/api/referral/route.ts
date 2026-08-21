@@ -16,6 +16,12 @@ export async function GET(req: NextRequest) {
   await registerReferralCode(address);
 
   const data = await getReferral(address);
+
+  // Deliberately NO cash fields here. The ₦ reward is discretionary and paid
+  // only to some referrers, so exposing an amount — or even a "qualified" count,
+  // which exists only for the cash programme — on a public endpoint would
+  // advertise a promise to everyone who reads it. Money lives ops-side only:
+  // see /api/referral/ops.
   return NextResponse.json(data);
 }
 
