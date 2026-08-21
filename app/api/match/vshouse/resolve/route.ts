@@ -7,6 +7,7 @@ import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult, recordPlayerMatchOutcome } from "../../../../lib/leaderboard";
 import { HOUSE_WINS_COUNTED_PER_DAY, recordBountyPoints } from "../../../../lib/bounty";
+import { isAgentWallet, recordAgentPoints } from "../../../../lib/agentTrack";
 import { clampDifficulty, effectiveAiDifficulty, houseMatchPoints } from "../../../../lib/houseDifficulty";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
@@ -212,27 +213,37 @@ export async function POST(req: NextRequest) {
       pointsEarned = houseMatchPoints({ won: false, flawless: false, rewardDifficulty });
     }
 
-    await recordMatchResult({
-      playerAddress: addr,
-      playerName: sanitizedPlayerName ?? undefined,
-      won: playerWon,
-      pointsEarned,
-      leaderboard: "casual",
-    });
+    // A GoodAgent-run wallet scores on the agent board instead of the human
+    // one. Not a filter — its play still counts, just somewhere a real player
+    // is not competing for prize money against a script. See lib/agentTrack.ts
+    // for why this is a separate track rather than an exclusion.
+    const isAgent = await isAgentWallet(addr);
 
-    // Server-authoritative daily/streak progression (M-07) — drives challenges
-    // and achievements from the computed outcome, not client-reported stats.
-    await recordPlayerMatchOutcome(addr, playerWon).catch(() => {});
+    if (isAgent) {
+      await recordAgentPoints(addr, pointsEarned, sanitizedPlayerName);
+    } else {
+      await recordMatchResult({
+        playerAddress: addr,
+        playerName: sanitizedPlayerName ?? undefined,
+        won: playerWon,
+        pointsEarned,
+        leaderboard: "casual",
+      });
 
-    // Daily bounty credit. Capped per day inside recordBountyPoints: a season
-    // pass grants unlimited boss matches, so uncapped this would be farmable by
-    // volume alone. Leaderboard scoring above is unaffected by the cap.
-    bountyCounted = await recordBountyPoints(
-      addr,
-      pointsEarned,
-      { kind: "house", won: playerWon, difficulty: aiDifficulty },
-      sanitizedPlayerName,
-    );
+      // Server-authoritative daily/streak progression (M-07) — drives challenges
+      // and achievements from the computed outcome, not client-reported stats.
+      await recordPlayerMatchOutcome(addr, playerWon).catch(() => {});
+
+      // Daily bounty credit. Capped per day inside recordBountyPoints: a season
+      // pass grants unlimited boss matches, so uncapped this would be farmable by
+      // volume alone. Leaderboard scoring above is unaffected by the cap.
+      bountyCounted = await recordBountyPoints(
+        addr,
+        pointsEarned,
+        { kind: "house", won: playerWon, difficulty: aiDifficulty },
+        sanitizedPlayerName,
+      );
+    }
 
     await recordHouseMatchActivity({
       matchId,

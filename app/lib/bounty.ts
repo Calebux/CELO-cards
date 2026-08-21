@@ -10,6 +10,7 @@
 import { redis } from "./redis";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "./cusd";
 import { privateKeyToAccount } from "viem/accounts";
+import { isAgentWallet } from "./agentTrack";
 
 // Prize config lives in the dependency-free bountyConfig module so client pages
 // can announce it without pulling redis/viem in. Re-exported here so server
@@ -238,6 +239,12 @@ export async function recordBountyPoints(
     if (!address || !Number.isFinite(points) || points <= 0) return false;
     const addr = address.toLowerCase();
     if (isBountyExcluded(addr)) return false;
+
+    // Agent-operated wallets never score here. Checked at this choke point
+    // rather than at each caller so the PvP path is covered by the same rule —
+    // this function is the only place a match becomes prize money, and prizes
+    // go by rank, so one agent on the board costs a real player a tier.
+    if (await isAgentWallet(addr)) return false;
 
     const day = bountyDayUTC();
 
