@@ -108,7 +108,22 @@ export default function ProfilePage() {
   const highestMasteryTier = getHighestMasteryTier(cardPerformance);
   const masteredCardCount = getMasteredCardCount(cardPerformance);
   const isProfileCompact = isMp || isCompactPhone;
-  const showReferralAndStreaks = !isProfileCompact;
+  const showStreaks = !isProfileCompact;
+
+  /**
+   * Referrals are shown on phones, and hidden only in MiniPay.
+   *
+   * They used to share a flag with streaks and vanish on any compact layout,
+   * which had it exactly backwards: a referral link shared on WhatsApp opens in
+   * mobile web, so a phone is precisely where someone needs to find their code.
+   * Hiding it there meant the people the programme is aimed at could not take
+   * part — which is how it was found, from a player complaining.
+   *
+   * MiniPay stays excluded on purpose: players arrive through its dapp store
+   * rather than a shared link, and the code is the first 8 characters of the
+   * wallet address, which the MiniPay review rules do not allow on screen.
+   */
+  const showReferrals = !isMp;
 
   useEffect(() => {
     if (!address) {
@@ -164,12 +179,12 @@ export default function ProfilePage() {
 
   // Fetch streak on load
   useEffect(() => {
-    if (!address || !showReferralAndStreaks) return;
+    if (!address || !showStreaks) return;
     fetch(`/api/streak?address=${address.toLowerCase()}`)
       .then(r => r.ok ? r.json() as Promise<{ count: number; longestStreak: number }> : null)
       .then(data => { if (data) setStreak(data); })
       .catch(() => {});
-  }, [address, showReferralAndStreaks]);
+  }, [address, showStreaks]);
 
   const checkInStreak = useCallback(async () => {
     if (!address || streakChecking) return;
@@ -197,12 +212,12 @@ export default function ProfilePage() {
 
   // Fetch referral data on load
   useEffect(() => {
-    if (!address || !showReferralAndStreaks) return;
+    if (!address || !showReferrals) return;
     fetch(`/api/referral?address=${address.toLowerCase()}`)
       .then(r => r.ok ? r.json() as Promise<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
       .then(data => { if (data) setReferralData(data); })
       .catch(() => {});
-  }, [address, showReferralAndStreaks]);
+  }, [address, showReferrals]);
 
   const submitReferral = useCallback(async () => {
     if (!address || referralSubmitting || !referralInput.trim()) return;
@@ -491,7 +506,7 @@ export default function ProfilePage() {
             )}
 
             {/* Daily Streak */}
-            {address && showReferralAndStreaks && (
+            {address && showStreaks && (
               <div style={{
                 backgroundColor: "rgba(15,23,42,0.55)",
                 border: streak && streak.count >= 3 ? "1px solid rgba(249,115,22,0.35)" : "1px solid rgba(255,255,255,0.06)",
@@ -732,7 +747,7 @@ export default function ProfilePage() {
                 { label: "Streak",      value: winStreak > 0 ? `🔥 ${winStreak}` : winStreak, color: winStreak >= 3 ? "#f97316" : "#94a3b8" },
                 { label: "Best Streak", value: maxWinStreak,   color: maxWinStreak >= 5 ? "#fbbf24" : "#94a3b8" },
                 { label: "Pts Earned",  value: displayPoints > 0 ? `+${displayPoints.toLocaleString()}` : "—", color: "#fbbf24" },
-              ].filter(({ label }) => showReferralAndStreaks || (label !== "Streak" && label !== "Best Streak")).map(({ label, value, color }) => (
+              ].filter(({ label }) => showStreaks || (label !== "Streak" && label !== "Best Streak")).map(({ label, value, color }) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: isProfileCompact ? "10px 0" : "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                   <span style={{ fontSize: isProfileCompact ? 13 : 10, color: "#6b7280", fontWeight: 500 }}>{label}</span>
                   <span style={{ fontSize: isProfileCompact ? 18 : 12, fontWeight: 700, color }}>{value}</span>
@@ -741,7 +756,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Referral */}
-            {address && showReferralAndStreaks && (
+            {address && showReferrals && (
               <div style={{
                 backgroundColor: "rgba(15,23,42,0.55)",
                 border: "1px solid rgba(86,164,203,0.25)",
