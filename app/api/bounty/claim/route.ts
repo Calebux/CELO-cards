@@ -5,6 +5,7 @@ import { celo } from "viem/chains";
 import { redis } from "../../../lib/redis";
 import { checkRateLimit } from "../../../lib/rateLimit";
 import { GDOLLAR_CONTRACT, fetchGoodDollarStatus } from "../../../lib/gooddollar";
+import { USDT_CONTRACT } from "../../../lib/cusd";
 import { buildBountyClaimAuthMessage, verifyTreasuryActionSignature } from "../../../lib/treasuryAuth";
 import {
   BOUNTY_PARTICIPATION_POOL_USD,
@@ -57,6 +58,27 @@ const daySpendKey = (day: string) => `bounty:claim-spend:${day}`;
 // manipulated standings record still cannot drain the treasury.
 const MAX_DAY_PAYOUT_GDOLLAR = usdToGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD);
 
+// The day ceiling is counted in whole CENTS, not token units, because a day can
+// now be paid in either G$ or USDT and one budget has to cover both. A new key
+// name on purpose: the old `bounty:claim-spend:` values are in G$ and mixing the
+// two units in one counter would silently let a day pay out twice over.
+const MAX_DAY_PAYOUT_CENTS = Math.round((BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD) * 100);
+const daySpendCentsKey = (day: string) => `bounty:claim-spend-cents:${day}`;
+
+/**
+ * What a prize is paid in.
+ *
+ * MiniPay players are paid USDT: GoodDollar must not operate anywhere in the
+ * Mini App, so a G$ prize is not payable to them at all. USDT is denominated in
+ * dollars like the prize itself, so there is no conversion rate in the path —
+ * $5 is 5 USDT, exactly.
+ */
+const PAYOUT_TOKENS = {
+  gdollar: { address: GDOLLAR_CONTRACT, decimals: 18, label: "G$" },
+  usdt: { address: USDT_CONTRACT, decimals: 6, label: "USDT" },
+} as const;
+type PayoutCurrency = keyof typeof PAYOUT_TOKENS;
+
 /**
  * POST /api/bounty/claim  { address, day, signature }
  *
@@ -76,7 +98,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many attempts. Please wait." }, { status: 429 });
   }
 
-  let body: { address?: string; day?: string; signature?: string };
+  let body: { address?: string; day?: string; signature?: string; currency?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -93,6 +115,13 @@ export async function POST(req: NextRequest) {
   const day = body.day && /^\d{4}-\d{2}-\d{2}$/.test(body.day)
     ? body.day
     : lastPayingDayAtOrBefore(bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000));
+
+  // MiniPay players are paid USDT — a G$ prize cannot reach them at all, since
+  // GoodDollar must not operate in the Mini App. The client asks for it; the
+  // AMOUNT is still decided server-side from the frozen standings, so the worst
+  // a forged flag can do is take the same dollar value from a different pot.
+  const currency: PayoutCurrency = body.currency === "usdt" ? "usdt" : "gdollar";
+  const token = PAYOUT_TOKENS[currency];
 
   // A day still in progress can still change places. Paying it early would let
   // someone claim first place and then be overtaken.
@@ -137,13 +166,22 @@ export async function POST(req: NextRequest) {
   //
   // Fails closed — an RPC failure must not pay out an unverified wallet — and
   // resolves through the identity root so a linked wallet counts as verified.
-  let identityStatus;
-  try {
-    identityStatus = await fetchGoodDollarStatus(identityClient, address);
-  } catch {
-    return NextResponse.json({ error: "Could not check your verification. Please try again." }, { status: 503 });
+  //
+  // Skipped entirely for USDT claims, and not as a convenience: reading the
+  // GoodDollar identity contract IS GoodDollar functionality, so it cannot run
+  // for a MiniPay player. What still bounds a USDT claim is the work itself —
+  // 5,000 points in a day is roughly 25 Hard wins — plus the per-day ceiling
+  // below. Weaker than a face check; deliberately so, and worth revisiting if
+  // the pool ever grows.
+  let identityStatus: Awaited<ReturnType<typeof fetchGoodDollarStatus>> | null = null;
+  if (currency === "gdollar") {
+    try {
+      identityStatus = await fetchGoodDollarStatus(identityClient, address);
+    } catch {
+      return NextResponse.json({ error: "Could not check your verification. Please try again." }, { status: 503 });
+    }
   }
-  if (identityStatus.status !== "verified") {
+  if (identityStatus && identityStatus.status !== "verified") {
     return NextResponse.json(
       {
         error:
@@ -157,7 +195,14 @@ export async function POST(req: NextRequest) {
   }
 
   const amountGdollar = usdToGdollar(mine.totalUsd);
-  if (amountGdollar <= 0 || amountGdollar > MAX_DAY_PAYOUT_GDOLLAR) {
+  const amountCents = Math.round(mine.totalUsd * 100);
+  // USDT is dollar-denominated, so the prize converts 1:1 with no rate involved.
+  const amountTokens = currency === "usdt" ? mine.totalUsd : amountGdollar;
+  if (
+    amountCents <= 0 ||
+    amountCents > MAX_DAY_PAYOUT_CENTS ||
+    (currency === "gdollar" && (amountGdollar <= 0 || amountGdollar > MAX_DAY_PAYOUT_GDOLLAR))
+  ) {
     return NextResponse.json({ error: "Payout amount failed its sanity check." }, { status: 409 });
   }
 
@@ -182,12 +227,12 @@ export async function POST(req: NextRequest) {
     // Incremented first and rolled back if it overshoots: reading then writing
     // would let two simultaneous claims both see the old total and each believe
     // there was room, quietly taking the day over budget.
-    const spentAfter = await redis.incrby(daySpendKey(day), amountGdollar);
-    if (spentAfter === amountGdollar) {
-      await redis.expire(daySpendKey(day), 365 * 24 * 60 * 60);
+    const spentAfter = await redis.incrby(daySpendCentsKey(day), amountCents);
+    if (spentAfter === amountCents) {
+      await redis.expire(daySpendCentsKey(day), 365 * 24 * 60 * 60);
     }
-    if (spentAfter > MAX_DAY_PAYOUT_GDOLLAR) {
-      await redis.incrby(daySpendKey(day), -amountGdollar);
+    if (spentAfter > MAX_DAY_PAYOUT_CENTS) {
+      await redis.incrby(daySpendCentsKey(day), -amountCents);
       await redis.del(claimKey(day, address));
       return NextResponse.json({ error: "This day's payout budget is exhausted." }, { status: 409 });
     }
@@ -197,18 +242,18 @@ export async function POST(req: NextRequest) {
     const publicClient = createPublicClient({ chain: celo, transport: http("https://forno.celo.org") });
     const walletClient = createWalletClient({ account, chain: celo, transport: http("https://forno.celo.org") });
 
-    const value = parseUnits(String(amountGdollar), 18);
+    const value = parseUnits(String(amountTokens), token.decimals);
 
     // Check funds first so a shortfall reports honestly instead of failing as an
     // opaque revert after the player has already been told it worked.
     const balance = await publicClient.readContract({
-      address: GDOLLAR_CONTRACT,
+      address: token.address,
       abi: ERC20_TRANSFER_ABI,
       functionName: "balanceOf",
       args: [account.address],
     });
     if (balance < value) {
-      await redis.incrby(daySpendKey(day), -amountGdollar).catch(() => {});
+      await redis.incrby(daySpendCentsKey(day), -amountCents).catch(() => {});
       await redis.del(claimKey(day, address));
       return NextResponse.json(
         { error: "The prize pot is topping up — please try again shortly." },
@@ -218,7 +263,7 @@ export async function POST(req: NextRequest) {
 
     const { request } = await publicClient.simulateContract({
       account,
-      address: GDOLLAR_CONTRACT,
+      address: token.address,
       abi: ERC20_TRANSFER_ABI,
       functionName: "transfer",
       args: [address as `0x${string}`, value],
@@ -226,9 +271,9 @@ export async function POST(req: NextRequest) {
     const txHash = await walletClient.writeContract(request);
     broadcastTx = txHash;
 
-    await redis.set(claimKey(day, address), { txHash, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: CLAIM_RECORD_TTL_SECONDS });
+    await redis.set(claimKey(day, address), { txHash, currency, amountTokens, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: CLAIM_RECORD_TTL_SECONDS });
 
-    return NextResponse.json({ ok: true, txHash, amountGdollar, usd: mine.totalUsd });
+    return NextResponse.json({ ok: true, txHash, currency, amountTokens, amountGdollar, usd: mine.totalUsd });
   } catch (e) {
     if (broadcastTx) {
       // The transfer is already on-chain. Releasing the slot here — which is
@@ -236,9 +281,9 @@ export async function POST(req: NextRequest) {
       // would let the same player claim again and be paid twice. Record what we
       // know instead, and never free the slot.
       await redis
-        .set(claimKey(day, address), { txHash: broadcastTx, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: CLAIM_RECORD_TTL_SECONDS })
+        .set(claimKey(day, address), { txHash: broadcastTx, currency, amountTokens, amountGdollar, usd: mine.totalUsd, at: Date.now() }, { ex: CLAIM_RECORD_TTL_SECONDS })
         .catch(() => {});
-      return NextResponse.json({ ok: true, txHash: broadcastTx, amountGdollar, usd: mine.totalUsd });
+      return NextResponse.json({ ok: true, txHash: broadcastTx, currency, amountTokens, amountGdollar, usd: mine.totalUsd });
     }
     // Nothing was sent, so give back the reservation and the budget.
     await redis.incrby(daySpendKey(day), -amountGdollar).catch(() => {});
@@ -271,6 +316,7 @@ export async function GET(req: NextRequest) {
     paused: bountyPausedOn(day),
     usd: mine?.totalUsd ?? 0,
     amountGdollar: mine?.totalUsd ? usdToGdollar(mine.totalUsd) : 0,
+    amountUsdt: mine?.totalUsd ?? 0,
     rank: mine?.rank ?? null,
     alreadyClaimed: !!claimed?.txHash,
     txHash: claimed?.txHash ?? null,
