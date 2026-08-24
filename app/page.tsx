@@ -30,9 +30,12 @@ export default function ActionOrderLandingPage() {
   const [LandingSeasonPassButtonComponent, setLandingSeasonPassButtonComponent] = useState<LandingSeasonPassButtonComponent | null>(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [howToPlayVariant, setHowToPlayVariant] = useState<"quickstart" | "full">("full");
-  const tournamentPrizeDisplay = "431,000 G$";
+  // Kept in step with the House Event page, which shows `${poolPrizeUsd ?? 100}
+  // USDT`. This said "431,000 G$" — stale, and GoodDollar cannot appear in the
+  // MiniPay Mini App, where this banner renders too.
+  const tournamentPrizeDisplay = "100 USDT";
   const tournamentPrizeLabel = "POOL PRIZE";
-  const tournamentRewardCopy = "Beat our House AI on HARD in the full 5/5 streak to claim from the 431,000 G$ (≈$50) pool prize.";
+  const tournamentRewardCopy = "Beat our House AI on HARD in the full 5/5 streak to claim from the 100 USDT pool prize.";
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {
