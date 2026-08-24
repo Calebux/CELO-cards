@@ -10,7 +10,14 @@ export function DailyReward() {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!address) return;
+    // GoodDollar does not operate inside the MiniPay Mini App at all.
+    //
+    // This used to fire for MiniPay too and only suppress the toast, so a G$
+    // transfer left the treasury for a MiniPay player with nothing on screen
+    // saying so — invisible, but exactly the functionality MiniPay asked us to
+    // remove. Suppressing a message is not removing a feature, so the request
+    // is not made at all now.
+    if (!address || isMp) return;
     const today = new Date().toISOString().slice(0, 10);
     const key = `ao-lastDailyLogin-${address.toLowerCase()}`;
     if (typeof window !== "undefined" && localStorage.getItem(key) === today) return;
@@ -24,7 +31,7 @@ export function DailyReward() {
       .then((data: { claimed?: boolean; txHash?: string; error?: string }) => {
         if (data.claimed || data.error) return;
         localStorage.setItem(key, today);
-        if (!isMp) setToast("Daily G$ reward sent! ✓");
+        setToast("Daily G$ reward sent! ✓");
         setTimeout(() => setToast(null), 5000);
       })
       .catch(() => {});

@@ -497,9 +497,14 @@ export default function ActionOrderLandingPage() {
                   <span style={{ fontSize:isMp ? 15 : 14, fontWeight:900, color:"#fff", letterSpacing:-0.3 }}>
                     ${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD}
                   </span>
-                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"#4ade80" }}>
-                    ≈{formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}
-                  </span>
+                  {/* GoodDollar is removed entirely from the MiniPay Mini App
+                      at MiniPay's request, so the G$ conversion shows on web
+                      only. The dollar figure above carries the message alone. */}
+                  {!isMp && (
+                    <span style={{ fontSize:10, fontWeight:700, letterSpacing:1, color:"#4ade80" }}>
+                      ≈{formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}
+                    </span>
+                  )}
                   {bountyIsFinalPayingDay() ? (
                     <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#fbbf24", textTransform:"uppercase" }}>
                       Final day · pauses 00:00 UTC

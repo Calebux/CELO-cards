@@ -10,7 +10,6 @@ import { WalletSync } from "./lib/wallet";
 import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
 
 // Heavy modals — load after initial paint
-const DailyReward   = dynamic(() => import("./components/DailyReward").then(m => ({ default: m.DailyReward })), { ssr: false });
 const UsernameModal = dynamic(() => import("./components/UsernameModal").then(m => ({ default: m.UsernameModal })), { ssr: false });
 const TutorialModal = dynamic(() => import("./components/TutorialModal").then(m => ({ default: m.TutorialModal })), { ssr: false });
 
@@ -51,7 +50,9 @@ export function MiniPayProviders({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <WalletSync />
         <DeferredGlobalOverlays>
-          <DailyReward />
+          {/* DailyReward is NOT mounted here. It sends GoodDollar, which must
+              not operate in the MiniPay Mini App — leaving it out keeps both the
+              behaviour and its G$ copy out of the MiniPay bundle entirely. */}
           <UsernameModal />
           <TutorialModal />
         </DeferredGlobalOverlays>

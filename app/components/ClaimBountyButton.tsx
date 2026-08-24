@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
+import { useMiniPayMode } from "../lib/premiumPayments";
 import { buildBountyClaimAuthMessage } from "../lib/treasuryAuth";
 import { formatGdollar } from "../lib/bountyConfig";
 import { isUserRejectedTx } from "../lib/txErrors";
@@ -26,6 +27,10 @@ type ClaimInfo = {
 
 export function ClaimBountyButton({ compact = false }: { compact?: boolean }) {
   const { address } = useAccount();
+  // The prize settles in G$, and GoodDollar must not appear or operate anywhere
+  // in the MiniPay Mini App. Gated at the top so no request is made either —
+  // hiding only the label would leave the claim reachable and still paying G$.
+  const isMp = useMiniPayMode();
   const { signMessageAsync } = useSignMessage();
   const [info, setInfo] = useState<ClaimInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,16 +38,16 @@ export function ClaimBountyButton({ compact = false }: { compact?: boolean }) {
   const [txHash, setTxHash] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!address) { setInfo(null); return; }
+    if (!address || isMp) { setInfo(null); return; }
     let cancelled = false;
     void fetch(`/api/bounty/claim?address=${address.toLowerCase()}&t=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d: ClaimInfo) => { if (!cancelled) { setInfo(d); setTxHash(d.txHash); } })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [address]);
+  }, [address, isMp]);
 
-  if (!address || !info || info.usd <= 0) return null;
+  if (isMp || !address || !info || info.usd <= 0) return null;
 
   const done = info.alreadyClaimed || !!txHash;
 

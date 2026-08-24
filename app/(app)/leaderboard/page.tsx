@@ -71,7 +71,7 @@ const TABS: readonly { key: Tab; label: string; icon: string; hint: string }[] =
 ];
 
 const SUBTITLES: Record<Tab, string> = {
-  bounty: `Today's race — $${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD} (≈${formatGdollar(BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD)}), resets 00:00 UTC`,
+  bounty: `Today's race — $${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD}, resets 00:00 UTC`,
   past: "Who won on previous days, and what they were paid",
   casual: "All matches — VS House and PvP",
   ranked: "Ranked PvP matches only",
@@ -326,7 +326,10 @@ export default function Leaderboard() {
                   <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points split{" "}
                   <strong style={{ color: "#4ade80" }}>${BOUNTY_POOL_USD}</strong>
                   {" "}({BOUNTY_PRIZE_SPLIT_USD.map((n) => `$${n}`).join(" / ")}).
-                  {" "}Paid in G$ — 1st takes ≈{formatGdollar(BOUNTY_PRIZE_SPLIT_USD[0])}.
+                  {/* GoodDollar must not appear anywhere in the MiniPay Mini
+                      App — see the MiniPay review requirement. Web keeps it,
+                      because G$ is what web winners are actually paid in. */}
+                  {!isMp && <>{" "}Paid in G$ — 1st takes ≈{formatGdollar(BOUNTY_PRIZE_SPLIT_USD[0])}.</>}
                 </span>
                 {/* Said on the last paying day, so the prize does not simply
                     disappear overnight without warning. */}
@@ -569,11 +572,14 @@ export default function Leaderboard() {
                             <span style={{ fontSize: isCompact ? 17 : 13, fontWeight: 800, color: "#4ade80" }}>
                               ${p.totalUsd}
                             </span>
-                            {/* G$ is what players actually receive, so show it
-                                rather than making them convert from dollars. */}
-                            <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 0.3 }}>
-                              ≈{formatGdollar(p.totalUsd ?? 0)}
-                            </span>
+                            {/* G$ is what web players actually receive, so show
+                                it rather than making them convert from dollars —
+                                but never inside MiniPay. */}
+                            {!isMp && (
+                              <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 0.3 }}>
+                                ≈{formatGdollar(p.totalUsd ?? 0)}
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <span style={{ fontSize: isCompact ? 13 : 10, fontWeight: 600, color: "#475569", letterSpacing: 0.5 }}>

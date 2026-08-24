@@ -5,10 +5,8 @@ import { getMiniPayAddress, getMiniPayConnector, getMiniPayWriteOverrides, isMin
 import { useAccount, useConnect, usePublicClient, useSendTransaction, useSwitchChain, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { formatUnits, parseEther, parseUnits } from "viem";
-import { GDOLLAR_CONTRACT, GDOLLAR_ABI } from "../lib/gooddollar";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS, USDT_CONTRACT } from "../lib/cusd";
 import { SEASON_PASS_CONTRACT, SEASON_PASS_ABI } from "../lib/seasonPassContract";
-import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "../lib/gdollarSeasonPassContract";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { getInitialMiniPayMode, getPremiumPaymentOptions, MINIPAY_DEPOSIT_DEEPLINK, MINIPAY_STABLECOIN_EXPLAINER, type PremiumPaymentCurrency, useMiniPayMode } from "../lib/premiumPayments";
 import { isUserRejectedTx, TX_CANCELLED_MESSAGE } from "../lib/txErrors";
@@ -19,7 +17,6 @@ import { VerifyButton, useIsVerified } from "./VerifyButton";
 const TREASURY = TREASURY_ADDRESS;
 const TREASURY_MINIPAY = TREASURY_MINIPAY_ADDRESS;
 const CONTRACT_ACTIVE = SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
-const GDOLLAR_CONTRACT_ACTIVE = GDOLLAR_SEASON_PASS_CONTRACT !== "0x0000000000000000000000000000000000000000";
 const MOBILE_MODAL_W = 900;
 const MOBILE_MODAL_H = 620;
 const USDT_ABI = [
@@ -76,14 +73,6 @@ const PLANS = [
 type PlanId = (typeof PLANS)[number]["id"];
 type Step = "checking" | "idle" | "waiting-tx" | "confirming" | "registering" | "done" | "error" | "low-balance";
 
-// On-chain price getters per plan — the G$ registry owner can adjust prices,
-// so the contract is the pricing authority, not the PLANS config (H-04).
-const GDOLLAR_PRICE_GETTER = {
-  weekly: "weeklyPrice",
-  monthly: "monthlyPrice",
-  season: "seasonPrice",
-} as const;
-
 type Props = {
   onClose: () => void;
   onActivated?: () => void;
@@ -118,24 +107,21 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
   // for display before the read resolves (H-04).
   const [gdollarPrices, setGdollarPrices] = useState<Partial<Record<PlanId, bigint>>>({});
   useEffect(() => {
-    if (!GDOLLAR_CONTRACT_ACTIVE || !publicClient) return;
+    // Never read the GoodDollar registry inside the MiniPay Mini App. G$ is not
+    // a payment option there, so these three reads bought nothing and were a
+    // live G$ contract call on every open — the functionality MiniPay asked to
+    // have removed, happening invisibly.
+    if (!publicClient || isMp) return;
     let cancelled = false;
     void (async () => {
       try {
-        const [weekly, monthly, season] = await Promise.all(
-          ([GDOLLAR_PRICE_GETTER.weekly, GDOLLAR_PRICE_GETTER.monthly, GDOLLAR_PRICE_GETTER.season] as const).map((fn) =>
-            publicClient.readContract({
-              address: GDOLLAR_SEASON_PASS_CONTRACT,
-              abi: GDOLLAR_SEASON_PASS_ABI,
-              functionName: fn,
-            })
-          )
-        );
-        if (!cancelled) setGdollarPrices({ weekly, monthly, season });
+        const { readGdollarPrices } = await import("../lib/seasonPassGdollar");
+        const prices = await readGdollarPrices(publicClient);
+        if (!cancelled) setGdollarPrices(prices);
       } catch { /* show configured prices until the read succeeds */ }
     })();
     return () => { cancelled = true; };
-  }, [publicClient]);
+  }, [publicClient, isMp]);
   const gdollarPriceWeiFor = useCallback(
     (planId: PlanId): bigint => gdollarPrices[planId] ?? PLANS.find((p) => p.id === planId)!.priceWeiGdollar,
     [gdollarPrices]
@@ -333,45 +319,20 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
               ...getMiniPayWriteOverrides(),
             });
         void pollAndRegister(hash, activeAddress);
-      } else if (currency === "gdollar" && GDOLLAR_CONTRACT_ACTIVE) {
-        // Route through GDollarSeasonPassRegistry — approve then buySeasonPass,
-        // tx is FROM buyer's wallet so it's attributable on-chain.
-        // Read the authoritative price at purchase time and approve exactly
-        // that amount — fail closed rather than approving a stale config
-        // price the owner may have changed (H-04).
-        if (!publicClient) throw new Error("Network unavailable. Try again.");
-        const livePrice = await publicClient.readContract({
-          address: GDOLLAR_SEASON_PASS_CONTRACT,
-          abi: GDOLLAR_SEASON_PASS_ABI,
-          functionName: GDOLLAR_PRICE_GETTER[selectedPlan],
-        });
-        setGdollarPrices((prev) => ({ ...prev, [selectedPlan]: livePrice }));
-        await writeContractAsync({
-          address: GDOLLAR_CONTRACT,
-          abi: GDOLLAR_ABI,
-          functionName: "approve",
-          args: [GDOLLAR_SEASON_PASS_CONTRACT, livePrice],
-          account: activeAddress,
-          chainId: celo.id,
-        });
-        const hash = await writeContractAsync({
-          address: GDOLLAR_SEASON_PASS_CONTRACT,
-          abi: GDOLLAR_SEASON_PASS_ABI,
-          functionName: "buySeasonPass",
-          args: [selectedPlan],
-          account: activeAddress,
-          chainId: celo.id,
-        });
-        void pollAndRegister(hash, activeAddress);
       } else if (currency === "gdollar") {
-        // Fallback: direct transfer to treasury (no contract deployed/active)
-        const hash = await writeContractAsync({
-          address: GDOLLAR_CONTRACT,
-          abi: GDOLLAR_ABI,
-          functionName: "transfer",
-          args: [TREASURY, plan.priceWeiGdollar],
+        // G$ lives in its own chunk so MiniPay never downloads it — see
+        // lib/seasonPassGdollar.ts. Crediting stays here, single-copy.
+        if (!publicClient) throw new Error("Network unavailable. Try again.");
+        const { purchaseWithGdollar } = await import("../lib/seasonPassGdollar");
+        const hash = await purchaseWithGdollar({
+          client: publicClient,
+          writeContractAsync: writeContractAsync as never,
           account: activeAddress,
           chainId: celo.id,
+          planId: selectedPlan,
+          fallbackPriceWei: plan.priceWeiGdollar,
+          treasury: TREASURY,
+          onPrice: (id, price) => setGdollarPrices((prev) => ({ ...prev, [id]: price })),
         });
         void pollAndRegister(hash, activeAddress);
       } else if (CONTRACT_ACTIVE) {
@@ -421,12 +382,8 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
           const addr = activeAddressRef.current;
           if (addr && publicClient && !isMiniPayStableKey(currency)) {
             if (currency === "gdollar") {
-              const bal = await publicClient.readContract({
-                address: GDOLLAR_CONTRACT,
-                abi: GDOLLAR_ABI,
-                functionName: "balanceOf",
-                args: [addr],
-              });
+              const { readGdollarBalance } = await import("../lib/seasonPassGdollar");
+              const bal = await readGdollarBalance(publicClient, addr);
               gasShortfall = bal >= gdollarPriceWeiFor(plan.id);
             } else {
               const bal = await publicClient.getBalance({ address: addr });
