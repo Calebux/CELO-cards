@@ -176,6 +176,7 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     >
       <div
         ref={wrapRef}
+        data-ao-frame=""
         style={{
           width: DESIGN_W,
           height: DESIGN_H,

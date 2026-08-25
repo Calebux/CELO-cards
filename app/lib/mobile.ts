@@ -34,6 +34,19 @@ type GameFrameScaleOptions = {
   onCompactChange?: (compact: boolean) => void;
 };
 
+/**
+ * Marks an element that already maps design coordinates onto the screen.
+ *
+ * The transform is what makes the game look landscape on a portrait phone, and
+ * it must be applied exactly once between the viewport and the content. A
+ * modal rendered inside the gameplay canvas is already carrying its ancestor's
+ * transform, so applying its own on top rotates it a further 90° — upside down
+ * — and squares the scale. The same modal opened on its own still needs one.
+ * So the question is never "does this component scale", it is "has an ancestor
+ * scaled already", and this attribute is how an element answers it.
+ */
+export const FRAME_ATTR = "data-ao-frame";
+
 export function useGameFrameScale(
   wrapRef: RefObject<HTMLElement | null>,
   options: GameFrameScaleOptions = {},
@@ -48,6 +61,14 @@ export function useGameFrameScale(
   useLayoutEffect(() => {
     if (!enabled) return;
 
+    // Read from the parent so the element's own marker does not match. The
+    // DOM position of a frame does not change while it is mounted, so this is
+    // settled once rather than on every resize.
+    const nested = Boolean(
+      wrapRef.current?.parentElement?.closest(`[${FRAME_ATTR}]`),
+    );
+    wrapRef.current?.setAttribute(FRAME_ATTR, "");
+
     const scale = () => {
       const el = wrapRef.current;
       if (!el) return;
@@ -56,6 +77,14 @@ export function useGameFrameScale(
       const vw = viewport?.width ?? window.innerWidth;
       const vh = viewport?.height ?? window.innerHeight;
       onCompactChangeRef.current?.(Math.min(vw, vh) <= (compactThreshold ?? 430));
+
+      // Still worth reporting the compact flag above — that is a fact about the
+      // viewport, not about this element's ancestry — but the transform itself
+      // belongs to the ancestor that already applied it.
+      if (nested) {
+        el.style.transform = "";
+        return;
+      }
 
       const isPortrait = vh > vw;
       let transform: string;

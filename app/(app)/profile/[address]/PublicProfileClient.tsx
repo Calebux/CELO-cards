@@ -157,7 +157,8 @@ export default function PublicProfileClient({ address }: Props) {
 
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#000" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "translate(-9999px, -9999px) scale(0.001)" }}>
+      <div ref={wrapRef}
+        data-ao-frame="" style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "translate(-9999px, -9999px) scale(0.001)" }}>
         {/* Background */}
         <MiniPayImage src={BG_IMAGE} alt="" minipayWidth={1280} minipayQuality={54} priority style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.25)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(86,164,203,0.06) 0%,transparent 60%)" }} />

@@ -837,7 +837,8 @@ export default function Gameplay() {
           100% { opacity: 1; transform: scale(1); }
         }
       ` }} />
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", willChange: "transform", transform: "var(--ao-tr)" }}>
+      <div ref={wrapRef}
+        data-ao-frame="" style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", willChange: "transform", transform: "var(--ao-tr)" }}>
 
         {/* VS loading screen — inside the canvas so it gets the portrait rotation */}
         {matchLoading && (

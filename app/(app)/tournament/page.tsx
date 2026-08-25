@@ -128,7 +128,8 @@ export default function HouseBossChallengePage() {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,5,5,0.72) 0%, rgba(5,5,5,0.46) 40%, rgba(5,5,5,0.88) 100%)" }} />
       </div>
 
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", zIndex: 1, transform: "var(--ao-tr)" }}>
+      <div ref={wrapRef}
+        data-ao-frame="" style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", zIndex: 1, transform: "var(--ao-tr)" }}>
         <div style={{ position: "absolute", top: safeTop, left: 0, right: 0, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 48px", borderBottom: "1px solid rgba(86,164,203,0.15)", backdropFilter: "blur(12px)", background: "rgba(5,5,5,0.7)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button onClick={() => router.back()} className="ko-btn ko-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>

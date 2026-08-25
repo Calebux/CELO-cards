@@ -126,7 +126,8 @@ export function UsernameModal() {
       backdropFilter: "blur(10px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={isMobileModal
+      <div ref={wrapRef}
+        data-ao-frame="" style={isMobileModal
         ? { position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }
         : { width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "translate(-9999px, -9999px) scale(0.001)" }
       }>

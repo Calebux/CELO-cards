@@ -166,7 +166,8 @@ export default function TradePage() {
 
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#000" }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
+      <div ref={wrapRef}
+        data-ao-frame="" style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
         {/* Background */}
         <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${BG_IMAGE})`, backgroundSize: "cover", backgroundPosition: "center", filter: "brightness(0.3)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(86,164,203,0.08) 0%,transparent 60%)" }} />

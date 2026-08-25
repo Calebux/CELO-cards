@@ -533,7 +533,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
   if (isMp || !WAGERS_ENABLED) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 200, backgroundColor: "rgba(5, 5, 16, 0.85)", backdropFilter: "blur(8px)", overflow: "hidden" }}>
-        <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
+        <div ref={wrapRef}
+        data-ao-frame="" style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ position: "relative", width: 420, background: "rgba(15, 23, 42, 0.95)", border: "2px solid #56a4cb", borderRadius: 8, padding: "40px 40px 32px", boxShadow: "0 0 40px rgba(86,164,203,0.3)", fontFamily: "var(--font-space-grotesk), sans-serif", textAlign: "center" }}>
             <div style={{ fontSize: 34, marginBottom: 14 }}>⚡</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: "#f1f5f9", textTransform: "uppercase", letterSpacing: -0.5, margin: "0 0 12px" }}>
@@ -564,7 +565,8 @@ export function WagerModal({ onConfirmed, onSkip, lockedAmountRaw, lockedCurrenc
       backdropFilter: "blur(8px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center", transform: "var(--ao-tr)" }}>
+      <div ref={wrapRef}
+        data-ao-frame="" style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{
           position: "relative", width: 420,
           background: "rgba(15, 23, 42, 0.95)",

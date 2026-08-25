@@ -13,7 +13,8 @@ import { MATCH_REGISTRY, MATCH_REGISTRY_ABI, MATCH_REGISTRY_ACTIVE } from "../..
 import { getMiniPayAddress, getMiniPayWriteOverrides } from "../../lib/minipay";
 import { WAGER_AMOUNT_CELO } from "../../lib/cusd";
 import { useMiniPayMode } from "../../lib/premiumPayments";
-import { useMobileViewportMode } from "../../lib/mobile";
+import { useGameFrameScale, useMobileViewportMode } from "../../lib/mobile";
+import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { usePageVisibility } from "../../lib/perf";
 import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
@@ -62,6 +63,8 @@ export default function Lobby() {
   const { writeContractAsync } = useWriteContract();
   const signMatchAction = useMatchActionAuth();
   const isMobileViewport = useMobileViewportMode();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useGameFrameScale(wrapRef);
   const pageVisible = usePageVisibility();
   const safeTop = "env(safe-area-inset-top)";
   const player   = selectedCharacter;
@@ -354,11 +357,24 @@ export default function Lobby() {
     <div style={{
       position: "fixed", inset: 0, zIndex: 100,
       background: "#050810",
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center",
       fontFamily: "var(--font-space-grotesk), sans-serif",
       overflow: "hidden",
     }}>
+      {/* The lobby sits between /ready and /gameplay, and both of those render
+          through the 1440×823 frame — on a portrait phone that means rotated to
+          landscape. This page used to lay itself out against the raw viewport
+          instead, so walking into the lobby span the content upright and
+          leaving it span it back. Same frame as its neighbours now, so a match
+          runs at one orientation from start to finish. */}
+      <div ref={wrapRef}
+        data-ao-frame=""
+        style={{
+          width: DESIGN_W, height: DESIGN_H,
+          position: "absolute", top: 0, left: 0,
+          transformOrigin: "top left",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+        }}>
       <style>{`
         @keyframes ml-fadein { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes ml-left   { from { opacity:0; transform:translateX(-80px) scale(0.9); } to { opacity:1; transform:translateX(0) scale(1); } }
@@ -748,6 +764,7 @@ export default function Lobby() {
           }}
         />
       )}
+      </div>
     </div>
   );
 }

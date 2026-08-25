@@ -408,7 +408,8 @@ export function SeasonPassModal({ onClose, onActivated }: Props) {
       backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
       overflow: "hidden",
     }}>
-      <div ref={wrapRef} style={useMobileFrame ? {
+      <div ref={wrapRef}
+        data-ao-frame="" style={useMobileFrame ? {
         width: MOBILE_MODAL_W, height: MOBILE_MODAL_H, position: "absolute", top: 0, left: 0,
         transformOrigin: "top left",
         transform: "var(--ao-tr)",

@@ -66,6 +66,7 @@ export function HouseWinnerModal({ rewardCode, rewardUsd, isMiniPay = false, onC
     >
       <div
         ref={wrapRef}
+        data-ao-frame=""
         style={{
           width: DESIGN_W,
           height: DESIGN_H,
