@@ -119,6 +119,95 @@ test("gameFrame: every frame marks itself so nested frames can skip", () => {
   assert.deepEqual(offenders, [], `unmarked frames:\n  ${offenders.join("\n  ")}`);
 });
 
+/**
+ * Overlays that carry no frame of their own, and why that is correct.
+ *
+ * A `position: fixed` overlay is measured against the nearest transformed
+ * ancestor, not the viewport, so one rendered inside a page frame inherits the
+ * rotation for free. One rendered outside every frame does not, and comes up
+ * upright while the page behind it is rotated — which is how "Entering the
+ * Arena" ended up sideways relative to the rest of the create page.
+ */
+const OVERLAY_INHERITS_FRAME: Record<string, string> = {
+  "components/NextFightReveal.tsx": "rendered inside the gameplay canvas",
+  "components/TransferFundsModal.tsx": "rendered inside the profile page frame",
+  "components/DailyReward.tsx": "web-only provider tree; not mounted in MiniPay",
+  "components/VerifyPromptModal.tsx": "web-only provider tree; not mounted in MiniPay",
+  "components/ReverifyModal.tsx": "web-only provider tree; not mounted in MiniPay",
+  "components/PortraitOverlay.tsx": "the rotate-your-device screen — must not rotate",
+};
+
+/**
+ * Individual overlays that are fine unframed. Keyed on a snippet of the style
+ * rather than a line number so the list survives edits above it; a snippet that
+ * stops matching is a prompt to look again, which is the point.
+ */
+const OVERLAY_EXEMPT: { file: string; contains: string; why: string }[] = [
+  {
+    file: "(app)/gameplay/page.tsx",
+    contains: 'background: "#050810"',
+    why: "plain black fill and a backdrop for HouseWinnerModal, which frames itself",
+  },
+  {
+    file: "(app)/loadout/page.tsx",
+    contains: "zIndex: 600",
+    why: "card tooltip portal, anchored to a measured screen rect on purpose",
+  },
+  {
+    file: "(app)/loadout/page.tsx",
+    contains: "zIndex: 599",
+    why: "invisible tap-catcher that closes the tooltip — nothing to rotate",
+  },
+  {
+    file: "(app)/lobby/page.tsx",
+    contains: 'rgba(0,0,0,0.85)", zIndex: 200',
+    why: "inside the lobby frame, so it already inherits the rotation",
+  },
+  {
+    file: "(app)/tournament/page.tsx",
+    contains: "inset: 0, zIndex: 0",
+    why: "full-bleed background image layer beneath the frame",
+  },
+];
+
+test("gameFrame: every fixed overlay is framed, or says why it need not be", () => {
+  // Per OCCURRENCE, not per file. create/page.tsx carries a page frame and
+  // still shipped an unframed overlay 40 lines after it closed — a file-level
+  // check calls that file framed and waves the bug through, which is how
+  // "Entering the Arena" reached MiniPay review.
+  //
+  // A correctly framed overlay opens its frame immediately inside its fixed
+  // root, so the marker lands within a few lines. That is the shape asserted.
+  // Style objects are written one property per line here, so a frame wrapper
+  // can sit a good distance from the fixed root it belongs to — and sometimes
+  // above it, as in the portrait branch of GameLoadingScreen. Hence a window
+  // rather than an adjacency check, in both directions.
+  const BACK = 32;
+  const AHEAD = 40;
+  const MARKER = /data-ao-frame|DESIGN_W|var\(--ao-tr\)|rotate\(90deg\)/;
+
+  const unframed: string[] = [];
+  for (const file of walkAll(APP)) {
+    const rel = file.slice(APP.length + 1);
+    if (rel in OVERLAY_INHERITS_FRAME) continue;
+    const lines = readFileSync(file, "utf8").split("\n");
+    lines.forEach((line, i) => {
+      if (!/position: *"fixed"/.test(line)) return;
+      const near = lines.slice(Math.max(0, i - BACK), i + AHEAD).join("\n");
+      if (OVERLAY_EXEMPT.some((e) => e.file === rel && near.includes(e.contains))) return;
+      if (!MARKER.test(near)) unframed.push(`${rel}:${i + 1}`);
+    });
+  }
+
+  assert.deepEqual(
+    unframed,
+    [],
+    `these fixed overlays lay out against the raw viewport instead of the game ` +
+      `frame — wrap the content in a frame, or add the file to ` +
+      `OVERLAY_INHERITS_FRAME with the reason it inherits one:\n  ${unframed.join("\n  ")}`,
+  );
+});
+
 function walkAll(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);

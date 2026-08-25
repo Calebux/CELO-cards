@@ -12,6 +12,7 @@ import { useBossOnchainEntry, bossEntryWillCharge } from "../../lib/bossEntry";
 import { WAGERS_ENABLED } from "../../lib/wagerConfig";
 import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
+import { useGameFrameScale } from "../../lib/mobile";
 import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
 
 const OnboardingCoach = dynamic(() => import("../../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
@@ -92,6 +93,12 @@ const MATCH_TYPES: {
 export default function CreateMatch() {
   const isMp = useMiniPayMode();
   const wrapRef = useRef<HTMLDivElement>(null);
+  // The boss-entry overlay renders outside the page frame, like the wager and
+  // season-pass modals beside it, so it carries its own.
+  const bossEntryRef = useRef<HTMLDivElement>(null);
+  useGameFrameScale(bossEntryRef);
+  const upsellRef = useRef<HTMLDivElement>(null);
+  useGameFrameScale(upsellRef);
   const [matchType, setMatchType] = useState<MatchType>("vshouse");
   const [showWager, setShowWager] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
@@ -789,11 +796,23 @@ export default function CreateMatch() {
             setShowWager(false);
           }}
         />
-        {/* Season pass upsell — floats below WagerModal */}
+        {/* Season pass upsell — floats below WagerModal. Framed for the same
+            reason the modal it sits under is: pinned to the raw viewport it
+            came up the wrong way round next to a rotated modal. Positioned in
+            design pixels now, so no safe-area inset — the frame is what maps
+            design space onto the physical screen. */}
         {!hasSeasonPass && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none", overflow: "hidden" }}>
+          <div ref={upsellRef}
+            data-ao-frame=""
+            style={{
+              width: DESIGN_W, height: DESIGN_H,
+              position: "absolute", top: 0, left: 0,
+              transformOrigin: "top left",
+            }}>
           <div style={{
-            position: "fixed", bottom: `calc(${safeBottom} + 18px)`, left: "50%", transform: "translateX(-50%)",
-            zIndex: 9999,
+            position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)",
+            pointerEvents: "auto",
             display: "flex", alignItems: "center", gap: 10,
             padding: "10px 20px", borderRadius: 30,
             backgroundColor: "rgba(8,14,26,0.92)", border: "1px solid rgba(251,191,36,0.3)",
@@ -813,6 +832,8 @@ export default function CreateMatch() {
               ⚡ Get Season Pass
             </button>
           </div>
+          </div>
+          </div>
         )}
         </>
       )}
@@ -825,11 +846,26 @@ export default function CreateMatch() {
       {bossEntryState !== "idle" && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 10000,
-          display: "flex", alignItems: "center", justifyContent: "center",
           background: "rgba(3,6,12,0.82)", backdropFilter: "blur(4px)",
+          overflow: "hidden",
         }}>
+          {/* This sits outside the page frame that closes above, so on a
+              portrait phone it laid itself out against the real viewport and
+              came up upright while the page behind it was rotated — "Entering
+              the Arena" sideways relative to everything else. Same frame as
+              the wager modal now. Sizing is in design pixels rather than vw
+              for the same reason: inside a frame, vw still means the physical
+              viewport. */}
+          <div ref={bossEntryRef}
+            data-ao-frame=""
+            style={{
+              width: DESIGN_W, height: DESIGN_H,
+              position: "absolute", top: 0, left: 0,
+              transformOrigin: "top left",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
           <div style={{
-            width: "min(360px, 88vw)", background: "rgba(10,16,28,0.98)",
+            width: 360, background: "rgba(10,16,28,0.98)",
             border: "1px solid rgba(86,164,203,0.35)", borderRadius: 10, padding: "26px 24px",
             textAlign: "center", fontFamily: "inherit",
           }}>
@@ -891,6 +927,7 @@ export default function CreateMatch() {
                 </div>
               </>
             )}
+          </div>
           </div>
         </div>
       )}
