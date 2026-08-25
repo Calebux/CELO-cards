@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMiniPayMode } from "../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
 import { useGameFrameScale } from "../lib/mobile";
@@ -28,6 +28,11 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
   const isMp = useMiniPayMode();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // A PNG of the finished card. Inside MiniPay this is rendered as an <img>
+  // rather than the <canvas>, because long-pressing an image offers "save" in
+  // an Android WebView and long-pressing a canvas offers nothing.
+  const [pngUrl, setPngUrl] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useGameFrameScale(wrapRef);
 
@@ -118,9 +123,26 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
       ctx.textAlign = "center";
       ctx.fillText(won ? "VICTORY" : "DEFEAT", CARD_W / 2, CARD_H * 0.5);
       ctx.textAlign = "left";
+      try {
+        setPngUrl(canvas.toDataURL("image/png"));
+      } catch {
+        // A tainted canvas cannot be exported. Sharing still works from the
+        // blob path below; only the long-press fallback is lost.
+      }
     };
     img.src = playerChar.standingArt;
   }, [won, playerChar, opponentChar, playerRounds, opponentRounds]);
+
+  // MiniPay gets the PNG as an <img>: it is the only element a WebView will
+  // offer to save on long press, and the download button is hidden there.
+  const showAsImage = isMp && Boolean(pngUrl);
+  const cardStyle: React.CSSProperties = {
+    borderRadius: 12,
+    boxShadow: `0 0 40px ${won ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`,
+    maxWidth: isMp ? 500 : "80vw",
+    maxHeight: isMp ? 700 : "60vh",
+    objectFit: "contain",
+  };
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
@@ -131,11 +153,22 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     link.click();
   };
 
+  // One place to land when the share sheet is not an option, so no path can
+  // quietly reach a download that the WebView ignores.
+  const fallbackSave = () => {
+    if (isMp) {
+      setNotice("No share sheet here — press and hold the card to save it.");
+      return;
+    }
+    handleDownload();
+  };
+
   const handleShare = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    setNotice(null);
     canvas.toBlob(async (blob) => {
-      if (!blob) { handleDownload(); return; }
+      if (!blob) { fallbackSave(); return; }
       if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
         const file = new File([blob], `action-order-${won ? "victory" : "defeat"}.png`, { type: "image/png" });
         if (navigator.canShare({ files: [file] })) {
@@ -146,12 +179,18 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
               text: `${playerRounds}–${opponentRounds} as ${playerChar.name} vs ${opponentChar.name} on @Celo #ActionOrder`,
             });
             return;
-          } catch {
-            // fall through to download
+          } catch (e) {
+            // Dismissing the share sheet is a choice, not a failure — falling
+            // through to a download here would save a file they just declined
+            // to share.
+            if ((e as Error)?.name === "AbortError") return;
           }
         }
       }
-      handleDownload();
+      // No share sheet: on the web that means a download, and in the MiniPay
+      // WebView `link.download` is silently ignored, so fallbackSave says how
+      // to save it instead of leaving a button that appears to do nothing.
+      fallbackSave();
     }, "image/png");
   };
 
@@ -200,14 +239,19 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
             ref={canvasRef}
             width={CARD_W}
             height={CARD_H}
-            style={{
-              borderRadius: 12,
-              boxShadow: `0 0 40px ${won ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`,
-              maxWidth: isMp ? 500 : "80vw",
-              maxHeight: isMp ? 700 : "60vh",
-              objectFit: "contain",
-            }}
+            style={{ ...cardStyle, display: showAsImage ? "none" : "block" }}
           />
+          {showAsImage && (
+            <img src={pngUrl!} alt="Match result card" style={cardStyle} />
+          )}
+          {notice && (
+            <p style={{
+              margin: 0, maxWidth: 320, textAlign: "center",
+              fontSize: 12, lineHeight: 1.5, color: "rgba(185,231,244,0.75)",
+            }}>
+              {notice}
+            </p>
+          )}
           <div style={{ display: "flex", gap: isMp ? 14 : 10 }}>
             <button
               onClick={() => void handleShare()}
@@ -222,6 +266,7 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
               <span className="material-icons" style={{ fontSize: isMp ? 20 : 16 }}>share</span>
               SHARE
             </button>
+            {!isMp && (
             <button
               onClick={handleDownload}
               style={{
@@ -232,9 +277,10 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
                 display: "flex", alignItems: "center", gap: 8,
               }}
             >
-              <span className="material-icons" style={{ fontSize: isMp ? 20 : 16 }}>download</span>
+              <span className="material-icons" style={{ fontSize: 16 }}>download</span>
               SAVE
             </button>
+            )}
             <button
               onClick={handleXShare}
               style={{
