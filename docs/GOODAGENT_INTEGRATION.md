@@ -17,6 +17,15 @@ client — Redis match state, difficulty pinned at creation,
   Lives in the `(app)` group so the wallet provider tree is mounted.
 - Landing page gains a "MY AGENTS" nav button.
 
+**Web only.** Deploying an agent runs GoodDollar face verification, and
+GoodDollar must not appear or operate anywhere in the MiniPay Mini App —
+MiniPay block go-live on it. The nav button is hidden in MiniPay and
+`page.tsx` keeps a deep-link branch; the deck itself sits in
+`AgentsCommandDeck.tsx` behind `next/dynamic`, so the widget, RainbowKit and
+`agents.css` land in a chunk MiniPay never fetches. That also keeps the page
+from throwing there: `MiniPayProviders` mounts no `RainbowKitProvider`, which
+the deck's `ConnectButton` and `useConnectModal` both require.
+
 ## Server routes
 
 | Route | What it does |
@@ -46,8 +55,34 @@ Nonce: <single-use uuid>
 directions (5 min back, 60 s forward), the signature, and burns the nonce in
 Redis (`SET NX`) so a captured request cannot be replayed.
 
+Rate limits come in pairs: a caller-keyed limit before verification (it has to
+survive unauthenticated traffic, and it shields the partner host), then the
+per-owner budget once the signature has proved who is asking. Keying the owner
+budget on the unverified `ownerWallet` in the body would let a stranger spend
+it and hold a player's agent offline.
+
 Owner binding (`ownerWallet`) is fetched over the partner-key-authenticated
 host route, never the public status endpoint.
+
+## Scoring: the agent board
+
+Agent play never touches the human boards. `trackAgentWallet()` in
+`goodagent-server.ts` records the agent's wallet in the registry that
+`app/lib/agentTrack.ts` reads, and the resolve route sends a registered
+wallet's points to the agent board (`GET /api/agent/leaderboard`) instead of
+the casual leaderboard and the daily bounty.
+
+The reason is the bounty: it ranks WALLETS and pays by rank, so an agent
+holding a podium slot pushes a real player down a tier and then leaves its own
+share unclaimed. The identity-keyed limits (daily reward, one-per-person House
+prize) already treat an agent and its owner as one person and need no help.
+
+Only the partner-key-authenticated lookup may declare a wallet an agent — a
+request-supplied flag would let a human pick their own board. `play-once`
+registers before the first round and returns **503 `AGENT_REGISTRY_UNAVAILABLE`**
+rather than playing a match it cannot classify; `control` also registers on
+start, best-effort, because autopilot matches are driven by the host on its own
+interval and cannot re-enter `play-once` with a single-use signature.
 
 ## Agent match orders
 
