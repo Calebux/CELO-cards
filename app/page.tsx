@@ -396,7 +396,7 @@ export default function ActionOrderLandingPage() {
       `}</style>
 
       <div style={{ width:"100vw", height:"100vh", overflow:"hidden", position:"fixed", backgroundColor:"#0a0f1c" }}>
-        <div className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
+        <div data-ao-frame="" className={`ko-land-page-wrapper${isMp ? " ko-minipay" : ""}${isMobile ? " ko-mobile" : ""}`} style={{ position:"absolute", top:0, left:0, transformOrigin:"top left", transform:"var(--ao-tr)" }}>
           <div className="ko-land-page">
 
             {/* LCP hero — serve the already-optimized WebP directly to avoid image optimizer overhead on first paint. */}
