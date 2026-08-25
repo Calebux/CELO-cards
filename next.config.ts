@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const ONE_YEAR = 60 * 60 * 24 * 365;
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@goodagent/widget"],
   turbopack: {
     root: __dirname,
   },
