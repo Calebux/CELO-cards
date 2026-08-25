@@ -81,8 +81,23 @@ Only the partner-key-authenticated lookup may declare a wallet an agent — a
 request-supplied flag would let a human pick their own board. `play-once`
 registers before the first round and returns **503 `AGENT_REGISTRY_UNAVAILABLE`**
 rather than playing a match it cannot classify; `control` also registers on
-start, best-effort, because autopilot matches are driven by the host on its own
-interval and cannot re-enter `play-once` with a single-use signature.
+start, best-effort.
+
+Neither is enough on its own, because **the host runs its own play loop.** The
+action-order skill ships `MAX_MATCHES` / `MATCH_INTERVAL_SECONDS` /
+`DAILY_MATCH_CAP` (5 / 10s / 50 by default), and those matches go straight to
+`/api/match/vshouse/resolve` — they cannot come through `play-once`, which
+needs a fresh single-use owner signature the host does not have. An agent
+started from goodagentids.xyz's own dashboard would otherwise grind the human
+bounty unannounced.
+
+So scoring goes through `resolveAgentStatus()`, not `isAgentWallet()`: a wallet
+it has never seen refreshes the registry from
+`GET /partners/action-order/agents` and asks again, behind a Redis `SET NX` that
+allows one host call per five minutes across all callers. An unreachable host
+answers "not an agent" (an outage must not sweep real players off the prize
+board); an unreadable registry still answers "agent" (that is the fail-closed
+verdict, and the refresh cannot overrule it).
 
 ## Agent match orders
 
@@ -93,9 +108,13 @@ Nothing about cards, AI, scoring or energy is duplicated.
 ## Environment
 
 ```
-GOODAGENT_HOST_URL=https://goodagentids.xyz/host   # server-side
-GOODAGENT_PARTNER_API_KEY=…                        # server-side only
+GOODAGENT_HOST_URL=https://goodagentids.xyz/host   # server-side, optional (this is the default)
+GOODAGENT_PARTNER_API_KEY=…                        # server-side only, REQUIRED
 ```
 
 Without the partner key, the read-only shims still work; play-once and
-control refuse to run rather than trust unauthenticated owner data.
+control refuse to run rather than trust unauthenticated owner data, and the
+registry sync is a no-op — which means agent play would score on the human
+board. **The key is what makes the agent lane safe, not just functional.**
+Get it from the GoodAgent team (Sam) and set it in Vercel production before
+the lane is reachable.
