@@ -10,7 +10,7 @@
 import { redis } from "./redis";
 import { TREASURY_ADDRESS, TREASURY_MINIPAY_ADDRESS } from "./cusd";
 import { privateKeyToAccount } from "viem/accounts";
-import { isAgentWallet } from "./agentTrack";
+import { resolveAgentStatus } from "./goodagent-server";
 
 // Prize config lives in the dependency-free bountyConfig module so client pages
 // can announce it without pulling redis/viem in. Re-exported here so server
@@ -244,7 +244,11 @@ export async function recordBountyPoints(
     // rather than at each caller so the PvP path is covered by the same rule —
     // this function is the only place a match becomes prize money, and prizes
     // go by rank, so one agent on the board costs a real player a tier.
-    if (await isAgentWallet(addr)) return false;
+    //
+    // resolveAgentStatus refreshes the registry from the host when it has
+    // never seen the wallet, because the agents that never announce
+    // themselves to us are exactly the ones that would land here.
+    if (await resolveAgentStatus(addr)) return false;
 
     const day = bountyDayUTC();
 

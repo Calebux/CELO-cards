@@ -4,6 +4,7 @@
 import { redis } from "./redis";
 import {
   getAgentRegistration,
+  isAgentWallet,
   registerAgentWallet,
   type AgentStore,
 } from "./agentTrack";
@@ -146,4 +147,95 @@ export async function trackAgentWallet(
   } catch {
     return false;
   }
+}
+
+/**
+ * How stale the registry may get before an unknown wallet forces a refresh.
+ * One host round-trip per window across all callers, not per match.
+ */
+const REGISTRY_SYNC_TTL_SECONDS = 300;
+const REGISTRY_SYNC_KEY = "goodagent:registry-sync";
+
+/**
+ * Every action-order agent the host knows about.
+ *
+ * Key-gated, like the single-agent lookup: the host answers this route with
+ * INVALID_PARTNER_KEY otherwise.
+ */
+export async function fetchPartnerAgents(): Promise<PartnerAgentSnapshot[]> {
+  if (!PARTNER_KEY) {
+    throw new Error("GOODAGENT_PARTNER_API_KEY is not configured");
+  }
+  const res = await fetch(`${HOST_BASE}/partners/action-order/agents`, {
+    headers: { "x-partner-key": PARTNER_KEY, Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Agent list failed (${res.status})`);
+
+  // The host returns {agents: […]} for the by-owner form; accept a bare array
+  // too rather than silently reading nothing if that shape ever changes.
+  const data = (await res.json()) as
+    | { agents?: PartnerAgentSnapshot[] }
+    | PartnerAgentSnapshot[];
+  return Array.isArray(data) ? data : (data.agents ?? []);
+}
+
+/**
+ * Pull the host's agent list into the registry.
+ *
+ * Needed because the host runs its OWN autopilot loop — the action-order skill
+ * ships MAX_MATCHES / MATCH_INTERVAL_SECONDS / DAILY_MATCH_CAP, which only
+ * mean something to a process playing on a timer. Those matches arrive at
+ * /api/match/vshouse/resolve directly, never through play-once, which cannot
+ * be reached without a fresh single-use owner signature the host does not
+ * have. So an agent started from goodagentids.xyz's own dashboard would grind
+ * the human daily bounty forever and we would never have been told it exists.
+ *
+ * Returns true only when a refresh actually ran. Guarded by a Redis SET NX so
+ * a busy minute costs one host call, not one per match.
+ */
+export async function syncAgentRegistry(
+  store: AgentStore = redis,
+): Promise<boolean> {
+  try {
+    const won = await store.set(REGISTRY_SYNC_KEY, Date.now(), {
+      nx: true,
+      ex: REGISTRY_SYNC_TTL_SECONDS,
+    });
+    if (won === null) return false;
+
+    const agents = await fetchPartnerAgents();
+    for (const agent of agents) {
+      await trackAgentWallet(agent, store);
+    }
+    return true;
+  } catch {
+    // An unreachable host or a missing key must not decide anything. The
+    // caller falls back to whatever the registry already says.
+    return false;
+  }
+}
+
+/**
+ * Is this wallet agent-operated, refreshing from the host if we have never
+ * heard of it?
+ *
+ * Use this instead of isAgentWallet() anywhere a match is being scored. The
+ * registry alone only knows the agents that came through our own routes, and
+ * the ones that matter most are the ones that did not.
+ */
+export async function resolveAgentStatus(
+  address: string | null | undefined,
+  store: AgentStore = redis,
+): Promise<boolean> {
+  if (!address) return false;
+
+  // A hit here is also the fail-closed answer: isAgentWallet says "agent" when
+  // the registry cannot be read, and that verdict must survive untouched.
+  if (await isAgentWallet(address, store)) return true;
+
+  if (await syncAgentRegistry(store)) {
+    return isAgentWallet(address, store);
+  }
+  return false;
 }

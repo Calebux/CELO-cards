@@ -7,7 +7,8 @@ import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult, recordPlayerMatchOutcome } from "../../../../lib/leaderboard";
 import { HOUSE_WINS_COUNTED_PER_DAY, recordBountyPoints } from "../../../../lib/bounty";
-import { isAgentWallet, recordAgentPoints } from "../../../../lib/agentTrack";
+import { recordAgentPoints } from "../../../../lib/agentTrack";
+import { resolveAgentStatus } from "../../../../lib/goodagent-server";
 import { clampDifficulty, effectiveAiDifficulty, houseMatchPoints } from "../../../../lib/houseDifficulty";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
@@ -217,7 +218,12 @@ export async function POST(req: NextRequest) {
     // one. Not a filter — its play still counts, just somewhere a real player
     // is not competing for prize money against a script. See lib/agentTrack.ts
     // for why this is a separate track rather than an exclusion.
-    const isAgent = await isAgentWallet(addr);
+    //
+    // resolveAgentStatus, not isAgentWallet: the host's autopilot plays
+    // straight into this route without ever touching our agent endpoints, so
+    // a wallet missing from the registry is the case to check rather than the
+    // case to trust. It refreshes from the host at most once every 5 minutes.
+    const isAgent = await resolveAgentStatus(addr);
 
     if (isAgent) {
       await recordAgentPoints(addr, pointsEarned, sanitizedPlayerName);
