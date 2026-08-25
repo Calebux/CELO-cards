@@ -32,7 +32,6 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
   // rather than the <canvas>, because long-pressing an image offers "save" in
   // an Android WebView and long-pressing a canvas offers nothing.
   const [pngUrl, setPngUrl] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useGameFrameScale(wrapRef);
 
@@ -153,22 +152,11 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     link.click();
   };
 
-  // One place to land when the share sheet is not an option, so no path can
-  // quietly reach a download that the WebView ignores.
-  const fallbackSave = () => {
-    if (isMp) {
-      setNotice("No share sheet here — press and hold the card to save it.");
-      return;
-    }
-    handleDownload();
-  };
-
   const handleShare = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    setNotice(null);
     canvas.toBlob(async (blob) => {
-      if (!blob) { fallbackSave(); return; }
+      if (!blob) { handleDownload(); return; }
       if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
         const file = new File([blob], `action-order-${won ? "victory" : "defeat"}.png`, { type: "image/png" });
         if (navigator.canShare({ files: [file] })) {
@@ -187,20 +175,23 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
           }
         }
       }
-      // No share sheet: on the web that means a download, and in the MiniPay
-      // WebView `link.download` is silently ignored, so fallbackSave says how
-      // to save it instead of leaving a button that appears to do nothing.
-      fallbackSave();
+      handleDownload();
     }, "image/png");
   };
 
-  const handleXShare = () => {
+  const xIntentUrl = (() => {
     const emoji = won ? "🏆" : "⚔️";
     const score = `${playerRounds}-${opponentRounds}`;
     const tweet = `${emoji} Just ${won ? "won" : "lost"} ${score} as ${playerChar.name} vs ${opponentChar.name} on Action Order!\n\nOn-chain card game on @Celo 🎮\n#ActionOrder #Celo`;
-    if (typeof window !== "undefined") {
-      window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank", "noopener");
-    }
+    return `https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`;
+  })();
+
+  const handleXShare = () => {
+    if (typeof window === "undefined") return;
+    // window.open can be refused outright in a WebView. Navigating is worse
+    // than a new tab but better than nothing happening.
+    const opened = window.open(xIntentUrl, "_blank", "noopener");
+    if (!opened) window.location.href = xIntentUrl;
   };
 
   return (
@@ -244,15 +235,19 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
           {showAsImage && (
             <img src={pngUrl!} alt="Match result card" style={cardStyle} />
           )}
-          {notice && (
+          {isMp && (
+            // The only way to keep the card in MiniPay: no download (the
+            // WebView ignores link.download) and no share sheet (navigator.share
+            // is not there), so the image and a long press are what is left.
             <p style={{
               margin: 0, maxWidth: 320, textAlign: "center",
-              fontSize: 12, lineHeight: 1.5, color: "rgba(185,231,244,0.75)",
+              fontSize: 12, lineHeight: 1.5, color: "rgba(185,231,244,0.55)",
             }}>
-              {notice}
+              Press and hold the card to save it.
             </p>
           )}
           <div style={{ display: "flex", gap: isMp ? 14 : 10 }}>
+            {!isMp && (
             <button
               onClick={() => void handleShare()}
               style={{
@@ -263,9 +258,10 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
                 display: "flex", alignItems: "center", gap: 8,
               }}
             >
-              <span className="material-icons" style={{ fontSize: isMp ? 20 : 16 }}>share</span>
+              <span className="material-icons" style={{ fontSize: 16 }}>share</span>
               SHARE
             </button>
+            )}
             {!isMp && (
             <button
               onClick={handleDownload}
@@ -281,18 +277,40 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
               SAVE
             </button>
             )}
+            {isMp ? (
+              // An anchor, not window.open — a WebView will refuse the popup but
+              // hands a link off to the system browser. This is the only way out
+              // of the card in MiniPay, so it does not get to be the fragile one.
+              <a
+                href={xIntentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: "15px 30px", borderRadius: 6, textDecoration: "none",
+                  background: "rgba(86,164,203,0.15)", border: "1.5px solid #56a4cb",
+                  color: "#b9e7f4", fontSize: 15, fontWeight: 700,
+                  letterSpacing: 2, textTransform: "uppercase", fontFamily: "inherit",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}
+                title="Share on X"
+              >
+                <span style={{ fontFamily: "serif", fontSize: 20, fontWeight: 900 }}>𝕏</span>
+                SHARE
+              </a>
+            ) : (
             <button
               onClick={handleXShare}
               style={{
-                width: isMp ? 58 : 46, height: isMp ? 58 : 46, borderRadius: 6, cursor: "pointer",
+                width: 46, height: 46, borderRadius: 6, cursor: "pointer",
                 background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)",
-                color: "#e2e8f0", fontSize: isMp ? 22 : 17, fontWeight: 900,
+                color: "#e2e8f0", fontSize: 17, fontWeight: 900,
                 fontFamily: "serif", display: "flex", alignItems: "center", justifyContent: "center",
               }}
               title="Share on X"
             >
               𝕏
             </button>
+            )}
             <button
               onClick={onClose}
               style={{
