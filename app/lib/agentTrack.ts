@@ -46,7 +46,7 @@ const agentMatchesKey = (addr: string) => `agent:matches:${addr.toLowerCase()}`;
 
 export type AgentRegistration = {
   deployId: string;
-  /** The human who owns the deploy — their G$ identity root, where known. */
+  /** The human who owns the deploy, as the GoodAgent host records it. */
   ownerWallet: string | null;
   registeredAt: number;
 };

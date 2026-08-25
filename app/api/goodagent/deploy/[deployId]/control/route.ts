@@ -8,6 +8,7 @@ import {
 import {
   fetchPartnerAgent,
   hostBase,
+  trackAgentWallet,
 } from "../../../../../lib/goodagent-server";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,17 @@ export async function POST(
   if (authErr) {
     return NextResponse.json({ error: authErr }, { status: 401 });
   }
+
+  // Track the wallet here too, not just in play-once. Autopilot matches are
+  // driven by the host on its own interval, and this signature is single-use,
+  // so the host cannot come back through play-once for each one — starting
+  // autopilot may be the last chance we get to record the binding before
+  // matches begin arriving at the resolve route.
+  //
+  // Best-effort, unlike play-once: no match is being started on this request,
+  // and refusing to pause an agent because Redis blinked would be the wrong
+  // trade. play-once still fails closed on the same check.
+  await trackAgentWallet(agent);
 
   // The host re-verifies the same signature itself; we forward it unchanged.
   let upstream: Response;

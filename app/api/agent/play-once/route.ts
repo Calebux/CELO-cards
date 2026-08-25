@@ -9,6 +9,7 @@ import {
 import {
   fetchPartnerAgent,
   recordMatchOnHost,
+  trackAgentWallet,
 } from "../../../lib/goodagent-server";
 import {
   buildAgentOrder,
@@ -99,6 +100,23 @@ export async function POST(req: NextRequest) {
   }
   if (agent.dailyCapReached) {
     return NextResponse.json({ error: "DAILY_CAP_REACHED" }, { status: 409 });
+  }
+
+  // Put the wallet on the agent track BEFORE a single round runs. Until this
+  // lands, isAgentWallet() answers false and the resolve route below scores
+  // the match on the human casual leaderboard and the daily bounty — which is
+  // exactly what the agent track exists to prevent, because bounty prizes go
+  // by rank and an agent holding a podium slot pushes a real player down a
+  // tier and then leaves its own share unclaimed.
+  //
+  // A registry we cannot write refuses the match instead of playing it. The
+  // board an unregistered agent lands on is the one that pays money, so the
+  // safe answer here is no match at all; the agent can try again next tick.
+  if (!(await trackAgentWallet(agent))) {
+    return NextResponse.json(
+      { error: "AGENT_REGISTRY_UNAVAILABLE" },
+      { status: 503 },
+    );
   }
 
   const config = agent.configuration ?? {};

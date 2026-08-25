@@ -1,6 +1,13 @@
 // Server-side GoodAgent host access. This module is the only place the
 // partner key is read; nothing here is ever imported by client code.
 
+import { redis } from "./redis";
+import {
+  getAgentRegistration,
+  registerAgentWallet,
+  type AgentStore,
+} from "./agentTrack";
+
 const HOST_BASE = (
   process.env.GOODAGENT_HOST_URL ?? "https://goodagentids.xyz/host"
 ).replace(/\/$/, "");
@@ -93,5 +100,50 @@ export async function recordMatchOnHost(
     console.warn(
       `[agent] record-match failed (${res.status}): ${text.slice(0, 200)}`,
     );
+  }
+}
+
+/**
+ * Put an agent's wallet on the agent track.
+ *
+ * The partner-key channel is the only thing allowed to say "this wallet is a
+ * bot": a request-supplied flag would let a human opt their own wallet onto
+ * whichever board suited them, and chain state cannot tell the difference —
+ * an agent is GoodDollar-connected to its owner, so `getWhitelistedRoot`
+ * returns the owner's root for both an agent and a human's linked wallet.
+ * That is why this lives next to the partner fetch rather than in a route:
+ * every caller that learns an agent address from the host is expected to call
+ * it, the same way the bounty guard sits inside `recordBountyPoints`.
+ *
+ * Returns false only if the registry could not be written. A caller about to
+ * start a match must treat that as fatal — see the note in
+ * `app/lib/agentTrack.ts`: an unregistered agent scores on the human
+ * leaderboard and the daily bounty, where prizes go by rank, so one bot on
+ * the board costs a real player a tier.
+ */
+export async function trackAgentWallet(
+  snapshot: PartnerAgentSnapshot,
+  store: AgentStore = redis,
+): Promise<boolean> {
+  if (!snapshot.agentAddress) return true;
+  try {
+    const existing = await getAgentRegistration(snapshot.agentAddress, store);
+    // Re-register only when the binding actually moved. Writing on every
+    // match would reset `registeredAt` each time and leave it meaning "last
+    // played" instead of "first seen".
+    const unchanged =
+      existing?.deployId === snapshot.deployId &&
+      existing.ownerWallet === (snapshot.ownerWallet?.toLowerCase() ?? null);
+    if (!unchanged) {
+      await registerAgentWallet(
+        snapshot.agentAddress,
+        snapshot.deployId,
+        snapshot.ownerWallet,
+        store,
+      );
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
