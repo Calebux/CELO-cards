@@ -135,6 +135,7 @@ export async function trackAgentWallet(
     const unchanged =
       existing?.deployId === snapshot.deployId &&
       existing.ownerWallet === (snapshot.ownerWallet?.toLowerCase() ?? null);
+    await rememberAgentOwner(snapshot.ownerWallet, store);
     if (!unchanged) {
       await registerAgentWallet(
         snapshot.agentAddress,
@@ -156,28 +157,51 @@ export async function trackAgentWallet(
 const REGISTRY_SYNC_TTL_SECONDS = 300;
 const REGISTRY_SYNC_KEY = "goodagent:registry-sync";
 
+/** The owners we have ever seen, so the sync below has something to enumerate. */
+const OWNERS_KEY = "goodagent:owners";
+
 /**
- * Every action-order agent the host knows about.
+ * The action-order agents belonging to one owner.
  *
- * Key-gated, like the single-agent lookup: the host answers this route with
- * INVALID_PARTNER_KEY otherwise.
+ * There is no list-everything form: the host answers a bare
+ * `/partners/action-order/agents` with 400 `owner query param required`.
+ * Verified against the live host on 2026-08-25 — an earlier version of this
+ * module called it without an owner, so the sync threw on every run and
+ * silently registered nobody.
  */
-export async function fetchPartnerAgents(): Promise<PartnerAgentSnapshot[]> {
+export async function fetchPartnerAgents(
+  owner: string,
+): Promise<PartnerAgentSnapshot[]> {
   if (!PARTNER_KEY) {
     throw new Error("GOODAGENT_PARTNER_API_KEY is not configured");
   }
-  const res = await fetch(`${HOST_BASE}/partners/action-order/agents`, {
-    headers: { "x-partner-key": PARTNER_KEY, Accept: "application/json" },
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `${HOST_BASE}/partners/action-order/agents?owner=${encodeURIComponent(owner)}`,
+    {
+      headers: { "x-partner-key": PARTNER_KEY, Accept: "application/json" },
+      cache: "no-store",
+    },
+  );
   if (!res.ok) throw new Error(`Agent list failed (${res.status})`);
 
-  // The host returns {agents: […]} for the by-owner form; accept a bare array
-  // too rather than silently reading nothing if that shape ever changes.
   const data = (await res.json()) as
-    | { agents?: PartnerAgentSnapshot[] }
+    | { owner?: string; agents?: PartnerAgentSnapshot[] }
     | PartnerAgentSnapshot[];
   return Array.isArray(data) ? data : (data.agents ?? []);
+}
+
+/** Remember an owner so a later sync can ask the host about their agents. */
+export async function rememberAgentOwner(
+  owner: string | null | undefined,
+  store: AgentStore = redis,
+): Promise<void> {
+  if (!owner) return;
+  try {
+    await (store as unknown as { sadd: (k: string, m: string) => Promise<unknown> })
+      .sadd(OWNERS_KEY, owner.toLowerCase());
+  } catch {
+    // Best effort — the sync is a backstop, not the primary path.
+  }
 }
 
 /**
@@ -204,14 +228,17 @@ export async function syncAgentRegistry(
     });
     if (won === null) return false;
 
-    const agents = await fetchPartnerAgents();
-    for (const agent of agents) {
-      await trackAgentWallet(agent, store);
+    const owners = await (store as unknown as { smembers: (k: string) => Promise<string[]> })
+      .smembers(OWNERS_KEY)
+      .catch(() => [] as string[]);
+    if (!owners.length) return false;
+
+    for (const owner of owners) {
+      const agents = await fetchPartnerAgents(owner).catch(() => [] as PartnerAgentSnapshot[]);
+      for (const agent of agents) await trackAgentWallet(agent, store);
     }
     return true;
   } catch {
-    // An unreachable host or a missing key must not decide anything. The
-    // caller falls back to whatever the registry already says.
     return false;
   }
 }

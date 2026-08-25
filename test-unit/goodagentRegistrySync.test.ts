@@ -15,11 +15,18 @@ process.env.GOODAGENT_HOST_URL = "https://host.test/host";
 
 const AGENT = "0xAgEnT0000000000000000000000000000000009".toLowerCase();
 const HUMAN = "0x1d935a748644daff3587eab9d7b9ede24ae301e1";
+const OWNER = "0x00c0ffee0000000000000000000000000000beef";
 
 type Store = Map<string, unknown>;
 
 function fakeStore(store: Store, opts: { readFails?: boolean } = {}): AgentStore {
+  const sets = new Map<string, Set<string>>();
   return {
+    sadd: async (k: string, m: string) => {
+      const set = sets.get(k) ?? new Set<string>();
+      set.add(m); sets.set(k, set); return 1;
+    },
+    smembers: async (k: string) => [...(sets.get(k) ?? [])],
     get: async (k: string) => {
       if (opts.readFails) throw new Error("redis down");
       return store.get(k) ?? null;
@@ -42,8 +49,10 @@ function fakeStore(store: Store, opts: { readFails?: boolean } = {}): AgentStore
 function hostReturns(agents: unknown[], calls: { n: number }) {
   return async (url: string | URL) => {
     calls.n++;
-    assert.match(String(url), /\/partners\/action-order\/agents$/);
-    return new Response(JSON.stringify({ agents }), {
+    // The host has no list-everything form — it answers a bare path with 400
+    // `owner query param required`, so the sync must ask per owner.
+    assert.match(String(url), /\/partners\/action-order\/agents\?owner=0x/);
+    return new Response(JSON.stringify({ owner: OWNER, agents }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -54,7 +63,7 @@ const snapshot = {
   deployId: "deployautopil",
   displayName: "Autopilot",
   agentAddress: AGENT,
-  ownerWallet: "0xowner00000000000000000000000000000000001",
+  ownerWallet: OWNER,
   status: "running",
   verified: true,
   readyToPlay: true,
@@ -65,9 +74,12 @@ const snapshot = {
 };
 
 test("registry sync: an autopilot agent we have never seen is caught on first scoring", async () => {
-  const { resolveAgentStatus } = await import("../app/lib/goodagent-server");
+  const { resolveAgentStatus, rememberAgentOwner } = await import("../app/lib/goodagent-server");
   const store: Store = new Map();
   const s = fakeStore(store);
+  // The owner becomes known the first time any deploy of theirs passes through
+  // us; without that there is nobody to ask the host about.
+  await rememberAgentOwner(OWNER, s);
   const calls = { n: 0 };
   const original = globalThis.fetch;
   globalThis.fetch = hostReturns([snapshot], calls) as typeof fetch;
@@ -83,9 +95,10 @@ test("registry sync: an autopilot agent we have never seen is caught on first sc
 });
 
 test("registry sync: one host call per window, not one per match", async () => {
-  const { resolveAgentStatus } = await import("../app/lib/goodagent-server");
+  const { resolveAgentStatus, rememberAgentOwner } = await import("../app/lib/goodagent-server");
   const store: Store = new Map();
   const s = fakeStore(store);
+  await rememberAgentOwner(OWNER, s);
   const calls = { n: 0 };
   const original = globalThis.fetch;
   globalThis.fetch = hostReturns([snapshot], calls) as typeof fetch;
@@ -132,6 +145,21 @@ test("registry sync: an unreadable registry still fails closed", async () => {
     // isAgentWallet answers "agent" when it cannot read, and the refresh must
     // not be able to overturn that into "human, put them on the prize board".
     assert.equal(await resolveAgentStatus(HUMAN, s), true);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("registry sync: with no owner ever seen, it asks the host nothing", async () => {
+  // The host cannot be enumerated, so an empty owner set means the backstop has
+  // no way in. It must stay quiet rather than call a bare path that 400s.
+  const { resolveAgentStatus } = await import("../app/lib/goodagent-server");
+  const calls = { n: 0 };
+  const original = globalThis.fetch;
+  globalThis.fetch = hostReturns([snapshot], calls) as typeof fetch;
+  try {
+    assert.equal(await resolveAgentStatus(AGENT, fakeStore(new Map())), false);
+    assert.equal(calls.n, 0);
   } finally {
     globalThis.fetch = original;
   }
