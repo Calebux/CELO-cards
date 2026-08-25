@@ -132,8 +132,10 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
     img.src = playerChar.standingArt;
   }, [won, playerChar, opponentChar, playerRounds, opponentRounds]);
 
-  // MiniPay gets the PNG as an <img>: it is the only element a WebView will
-  // offer to save on long press, and the download button is hidden there.
+  // MiniPay gets the PNG as an <img> rather than the <canvas>. Not for saving
+  // — MiniPay's WebView implements no image context menu, so a long press
+  // buzzes and does nothing — it just costs nothing and is the element that
+  // would work if that ever changed.
   const showAsImage = isMp && Boolean(pngUrl);
   const cardStyle: React.CSSProperties = {
     borderRadius: 12,
@@ -235,17 +237,7 @@ export function ShareCard({ won, playerChar, opponentChar, playerRounds, opponen
           {showAsImage && (
             <img src={pngUrl!} alt="Match result card" style={cardStyle} />
           )}
-          {isMp && (
-            // The only way to keep the card in MiniPay: no download (the
-            // WebView ignores link.download) and no share sheet (navigator.share
-            // is not there), so the image and a long press are what is left.
-            <p style={{
-              margin: 0, maxWidth: 320, textAlign: "center",
-              fontSize: 12, lineHeight: 1.5, color: "rgba(185,231,244,0.55)",
-            }}>
-              Press and hold the card to save it.
-            </p>
-          )}
+
           <div style={{ display: "flex", gap: isMp ? 14 : 10 }}>
             {!isMp && (
             <button
