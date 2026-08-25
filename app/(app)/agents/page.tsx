@@ -1,69 +1,70 @@
 "use client";
 
 import Link from "next/link";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { GoodAgentWidget } from "@goodagent/widget";
-import "@goodagent/widget/styles.css";
-import "./agents.css";
-import { AgentDashboard } from "./AgentDashboard";
-import {
-  useGoodAgentWallet,
-  useGoodAgentWidgetConfig,
-} from "../../lib/goodagent-wallet";
+import dynamic from "next/dynamic";
+import { useMiniPayMode } from "../../lib/premiumPayments";
+
+// The agents lane is web-only. Deploying an agent runs GoodDollar face
+// verification through the GoodAgent widget, and GoodDollar must not appear
+// or operate anywhere in the MiniPay Mini App — MiniPay are blocking go-live
+// on exactly that (see 96ed1d7). The landing page hides the MY AGENTS button
+// in MiniPay, so this branch only catches a deep link.
+//
+// Loaded through next/dynamic rather than imported directly so the widget,
+// RainbowKit and agents.css sit in a chunk MiniPay never fetches. That also
+// keeps the page from crashing there: MiniPayProviders mounts a bare wagmi
+// config with no RainbowKitProvider, and the deck's ConnectButton and
+// useConnectModal both require one.
+const AgentsCommandDeck = dynamic(
+  () => import("./AgentsCommandDeck").then((m) => m.AgentsCommandDeck),
+  { ssr: false },
+);
 
 export default function AgentsPage() {
-  const wallet = useGoodAgentWallet();
-  const config = useGoodAgentWidgetConfig();
+  const isMp = useMiniPayMode();
 
-  return (
-    <main className="ao-agents-page">
-      <div className="ao-agents-shell">
-        <header className="ao-agents-topbar">
-          <Link href="/" className="ao-agents-back">
-            ← Back to game
-          </Link>
-          <ConnectButton />
-        </header>
+  if (isMp) {
+    return (
+      <main
+        style={{
+          minHeight: "100dvh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 14,
+          padding: 24,
+          textAlign: "center",
+          background: "#04121b",
+          color: "#b9e7f4",
+        }}
+      >
+        <h1 style={{ fontSize: 20, fontWeight: 900, letterSpacing: -0.3, color: "#fff" }}>
+          Agents live on the web version
+        </h1>
+        <p style={{ fontSize: 14, maxWidth: 320, lineHeight: 1.5 }}>
+          Deploying an agent needs the full site. Everything else — House Boss,
+          the daily bounty, your deck — works right here.
+        </p>
+        <Link
+          href="/"
+          style={{
+            marginTop: 6,
+            padding: "10px 22px",
+            borderRadius: 999,
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: 0.4,
+            color: "#04121b",
+            background: "#56a4cb",
+            textDecoration: "none",
+          }}
+        >
+          BACK TO GAME
+        </Link>
+      </main>
+    );
+  }
 
-        <header className="ao-agents-hero">
-          <p className="ao-agents-kicker">Season 2 · Rise of the Agents</p>
-          <h1>Deploy your House Boss agent</h1>
-          <p className="ao-agents-sub">
-            Connect your wallet, deploy a verified GoodAgent, and grind House
-            Boss matches from your command deck.
-          </p>
-        </header>
-
-        <div className="ao-agents-layout">
-          <section className="ao-panel ao-panel-dashboard">
-            <div className="ao-panel-head">
-              <div>
-                <h2 className="ao-panel-title">Agent dashboard</h2>
-                <p className="ao-panel-desc">
-                  Live stats, play controls, and match history.
-                </p>
-              </div>
-            </div>
-            <div className="ao-panel-body">
-              <AgentDashboard />
-            </div>
-          </section>
-
-          <section className="ao-panel ao-panel-deploy">
-            <div className="ao-panel-head">
-              <div>
-                <h2 className="ao-panel-title">Deploy & verify</h2>
-                <p className="ao-panel-desc">
-                  Create a new agent or finish GoodDollar verification.
-                </p>
-              </div>
-            </div>
-            <div className="ao-panel-body ao-agents-widget">
-              <GoodAgentWidget mode="onboard" wallet={wallet} config={config} />
-            </div>
-          </section>
-        </div>
-      </div>
-    </main>
-  );
+  return <AgentsCommandDeck />;
 }
