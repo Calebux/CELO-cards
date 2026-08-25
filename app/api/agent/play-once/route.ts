@@ -22,6 +22,10 @@ export const dynamic = "force-dynamic";
 
 const MAX_ROUNDS = 8;
 
+function clientIp(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+}
+
 interface ResolveResponse {
   ok?: boolean;
   error?: string;
@@ -60,12 +64,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "OWNER_AUTH_REQUIRED" }, { status: 401 });
   }
 
-  const allowed = await checkRateLimit(
-    `ratelimit:agent-play:${auth.ownerWallet.toLowerCase()}`,
-    6,
-    60,
-  );
-  if (!allowed) {
+  // Two limits, and the order matters. ownerWallet is caller-supplied and
+  // unverified at this point, so a budget keyed on it can be spent by anyone:
+  // six unsigned posts would lock a real owner out of their own agent for a
+  // minute. So the pre-auth limit is keyed on the caller instead, and the
+  // per-owner budget is only charged once the signature has proved who is
+  // asking. The caller-keyed one also shields the partner host below, which is
+  // the first thing this route reaches out to.
+  if (!(await checkRateLimit(`ratelimit:agent-play-ip:${clientIp(req)}`, 30, 60))) {
     return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 });
   }
 
@@ -90,6 +96,20 @@ export async function POST(req: NextRequest) {
   );
   if (authErr) {
     return NextResponse.json({ error: authErr }, { status: 401 });
+  }
+
+  // Now that the signature has proved the owner, charge their budget. The
+  // nonce is already burned by the check above, so a caller rejected here
+  // re-signs on their next attempt — which is the correct cost for being over
+  // the limit.
+  if (
+    !(await checkRateLimit(
+      `ratelimit:agent-play:${auth.ownerWallet.toLowerCase()}`,
+      6,
+      60,
+    ))
+  ) {
+    return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 });
   }
 
   if (!agent.agentAddress) {

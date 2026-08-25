@@ -13,6 +13,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function clientIp(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+}
+
 const OPS = {
   start: { hostPath: "start", action: "resume" },
   stop: { hostPath: "stop", action: "pause" },
@@ -50,12 +54,11 @@ export async function POST(
     return NextResponse.json({ error: "OWNER_AUTH_REQUIRED" }, { status: 401 });
   }
 
-  const allowed = await checkRateLimit(
-    `ratelimit:goodagent-control:${auth.ownerWallet.toLowerCase()}`,
-    10,
-    60,
-  );
-  if (!allowed) {
+  // Keyed on the caller, not on the unverified ownerWallet in the body: a
+  // budget keyed on a field anyone can set is a budget anyone can spend, and
+  // spending it would pause a real owner out of their own controls. The
+  // per-owner limit is charged after the signature proves who is asking.
+  if (!(await checkRateLimit(`ratelimit:goodagent-control-ip:${clientIp(req)}`, 40, 60))) {
     return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 });
   }
 
@@ -78,6 +81,16 @@ export async function POST(
   );
   if (authErr) {
     return NextResponse.json({ error: authErr }, { status: 401 });
+  }
+
+  if (
+    !(await checkRateLimit(
+      `ratelimit:goodagent-control:${auth.ownerWallet.toLowerCase()}`,
+      10,
+      60,
+    ))
+  ) {
+    return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 });
   }
 
   // Track the wallet here too, not just in play-once. Autopilot matches are
