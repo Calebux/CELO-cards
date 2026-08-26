@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many attempts. Please wait." }, { status: 429 });
   }
 
-  let body: { address?: string; day?: string; signature?: string };
+  let body: { address?: string; day?: string; signature?: string; minipay?: boolean };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -119,22 +119,27 @@ export async function POST(req: NextRequest) {
   // MiniPay players are paid USDT — a G$ prize cannot reach them at all, since
   // GoodDollar must not operate in the Mini App.
   //
-  // Decided here from the request's own user agent, the same signal the app
-  // uses to choose its provider tree, rather than from a field in the body.
-  // The body used to carry it, on the reasoning that the AMOUNT is server-side
-  // so a forged flag only changes which pot pays. That held while the two pots
-  // were interchangeable. They are not: the USDT path skips the GoodDollar
-  // verification gate below — it has to, because reading the identity contract
-  // is GoodDollar functionality — so asking for USDT was also a way to opt out
-  // of the face check that stops a day's standings being farmed across
-  // throwaway wallets. On a board of 190 players that is worth closing.
+  // Two signals, and the flag can only ever move a claim TOWARDS USDT. That
+  // asymmetry is the whole design:
   //
-  // A spoofed user agent still reaches the USDT path. What bounds it is the
-  // work: 5,000 points in a day is roughly 25 Hard wins, and the per-day
-  // ceiling below caps the total regardless.
-  const currency: PayoutCurrency = /MiniPay/i.test(req.headers.get("user-agent") ?? "")
-    ? "usdt"
-    : "gdollar";
+  //   Getting this wrong towards G$ is the dangerous direction. The G$ branch
+  //   reads the identity contract and, for an unverified wallet, answers with
+  //   "Claiming winnings needs a G$ Verified wallet" — a GoodDollar prompt
+  //   inside the Mini App, which is what MiniPay block go-live on. The user
+  //   agent alone is not enough to prevent that: isMiniPay() in
+  //   lib/minipayRuntime.ts checks window.ethereum.isMiniPay FIRST and treats
+  //   the user agent as a fallback, because the runtime flag is the reliable
+  //   one. A server that only reads the header is weaker than the client.
+  //
+  //   Getting it wrong towards USDT costs a face check, since that branch
+  //   skips verification — it must, because reading the identity contract is
+  //   GoodDollar functionality. What still bounds it is the work: 5,000 points
+  //   in a day is roughly 25 Hard wins, per wallet, for a $5 prize, plus the
+  //   per-day ceiling below. A poor trade for anyone farming, and a far
+  //   cheaper mistake than the other direction.
+  const isMiniPayClaim =
+    /MiniPay/i.test(req.headers.get("user-agent") ?? "") || body.minipay === true;
+  const currency: PayoutCurrency = isMiniPayClaim ? "usdt" : "gdollar";
   const token = PAYOUT_TOKENS[currency];
 
   // A day still in progress can still change places. Paying it early would let
