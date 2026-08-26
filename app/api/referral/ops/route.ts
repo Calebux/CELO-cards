@@ -48,6 +48,14 @@ export async function GET(req: NextRequest) {
     ? await redis.mget<string[]>(...summaries.map((s) => `user:addr:${s.referrer}`)).catch(() => [])
     : [];
 
+  // How referrals arrive, not just what they are owed. The link was added
+  // because a code someone had to retype was losing people; these two counters
+  // are how we find out whether that was true.
+  const [viaLink, viaManual] = await Promise.all([
+    redis.get<number>("referral:applied:link").catch(() => 0),
+    redis.get<number>("referral:applied:manual").catch(() => 0),
+  ]);
+
   return NextResponse.json({
     rewardNgn: REFERRAL_REWARD_NGN,
     totals: {
@@ -56,6 +64,8 @@ export async function GET(req: NextRequest) {
       qualified: summaries.reduce((n, s) => n + s.qualified, 0),
       paid: summaries.reduce((n, s) => n + s.paid, 0),
       owedNgn: summaries.reduce((n, s) => n + s.owedNgn, 0),
+      viaLink: Number(viaLink) || 0,
+      viaManual: Number(viaManual) || 0,
     },
     referrers: summaries.map((s, i) => ({
       ...s,

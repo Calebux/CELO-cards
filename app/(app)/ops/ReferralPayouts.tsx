@@ -41,7 +41,7 @@ type Referrer = {
 
 type Payload = {
   rewardNgn: number;
-  totals: { referrers: number; referred: number; qualified: number; paid: number; owedNgn: number };
+  totals: { referrers: number; referred: number; qualified: number; paid: number; owedNgn: number; viaLink: number; viaManual: number };
   referrers: Referrer[];
 };
 
@@ -124,6 +124,16 @@ export function ReferralPayouts() {
               ? `${data.totals.qualified} qualified of ${data.totals.referred} referred · ${data.totals.paid} paid · ${naira(data.rewardNgn)} each`
               : "Loading…"}
           </p>
+          {/* How they arrived. The link was added on the theory that retyping a
+              code was losing people; this is the line that says whether it was. */}
+          {data && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+              <strong style={{ color: "#4ade80" }}>{data.totals.viaLink}</strong> via shared link
+              {" · "}
+              <strong style={{ color: "#94a3b8" }}>{data.totals.viaManual}</strong> typed the code
+              {data.totals.viaLink + data.totals.viaManual === 0 && " · none yet since links shipped"}
+            </p>
+          )}
         </div>
         <button
           onClick={() => void load()}

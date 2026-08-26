@@ -104,26 +104,28 @@ export default function ProfilePage() {
   const referralShareUrl = referralData?.link
     ?? (address ? `${typeof window !== "undefined" ? window.location.origin : ""}/?ref=${referralData?.code ?? addressToCode(address)}` : "");
   const canShareReferral = typeof navigator !== "undefined" && typeof navigator.share === "function";
-  const shareReferral = useCallback(async () => {
+  const copyReferral = useCallback(async () => {
     if (!referralShareUrl) return;
-    // The share sheet is the point on a phone — it puts the link straight into
-    // WhatsApp or Telegram. Clipboard is the desktop path and the fallback.
-    if (canShareReferral) {
-      try {
-        await navigator.share({ title: "Action Order", text: "Play Action Order with me", url: referralShareUrl });
-        return;
-      } catch (e) {
-        if ((e as Error)?.name === "AbortError") return;
-      }
-    }
     try {
       await navigator.clipboard?.writeText(referralShareUrl);
     } catch {
-      // Fall through to the confirmation anyway — the link is on screen.
+      // Confirm anyway — the link is on screen to select by hand.
     }
     setReferralCopied(true);
     setTimeout(() => setReferralCopied(false), 2000);
-  }, [referralShareUrl, canShareReferral]);
+  }, [referralShareUrl]);
+
+  const shareReferral = useCallback(async () => {
+    if (!referralShareUrl) return;
+    // The share sheet puts the link straight into WhatsApp or Telegram, which
+    // is where referrals actually get sent. Dismissing it is a choice, not a
+    // failure — Copy sits next to it for anyone who wants the text instead.
+    try {
+      await navigator.share({ title: "Action Order", text: "Play Action Order with me", url: referralShareUrl });
+    } catch (e) {
+      if ((e as Error)?.name !== "AbortError") await copyReferral();
+    }
+  }, [referralShareUrl, copyReferral]);
   const [mintedCardIds, setMintedCardIds] = useState<Set<string>>(new Set());
   const [mintingCardId, setMintingCardId] = useState<string | null>(null);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
@@ -797,11 +799,19 @@ export default function ProfilePage() {
                       {referralShareUrl}
                     </div>
                     <button
-                      onClick={() => void shareReferral()}
+                      onClick={() => void copyReferral()}
                       style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", whiteSpace: "nowrap" }}
                     >
-                      {referralCopied ? "Copied!" : canShareReferral ? "Share" : "Copy"}
+                      {referralCopied ? "Copied!" : "Copy"}
                     </button>
+                    {canShareReferral && (
+                      <button
+                        onClick={() => void shareReferral()}
+                        style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.35)", fontSize: 9, fontWeight: 700, color: "#4ade80", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                      >
+                        Share
+                      </button>
+                    )}
                   </div>
                   <div style={{ fontSize: 8, color: "#475569", marginTop: 3 }}>
                     Earn +100 pts for each friend who joins through your link · code {referralData?.code ?? addressToCode(address)}
