@@ -157,3 +157,36 @@ export function referralLink(code: string): string {
   const base = (process.env.NEXT_PUBLIC_APP_URL || "https://www.actionorder.xyz").replace(/\/$/, "");
   return `${base}/?${REFERRAL_PARAM}=${encodeURIComponent(code)}`;
 }
+
+/** Name of the cookie a shared link leaves behind. */
+export const REFERRAL_COOKIE = "ao_ref";
+
+/**
+ * Finish a referral the server can see but the client may not have completed.
+ *
+ * The browser component spends a parked code the moment a wallet connects, but
+ * it only exists in the app provider tree — a player who connects and never
+ * navigates there would keep the code parked forever. Any route that already
+ * knows the address can call this instead, and applyReferral is idempotent, so
+ * both paths racing is harmless.
+ *
+ * Returns the code it spent, so the caller can clear the cookie.
+ */
+export async function spendReferralCookie(
+  cookieValue: string | undefined,
+  address: string,
+): Promise<string | null> {
+  const code = cookieValue?.trim().toLowerCase();
+  if (!code || code.length < 6 || code.length > 32) return null;
+
+  const existing = await getReferral(address);
+  if (existing.referredBy) return code; // already referred — clear it anyway
+
+  const result = await applyReferral(address, code);
+  if (result.ok) {
+    await redis.incr("referral:applied:link").catch(() => {});
+  }
+  // Clear on refusal too: an invalid or self-referring code will never work,
+  // and carrying it around means retrying it on every request.
+  return code;
+}

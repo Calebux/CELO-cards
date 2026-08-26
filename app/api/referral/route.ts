@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getReferral, applyReferral, registerReferralCode, referralLink } from "../../lib/referral";
+import { getReferral, applyReferral, registerReferralCode, referralLink, spendReferralCookie, REFERRAL_COOKIE } from "../../lib/referral";
 import { recordMatchResult } from "../../lib/leaderboard";
 import { checkRateLimit } from "../../lib/rateLimit";
+import { redis } from "../../lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,14 @@ export async function GET(req: NextRequest) {
   // Register the code on read so lookups work for the referrer
   const code = await registerReferralCode(address);
 
+  // A link may have left a code behind that the browser never got to spend —
+  // it only spends one where ReferralCapture is mounted. This request already
+  // knows the address, so finish it here rather than leave it parked.
+  const spent = await spendReferralCookie(
+    req.cookies.get(REFERRAL_COOKIE)?.value,
+    address,
+  ).catch(() => null);
+
   const data = await getReferral(address);
 
   // Deliberately NO cash fields here. The ₦ reward is discretionary and paid
@@ -25,7 +34,10 @@ export async function GET(req: NextRequest) {
   // The link is what actually gets shared — a code someone has to retype is
   // where the old flow lost people. Built here so every surface shares the
   // same URL shape.
-  return NextResponse.json({ ...data, code, link: referralLink(code) });
+  const res = NextResponse.json({ ...data, code, link: referralLink(code) });
+  // Spent or refused, the cookie has done its job and should not ride along.
+  if (spent) res.cookies.delete(REFERRAL_COOKIE);
+  return res;
 }
 
 // POST /api/referral — apply a referral code
@@ -54,6 +66,9 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await applyReferral(address, code);
+  if (result.ok) {
+    await redis.incr("referral:applied:manual").catch(() => {});
+  }
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 409 });
   }

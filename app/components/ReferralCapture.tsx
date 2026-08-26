@@ -55,6 +55,11 @@ export function parkReferralFromUrl(): void {
       PENDING_KEY,
       JSON.stringify({ code, at: Date.now() } satisfies Pending),
     );
+    // Also as a cookie, so the server can finish the job on its own. The
+    // client path below is the fast one, but it only runs where this component
+    // is mounted; a cookie rides along on every request to our own origin, so
+    // any route that already knows the player's address can spend the code.
+    document.cookie = `ao_ref=${encodeURIComponent(code)}; path=/; max-age=${PENDING_TTL_MS / 1000}; samesite=lax`;
     url.searchParams.delete("ref");
     window.history.replaceState({}, "", url.toString());
   } catch {
