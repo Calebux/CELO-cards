@@ -8,6 +8,8 @@ import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../
 import { recordMatchResult, recordPlayerMatchOutcome } from "../../../../lib/leaderboard";
 import { HOUSE_WINS_COUNTED_PER_DAY, recordBountyPoints } from "../../../../lib/bounty";
 import { recordAgentPoints } from "../../../../lib/agentTrack";
+import { registerAgentWallet } from "../../../../lib/agentTrack";
+import { isAgentKeyRequest } from "../../../../lib/agentKey";
 import { resolveAgentStatus } from "../../../../lib/goodagent-server";
 import { clampDifficulty, effectiveAiDifficulty, houseMatchPoints } from "../../../../lib/houseDifficulty";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
@@ -27,6 +29,9 @@ interface HouseMatchState {
   attunementSurgeUsed: boolean;
   usedCardIds: string[];
   previousAiOrderIds: string[];
+  /** Pinned by /start for callers whose resolve body carries no roster. */
+  playerCharacterId?: string;
+  opponentCharacterId?: string;
   /**
    * The difficulty the match STARTED on, pinned at creation and never taken
    * from the request again. Rewards are paid on this.
@@ -119,6 +124,19 @@ export async function POST(req: NextRequest) {
   // 1. Get or Initialize Match State
   let state = await redis.get<HouseMatchState>(redisKey);
   if (!state || state.matchId !== matchId) {
+    // A match opened with the scoped agent key belongs on the agent track.
+    // /start already registers, so this only catches a skill that went
+    // straight to resolve; either way it happens before the first round is
+    // scored. Requests without the key are untouched — this is the whole of
+    // the change the live client can see, and it cannot reach it.
+    if (isAgentKeyRequest(req)) {
+      try {
+        await registerAgentWallet(addr, "skill:actionorder-player", null);
+      } catch {
+        return NextResponse.json({ error: "AGENT_REGISTRY_UNAVAILABLE" }, { status: 503 });
+      }
+    }
+
     state = {
       matchId,
       playerRoundsWon: 0,
@@ -142,8 +160,14 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Prepare Data for Resolution
-  const playerChar = CHARACTERS.find((c) => c.id === playerCharacterId);
-  const opponentChar = CHARACTERS.find((c) => c.id === opponentCharacterId);
+  //
+  // The roster falls back to whatever /start pinned. The game client sends the
+  // characters on every round and never reaches the fallback; the agent skill
+  // sends them only at start, so without this its rounds fail as invalid.
+  const resolvedPlayerCharId = playerCharacterId ?? state.playerCharacterId;
+  const resolvedOpponentCharId = opponentCharacterId ?? state.opponentCharacterId;
+  const playerChar = CHARACTERS.find((c) => c.id === resolvedPlayerCharId);
+  const opponentChar = CHARACTERS.find((c) => c.id === resolvedOpponentCharId);
   const playerOrder = playerOrderCardIds.map(id => CARDS.find(c => c.id === id)).filter((c): c is Card => !!c);
 
   if (!playerChar || !opponentChar || playerOrder.length < 5) {
@@ -255,8 +279,8 @@ export async function POST(req: NextRequest) {
       matchId,
       playerAddress: addr,
       playerName: sanitizedPlayerName,
-      playerCharacterId,
-      opponentCharacterId,
+      playerCharacterId: playerChar.id,
+      opponentCharacterId: opponentChar.id,
       difficulty: aiDifficulty,
       chosenDifficulty: rewardDifficulty,
       wagered,

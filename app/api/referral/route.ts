@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getReferral, applyReferral, registerReferralCode } from "../../lib/referral";
+import { getReferral, applyReferral, registerReferralCode, referralLink } from "../../lib/referral";
 import { recordMatchResult } from "../../lib/leaderboard";
 import { checkRateLimit } from "../../lib/rateLimit";
 
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Register the code on read so lookups work for the referrer
-  await registerReferralCode(address);
+  const code = await registerReferralCode(address);
 
   const data = await getReferral(address);
 
@@ -22,7 +22,10 @@ export async function GET(req: NextRequest) {
   // which exists only for the cash programme — on a public endpoint would
   // advertise a promise to everyone who reads it. Money lives ops-side only:
   // see /api/referral/ops.
-  return NextResponse.json(data);
+  // The link is what actually gets shared — a code someone has to retype is
+  // where the old flow lost people. Built here so every surface shares the
+  // same URL shape.
+  return NextResponse.json({ ...data, code, link: referralLink(code) });
 }
 
 // POST /api/referral — apply a referral code

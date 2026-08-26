@@ -96,11 +96,34 @@ export default function ProfilePage() {
   const [streakMsg, setStreakMsg] = useState<string | null>(null);
   const [passInfo, setPassInfo] = useState<{ active: boolean; expiry: number | null; plan: string | null } | null>(null);
   const [showSeasonPassModal, setShowSeasonPassModal] = useState(false);
-  const [referralData, setReferralData] = useState<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number } | null>(null);
+  const [referralData, setReferralData] = useState<{ code: string; link?: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number } | null>(null);
   const [referralInput, setReferralInput] = useState("");
   const [referralSubmitting, setReferralSubmitting] = useState(false);
   const [referralMsg, setReferralMsg] = useState<string | null>(null);
   const [referralCopied, setReferralCopied] = useState(false);
+  const referralShareUrl = referralData?.link
+    ?? (address ? `${typeof window !== "undefined" ? window.location.origin : ""}/?ref=${referralData?.code ?? addressToCode(address)}` : "");
+  const canShareReferral = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const shareReferral = useCallback(async () => {
+    if (!referralShareUrl) return;
+    // The share sheet is the point on a phone — it puts the link straight into
+    // WhatsApp or Telegram. Clipboard is the desktop path and the fallback.
+    if (canShareReferral) {
+      try {
+        await navigator.share({ title: "Action Order", text: "Play Action Order with me", url: referralShareUrl });
+        return;
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard?.writeText(referralShareUrl);
+    } catch {
+      // Fall through to the confirmation anyway — the link is on screen.
+    }
+    setReferralCopied(true);
+    setTimeout(() => setReferralCopied(false), 2000);
+  }, [referralShareUrl, canShareReferral]);
   const [mintedCardIds, setMintedCardIds] = useState<Set<string>>(new Set());
   const [mintingCardId, setMintingCardId] = useState<string | null>(null);
   const [previewCardId, setPreviewCardId] = useState<string | null>(null);
@@ -214,7 +237,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!address || !showReferrals) return;
     fetch(`/api/referral?address=${address.toLowerCase()}`)
-      .then(r => r.ok ? r.json() as Promise<{ code: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
+      .then(r => r.ok ? r.json() as Promise<{ code: string; link?: string; referredBy: string | null; referrals: string[]; totalBonusEarned: number }> : null)
       .then(data => { if (data) setReferralData(data); })
       .catch(() => {});
   }, [address, showReferrals]);
@@ -764,34 +787,24 @@ export default function ProfilePage() {
                 borderRadius: 8, padding: "14px 16px",
               }}>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", marginBottom: 8 }}>🔗 Referrals</div>
-                {/* Your referral code */}
+                {/* Your referral link. The code alone used to be the whole
+                    share — an 8-character string someone had to retype on a
+                    phone, which is where the old flow lost people. */}
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Your referral code</div>
+                  <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>Your referral link</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ flex: 1, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, padding: "5px 8px", fontSize: 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 2, fontFamily: "monospace" }}>
-                      {referralData?.code ?? addressToCode(address)}
+                    <div style={{ flex: 1, background: "rgba(86,164,203,0.08)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 4, padding: "5px 8px", fontSize: 10, fontWeight: 600, color: "#b9e7f4", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {referralShareUrl}
                     </div>
                     <button
-                      onClick={() => {
-                        const code = referralData?.code ?? addressToCode(address);
-                        if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-                          setReferralCopied(true);
-                          setTimeout(() => setReferralCopied(false), 2000);
-                          return;
-                        }
-
-                        void navigator.clipboard.writeText(code).then(() => {
-                          setReferralCopied(true);
-                          setTimeout(() => setReferralCopied(false), 2000);
-                        }).catch(() => {});
-                      }}
-                      style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit" }}
+                      onClick={() => void shareReferral()}
+                      style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "rgba(86,164,203,0.1)", border: "1px solid rgba(86,164,203,0.3)", fontSize: 9, fontWeight: 700, color: "#56a4cb", fontFamily: "inherit", whiteSpace: "nowrap" }}
                     >
-                      {referralCopied ? "Copied!" : "Copy"}
+                      {referralCopied ? "Copied!" : canShareReferral ? "Share" : "Copy"}
                     </button>
                   </div>
                   <div style={{ fontSize: 8, color: "#475569", marginTop: 3 }}>
-                    Earn +100 pts for each friend who joins using your code
+                    Earn +100 pts for each friend who joins through your link · code {referralData?.code ?? addressToCode(address)}
                   </div>
                 </div>
                 {/* Stats row */}

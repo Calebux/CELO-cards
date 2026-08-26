@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { MiniPayImage } from './components/MiniPayImage';
 import { useMiniPayMode } from './lib/premiumPayments';
+import { parkReferralFromUrl } from './components/ReferralCapture';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';
@@ -19,6 +20,13 @@ type LandingSeasonPassButtonComponent = React.ComponentType<{ isCompact: boolean
 
 export default function ActionOrderLandingPage() {
   const isMp = useMiniPayMode();
+
+  // A shared referral link lands here. Park the code now; it is spent once a
+  // wallet connects, which may be several screens later. Not in MiniPay —
+  // referrals are switched off there on purpose.
+  useEffect(() => {
+    if (!isMp) parkReferralFromUrl();
+  }, [isMp]);
   const hasSeenTutorial = useGameStore((s) => s.hasSeenTutorial);
   const setHasSeenTutorial = useGameStore((s) => s.setHasSeenTutorial);
   const playerAddress = useGameStore((s) => s.playerAddress);

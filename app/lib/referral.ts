@@ -11,9 +11,37 @@ export type ReferralData = {
   totalBonusEarned: number;
 };
 
-/** Derive a short deterministic code from an address (first 8 hex chars after 0x) */
+/**
+ * The original code: the first 8 hex chars of the address.
+ *
+ * Kept because ~112 of these are already in the wild and must keep resolving,
+ * and because it is still the fallback shape for a record written before codes
+ * were minted. New codes come from `mintReferralCode` instead — a code derived
+ * from the address is a wallet address in disguise, which is both guessable and
+ * the reason referrals cannot be shown in some surfaces.
+ */
 export function addressToCode(address: string): string {
   return address.toLowerCase().replace("0x", "").slice(0, 8);
+}
+
+/**
+ * Characters that survive being read aloud, retyped, or squinted at in a
+ * screenshot. No 0/o, 1/l/i — a referral code gets copied by hand often enough
+ * that the ambiguous pairs are worth losing.
+ */
+const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+const CODE_LENGTH = 8;
+
+function randomCode(): string {
+  // Web Crypto, not node:crypto — this module is imported by the profile page
+  // too, and a `node:` scheme cannot be bundled for the browser.
+  const bytes = new Uint8Array(CODE_LENGTH);
+  globalThis.crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  }
+  return out;
 }
 
 export async function getReferral(address: string): Promise<ReferralData> {
@@ -75,10 +103,57 @@ export async function applyReferral(
   };
 }
 
-/** Register an address's referral code so it can be looked up. Call on first profile load. */
-export async function registerReferralCode(address: string): Promise<void> {
+/**
+ * Make sure this address has a shareable code, and that every code it has ever
+ * had still resolves. Call on first profile load.
+ *
+ * The address-derived code is mapped too, always: codes already shared in a
+ * chat or on a poster keep working forever, whatever the record says today.
+ */
+export async function registerReferralCode(address: string): Promise<string> {
   const addr = address.toLowerCase();
-  const code = addressToCode(addr);
-  // NX = only set if not exists
-  await redis.set(`referral-code:${code}`, addr, { ex: 60 * 60 * 24 * 365 });
+  const legacy = addressToCode(addr);
+  const YEAR = 60 * 60 * 24 * 365;
+
+  // The legacy mapping is kept alive regardless — see above.
+  await redis.set(`referral-code:${legacy}`, addr, { ex: YEAR });
+
+  const existing = await redis.get<ReferralData>(`referral:${addr}`);
+  if (existing?.code && existing.code !== legacy) {
+    await redis.set(`referral-code:${existing.code}`, addr, { ex: YEAR });
+    return existing.code;
+  }
+
+  // Mint one. SET NX settles collisions: whoever writes the key owns the code.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = randomCode();
+    const won = await redis.set(`referral-code:${code}`, addr, { nx: true, ex: YEAR });
+    if (won === null) continue;
+
+    const data = existing ?? {
+      code,
+      referredBy: null,
+      referrals: [],
+      totalBonusEarned: 0,
+    };
+    data.code = code;
+    await redis.set(`referral:${addr}`, data, { ex: YEAR });
+    return code;
+  }
+
+  // Five collisions in a row is not going to happen, but falling back to the
+  // legacy code beats leaving the caller without one.
+  return legacy;
+}
+
+/** Where a shared referral link points. */
+export const REFERRAL_PARAM = "ref";
+
+/**
+ * The full link to share. Falls back to the production host so a link built on
+ * a preview deploy still sends people somewhere real.
+ */
+export function referralLink(code: string): string {
+  const base = (process.env.NEXT_PUBLIC_APP_URL || "https://www.actionorder.xyz").replace(/\/$/, "");
+  return `${base}/?${REFERRAL_PARAM}=${encodeURIComponent(code)}`;
 }

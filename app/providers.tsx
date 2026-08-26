@@ -11,6 +11,7 @@ const RainbowKitStyles = dynamic(() => import("./components/RainbowKitStyles").t
 import { WalletSync } from "./lib/wallet";
 import { createWeb3AuthConnector } from "./lib/web3auth";
 import { PortraitOverlay } from "./components/PortraitOverlay";
+import { ReferralCapture } from "./components/ReferralCapture";
 import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
 
 // Heavy modals — load after initial paint so they don't block first interaction
@@ -55,6 +56,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <RainbowKitStyles />
           <WalletSync />
           <PortraitOverlay />
+            <ReferralCapture />
           <DeferredGlobalOverlays>
             <DailyReward />
             <UsernameModal />
