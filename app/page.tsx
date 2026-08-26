@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { MiniPayImage } from './components/MiniPayImage';
 import { useMiniPayMode } from './lib/premiumPayments';
-import { parkReferralFromUrl } from './components/ReferralCapture';
+import { parkReferralFromUrl } from './lib/referralPark';
 import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';

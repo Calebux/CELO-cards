@@ -158,8 +158,9 @@ export function referralLink(code: string): string {
   return `${base}/?${REFERRAL_PARAM}=${encodeURIComponent(code)}`;
 }
 
-/** Name of the cookie a shared link leaves behind. */
-export const REFERRAL_COOKIE = "ao_ref";
+/** Name of the cookie a shared link leaves behind. Defined in lib/referralPark
+ *  so the browser half and the server half cannot drift apart. */
+export { REFERRAL_COOKIE } from "./referralPark";
 
 /**
  * Finish a referral the server can see but the client may not have completed.
