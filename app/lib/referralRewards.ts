@@ -31,24 +31,6 @@ import { getReferral } from "./referral";
 /** Naira paid per qualified referral. */
 export const REFERRAL_REWARD_NGN = 700;
 
-/**
- * The G$ season-pass registry. `totalPurchases` is a permanent on-chain count,
- * unlike the Redis entitlement, which expires with the pass — a referee who
- * bought a weekly pass three weeks ago still qualifies, and should.
- */
-const PASS_REGISTRY = (process.env.NEXT_PUBLIC_GDOLLAR_SEASON_PASS_CONTRACT ??
-  "0xc032b8efca84eacfe38a432ac30ca3684854981b") as `0x${string}`;
-
-const PASS_ABI = [
-  {
-    name: "totalPurchases",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "buyer", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-] as const;
-
 const YEAR = 365 * 24 * 60 * 60;
 const qualifiedKey = (referee: string) => `referral:qualified:${referee.toLowerCase()}`;
 const qualifiedSetKey = (referrer: string) => `referral:qualified-set:${referrer.toLowerCase()}`;
@@ -97,10 +79,18 @@ function defaultClient(): PublicClient {
 
 export type QualifyResult =
   | { qualified: true; record: QualifiedReferral; alreadyRecorded: boolean }
+  // "no-pass" is retained so anything persisted under the old rule still parses.
   | { qualified: false; reason: "no-referrer" | "not-verified" | "no-pass" | "same-identity" | "read-failed" };
 
 /**
  * Decide whether a referee has earned their referrer the reward, and record it.
+ *
+ * A referral qualifies on VERIFICATION ALONE. It used to also require a season
+ * pass, and in six weeks that produced 31 referrals and zero qualifiers — the
+ * bar was not filtering bad referrals, it was stopping the programme working at
+ * all. The pass was never the anti-abuse control either: at 100 G$, a day or
+ * two of free claims, it was no barrier to anyone determined. Face uniqueness
+ * is and always was the whole gate, and that is unchanged below.
  *
  * Idempotent: the qualification is written once with SET NX, so calling this on
  * every pass purchase, profile load and ops refresh cannot inflate anyone's
@@ -120,17 +110,11 @@ export async function evaluateReferralQualification(
   if (!referral.referredBy) return { qualified: false, reason: "no-referrer" };
   const referrer = referral.referredBy.toLowerCase();
 
-  let refereeIdentity, referrerIdentity, purchases: bigint;
+  let refereeIdentity, referrerIdentity;
   try {
-    [refereeIdentity, referrerIdentity, purchases] = await Promise.all([
+    [refereeIdentity, referrerIdentity] = await Promise.all([
       resolveGoodDollarIdentity(client, referee),
       resolveGoodDollarIdentity(client, referrer),
-      client.readContract({
-        address: PASS_REGISTRY,
-        abi: PASS_ABI,
-        functionName: "totalPurchases",
-        args: [referee as `0x${string}`],
-      }) as Promise<bigint>,
     ]);
   } catch {
     // Never guess when money depends on the answer.
@@ -138,7 +122,6 @@ export async function evaluateReferralQualification(
   }
 
   if (!refereeIdentity.isVerified) return { qualified: false, reason: "not-verified" };
-  if (purchases <= 0n) return { qualified: false, reason: "no-pass" };
   // The check the address comparison in referral.ts cannot make.
   if (refereeIdentity.identityKey === referrerIdentity.identityKey) {
     return { qualified: false, reason: "same-identity" };
