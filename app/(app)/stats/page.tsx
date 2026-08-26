@@ -6,9 +6,14 @@ export const revalidate = 60; // refresh every minute
 export default async function StatsPage() {
   const { onChain, policy, retention, transactionHealth } = await getBalanceDashboard();
 
+  // Everything on this row is on-chain: a wallet counts once it has signed up
+  // or bought a pass. Players who only play VS House settle off-chain and are
+  // not here — which is why this reads lower than the app's own user count, and
+  // why it is the number that can be checked by anyone.
   const stats = [
-    { label: "Total Players", value: onChain.distinctRealWallets.toLocaleString(), color: "#56a4cb" },
-    { label: "GoodDollar Verified", value: onChain.verifiedGoodDollar.toLocaleString(), color: "#00C58E" },
+    { label: "Signed Up (on-chain)", value: onChain.distinctRealWallets.toLocaleString(), color: "#56a4cb" },
+    { label: "Signed Up + Verified", value: onChain.verifiedGoodDollar.toLocaleString(), color: "#00C58E" },
+    { label: "Verified People", value: onChain.verifiedIdentities.toLocaleString(), color: "#4ade80" },
     { label: "Season Passes Sold", value: onChain.totalPassesSold.toLocaleString(), color: "#fbbf24" },
     { label: "Season", value: policy.currentVersion, color: "#f472b6" },
   ];
