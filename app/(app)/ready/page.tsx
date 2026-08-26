@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "../../lib/gameStore";
+import { usePageVisibility } from "../../lib/perf";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
@@ -109,22 +110,55 @@ function ReadyYourDeck() {
   }, [exiting, isRanked, matchMode, playerAddress, playerName, storeMatchId, signMatchAction]);
 
   // Poll for joiner — when found, redirect host to character select (payment happens in lobby)
+  //
+  // A fixed 2s setInterval here was the single biggest source of requests in the
+  // app. Two things made it worse than it looks: nothing stopped when the tab
+  // was hidden, so a host who opened this screen and switched apps kept asking
+  // once a second forever; and the rate never dropped, though an opponent who
+  // has not joined in a minute is not likely to appear in the next two seconds.
+  //
+  // A chained timeout rather than an interval, so the delay can change: quick
+  // while someone is plausibly about to join, slower after, and barely awake
+  // when nobody is looking. The lobby already backs off on visibility the same
+  // way — see usePageVisibility there.
+  const pageVisible = usePageVisibility();
   useEffect(() => {
     if (!storeMatchId || playerRole !== "host" || wagerActive || opponentFound || exiting) return;
-    const poll = setInterval(async () => {
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = Date.now();
+
+    const nextDelay = (): number => {
+      if (!pageVisible) return 15_000;
+      const waited = Date.now() - startedAt;
+      if (waited < 20_000) return 2_500;
+      if (waited < 60_000) return 5_000;
+      return 10_000;
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
       try {
         const res = await fetch(`/api/match/${storeMatchId}?role=host`);
         const data = await res.json() as { opponentCharId?: string | null };
         if (data.opponentCharId) {
-          clearInterval(poll);
+          cancelled = true;
           setOpponentFound(true);
           router.push(selectedCharacter ? "/lobby" : "/select-character");
+          return;
         }
       } catch { /* ignore transient errors */ }
-    }, 2000);
-    return () => clearInterval(poll);
+      if (!cancelled) timer = setTimeout(() => void tick(), nextDelay());
+    };
+
+    timer = setTimeout(() => void tick(), nextDelay());
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exiting, storeMatchId, playerRole, selectedCharacter, wagerActive, opponentFound]);
+  }, [exiting, storeMatchId, playerRole, selectedCharacter, wagerActive, opponentFound, pageVisible]);
 
   const matchId = storeMatchId ?? "AO-????-X";
 
