@@ -66,6 +66,8 @@ export function ReferralPayouts() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attrReferee, setAttrReferee] = useState("");
+  const [attrReferrer, setAttrReferrer] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -86,6 +88,33 @@ export function ReferralPayouts() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const attribute = async () => {
+    const referee = attrReferee.trim().toLowerCase();
+    const referrer = attrReferrer.trim().toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(referee) || !/^0x[0-9a-f]{40}$/.test(referrer)) {
+      setError("Both fields need a full wallet address");
+      return;
+    }
+    setBusy("attribute");
+    setError(null);
+    try {
+      const res = await fetch("/api/referral/ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "attribute", referee, referrer }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Could not attribute that");
+      setAttrReferee("");
+      setAttrReferrer("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not attribute that");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const settle = async (referee: string, action: "paid" | "waived") => {
     setBusy(referee);
@@ -158,6 +187,43 @@ export function ReferralPayouts() {
           Nobody has referred anyone yet.
         </p>
       )}
+
+      {/* Credit a referral that happened in person. Links lose people to
+          mechanics nobody can see — a code shared before links existed, or a
+          chat app's in-app browser being a different storage context from the
+          browser they finish in. Neither means it did not happen. */}
+      <div style={{
+        marginTop: 18, padding: "14px 16px", borderRadius: 8,
+        border: "1px solid rgba(86,164,203,0.25)", background: "rgba(15,23,42,0.55)",
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", marginBottom: 10 }}>
+          Attribute a referral by hand
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            value={attrReferrer}
+            onChange={(e) => setAttrReferrer(e.target.value)}
+            placeholder="referrer 0x…"
+            style={{ flex: "1 1 260px", minWidth: 220, padding: "7px 10px", borderRadius: 4, border: "1px solid rgba(86,164,203,0.3)", background: "rgba(86,164,203,0.06)", color: "#b9e7f4", fontSize: 11, fontFamily: "monospace" }}
+          />
+          <input
+            value={attrReferee}
+            onChange={(e) => setAttrReferee(e.target.value)}
+            placeholder="brought this wallet 0x…"
+            style={{ flex: "1 1 260px", minWidth: 220, padding: "7px 10px", borderRadius: 4, border: "1px solid rgba(86,164,203,0.3)", background: "rgba(86,164,203,0.06)", color: "#b9e7f4", fontSize: 11, fontFamily: "monospace" }}
+          />
+          <button
+            onClick={() => void attribute()}
+            disabled={busy === "attribute"}
+            style={{ padding: "7px 14px", borderRadius: 4, cursor: "pointer", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 1, color: "#4ade80", fontFamily: "inherit", textTransform: "uppercase" }}
+          >
+            {busy === "attribute" ? "Linking…" : "Attribute"}
+          </button>
+        </div>
+        <div style={{ fontSize: 9.5, color: "#475569", marginTop: 7, lineHeight: 1.5 }}>
+          Runs the same checks a link does — already referred, self-referral, and the per-referrer cap — and awards both sides their points. Recorded separately from organic referrals so an audit can tell them apart.
+        </div>
+      </div>
 
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         {data?.referrers.map((r) => {

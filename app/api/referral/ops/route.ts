@@ -8,6 +8,7 @@ import {
   markReferralWaived,
   type ReferrerSummary,
 } from "../../../lib/referralRewards";
+import { applyReferral, getReferral } from "../../../lib/referral";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireOpsSession(req);
   if (auth instanceof NextResponse) return auth;
 
-  let body: { referee?: string; action?: string; note?: string };
+  let body: { referee?: string; referrer?: string; action?: string; note?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -128,6 +129,48 @@ export async function POST(req: NextRequest) {
   }
 
   const note = body.note?.slice(0, 140);
+
+  // Credit a referral that happened in the room rather than through a link.
+  //
+  // Links lose people to mechanics nobody can see: a code shared before links
+  // existed and typed wrong, or a chat app's in-app browser that is a different
+  // storage context from the browser they finish signing up in. Neither means
+  // the referral did not happen. This is how a real one gets recorded when the
+  // referrer can say who they brought.
+  //
+  // It goes through applyReferral rather than writing the records directly, so
+  // every guard still applies — already referred, self-referral, and the
+  // per-referrer cap — and the referee's points land exactly as they would have.
+  if (body.action === "attribute") {
+    const referrer = body.referrer?.toLowerCase();
+    if (!referrer || !/^0x[0-9a-f]{40}$/.test(referrer)) {
+      return NextResponse.json({ error: "Invalid referrer address" }, { status: 400 });
+    }
+    if (referrer === referee) {
+      return NextResponse.json({ error: "That is the same wallet" }, { status: 400 });
+    }
+
+    const referrerRecord = await getReferral(referrer);
+    const code = referrerRecord.code;
+    if (!code) {
+      return NextResponse.json({ error: "That referrer has no code yet" }, { status: 404 });
+    }
+
+    const applied = await applyReferral(referee, code);
+    if (!applied.ok) {
+      return NextResponse.json({ error: applied.error ?? "Could not attribute" }, { status: 409 });
+    }
+
+    // Kept apart from organic referrals so an audit can tell them apart, and so
+    // a pattern of manual credits is visible rather than buried.
+    await redis.set(
+      `referral:attributed:${referee}`,
+      { referee, referrer, by: auth, note: note ?? null, at: Date.now() },
+      { ex: 60 * 60 * 24 * 365 },
+    );
+
+    return NextResponse.json({ ok: true, attributed: { referee, referrer } });
+  }
 
   if (body.action === "waived") {
     const result = await markReferralWaived(referee, auth, note);
