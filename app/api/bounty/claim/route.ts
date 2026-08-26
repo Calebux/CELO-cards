@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many attempts. Please wait." }, { status: 429 });
   }
 
-  let body: { address?: string; day?: string; signature?: string; currency?: string };
+  let body: { address?: string; day?: string; signature?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -117,10 +117,24 @@ export async function POST(req: NextRequest) {
     : lastPayingDayAtOrBefore(bountyDayUTC(Date.now() - 24 * 60 * 60 * 1000));
 
   // MiniPay players are paid USDT — a G$ prize cannot reach them at all, since
-  // GoodDollar must not operate in the Mini App. The client asks for it; the
-  // AMOUNT is still decided server-side from the frozen standings, so the worst
-  // a forged flag can do is take the same dollar value from a different pot.
-  const currency: PayoutCurrency = body.currency === "usdt" ? "usdt" : "gdollar";
+  // GoodDollar must not operate in the Mini App.
+  //
+  // Decided here from the request's own user agent, the same signal the app
+  // uses to choose its provider tree, rather than from a field in the body.
+  // The body used to carry it, on the reasoning that the AMOUNT is server-side
+  // so a forged flag only changes which pot pays. That held while the two pots
+  // were interchangeable. They are not: the USDT path skips the GoodDollar
+  // verification gate below — it has to, because reading the identity contract
+  // is GoodDollar functionality — so asking for USDT was also a way to opt out
+  // of the face check that stops a day's standings being farmed across
+  // throwaway wallets. On a board of 190 players that is worth closing.
+  //
+  // A spoofed user agent still reaches the USDT path. What bounds it is the
+  // work: 5,000 points in a day is roughly 25 Hard wins, and the per-day
+  // ceiling below caps the total regardless.
+  const currency: PayoutCurrency = /MiniPay/i.test(req.headers.get("user-agent") ?? "")
+    ? "usdt"
+    : "gdollar";
   const token = PAYOUT_TOKENS[currency];
 
   // A day still in progress can still change places. Paying it early would let

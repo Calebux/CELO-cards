@@ -76,7 +76,10 @@ export function ClaimBountyButton({ compact = false }: { compact?: boolean }) {
       const res = await fetch("/api/bounty/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, day: info.day, signature, currency: isMp ? "usdt" : "gdollar" }),
+        // No currency here any more: the server reads it from the request's own
+        // user agent. Sending it from the client made "which pot pays me" a
+        // client decision, and the USDT pot is the one without a face check.
+        body: JSON.stringify({ address, day: info.day, signature }),
       });
       const data = await res.json() as { ok?: boolean; txHash?: string; error?: string };
       if (!res.ok || !data.ok) {
