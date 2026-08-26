@@ -19,6 +19,21 @@ export const dynamic = "force-dynamic";
  * is what backfills anyone who verified or bought a pass since the last look.
  * There is no cron; the ops screen is the trigger.
  */
+type ReferralRecord = { referrals?: string[] };
+
+/** Upstash caps how many keys one MGET may carry, so this walks it in chunks. */
+async function mgetChunked(addresses: string[]): Promise<(ReferralRecord | null)[]> {
+  const out: (ReferralRecord | null)[] = [];
+  for (let i = 0; i < addresses.length; i += 100) {
+    const slice = addresses.slice(i, i + 100).map((a) => `referral:${a}`);
+    const batch = (await redis
+      .mget<ReferralRecord[]>(...slice)
+      .catch(() => null)) as (ReferralRecord | null)[] | null;
+    out.push(...(batch ?? slice.map(() => null)));
+  }
+  return out;
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireOpsSession(req);
   if (auth instanceof NextResponse) return auth;
@@ -35,11 +50,19 @@ export async function GET(req: NextRequest) {
   const addresses = [...new Set(keys.map((k) => k.replace("referral:", "").toLowerCase()))]
     .filter((a) => /^0x[0-9a-f]{40}$/.test(a));
 
-  const summaries: ReferrerSummary[] = [];
-  for (const address of addresses) {
-    const summary = await getReferrerSummary(address);
-    if (summary.totalReferred > 0) summaries.push(summary);
-  }
+  // Read every record in one round trip, then only build summaries for wallets
+  // that actually referred someone.
+  //
+  // This used to await getReferrerSummary for all of them in sequence, which
+  // meant a Redis get plus two on-chain identity reads per referee, one after
+  // another. At 52 records the reads alone measured 17 seconds — past the
+  // function timeout — so the page showed nothing and read as "nobody has
+  // referred anyone", when in fact five people had.
+  const records = await mgetChunked(addresses);
+  const referrers = addresses.filter((_, i) => (records[i]?.referrals?.length ?? 0) > 0);
+
+  const summaries = (await Promise.all(referrers.map((a) => getReferrerSummary(a))))
+    .filter((s) => s.totalReferred > 0);
 
   // Most owed first — that is the queue a human works through.
   summaries.sort((a, b) => b.owedNgn - a.owedNgn || b.qualified - a.qualified);

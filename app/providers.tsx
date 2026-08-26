@@ -12,6 +12,7 @@ import { WalletSync } from "./lib/wallet";
 import { createWeb3AuthConnector } from "./lib/web3auth";
 import { PortraitOverlay } from "./components/PortraitOverlay";
 import { ReferralCapture } from "./components/ReferralCapture";
+import { WelcomeBonus } from "./components/WelcomeBonus";
 import { DeferredGlobalOverlays } from "./components/DeferredGlobalOverlays";
 
 // Heavy modals — load after initial paint so they don't block first interaction
@@ -57,6 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <WalletSync />
           <PortraitOverlay />
           <ReferralCapture />
+          <WelcomeBonus />
           <DeferredGlobalOverlays>
             <DailyReward />
             <UsernameModal />
