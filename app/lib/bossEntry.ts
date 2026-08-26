@@ -26,7 +26,18 @@ export type BossEntryResult = {
  * True when starting a boss run will prompt a wallet transaction, so the UI can
  * show a "confirm in wallet" step only when there is something to confirm.
  */
-export function bossEntryWillCharge(address: string | undefined, _isMiniPay: boolean): boolean {
+export function bossEntryWillCharge(address: string | undefined, isMiniPay: boolean): boolean {
+  // Never in MiniPay. recordMatch is signed by the player and priced in native
+  // CELO — getMiniPayWriteOverrides sets `type: "legacy"` and no feeCurrency —
+  // and a MiniPay wallet holds stablecoins, not CELO. So the call could only
+  // ever fail there, and it is not on the contract whitelist MiniPay operates
+  // either. Their matches still count on the leaderboard, in points and in the
+  // bounty; only the on-chain marker is skipped.
+  //
+  // The argument used to be ignored (`_isMiniPay`), on a comment claiming
+  // MiniPay "pays fees in its own stablecoin and is exempt". Nothing in the
+  // transaction ever implemented that.
+  if (isMiniPay) return false;
   return BOSS_ONCHAIN_ENTRY_ENABLED && !!address && MATCH_REGISTRY_ACTIVE;
 }
 
@@ -97,9 +108,9 @@ export function useBossOnchainEntry() {
       }
 
       try {
-        // A web wallet pays gas in native CELO, so an empty one is told to ask
-        // for a top-up rather than being handed a failure it can only retry
-        // into. MiniPay pays fees in its own stablecoin and is exempt.
+        // Gas is native CELO, so an empty wallet is told to ask for a top-up
+        // rather than handed a failure it can only retry into. MiniPay never
+        // reaches here — bossEntryWillCharge returns false above.
         if (!isMiniPayWallet && publicClient) {
           const gas = await publicClient.getBalance({ address });
           if (gas < MIN_GAS_WEI) return { ok: false, needsFunding: true, error: NO_GAS_MESSAGE };

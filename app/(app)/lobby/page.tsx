@@ -9,8 +9,6 @@ import { formatUnits } from "viem";
 import { useAccount, useWriteContract } from "wagmi";
 import { celo } from "wagmi/chains";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../lib/arena";
-import { MATCH_REGISTRY, MATCH_REGISTRY_ABI, MATCH_REGISTRY_ACTIVE } from "../../lib/matchRegistry";
-import { getMiniPayAddress, getMiniPayWriteOverrides } from "../../lib/minipay";
 import { WAGER_AMOUNT_CELO } from "../../lib/cusd";
 import { useMiniPayMode } from "../../lib/premiumPayments";
 import { useGameFrameScale, useMobileViewportMode } from "../../lib/mobile";
@@ -242,29 +240,16 @@ export default function Lobby() {
         }
       }
 
-      // Best-effort: on MiniPay the ranked entry fee is treasury-sponsored, so
-      // the player gets no per-player attribution from the arena entry. Record
-      // the match on the dedicated MatchRegistry from the player's OWN MiniPay
-      // wallet so Talent Protocol / Celoscan attributes it to them. Web/mobile
-      // already self-sign the arena entry above, so they don't need this second
-      // tx. Fire and forget — a rejected/failed tracking tx never blocks the match.
-      if (MATCH_REGISTRY_ACTIVE && isMp) {
-        void (async () => {
-          try {
-            const mpAddress = await getMiniPayAddress();
-            if (!mpAddress) return;
-            await writeContractAsync({
-              address: MATCH_REGISTRY,
-              abi: MATCH_REGISTRY_ABI,
-              functionName: "recordMatch",
-              args: [matchId],
-              account: mpAddress as `0x${string}`,
-              chainId: celo.id,
-              ...getMiniPayWriteOverrides(),
-            });
-          } catch { /* tracking is best-effort */ }
-        })();
-      }
+      // A MatchRegistry.recordMatch call used to sit here, MiniPay-only, so a
+      // player whose ranked entry fee was treasury-sponsored still got their own
+      // on-chain attribution on Celoscan / Talent Protocol.
+      //
+      // Removed: it is signed by the player and priced in native CELO, which a
+      // MiniPay wallet does not hold, and MiniPay does not whitelist the call.
+      // It could only ever fail. The attribution it was buying is real and now
+      // lost for MiniPay ranked play — getting it back needs a feeCurrency on
+      // the transaction AND the contract whitelisted, not a re-add of this
+      // block. See app/lib/bossEntry.ts for the same rule on the VS House path.
 
       const postEntry = (txHash: string | null) =>
         fetch("/api/season-pass/enter", {
