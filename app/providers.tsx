@@ -56,7 +56,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <RainbowKitStyles />
           <WalletSync />
           <PortraitOverlay />
-            <ReferralCapture />
+          <ReferralCapture />
           <DeferredGlobalOverlays>
             <DailyReward />
             <UsernameModal />
