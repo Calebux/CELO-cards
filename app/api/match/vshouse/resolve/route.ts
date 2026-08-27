@@ -10,6 +10,7 @@ import { HOUSE_WINS_COUNTED_PER_DAY, recordBountyPoints } from "../../../../lib/
 import { recordAgentPoints } from "../../../../lib/agentTrack";
 import { registerAgentWallet } from "../../../../lib/agentTrack";
 import { isAgentKeyRequest } from "../../../../lib/agentKey";
+import { consumeFreeGame } from "../../../../lib/freeGames";
 import { resolveAgentStatus } from "../../../../lib/goodagent-server";
 import { clampDifficulty, effectiveAiDifficulty, houseMatchPoints } from "../../../../lib/houseDifficulty";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
@@ -134,6 +135,33 @@ export async function POST(req: NextRequest) {
         await registerAgentWallet(addr, "skill:actionorder-player", null);
       } catch {
         return NextResponse.json({ error: "AGENT_REGISTRY_UNAVAILABLE" }, { status: 503 });
+      }
+    }
+
+    // Opening a VS House match spends one of the two free games.
+    //
+    // It never did. The counter was only ever incremented on the multiplayer
+    // path — /api/match/[matchId] and the lobby's season-pass/enter — so
+    // anyone who only played VS House kept freeGamesLeft at 2 forever and the
+    // gate on the create screen never fired. That is unlimited free play, and
+    // for MiniPay players, who can only reach VS House, it was every one of
+    // them.
+    //
+    // Counted here rather than on the create screen because this is where a
+    // match actually begins: a player who reaches VS House by any other route
+    // — rematch, next opponent in a streak — is counted the same, and a client
+    // that skips the modal cannot skip this.
+    //
+    // Agents are exempt. They play through this route by design and buy
+    // nothing; metering them would stop the lane rather than sell a pass.
+    const isAgentMatch = isAgentKeyRequest(req) || (await resolveAgentStatus(addr));
+    if (!isAgentMatch) {
+      const gate = await consumeFreeGame(addr).catch(() => null);
+      if (gate && !gate.allowed) {
+        return NextResponse.json(
+          { error: "Your free matches are used up — a season pass unlocks unlimited play.", reason: "needs-pass" },
+          { status: 402 },
+        );
       }
     }
 
