@@ -164,24 +164,48 @@ export default function SelectCharacter() {
   // Poll for opponent joining — multiplayer only
   useEffect(() => {
     if (!matchId || !playerRole || vsBot || opponentJoinedRef.current) return;
-    const pollMs = isMp ? 3000 : 2000;
-    const poll = setInterval(async () => {
+
+    // Was a flat 2s interval with no visibility check, so a player who opened
+    // this screen and switched away kept reading Redis thirty times a minute.
+    // Chained timeout rather than setInterval so the delay can decay, and
+    // slowed right down when nobody is looking. Same shape as ready and lobby.
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = Date.now();
+    const base = isMp ? 3000 : 2500;
+    const nextDelay = () => {
+      if (typeof document !== "undefined" && document.hidden) return 15_000;
+      const waited = Date.now() - startedAt;
+      if (waited < 20_000) return base;
+      if (waited < 60_000) return base * 2;
+      return base * 4;
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
       try {
         const res = await fetch(`/api/match/${matchId}?role=${playerRole}`);
         const data = await res.json() as { opponentName?: string | null };
         if (data.opponentName && !opponentJoinedRef.current) {
           opponentJoinedRef.current = true;
-          clearInterval(poll);
+          cancelled = true;
           setOpponentJoined(true);
           setOpponentJoinedName(data.opponentName);
           setJoinFlash(true);
           playSound("matchFound");
           if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([100, 50, 100]);
           setTimeout(() => setJoinFlash(false), 3000);
+          return;
         }
       } catch { /* ignore */ }
-    }, pollMs);
-    return () => clearInterval(poll);
+      if (!cancelled) timer = setTimeout(() => void tick(), nextDelay());
+    };
+
+    timer = setTimeout(() => void tick(), nextDelay());
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMp, matchId, playerRole, vsBot]);
 

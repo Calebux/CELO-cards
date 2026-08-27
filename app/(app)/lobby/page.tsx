@@ -101,9 +101,17 @@ export default function Lobby() {
 
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
+    // Decays with the wait. An opponent who has not appeared in a minute is not
+    // about to appear in the next two seconds, and reads are 80% of the Redis
+    // bill — every one of these polls is a Redis read.
+    const pollStartedAt = Date.now();
     const nextPollDelay = () => {
-      if (!pageVisible) return 7000;
-      return isMp || isMobileViewport ? 3500 : 2000;
+      if (!pageVisible) return 15_000;
+      const base = isMp || isMobileViewport ? 3500 : 2500;
+      const waited = Date.now() - pollStartedAt;
+      if (waited < 20_000) return base;
+      if (waited < 60_000) return base * 2;
+      return base * 4;
     };
 
     const pollOnce = async () => {
