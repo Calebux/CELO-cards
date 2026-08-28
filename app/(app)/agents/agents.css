@@ -7,18 +7,35 @@
   --ao-text: #f8fafc;
   --ao-muted: rgba(185, 231, 244, 0.68);
   --ao-radius: 16px;
-  min-height: 100vh;
+  /* Fills the 1440×823 frame exactly rather than the viewport: the frame is
+     what maps design space onto the screen, and a page sized in vh would be
+     measuring something else entirely. */
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
   background:
     radial-gradient(circle at 15% -5%, rgba(86, 164, 203, 0.16), transparent 42%),
     radial-gradient(circle at 85% 0%, rgba(34, 47, 66, 0.55), transparent 38%),
     #0a0f1c;
   color: var(--ao-text);
-  padding: 20px 16px 56px;
 }
 
+/* The only thing that scrolls. The frame around it is fixed and transformed,
+   so the page itself cannot move — content has to scroll inside. */
 .ao-agents-shell {
-  max-width: 1120px;
-  margin: 0 auto;
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 22px 40px 48px;
+  max-width: none;
+  margin: 0;
+}
+
+.ao-agents-shell::-webkit-scrollbar { width: 8px; }
+.ao-agents-shell::-webkit-scrollbar-thumb {
+  background: rgba(86, 164, 203, 0.35);
+  border-radius: 4px;
 }
 
 .ao-agents-topbar {

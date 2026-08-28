@@ -781,6 +781,32 @@ export default function ProfilePage() {
               ))}
             </div>
 
+            {/* Agents — web and mobile web only. Deploying one runs GoodDollar
+                verification, which must not operate in the Mini App, so this
+                rides the same !isMp gate the referral card uses. */}
+            {!isMp && (
+              <a
+                href="/agents"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  gap: 10, textDecoration: "none",
+                  backgroundColor: "rgba(15,23,42,0.55)",
+                  border: "1px solid rgba(86,164,203,0.25)",
+                  borderRadius: 8, padding: "14px 16px",
+                }}
+              >
+                <span>
+                  <span style={{ display: "block", fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#56a4cb", textTransform: "uppercase", marginBottom: 4 }}>
+                    🤖 Agents
+                  </span>
+                  <span style={{ display: "block", fontSize: 11, color: "#94a3b8", lineHeight: 1.4 }}>
+                    Deploy an agent to play House Boss for you
+                  </span>
+                </span>
+                <span style={{ fontSize: 16, color: "#56a4cb" }}>›</span>
+              </a>
+            )}
+
             {/* Referral */}
             {address && showReferrals && (
               <div style={{

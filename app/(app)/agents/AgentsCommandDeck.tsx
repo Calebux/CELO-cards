@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { GoodAgentWidget } from "@goodagent/widget";
@@ -10,6 +11,8 @@ import {
   useGoodAgentWallet,
   useGoodAgentWidgetConfig,
 } from "../../lib/goodagent-wallet";
+import { useGameFrameScale } from "../../lib/mobile";
+import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 
 // Everything the agents lane needs that must not reach the MiniPay Mini App
 // lives in this file: the GoodAgent widget and its GoodDollar verification
@@ -20,8 +23,20 @@ import {
 export function AgentsCommandDeck() {
   const wallet = useGoodAgentWallet();
   const config = useGoodAgentWidgetConfig();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useGameFrameScale(wrapRef);
 
+  // Same shape as every other screen: a fixed viewport, the 1440×823 frame
+  // inside it, and the content scrolling WITHIN the frame rather than the page
+  // scrolling. This page was built as an ordinary responsive document, which
+  // is why it looked like someone else's site and why long content had nowhere
+  // to go — the frame is fixed, so an inner scroller is the only thing that can
+  // move. See profile/page.tsx for the same three layers.
   return (
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", backgroundColor: "#000", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+      <div ref={wrapRef}
+        data-ao-frame=""
+        style={{ width: DESIGN_W, height: DESIGN_H, position: "absolute", top: 0, left: 0, transformOrigin: "top left", transform: "var(--ao-tr)" }}>
     <main className="ao-agents-page">
       <div className="ao-agents-shell">
         <header className="ao-agents-topbar">
@@ -71,5 +86,7 @@ export function AgentsCommandDeck() {
         </div>
       </div>
     </main>
+      </div>
+    </div>
   );
 }
