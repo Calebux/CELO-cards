@@ -3,10 +3,10 @@ import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
-  BOUNTY_RESUMES_ON_DAY,
   BOUNTY_TOP_N,
   bountyDayUTC,
   bountyPausedOn,
+  nextBountyPayingDay,
   getBountyStandings,
   getPlayerBountyToday,
 } from "../../lib/bounty";
@@ -55,7 +55,10 @@ export async function GET(req: NextRequest) {
     // Whether THIS day pays. Reported per day rather than as a global flag, so a
     // client looking at an older day still sees that it was a paying one.
     paused: bountyPausedOn(day),
-    resumesOn: BOUNTY_RESUMES_ON_DAY,
+    // The next day that actually pays, or null when nothing is scheduled. A
+    // fixed constant here went stale the moment its campaign ended — it kept
+    // telling clients the bounty "resumes" on a day already in the past.
+    resumesOn: nextBountyPayingDay(),
     poolUsd: BOUNTY_POOL_USD,
     minPointsToWin: BOUNTY_MIN_POINTS_TO_WIN,
     prizeSplitUsd: BOUNTY_PRIZE_SPLIT_USD,

@@ -17,8 +17,10 @@ import {
   BOUNTY_POOL_USD,
   BOUNTY_PRIZE_SPLIT_USD,
   BOUNTY_TOP_N,
+  bountyCampaignFor,
   bountyIsFinalPayingDay,
   bountyPausedOn,
+  formatBountyCampaignRange,
   formatGdollar,
 } from "../../lib/bountyConfig";
 
@@ -91,6 +93,7 @@ export default function Leaderboard() {
   // piece of prize copy below keys off this rather than being deleted, so
   // resuming is a one-line change in bountyConfig.
   const bountyPaused = bountyPausedOn();
+  const bountyCampaign = bountyCampaignFor();
   const bountyFinalDay = bountyIsFinalPayingDay();
   const [players, setPlayers] = useState<Row[]>([]);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
@@ -327,6 +330,12 @@ export default function Leaderboard() {
                   <strong style={{ color: "#4ade80" }}>{BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}</strong> points split{" "}
                   <strong style={{ color: "#4ade80" }}>${BOUNTY_POOL_USD}</strong>
                   {" "}({BOUNTY_PRIZE_SPLIT_USD.map((n) => `$${n}`).join(" / ")}).
+                  {/* The window, so a short campaign reads as short. Without it
+                      a three-day sprint looks identical to an open-ended run
+                      and nobody feels a reason to play today. */}
+                  {bountyCampaign && (
+                    <>{" "}Running <strong style={{ color: "#4ade80" }}>{formatBountyCampaignRange(bountyCampaign)}</strong>.</>
+                  )}
                   {/* GoodDollar must not appear anywhere in the MiniPay Mini
                       App — see the MiniPay review requirement. Web keeps it,
                       because G$ is what web winners are actually paid in. */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { useSignMessage } from "wagmi";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -8,6 +9,24 @@ import { buildOpsAuthMessage, isOpsAllowed } from "../../lib/admin";
 import { ReferralPayouts } from "./ReferralPayouts";
 
 type BalanceResponse = Awaited<ReturnType<typeof import("../../lib/balance").getBalanceDashboard>>;
+
+// globals.css locks `html, body { overflow: hidden; height: 100% }` so the
+// scaled 1440x823 game frame never scrolls. Ops is an ordinary document page
+// that grew past one screen, and it was inheriting that lock: everything below
+// the fold was unreachable, with no scrollbar to say so.
+//
+// Fixed to the viewport rather than `height: 100vh` so it does not depend on
+// any ancestor having a resolvable height, and so the address bar collapsing on
+// mobile cannot leave a strip of the page permanently out of reach.
+const OPS_SHELL: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  overflowY: "auto",
+  WebkitOverflowScrolling: "touch",
+  background: "#04070d",
+  color: "#e2e8f0",
+  fontFamily: "var(--font-space-grotesk), sans-serif",
+};
 
 function share(value: number, total: number) {
   if (total <= 0) return "";
@@ -121,7 +140,7 @@ export default function OpsPage() {
 
   if (!isConnected || !address) {
     return (
-      <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <div style={{ ...OPS_SHELL, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
         <div style={{ width: 420, borderRadius: 12, padding: 24, background: "rgba(10,15,24,0.92)", border: "1px solid rgba(86,164,203,0.24)", textAlign: "center" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>Ops Access</div>
           <h1 style={{ margin: "10px 0 16px", fontSize: 28 }}>Connect admin wallet</h1>
@@ -135,7 +154,7 @@ export default function OpsPage() {
 
   if (!allowed) {
     return (
-      <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <div style={{ ...OPS_SHELL, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
         <div style={{ width: 460, borderRadius: 12, padding: 24, background: "rgba(10,15,24,0.92)", border: "1px solid rgba(239,68,68,0.24)", textAlign: "center" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "#f87171", letterSpacing: 2, textTransform: "uppercase" }}>Access denied</div>
           <h1 style={{ margin: "10px 0 8px", fontSize: 28 }}>Wallet not allowlisted</h1>
@@ -149,7 +168,7 @@ export default function OpsPage() {
 
   if (needsAuth) {
     return (
-      <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <div style={{ ...OPS_SHELL, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
         <div style={{ width: 480, borderRadius: 12, padding: 24, background: "rgba(10,15,24,0.92)", border: "1px solid rgba(86,164,203,0.24)", textAlign: "center" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "#56a4cb", letterSpacing: 2, textTransform: "uppercase" }}>Ops Access</div>
           <h1 style={{ margin: "10px 0 8px", fontSize: 28 }}>Sign with admin wallet</h1>
@@ -185,7 +204,7 @@ export default function OpsPage() {
 
   if (loading || !data) {
     return (
-      <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <div style={{ ...OPS_SHELL, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
         <div style={{ fontSize: 15, color: "#94a3b8" }}>{error ?? "Loading ops console..."}</div>
       </div>
     );
@@ -194,7 +213,7 @@ export default function OpsPage() {
   const { snapshot, activity, onChain } = data;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#04070d", color: "#e2e8f0", fontFamily: "var(--font-space-grotesk), sans-serif", padding: "40px 32px 64px" }}>
+    <div style={{ ...OPS_SHELL, padding: "40px 32px 64px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "flex-end", marginBottom: 28 }}>
           <div>

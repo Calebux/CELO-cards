@@ -168,6 +168,15 @@ const OVERLAY_EXEMPT: { file: string; contains: string; why: string }[] = [
     contains: "inset: 0, zIndex: 0",
     why: "full-bleed background image layer beneath the frame",
   },
+  {
+    file: "(app)/ops/page.tsx",
+    contains: "const OPS_SHELL",
+    why:
+      "internal admin console, deliberately outside the game frame — it is a " +
+      "plain document page, and the fixed inset:0 box is its own scroll " +
+      "container, not an overlay. globals.css locks html/body overflow for the " +
+      "frame, so without it the console cannot be scrolled at all",
+  },
 ];
 
 test("gameFrame: every fixed overlay is framed, or says why it need not be", () => {

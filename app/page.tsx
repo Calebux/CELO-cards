@@ -10,7 +10,7 @@ import { DESIGN_W, DESIGN_H } from './lib/designConstants';
 import { GameLoadingScreen } from './components/GameLoadingScreen';
 import { useGameStore } from './lib/gameStore';
 import { hasWeb3AuthSessionHint, setWeb3AuthResuming } from './lib/web3authSession';
-import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_PARTICIPATION_POOL_USD, BOUNTY_POOL_USD, bountyIsFinalPayingDay, bountyPausedOn } from './lib/bountyConfig';
+import { BOUNTY_MIN_POINTS_TO_WIN, BOUNTY_PARTICIPATION_POOL_USD, BOUNTY_POOL_USD, bountyCampaignFor, bountyCampaignLastDay, bountyDaysLeftInCampaign, bountyIsFinalPayingDay, bountyPausedOn, formatBountyShortDay } from './lib/bountyConfig';
 
 const HowToPlayModal = dynamic(() => import('./components/HowToPlayModal').then(m => ({ default: m.HowToPlayModal })), { ssr: false });
 const LandingProgressBadge = dynamic(() => import('./components/LandingProgressBadge').then(m => ({ default: m.LandingProgressBadge })), { ssr: false });
@@ -44,6 +44,11 @@ export default function ActionOrderLandingPage() {
   const tournamentPrizeDisplay = "100 USDT";
   const tournamentPrizeLabel = "POOL PRIZE";
   const tournamentRewardCopy = "Beat our House AI on HARD in the full 5/5 streak to claim from the 100 USDT pool prize.";
+
+  // The current bounty campaign's last paying day, e.g. "Sep 4". Read once here
+  // rather than inline so the banner does not recompute it on every render.
+  const bountyCampaign = bountyCampaignFor();
+  const bountyCampaignEndLabel = bountyCampaign ? formatBountyShortDay(bountyCampaignLastDay(bountyCampaign)) : "";
 
   const [showLoader, setShowLoader] = useState(false);
   const handleLoaded = () => {
@@ -472,11 +477,12 @@ export default function ActionOrderLandingPage() {
                   for LCP, and a standings fetch here would undo that. Live
                   standings live on /leaderboard.
 
-                  Three states, because the prize is paused: the pause notice,
-                  the last paying day (warned in advance rather than vanishing
-                  overnight), and the ordinary prize banner for when it resumes.
-                  A banner still advertising a prize we no longer pay would be
-                  the one thing on this page that isn't true. */}
+                  Three states, because the bounty runs as dated campaigns: the
+                  live prize with its deadline, the final paying day (warned in
+                  advance rather than vanishing overnight), and the pause notice
+                  between campaigns. A banner still advertising a prize we no
+                  longer pay would be the one thing on this page that isn't
+                  true — every state keys off bountyPausedOn(). */}
               {bountyPausedOn() ? (
                 <Link href="/leaderboard" style={{
                   marginTop:8, display:"flex", alignItems:"center", justifyContent:"center",
@@ -508,15 +514,24 @@ export default function ActionOrderLandingPage() {
                   <span style={{ fontSize:isMp ? 15 : 14, fontWeight:900, color:"#fff", letterSpacing:-0.3 }}>
                     ${BOUNTY_POOL_USD + BOUNTY_PARTICIPATION_POOL_USD}
                   </span>
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.55)", textTransform:"uppercase" }}>
+                    /day
+                  </span>
+                  {/* The deadline, not just the prize. A short campaign is only
+                      worth running if players know it is short — "$10 daily"
+                      alone reads as permanent, and permanent is not urgent. */}
                   {bountyIsFinalPayingDay() ? (
                     <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#fbbf24", textTransform:"uppercase" }}>
-                      Final day · pauses 00:00 UTC
+                      Final day · ends 00:00 UTC
                     </span>
                   ) : (
-                    <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)", textTransform:"uppercase" }}>
-                      daily · {BOUNTY_MIN_POINTS_TO_WIN}+ pts
+                    <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#fbbf24", textTransform:"uppercase" }}>
+                      {bountyDaysLeftInCampaign()} days left · ends {bountyCampaignEndLabel}
                     </span>
                   )}
+                  <span style={{ fontSize:isMp ? 11 : 10, fontWeight:700, letterSpacing:1, color:"rgba(185,231,244,0.8)", textTransform:"uppercase" }}>
+                    {BOUNTY_MIN_POINTS_TO_WIN.toLocaleString()}+ pts
+                  </span>
                   <span style={{ fontSize:isMp ? 11 : 10, fontWeight:800, letterSpacing:1, color:"#4ade80" }}>STANDINGS →</span>
                 </Link>
               )}

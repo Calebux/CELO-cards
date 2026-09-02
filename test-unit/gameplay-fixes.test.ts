@@ -24,14 +24,16 @@ import {
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
+  BOUNTY_CAMPAIGNS,
   BOUNTY_PAUSED_FROM_DAY,
-  BOUNTY_PAUSES_AGAIN_ON_DAY,
   BOUNTY_PRIZE_SPLIT_USD,
-  BOUNTY_RESUMES_ON_DAY,
   BOUNTY_TOP_N,
   bountyDayUTC,
+  bountyCampaignFor,
   bountyIsFinalPayingDay,
   bountyPausedOn,
+  lastPayingDayAtOrBefore,
+  nextBountyPayingDay,
   bountyPrizeForRank,
   isBountyDayClosed,
   isBountyExcluded,
@@ -540,37 +542,69 @@ test("house: harder difficulty pays strictly more, and losing is unaffected", ()
   }
 });
 
-// ── Bounty pause: the window is closed, and it never moves backwards ─────────
-test("bounty pause: paused days pay nothing, earlier days keep their prize", () => {
+// ── Bounty campaigns: windows are append-only, and never move backwards ─────
+test("bounty campaigns: paused days pay nothing, earlier days keep their prize", () => {
   const dayBefore = bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
 
-  // The whole point of a window rather than a boolean: a day played before the
-  // pause was played for money and must stay claimable forever.
+  // The whole point of dated windows rather than a boolean: a day played before
+  // the pause was played for money and must stay claimable forever.
   assert.equal(bountyPausedOn(dayBefore), false);
   assert.equal(bountyPausedOn("2026-01-01"), false);
-  // The first paused day, and everything after it while the window is open.
+  // The first paused day, and every day after it outside a campaign.
   assert.equal(bountyPausedOn(BOUNTY_PAUSED_FROM_DAY), true);
 
-  if (BOUNTY_RESUMES_ON_DAY) {
-    // Once a resume day is set, it pays again, and the days inside the window
-    // stay unpaid rather than becoming claimable at once.
-    assert.equal(bountyPausedOn(BOUNTY_RESUMES_ON_DAY), false);
-    assert.ok(BOUNTY_RESUMES_ON_DAY > BOUNTY_PAUSED_FROM_DAY);
-    const lastPaused = bountyDayUTC(Date.parse(`${BOUNTY_RESUMES_ON_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
-    assert.equal(bountyPausedOn(lastPaused), true);
-    if (BOUNTY_PAUSES_AGAIN_ON_DAY) {
-      assert.ok(BOUNTY_PAUSES_AGAIN_ON_DAY > BOUNTY_RESUMES_ON_DAY);
-      assert.equal(bountyPausedOn(BOUNTY_PAUSES_AGAIN_ON_DAY), true);
-      const finalCampaignDay = bountyDayUTC(Date.parse(`${BOUNTY_PAUSES_AGAIN_ON_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
-      assert.equal(bountyPausedOn(finalCampaignDay), false);
+  let previousUntil = BOUNTY_PAUSED_FROM_DAY;
+  for (const campaign of BOUNTY_CAMPAIGNS) {
+    // Ordered and non-overlapping — an overlap would make bountyCampaignFor
+    // ambiguous about which campaign's terms a day was played under.
+    assert.ok(campaign.from >= previousUntil, `${campaign.from} overlaps the previous campaign`);
+    assert.ok(campaign.until > campaign.from, `${campaign.from} campaign is empty`);
+    previousUntil = campaign.until;
+
+    // Every day inside pays; the boundary day after it does not.
+    assert.equal(bountyPausedOn(campaign.from), false);
+    assert.equal(bountyPausedOn(campaign.until), true);
+    const finalDay = bountyDayUTC(Date.parse(`${campaign.until}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+    assert.equal(bountyPausedOn(finalDay), false);
+    assert.equal(bountyCampaignFor(finalDay), campaign);
+    // And the day before it started stayed unpaid, rather than the new window
+    // retroactively paying out the gap.
+    const dayBeforeStart = bountyDayUTC(Date.parse(`${campaign.from}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+    if (dayBeforeStart >= BOUNTY_PAUSED_FROM_DAY) {
+      assert.equal(bountyPausedOn(dayBeforeStart), bountyCampaignFor(dayBeforeStart) === null);
     }
-  } else {
-    // Open-ended pause: no future day pays.
-    assert.equal(bountyPausedOn("2099-01-01"), true);
+  }
+
+  // Beyond the last scheduled campaign nothing pays until a window is appended.
+  assert.equal(bountyPausedOn("2099-01-01"), true);
+  assert.equal(nextBountyPayingDay("2099-01-01"), null);
+});
+
+test("bounty campaigns: a new campaign never unpays a closed one", () => {
+  // The regression this file exists to catch. The August run paid 08-18..08-27;
+  // opening a September window must leave every one of those days paying, which
+  // a single moving window could not do.
+  for (const day of ["2026-08-18", "2026-08-22", "2026-08-27"]) {
+    assert.equal(bountyPausedOn(day), false, `${day} must still be a paying day`);
+  }
+  // And the gap between campaigns stays unpaid in both directions.
+  for (const day of ["2026-08-28", "2026-09-01"]) {
+    assert.equal(bountyPausedOn(day), true, `${day} must not pay`);
   }
 });
 
-test("bounty pause: the final paying day is the one before the window", () => {
+test("bounty campaigns: the claim UI walks back to the last day that paid", () => {
+  // A pause must not strand an unclaimed prize: the claim screen keeps pointing
+  // at the most recent paying day for as long as the pause lasts.
+  assert.equal(lastPayingDayAtOrBefore("2026-08-15"), "2026-08-12");
+  assert.equal(lastPayingDayAtOrBefore("2026-09-01"), "2026-08-27");
+  assert.equal(lastPayingDayAtOrBefore("2026-08-20"), "2026-08-20");
+  // Between campaigns it names the next one; inside one, today already pays.
+  assert.equal(nextBountyPayingDay("2026-08-30"), "2026-09-02");
+  assert.equal(nextBountyPayingDay("2026-09-03"), "2026-09-03");
+});
+
+test("bounty campaigns: the final paying day is the one before a pause", () => {
   // Drives the "last paying day" warning, so players are told before the prize
   // stops rather than finding out from an empty prize column.
   const dayBefore = bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
@@ -578,9 +612,12 @@ test("bounty pause: the final paying day is the one before the window", () => {
   // Not the paused day itself, and not any ordinary paying day before it.
   assert.equal(bountyIsFinalPayingDay(BOUNTY_PAUSED_FROM_DAY), false);
   assert.equal(bountyIsFinalPayingDay(bountyDayUTC(Date.parse(`${dayBefore}T00:00:00Z`) - 24 * 60 * 60 * 1000)), false);
-  if (BOUNTY_PAUSES_AGAIN_ON_DAY) {
-    const finalCampaignDay = bountyDayUTC(Date.parse(`${BOUNTY_PAUSES_AGAIN_ON_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
-    assert.equal(bountyIsFinalPayingDay(finalCampaignDay), true);
+  for (const campaign of BOUNTY_CAMPAIGNS) {
+    const finalDay = bountyDayUTC(Date.parse(`${campaign.until}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+    assert.equal(bountyIsFinalPayingDay(finalDay), true);
+    if (bountyDayUTC(Date.parse(`${campaign.from}T00:00:00Z`)) !== finalDay) {
+      assert.equal(bountyIsFinalPayingDay(campaign.from), false);
+    }
   }
 });
 

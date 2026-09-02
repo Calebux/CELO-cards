@@ -5,61 +5,121 @@
 // client bundle. Server logic re-exports these from bounty.ts.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE DAILY BOUNTY IS PAUSED BETWEEN CAMPAIGNS.
+// THE DAILY BOUNTY RUNS AS DATED CAMPAIGNS, NOT AS AN ON/OFF SWITCH.
 //
-// Days inside the pause window score points as normal but pay no prize, and
-// that is enforced server-side — standings return zero money and
+// Days outside every campaign window score points as normal but pay no prize,
+// and that is enforced server-side — standings return zero money and
 // /api/bounty/claim refuses the day outright, so a stale client cannot claim
-// one. Days BEFORE the window keep everything they were owed and stay
-// claimable, because ending the bounty must not strand money already earned.
+// one. Days BEFORE the first pause keep everything they were owed and stay
+// claimable, because ending a campaign must not strand money already earned.
 //
-// A window rather than an on/off switch, because the question is always "was
-// THIS day playing for money", and the answer for a day already played must
-// never change. A boolean flipped back on would retroactively make every paused
-// day claimable at once.
+// A LIST of windows rather than a single one, because the question is always
+// "was THIS day playing for money", and the answer for a day already played
+// must never change. With one window, opening a second campaign meant moving
+// the window's edges — which retroactively unpaid every day of the first one,
+// wiping prizes that had already been won and, in the other direction, a
+// boolean flipped back on would make every paused day claimable at once.
 //
-// To resume: set BOUNTY_RESUMES_ON_DAY to the first UTC day that pays again.
-// To end a fixed campaign: set BOUNTY_PAUSES_AGAIN_ON_DAY to the first UTC day
-// after the campaign. Days inside either paused window stay permanently unpaid.
+// To run a new campaign: append a window to BOUNTY_CAMPAIGNS. Never edit or
+// remove a window that has already been played.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** A paying window, half-open: `from` pays, `until` is the first day that does not. */
+export type BountyCampaign = {
+  /** First UTC day that pays, `YYYY-MM-DD`. */
+  readonly from: string;
+  /** First UTC day AFTER the campaign — exclusive, so the range is [from, until). */
+  readonly until: string;
+};
+
 /**
- * First UTC day that pays nothing — the day the bounty stopped.
- *
- * Today, so today's board pays nothing and never becomes claimable. Days before
- * it are untouched: whatever they were owed is still owed, and still claimable.
+ * First UTC day that paid nothing — the day the original open-ended bounty
+ * stopped. Everything before it paid, and stays claimable forever.
  */
 export const BOUNTY_PAUSED_FROM_DAY = "2026-08-13";
 
 /**
- * First UTC day that pays again.
+ * Every paying campaign since the pause, oldest first, non-overlapping.
  *
- * The new $100 campaign starts today, 2026-08-18, and pays through 2026-08-27.
+ * Closed campaigns stay in this list verbatim — that is the whole point of the
+ * list. Deleting 2026-08-18…27 to "clean up" would tell every winner of those
+ * ten days that their day never paid.
  */
-export const BOUNTY_RESUMES_ON_DAY: string | null = "2026-08-18";
-
-/** First UTC day after the current 10-day campaign, so it pays 2026-08-18..27. */
-export const BOUNTY_PAUSES_AGAIN_ON_DAY: string | null = "2026-08-28";
+export const BOUNTY_CAMPAIGNS: readonly BountyCampaign[] = [
+  // The $100 campaign: $10/day for ten days.
+  { from: "2026-08-18", until: "2026-08-28" },
+  // A three-day sprint, Wed–Fri: $10/day, $30 total.
+  { from: "2026-09-02", until: "2026-09-05" },
+];
 
 /** ISO UTC day, e.g. "2026-08-13". ISO dates compare correctly as strings. */
 export function bountyDayUTC(at: number = Date.now()): string {
   return new Date(at).toISOString().slice(0, 10);
 }
 
+/** The UTC day `days` after `day`. Negative goes backwards. */
+function shiftDay(day: string, days: number): string {
+  return bountyDayUTC(Date.parse(`${day}T00:00:00Z`) + days * 24 * 60 * 60 * 1000);
+}
+
+/** The campaign paying on `day`, or null if that day pays nothing. */
+export function bountyCampaignFor(day: string = bountyDayUTC()): BountyCampaign | null {
+  return BOUNTY_CAMPAIGNS.find((c) => day >= c.from && day < c.until) ?? null;
+}
+
 /** Whether a given UTC day pays no prize. */
 export function bountyPausedOn(day: string = bountyDayUTC()): boolean {
+  // Before the first pause the bounty ran open-endedly, so every one of those
+  // days paid and none of them appear in BOUNTY_CAMPAIGNS.
   if (day < BOUNTY_PAUSED_FROM_DAY) return false;
-  if (BOUNTY_RESUMES_ON_DAY === null || day < BOUNTY_RESUMES_ON_DAY) return true;
-  return BOUNTY_PAUSES_AGAIN_ON_DAY !== null && day >= BOUNTY_PAUSES_AGAIN_ON_DAY;
+  return bountyCampaignFor(day) === null;
+}
+
+/** Last paying day of a campaign, inclusive — `until` is exclusive. */
+export function bountyCampaignLastDay(campaign: BountyCampaign): string {
+  return shiftDay(campaign.until, -1);
 }
 
 /**
- * The last day that still pays before the pause begins, so the UI can warn
+ * The last day that still pays before the next pause begins, so the UI can warn
  * players in advance instead of the prize silently vanishing overnight.
  */
 export function bountyIsFinalPayingDay(day: string = bountyDayUTC()): boolean {
   if (bountyPausedOn(day)) return false;
-  return bountyPausedOn(bountyDayUTC(Date.parse(`${day}T00:00:00Z`) + 24 * 60 * 60 * 1000));
+  return bountyPausedOn(shiftDay(day, 1));
+}
+
+/**
+ * Paying days left in the current campaign, counting today. 0 on a paused day.
+ *
+ * A short campaign lives or dies on urgency, and "3 days left" is the part of
+ * the offer a player acts on — the prize alone reads as permanent.
+ */
+export function bountyDaysLeftInCampaign(day: string = bountyDayUTC()): number {
+  const campaign = bountyCampaignFor(day);
+  if (!campaign) return 0;
+  return Math.round(
+    (Date.parse(`${campaign.until}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / (24 * 60 * 60 * 1000),
+  );
+}
+
+/** Total paying days in a campaign, for "3 days only" style copy. */
+export function bountyCampaignLength(campaign: BountyCampaign): number {
+  return Math.round(
+    (Date.parse(`${campaign.until}T00:00:00Z`) - Date.parse(`${campaign.from}T00:00:00Z`)) / (24 * 60 * 60 * 1000),
+  );
+}
+
+/**
+ * The first paying day at or after `day`, or null if no campaign is scheduled.
+ *
+ * What a paused surface should actually announce. The old constant reported the
+ * first campaign's start forever, so once that campaign had been and gone the
+ * API was telling clients the bounty "resumes" on a day in the past.
+ */
+export function nextBountyPayingDay(day: string = bountyDayUTC()): string | null {
+  if (!bountyPausedOn(day)) return day;
+  return BOUNTY_CAMPAIGNS.find((c) => c.from > day)?.from ?? null;
 }
 
 /**
@@ -67,16 +127,37 @@ export function bountyIsFinalPayingDay(day: string = bountyDayUTC()): boolean {
  *
  * The claim UI has to keep looking back at that day for as long as the pause
  * lasts. Defaulting to "yesterday" was fine while the bounty ran, but the moment
- * yesterday itself falls inside the pause window it reports nothing to claim —
- * and an unclaimed prize from the last paying day becomes unreachable in the app
- * even though it is still owed.
+ * yesterday itself falls inside a pause it reports nothing to claim — and an
+ * unclaimed prize from the last paying day becomes unreachable in the app even
+ * though it is still owed.
  */
 export function lastPayingDayAtOrBefore(day: string = bountyDayUTC()): string {
   if (!bountyPausedOn(day)) return day;
-  if (BOUNTY_PAUSES_AGAIN_ON_DAY !== null && day >= BOUNTY_PAUSES_AGAIN_ON_DAY) {
-    return bountyDayUTC(Date.parse(`${BOUNTY_PAUSES_AGAIN_ON_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+  // Walk back through closed campaigns, newest first; if the pause predates
+  // every campaign we are in the original one, which ended the open-ended run.
+  for (let i = BOUNTY_CAMPAIGNS.length - 1; i >= 0; i--) {
+    if (BOUNTY_CAMPAIGNS[i].until <= day) return bountyCampaignLastDay(BOUNTY_CAMPAIGNS[i]);
   }
-  return bountyDayUTC(Date.parse(`${BOUNTY_PAUSED_FROM_DAY}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+  return shiftDay(BOUNTY_PAUSED_FROM_DAY, -1);
+}
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * e.g. "Sep 4" — one UTC day, for short banner copy.
+ *
+ * Formatted from a fixed table rather than toLocaleDateString: this renders on
+ * both the server and the client, and a locale or ICU difference between them
+ * is a hydration mismatch on the landing page.
+ */
+export function formatBountyShortDay(day: string): string {
+  const [, month, date] = day.split("-");
+  return `${MONTH_ABBR[Number(month) - 1]} ${Number(date)}`;
+}
+
+/** e.g. "Sep 2 – Sep 4 UTC" — the campaign window, for posters and banners. */
+export function formatBountyCampaignRange(campaign: BountyCampaign): string {
+  return `${formatBountyShortDay(campaign.from)} – ${formatBountyShortDay(bountyCampaignLastDay(campaign))} UTC`;
 }
 
 /** Player-facing pause copy, kept in one place so every surface says the same. */
@@ -101,7 +182,8 @@ export function bountyPrizeForRank(rank: number): number {
 // moment rather than actually competing.
 //
 // Current campaign: the $10 daily pool is for players who clear 5,000 bounty
-// points in that UTC day.
+// points in that UTC day. Unchanged from the $100 run, so the bar players
+// already know does not move under them for a three-day sprint.
 export const BOUNTY_MIN_POINTS_TO_WIN = 5000;
 
 export function meetsBountyThreshold(points: number): boolean {
@@ -109,7 +191,7 @@ export function meetsBountyThreshold(points: number): boolean {
 }
 
 // A second, separately funded pool split evenly between qualifiers who did NOT
-// place in the top 3. It is disabled for the current $100 campaign so the daily
+// place in the top 3. It is disabled for the current campaign so the daily
 // spend stays exactly $10.
 //
 // Explicitly excludes the podium: paying it to winners too meant a lone
