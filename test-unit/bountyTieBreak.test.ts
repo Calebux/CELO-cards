@@ -57,3 +57,42 @@ test("ordering does not mutate its input", () => {
   orderBountyRows(rows);
   assert.deepEqual(rows, copy);
 });
+
+// ── The dated win allowance ──────────────────────────────────────────────────
+// Raised 25 → 30 from 2026-09-04. Dated rather than edited in place: the slot
+// array is truncated at write time, so a mid-day raise cannot restore wins the
+// old cap already discarded — it would only reward whoever was still playing.
+
+import {
+  bountyWinsPerDay,
+  BOUNTY_WINS_PER_DAY,
+  BOUNTY_WINS_PER_DAY_RAISED,
+  BOUNTY_WINS_RAISED_FROM_DAY,
+  BOUNTY_MIN_POINTS_TO_WIN,
+} from "../app/lib/bountyConfig";
+
+test("days before the raise keep the allowance they were played under", () => {
+  assert.equal(bountyWinsPerDay("2026-09-03"), BOUNTY_WINS_PER_DAY);
+  assert.equal(bountyWinsPerDay("2026-08-18"), BOUNTY_WINS_PER_DAY);
+});
+
+test("the raise applies from its day onward", () => {
+  assert.equal(bountyWinsPerDay(BOUNTY_WINS_RAISED_FROM_DAY), BOUNTY_WINS_PER_DAY_RAISED);
+  assert.equal(bountyWinsPerDay("2026-09-04"), 30);
+  assert.equal(bountyWinsPerDay("2027-01-01"), BOUNTY_WINS_PER_DAY_RAISED);
+});
+
+test("the threshold stays winnable under both allowances", () => {
+  // A Hard flawless win is 300 and the loss allowance adds 100. The threshold
+  // must sit under the ceiling or the campaign cannot be won at all — this is
+  // the invariant the config comment insists on.
+  const ceiling = (wins: number) => wins * 300 + 100;
+  assert.ok(BOUNTY_MIN_POINTS_TO_WIN < ceiling(BOUNTY_WINS_PER_DAY), "25-win day");
+  assert.ok(BOUNTY_MIN_POINTS_TO_WIN < ceiling(BOUNTY_WINS_PER_DAY_RAISED), "30-win day");
+  assert.equal(ceiling(BOUNTY_WINS_PER_DAY), 7600);
+  assert.equal(ceiling(BOUNTY_WINS_PER_DAY_RAISED), 9100);
+});
+
+test("the raise only ever loosens the cap", () => {
+  assert.ok(BOUNTY_WINS_PER_DAY_RAISED > BOUNTY_WINS_PER_DAY);
+});

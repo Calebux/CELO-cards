@@ -6,7 +6,8 @@ import { celo } from "viem/chains";
 import { CARDS, CHARACTERS, Card } from "../../../../lib/gameData";
 import { generateAIOrder, resolveRound, AIRoundContext, RoundOptions } from "../../../../lib/combatEngine";
 import { recordMatchResult, recordPlayerMatchOutcome } from "../../../../lib/leaderboard";
-import { HOUSE_WINS_COUNTED_PER_DAY, recordBountyPoints } from "../../../../lib/bounty";
+import { recordBountyPoints } from "../../../../lib/bounty";
+import { bountyDayUTC, bountyWinsPerDay } from "../../../../lib/bountyConfig";
 import { recordAgentPoints } from "../../../../lib/agentTrack";
 import { registerAgentWallet } from "../../../../lib/agentTrack";
 import { isAgentKeyRequest } from "../../../../lib/agentKey";
@@ -448,7 +449,7 @@ export async function POST(req: NextRequest) {
     // stopped it — saying so would show the "didn't beat your top 25" notice
     // on a win that actually did count on the request that got there first.
     bountyCapReached: isMatchOver && settledFirst && state.playerRoundsWon >= 3 && !bountyCounted,
-    bountyWinsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
+    bountyWinsAllowed: bountyWinsPerDay(bountyDayUTC()),
     playerRoundsWon: state.playerRoundsWon,
     opponentRoundsWon: state.opponentRoundsWon,
   });

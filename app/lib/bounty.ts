@@ -27,6 +27,7 @@ import {
   BOUNTY_CAMPAIGNS,
   BOUNTY_PAUSED_FROM_DAY,
   BOUNTY_WINS_PER_DAY,
+  bountyWinsPerDay,
   bountyCampaignFor,
   bountyDayUTC,
   bountyDaysLeftInCampaign,
@@ -82,6 +83,9 @@ const BOUNTY_TTL_SECONDS = 8 * 24 * 60 * 60;
 // 22%-win-rate player burned all ten slots on defeats worth 10 points each and
 // became mathematically unable to reach the threshold, with nothing on screen
 // saying why.
+// The allowance for TODAY. Anything scoring or displaying a specific day must
+// use bountyWinsPerDay(day) instead — this is only the current default, and it
+// changes on the day the raise lands.
 export const HOUSE_WINS_COUNTED_PER_DAY = BOUNTY_WINS_PER_DAY;
 
 // Losses no longer consume the win allowance, so they need their own ceiling —
@@ -193,11 +197,11 @@ export type BountySource =
  * Returns whether the points actually counted, which is useful for ops
  * visibility into how often caps bite.
  */
-/** Sum of the best `HOUSE_WINS_COUNTED_PER_DAY` win values. */
-export function bestWinPointsTotal(winPoints: readonly number[]): number {
+/** Sum of the best win values counted on `day`. */
+export function bestWinPointsTotal(winPoints: readonly number[], day: string = bountyDayUTC()): number {
   return [...winPoints]
     .sort((a, b) => b - a)
-    .slice(0, HOUSE_WINS_COUNTED_PER_DAY)
+    .slice(0, bountyWinsPerDay(day))
     .reduce((sum, n) => sum + n, 0);
 }
 
@@ -217,7 +221,7 @@ async function recomputeDayTotal(day: string, addr: string): Promise<number> {
   ]);
   const total =
     (Number(carry) || 0) +
-    bestWinPointsTotal(Array.isArray(winPts) ? winPts : []) +
+    bestWinPointsTotal(Array.isArray(winPts) ? winPts : [], day) +
     (Number(bossPts) || 0) +
     (Number(lossPts) || 0) +
     (Number(pvpPts) || 0);
@@ -296,13 +300,13 @@ export async function recordBountyPoints(
 
           const key = houseWinPtsKey(day, addr);
           const kept = (await redis.get<number[]>(key).catch(() => null)) ?? [];
-          const before = bestWinPointsTotal(kept);
+          const before = bestWinPointsTotal(kept, day);
           const next = [...kept, points]
             .sort((a, b) => b - a)
-            .slice(0, HOUSE_WINS_COUNTED_PER_DAY);
+            .slice(0, bountyWinsPerDay(day));
           await redis.set(key, next, { ex: BOUNTY_TTL_SECONDS });
           // Only false when the win could not beat any of the ten already held.
-          counted = bestWinPointsTotal(next) > before;
+          counted = bestWinPointsTotal(next, day) > before;
         }
       } else {
         // Track loss POINTS rather than loss count, so the ceiling holds even if
@@ -483,7 +487,7 @@ export async function getPlayerBountyToday(
     return {
       points: 0, rank: null, qualified: false, paused,
       prizeUsd: 0, participationUsd: 0, totalUsd: 0,
-      winsUsed: 0, winsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
+      winsUsed: 0, winsAllowed: bountyWinsPerDay(day),
       slotsFilled: 0, floorPoints: null,
     };
   }
@@ -500,8 +504,9 @@ export async function getPlayerBountyToday(
   // board uses.
   const winsUsed = Number(await redis.get<number>(houseWinsKey(day, addr)).catch(() => 0)) || 0;
   const winSlots = (await redis.get<number[]>(houseWinPtsKey(day, addr)).catch(() => null)) ?? [];
-  const slotsFilled = Math.min(winSlots.length, HOUSE_WINS_COUNTED_PER_DAY);
-  const floorPoints = slotsFilled >= HOUSE_WINS_COUNTED_PER_DAY ? Math.min(...winSlots) : null;
+  const winsAllowed = bountyWinsPerDay(day);
+  const slotsFilled = Math.min(winSlots.length, winsAllowed);
+  const floorPoints = slotsFilled >= winsAllowed ? Math.min(...winSlots) : null;
   const ahead = await redis.zcount(pointsKey(day), points + 1, "+inf").catch(() => 0);
   // Everyone on exactly this score occupies the slice straight after those
   // ahead of it, so the tied group is reachable by index without a by-score
@@ -535,7 +540,7 @@ export async function getPlayerBountyToday(
     participationUsd: share,
     totalUsd: Math.round((prizeUsd + share) * 100) / 100,
     winsUsed,
-    winsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
+    winsAllowed,
     slotsFilled,
     floorPoints,
   };

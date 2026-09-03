@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../../lib/gameStore";
-import { BOUNTY_WINS_PER_DAY, bountyPausedOn } from "../../lib/bountyConfig";
+import { bountyDayUTC, bountyPausedOn, bountyWinsPerDay } from "../../lib/bountyConfig";
 import { HOUSE_BOSS_POINTS_CLEAN, HOUSE_BOSS_POINTS_RETRIED } from "../../lib/houseBossRun";
 import { useVsHouseMatchRecorder } from "../../lib/bossEntry";
 import { Card, getArenaBackground, CHARACTERS } from "../../lib/gameData";
@@ -1760,11 +1760,11 @@ export default function Gameplay() {
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                         <span style={{ fontSize: 13 }}>⏳</span>
                         <span style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", letterSpacing: 1.5, textTransform: "uppercase" }}>
-                          Didn&apos;t beat your top {BOUNTY_WINS_PER_DAY}
+                          Didn&apos;t beat your top {bountyWinsPerDay(bountyDayUTC())}
                         </span>
                       </div>
                       <p style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: "#cbd5e1" }}>
-                        Your <strong style={{ color: "#e2e8f0" }}>best {BOUNTY_WINS_PER_DAY} House wins</strong> each day count toward the bounty, and this one
+                        Your <strong style={{ color: "#e2e8f0" }}>best {bountyWinsPerDay(bountyDayUTC())} House wins</strong> each day count toward the bounty, and this one
                         didn&apos;t beat any of them. It still counts toward your total points and the leaderboard. Resets 00:00 UTC.
                         <br />
                         <span style={{ color: "#fbbf24", fontWeight: 700 }}>Win on a harder tier and it replaces a weaker one:</span> Hard pays 2× per win, Boss fights always count.

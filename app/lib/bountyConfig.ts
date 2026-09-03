@@ -308,3 +308,28 @@ export const BOUNTY_CLAIM_URL = "https://t.me/actionorder/3";
 // makes the campaign unwinnable; the test suite asserts the threshold stays
 // under the ceiling for exactly that reason.
 export const BOUNTY_WINS_PER_DAY = 25;
+
+/**
+ * The raised allowance, and the first UTC day it applies to.
+ *
+ * Dated rather than a straight edit, for the same reason campaigns are a list:
+ * a day already played must keep the rules it was played under. Changing the
+ * number in place would move a live board mid-day.
+ *
+ * It would also not work. The stored slot array is truncated to the allowance
+ * at WRITE time, so wins past the old cap earlier in the day were never kept —
+ * raising the number mid-afternoon cannot give them back. All it would do is
+ * hand five fresh slots to whoever happens to still be playing in the last
+ * hours, and nothing to the player who put in the same volume that morning.
+ *
+ * At 30 the day tops out at 9,100 (30 flawless Hard wins plus the loss
+ * allowance), up from 7,600. The 5,000 threshold stays comfortably under it,
+ * which is the direction that has to hold — see the note above.
+ */
+export const BOUNTY_WINS_PER_DAY_RAISED = 30;
+export const BOUNTY_WINS_RAISED_FROM_DAY = "2026-09-04";
+
+/** The daily win allowance in force on a given UTC day. */
+export function bountyWinsPerDay(day: string): number {
+  return day >= BOUNTY_WINS_RAISED_FROM_DAY ? BOUNTY_WINS_PER_DAY_RAISED : BOUNTY_WINS_PER_DAY;
+}
