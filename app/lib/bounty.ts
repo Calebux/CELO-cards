@@ -442,16 +442,40 @@ export async function getBountyPayouts(day: string = bountyDayUTC()): Promise<Bo
 export async function getPlayerBountyToday(
   address: string,
   day: string = bountyDayUTC(),
-): Promise<{ points: number; rank: number | null; qualified: boolean; paused: boolean; prizeUsd: number; participationUsd: number; totalUsd: number; winsUsed: number; winsAllowed: number }> {
+): Promise<{
+  points: number; rank: number | null; qualified: boolean; paused: boolean;
+  prizeUsd: number; participationUsd: number; totalUsd: number;
+  winsUsed: number; winsAllowed: number;
+  /** How many of the day's best-win slots are filled, 0..winsAllowed. */
+  slotsFilled: number;
+  /**
+   * The weakest win currently held, once every slot is full — a new win has to
+   * BEAT this to move the total at all. Null while slots remain, because
+   * anything still counts then.
+   *
+   * This is the number players keep asking about: with the slots full and every
+   * win worth the same, each new win ties instead of beating and the score sits
+   * still. Nothing on the board said so, so it read as the game being broken.
+   */
+  floorPoints: number | null;
+}> {
   const addr = address.toLowerCase();
   const paused = bountyPausedOn(day);
   const points = Number(await redis.zscore(pointsKey(day), addr).catch(() => null)) || 0;
   if (points <= 0) {
-    return { points: 0, rank: null, qualified: false, paused, prizeUsd: 0, participationUsd: 0, totalUsd: 0, winsUsed: 0, winsAllowed: HOUSE_WINS_COUNTED_PER_DAY };
+    return {
+      points: 0, rank: null, qualified: false, paused,
+      prizeUsd: 0, participationUsd: 0, totalUsd: 0,
+      winsUsed: 0, winsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
+      slotsFilled: 0, floorPoints: null,
+    };
   }
   // Rank = how many players are strictly ahead, plus one. Ties share a rank,
   // which is fine for a progress indicator.
   const winsUsed = Number(await redis.get<number>(houseWinsKey(day, addr)).catch(() => 0)) || 0;
+  const winSlots = (await redis.get<number[]>(houseWinPtsKey(day, addr)).catch(() => null)) ?? [];
+  const slotsFilled = Math.min(winSlots.length, HOUSE_WINS_COUNTED_PER_DAY);
+  const floorPoints = slotsFilled >= HOUSE_WINS_COUNTED_PER_DAY ? Math.min(...winSlots) : null;
   const ahead = await redis.zcount(pointsKey(day), points + 1, "+inf").catch(() => 0);
   const rank = ahead + 1;
   const qualified = meetsBountyThreshold(points);
@@ -469,6 +493,8 @@ export async function getPlayerBountyToday(
     totalUsd: Math.round((prizeUsd + share) * 100) / 100,
     winsUsed,
     winsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
+    slotsFilled,
+    floorPoints,
   };
 }
 

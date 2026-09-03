@@ -119,6 +119,15 @@ export default function Leaderboard() {
     totalPaidUsd: number;
     winners: { rank: number; address: string; name: string | null; points: number; usd: number; claimed: boolean; txHash: string | null }[];
   };
+  /** The caller's own standing today, including the best-25 cap state. */
+  type YouToday = {
+    points: number;
+    winsUsed: number;
+    winsAllowed: number;
+    slotsFilled: number;
+    floorPoints: number | null;
+  };
+  const [youToday, setYouToday] = useState<YouToday | null>(null);
   const [history, setHistory] = useState<HistoryDay[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
 
@@ -138,12 +147,17 @@ export default function Leaderboard() {
   const loadLeaderboard = () => {
     setLoading(true);
     setFetchError(false);
-    const url = tab === "bounty" ? `/api/bounty?limit=50` : `/api/leaderboard?tab=${tab}&limit=50`;
+    // ?address= makes the response carry `you` — the caller's own slot count
+    // and floor, which is what the cap notice below is built from.
+    const url = tab === "bounty"
+      ? `/api/bounty?limit=50${address ? `&address=${address}` : ""}`
+      : `/api/leaderboard?tab=${tab}&limit=50`;
     void fetch(url)
       .then((r) => r.json())
-      .then((data: { players?: Row[]; standings?: Row[] }) => {
+      .then((data: { players?: Row[]; standings?: Row[]; you?: YouToday | null }) => {
         const list = (tab === "bounty" ? data.standings : data.players) ?? [];
         setPlayers(list);
+        setYouToday(data.you ?? null);
         setLoading(false);
         // Overlay Redis usernames on top of file-based names
         const addrs = list.map((p) => p.address).join(",");
@@ -161,7 +175,7 @@ export default function Leaderboard() {
     if (tab === "past") loadHistory();
     else loadLeaderboard();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, address]);
 
   // Ranked is unreachable in MiniPay (every mode but VS House is coming soon
   // there), so never leave a MiniPay player parked on an empty board.
@@ -358,6 +372,41 @@ export default function Leaderboard() {
                     {pointsToPrize > 0
                       ? `${pointsToPrize.toLocaleString()} more points for a prize spot`
                       : "You're in a prize spot — hold it until 00:00 UTC"}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* The best-25 cap, said on the board where the frozen number is.
+                It was only ever explained on the match result screen, which is
+                one tap away from gone — so players watched the Daily score
+                refuse to move through win after win and reasonably concluded
+                the game was broken. Shown to the player it applies to, with
+                their own numbers, because "you need to beat 200" is actionable
+                in a way that "the cap is 25" is not. */}
+            {tab === "bounty" && youToday && youToday.slotsFilled > 0 && (
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 14px", marginBottom: 12, background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.22)", borderRadius: 5 }}>
+                <span className="material-icons" style={{ fontSize: 14, color: "#fbbf24" }}>hourglass_top</span>
+                <span style={{ fontSize: isCompact ? 13 : 11, color: "#94a3b8", letterSpacing: 0.3 }}>
+                  Your <strong style={{ color: "#e2e8f0" }}>best {youToday.winsAllowed} House wins</strong> count each day —{" "}
+                  <strong style={{ color: "#fbbf24" }}>{youToday.slotsFilled}/{youToday.winsAllowed}</strong> used.
+                  {youToday.floorPoints !== null ? (
+                    <>
+                      {" "}A new win now has to beat{" "}
+                      <strong style={{ color: "#fbbf24" }}>{youToday.floorPoints}</strong> points to move your score —
+                      win flawlessly or on a harder tier and it replaces a weaker one. Boss fights always count.
+                    </>
+                  ) : (
+                    <> Every win still counts until all {youToday.winsAllowed} are filled.</>
+                  )}
+                  {" "}Resets 00:00 UTC.
+                </span>
+                {/* Volume past the cap is the specific thing that looks broken:
+                    the wins happen, the number does not move. Naming it beats
+                    leaving them to work it out from the slot count. */}
+                {youToday.winsUsed > youToday.winsAllowed && (
+                  <span style={{ fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#fbbf24", letterSpacing: 0.3 }}>
+                    {youToday.winsUsed - youToday.winsAllowed} win{youToday.winsUsed - youToday.winsAllowed === 1 ? "" : "s"} past the cap today — still counting on Casual.
                   </span>
                 )}
               </div>
