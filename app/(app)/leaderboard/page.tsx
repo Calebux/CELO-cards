@@ -396,7 +396,14 @@ export default function Leaderboard() {
                 the standings, and driven off the same constants the engine
                 scores with so the table cannot quietly go stale. */}
             {tab === "bounty" && (
-              <div style={{ marginBottom: 12, background: "rgba(86,164,203,0.05)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, overflow: "hidden" }}>
+              // The frame is a fixed 1440x823 that gets scaled to fit, and the
+              // standings below are a fixed-height scroller — so anything here
+              // that GROWS pushes the board out of the frame and distorts the
+              // page. The panel floats over the standings instead of taking up
+              // room in the flow, which keeps the layout height constant open
+              // or closed.
+              <div style={{ position: "relative", marginBottom: 12, zIndex: 30 }}>
+              <div style={{ background: "rgba(86,164,203,0.05)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, overflow: "hidden" }}>
                 <button
                   onClick={() => setShowScoring((v) => !v)}
                   style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
@@ -409,8 +416,18 @@ export default function Leaderboard() {
                     {showScoring ? "expand_less" : "expand_more"}
                   </span>
                 </button>
+                </div>
                 {showScoring && (
-                  <div style={{ padding: "0 14px 12px", fontSize: isCompact ? 13 : 11, color: "#94a3b8", lineHeight: 1.7, letterSpacing: 0.2 }}>
+                  <div style={{
+                    position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4,
+                    // Bounded so a small viewport scrolls the panel rather than
+                    // letting it run off the bottom of the card.
+                    maxHeight: isCompact ? 300 : 260, overflowY: "auto",
+                    padding: "12px 14px",
+                    background: "#0d1420", border: "1px solid rgba(86,164,203,0.35)", borderRadius: 5,
+                    boxShadow: "0 12px 32px rgba(0,0,0,0.65)",
+                    fontSize: isCompact ? 13 : 11, color: "#94a3b8", lineHeight: 1.7, letterSpacing: 0.2,
+                  }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "2px 10px", marginBottom: 10, alignItems: "baseline" }}>
                       <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 1, textTransform: "uppercase" }}>VS House</span>
                       <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 1, textTransform: "uppercase", textAlign: "right" }}>Win</span>
