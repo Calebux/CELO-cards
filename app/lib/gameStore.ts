@@ -103,6 +103,15 @@ interface GameState {
     // Upper Chamber — 5-fight streak mode
     upperChamberActive: boolean;
     upperChamberRound: number;   // 0-indexed (0–4)
+    /**
+     * A fight in this chamber run has been lost and replayed.
+     *
+     * Losing does not end the run — the client has always let you rematch the
+     * Boss until you beat it — but a rematched run pays the smaller award and
+     * no reward code, so the claim button has to say which one is on offer.
+     */
+    upperChamberRetried: boolean;
+    markUpperChamberRetried: () => void;
     setUpperChamberActive: (v: boolean) => void;
     advanceUpperChamber: (nextRound: number) => void;
     addBonusPoints: (amount: number) => void;
@@ -245,7 +254,10 @@ export const useGameStore = create<GameState>()(
     bountyCapReached: false,
     upperChamberActive: false,
     upperChamberRound: 0,
-    setUpperChamberActive: (v) => set({ upperChamberActive: v }),
+    upperChamberRetried: false,
+    // Starting a run clears the flag; ending one is handled by resetMatch.
+    setUpperChamberActive: (v) => set({ upperChamberActive: v, upperChamberRetried: false }),
+    markUpperChamberRetried: () => set({ upperChamberRetried: true }),
     advanceUpperChamber: (nextRound) => {
         const { selectedCharacter } = get();
         const chamberOrder = ["kaira", "kenji", "riven", "zane", "elara"];
@@ -443,6 +455,7 @@ export const useGameStore = create<GameState>()(
             wagerTxHash: null,
             upperChamberActive: false,
             upperChamberRound: 0,
+            upperChamberRetried: false,
             ultimateActivated: false,
             ultimateUsed: false,
             playerTaunt: null,
@@ -962,6 +975,7 @@ export const useGameStore = create<GameState>()(
             attunementSurgeUsed: false,
             upperChamberActive: false,
             upperChamberRound: 0,
+            upperChamberRetried: false,
         }));
     },
 
@@ -1067,6 +1081,7 @@ export const useGameStore = create<GameState>()(
         aiDifficulty: state.aiDifficulty,
         upperChamberActive: state.upperChamberActive,
         upperChamberRound: state.upperChamberRound,
+        upperChamberRetried: state.upperChamberRetried,
         currentOrder: state.currentOrder,
         opponentOrder: state.opponentOrder,
         currentRoundResult: state.currentRoundResult,

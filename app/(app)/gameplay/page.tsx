@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { useGameStore } from "../../lib/gameStore";
 import { BOUNTY_WINS_PER_DAY, bountyPausedOn } from "../../lib/bountyConfig";
+import { HOUSE_BOSS_POINTS_CLEAN, HOUSE_BOSS_POINTS_RETRIED } from "../../lib/houseBossRun";
 import { useVsHouseMatchRecorder } from "../../lib/bossEntry";
 import { Card, getArenaBackground, CHARACTERS } from "../../lib/gameData";
 import { SlotResult } from "../../lib/combatEngine";
@@ -101,6 +102,8 @@ export default function Gameplay() {
     activeAttunedCardIds,
     upperChamberActive,
     upperChamberRound,
+    upperChamberRetried,
+    markUpperChamberRetried,
     advanceUpperChamber,
     addBonusPoints,
     bountyCapReached,
@@ -726,17 +729,23 @@ export default function Gameplay() {
                 opponentCharacterId: opponentCharacter.id,
               }),
             });
-            const data = await res.json().catch(() => ({})) as { rewardCode?: string; rewardUsd?: number; pending?: boolean; message?: string; error?: string };
+            const data = await res.json().catch(() => ({})) as { rewardCode?: string; rewardUsd?: number; pending?: boolean; retried?: boolean; pointsAwarded?: number; message?: string; error?: string };
+            // Cleared the chamber, but on a rematch: points only, no code.
+            if (res.ok && data.retried) {
+              addBonusPoints(data.pointsAwarded ?? 0);
+              setHouseWinnerPending(data.message ?? "Chamber cleared — this run pays points only.");
+              return;
+            }
             // Win recorded, reward pending manual verification (no auto-code).
             if (res.ok && data.pending) {
-              addBonusPoints(5000);
+              addBonusPoints(data.pointsAwarded ?? 0);
               setHouseWinnerPending(data.message ?? "Your House win is recorded! Rewards are verified and sent on Telegram.");
               return;
             }
             if (!res.ok || !data.rewardCode || !data.rewardUsd) {
               throw new Error(data.error ?? "Could not verify this House win right now.");
             }
-            addBonusPoints(5000);
+            addBonusPoints(data.pointsAwarded ?? 0);
             setHouseWinnerReward({ rewardCode: data.rewardCode, rewardUsd: data.rewardUsd });
             setHouseWinnerModalOpen(true);
           } catch (err) {
@@ -1788,6 +1797,11 @@ export default function Gameplay() {
                           router.push(matchMode === "ranked" ? "/create?mode=ranked" : "/create?mode=tourney");
                         } else {
                           recordVsHouseMatch(address, isMp, aiDifficulty);
+                          // Replaying a chamber fight is the retry the reward
+                          // tier hinges on. Marked here rather than on the loss
+                          // itself, because a player who walks away instead of
+                          // rematching has not retried anything.
+                          if (upperChamberActive) markUpperChamberRetried();
                           rematch();
                           router.push("/loadout");
                         }
@@ -1823,7 +1837,14 @@ export default function Gameplay() {
                       >
                         {upperChamberActive
                           ? upperChamberRound >= 4
-                            ? (claimingHouseWinner ? "VERIFYING..." : houseWinnerReward ? "SHOW WINNER CODE ★" : "CLAIM 5000 PTS ★")
+                            ? (claimingHouseWinner
+                                ? "VERIFYING..."
+                                : houseWinnerReward
+                                  ? "SHOW WINNER CODE ★"
+                                  // A rematched run still pays, just less and
+                                  // without the reward — promising 5,000 here
+                                  // and then refusing is the whole bug.
+                                  : `CLAIM ${(upperChamberRetried ? HOUSE_BOSS_POINTS_RETRIED : HOUSE_BOSS_POINTS_CLEAN).toLocaleString()} PTS ★`)
                             : `FIGHT ${upperChamberRound + 2}/5 ▶`
                           : "NEXT ▶"}
                       </button>

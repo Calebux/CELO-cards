@@ -319,8 +319,32 @@ export async function POST(req: NextRequest) {
   // the bounty, and with no signal for that the game just looks broken.
   let bountyCounted = false;
 
-  // 5. If Match Ended, Update Leaderboard Securely
+  // A finished match settles EXACTLY once.
+  //
+  // Nothing enforced that: the round state is read, incremented and written
+  // back with no guard, so two final-round requests arriving together both saw
+  // 2 rounds won, both wrote 3, and both paid out — points, bounty credit and
+  // an activity-log entry, twice. It is visible in the log as pairs of entries
+  // sharing a matchId a fraction of a second apart, and it inflated live
+  // standings on a day the bounty was paying real money.
+  //
+  // SET NX is the whole guard: the first request through claims the match, any
+  // duplicate finds it taken and scores nothing. Failing OPEN on a Redis error
+  // keeps a completed match payable — losing a legitimate win to a cache blink
+  // is worse than a rare double, which is the trade the rest of this route
+  // already makes.
+  const settleKey = `house-settled:${matchId}`;
+  let settledFirst = true;
   if (isMatchOver) {
+    try {
+      settledFirst = Boolean(await redis.set(settleKey, "1", { nx: true, ex: 60 * 60 * 24 }));
+    } catch {
+      settledFirst = true;
+    }
+  }
+
+  // 5. If Match Ended, Update Leaderboard Securely
+  if (isMatchOver && settledFirst) {
     const playerWon = state.playerRoundsWon >= 3;
     if (playerWon) {
       // Base win plus a flawless bonus, scaled by the difficulty the match was
@@ -420,7 +444,10 @@ export async function POST(req: NextRequest) {
     // Only meaningful on a completed win: it means the win scored on the career
     // leaderboard but the daily bounty allowance was already spent.
     bountyCounted,
-    bountyCapReached: isMatchOver && state.playerRoundsWon >= 3 && !bountyCounted,
+    // A duplicate settle scores nothing, but it is not the daily cap that
+    // stopped it — saying so would show the "didn't beat your top 25" notice
+    // on a win that actually did count on the request that got there first.
+    bountyCapReached: isMatchOver && settledFirst && state.playerRoundsWon >= 3 && !bountyCounted,
     bountyWinsAllowed: HOUSE_WINS_COUNTED_PER_DAY,
     playerRoundsWon: state.playerRoundsWon,
     opponentRoundsWon: state.opponentRoundsWon,

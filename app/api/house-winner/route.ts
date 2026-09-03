@@ -9,12 +9,11 @@ import {
 } from "../../lib/opsActivity";
 import { sanitizePlayerName } from "../../lib/rateLimit";
 import { HOUSE_AUTO_REWARDS_ENABLED } from "../../lib/houseConfig";
+import { classifyBossRun, houseBossPoints, type ChamberFight } from "../../lib/houseBossRun";
+import { recordMatchResult } from "../../lib/leaderboard";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
 import { resolveGoodDollarIdentity, type GoodDollarIdentity } from "../../lib/gooddollar";
-
-// A House Boss run is five consecutive fights.
-const CHAMBER_FIGHTS = 5;
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +25,12 @@ const MAX_AUTO_REWARDS = Math.max(1, Math.floor(POOL_PRIZE_USD / REWARD_USD));
 const PENDING_MESSAGE =
   "Your House win is recorded! Rewards are verified by our team and sent on " +
   "Telegram — share your win there to claim your $5.";
+// Beat the boss after losing to it at least once. The points still land; the
+// $5 does not. Said plainly, because the alternative is what happened before —
+// the screen said COMPLETE and the claim came back as a flat refusal.
+const RETRIED_MESSAGE =
+  "Chamber cleared! You rematched the Boss to do it, so this run pays points " +
+  "only — beat the Boss without a rematch to claim the full reward.";
 
 // Only verified rewards carry a real redeemable code and count toward the pool.
 // Legacy entries without a status are treated as unverified (M-07).
@@ -65,13 +70,14 @@ async function recordPending(
   rewardKey: string,
   baseEntry: Omit<HouseWinnerRewardActivity, "rewardCode" | "status">,
   message: string,
+  pending: { pointsAwarded: number },
 ) {
   const pendingEntry: HouseWinnerRewardActivity = { ...baseEntry, rewardCode: "", status: "pending" };
   await Promise.all([
     redis.set(rewardKey, pendingEntry, { ex: 60 * 60 * 24 * 180 }),
     recordHouseWinnerRewardActivity(pendingEntry),
   ]);
-  return NextResponse.json({ ok: true, pending: true, message });
+  return NextResponse.json({ ok: true, pending: true, pointsAwarded: pending.pointsAwarded, message });
 }
 
 export async function GET() {
@@ -154,43 +160,36 @@ export async function POST(req: NextRequest) {
         rewardCode: existing.rewardCode,
         rewardUsd: existing.rewardUsd,
         verifiedAt: existing.verifiedAt,
+        // Already claimed — replaying it must not top the points up again.
+        pointsAwarded: 0,
       });
     }
-    return NextResponse.json({ ok: true, pending: true, message: PENDING_MESSAGE });
+    return NextResponse.json({ ok: true, pending: true, pointsAwarded: 0, message: PENDING_MESSAGE });
   }
 
   const houseMatches = await getHouseMatchActivity();
 
   /**
-   * Whether the run LEADING INTO a finale was played on Hard.
+   * The player's own matches from before a finale, newest first — the run
+   * leading into it.
    *
-   * The finale cannot answer this by itself. Each chamber fight is its own
+   * The finale cannot describe the run by itself. Each chamber fight is its own
    * match, and the finale starts at difficulty 3, so its `chosenDifficulty` is
    * pinned to 3 whatever tier the player actually selected — an Easy run's
-   * final fight looks identical to a Hard one in the stored record. Checking
-   * only the finale let an Easy run collect the Hard-mode prize.
-   *
-   * So walk back through the player's preceding matches instead. A loss ends
-   * the streak, and every fight in it must have been chosen at Hard or above.
+   * final fight looks identical to a Hard one in the stored record. Only the
+   * fights leading in can say which tier was really played.
    */
-  const runPlayedOnHard = (finale: (typeof houseMatches)[number]): boolean => {
-    const earlier = houseMatches
+  const runLeadingInto = (finale: (typeof houseMatches)[number]): ChamberFight[] =>
+    houseMatches
       .filter((m) =>
         m.playerAddress.toLowerCase() === playerAddress &&
         (m.completedAt ?? 0) < (finale.completedAt ?? 0))
-      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
-
-    let wins = 0;
-    for (const m of earlier) {
-      if (m.outcome !== "win") break;            // the streak ended here
-      if ((m.chosenDifficulty ?? -1) < 2) return false; // an Easy/Moderate fight disqualifies the run
-      if (++wins >= CHAMBER_FIGHTS - 1) return true;    // four wins plus the finale
-    }
-    // Fewer than four preceding wins are on record. The activity log is a
-    // rolling window, so this can be a genuine run whose start has aged out —
-    // fail closed and let manual review decide rather than paying on a guess.
-    return false;
-  };
+      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
+      .map((m) => ({
+        matchId: m.matchId,
+        outcome: m.outcome,
+        chosenDifficulty: m.chosenDifficulty,
+      }));
 
   const verifiedMatch = houseMatches.find((match) =>
     match.matchId === matchId &&
@@ -204,13 +203,18 @@ export async function POST(req: NextRequest) {
     (match.chosenDifficulty ?? -1) >= 2 &&
     match.playerCharacterId === playerCharacterId &&
     match.opponentCharacterId === opponentCharacterId &&
-    match.playerCharacterId === match.opponentCharacterId &&
-    runPlayedOnHard(match)
+    match.playerCharacterId === match.opponentCharacterId
   );
 
-  if (!verifiedMatch) {
+  // A run that clears every fight on Hard qualifies. Whether it was won
+  // outright or on a rematch decides what it pays, not whether it counts.
+  const verdict = verifiedMatch
+    ? classifyBossRun(runLeadingInto(verifiedMatch))
+    : ({ qualified: false } as const);
+
+  if (!verifiedMatch || !verdict.qualified) {
     return NextResponse.json(
-      { error: "No qualifying win found. The House Boss prize requires beating the full streak on Hard difficulty." },
+      { error: "No qualifying win found. The House Boss prize requires clearing all five chamber fights on Hard difficulty." },
       { status: 403 },
     );
   }
@@ -231,9 +235,37 @@ export async function POST(req: NextRequest) {
   const firstToday = await redis.set(dailyKey, matchId, { nx: true, ex: 60 * 60 * 48 });
   if (!firstToday) {
     return NextResponse.json(
-      { error: "You've already claimed the House Boss prize today. It resets at 00:00 UTC." },
+      { error: "You've already claimed the House Boss prize today. It resets at 00:00 UTC.", pointsAwarded: 0 },
       { status: 429 },
     );
+  }
+
+  // Points are awarded server-side, once, behind the same daily key. They used
+  // to be added by the client (`addBonusPoints(5000)`), which only ever touched
+  // local state — the button promised 5,000 points that never reached the
+  // leaderboard at all.
+  //
+  // Career leaderboard only, deliberately NOT the daily bounty: the bounty
+  // qualifying threshold is 5,000 points, so routing this there would make one
+  // boss claim an instant qualification for real prize money.
+  const pointsAwarded = houseBossPoints(verdict.clean);
+  await recordMatchResult({
+    playerAddress,
+    playerName: sanitizePlayerName(body.playerName ?? null) ?? undefined,
+    won: false,
+    pointsEarned: pointsAwarded,
+    leaderboard: "casual",
+  }).catch(() => {});
+
+  // Rematched the boss: the points land, the reward does not. No reward record
+  // is written, so nothing enters the winners board or the $50 pool.
+  if (!verdict.clean) {
+    return NextResponse.json({
+      ok: true,
+      retried: true,
+      pointsAwarded,
+      message: RETRIED_MESSAGE,
+    });
   }
 
   const baseEntry = {
@@ -250,7 +282,7 @@ export async function POST(req: NextRequest) {
   // auto-rewards are explicitly enabled, record the claim as pending and issue
   // NO redeemable code — the prize is paid only after manual verification (M-07).
   if (!HOUSE_AUTO_REWARDS_ENABLED) {
-    return recordPending(rewardKey, baseEntry, PENDING_MESSAGE);
+    return recordPending(rewardKey, baseEntry, PENDING_MESSAGE, { pointsAwarded });
   }
 
   // Auto-rewards are ON. VS House is server-authoritative (the win above is
@@ -269,6 +301,7 @@ export async function POST(req: NextRequest) {
       rewardKey,
       baseEntry,
       "Your House win is recorded. Verify your GoodDollar identity to auto-claim — unverified wins are reviewed manually.",
+      { pointsAwarded },
     );
   }
 
@@ -287,6 +320,7 @@ export async function POST(req: NextRequest) {
       rewardKey,
       baseEntry,
       "The House reward pool is fully claimed for now — your win is recorded for manual review.",
+      { pointsAwarded },
     );
   }
 
@@ -304,5 +338,6 @@ export async function POST(req: NextRequest) {
     rewardCode: rewardEntry.rewardCode,
     rewardUsd: rewardEntry.rewardUsd,
     verifiedAt: rewardEntry.verifiedAt,
+    pointsAwarded,
   });
 }
