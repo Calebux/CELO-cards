@@ -28,6 +28,8 @@ import {
   BOUNTY_PAUSED_FROM_DAY,
   BOUNTY_WINS_PER_DAY,
   bountyWinsPerDay,
+  HOUSE_LOSS_POINTS_PER_DAY,
+  HOUSE_BOSS_WINS_COUNTED_PER_DAY,
   bountyCampaignFor,
   bountyDayUTC,
   bountyDaysLeftInCampaign,
@@ -88,22 +90,11 @@ const BOUNTY_TTL_SECONDS = 8 * 24 * 60 * 60;
 // changes on the day the raise lands.
 export const HOUSE_WINS_COUNTED_PER_DAY = BOUNTY_WINS_PER_DAY;
 
-// Losses no longer consume the win allowance, so they need their own ceiling —
-// otherwise losing on purpose becomes unlimited points. Ten losses' worth.
-export const HOUSE_LOSS_POINTS_PER_DAY = 100;
+// Re-exported from bountyConfig so client components can show the ceiling
+// without pulling redis into the bundle.
+export { HOUSE_LOSS_POINTS_PER_DAY, HOUSE_BOSS_WINS_COUNTED_PER_DAY } from "./bountyConfig";
 
-// House Boss fights (the AI at tier 3) sit outside the win allowance entirely.
-//
-// A run is five fights and every fight spends a win slot, so the allowance is
-// worth five complete runs — while the boss is fights 4 and 5, meaning each
-// failed attempt still burns three or four slots on the early fights. The result was
-// that the rarest outcome in the game was the one most likely to land past the
-// cap and score nothing at all. It is not farmable the way easy volume is: the
-// boss wins roughly 96% of the time, and asking the server for tier 3 means
-// actually facing tier 3, so the only way to reach this branch is to beat it.
-//
-// The ceiling below is defence in depth rather than a limit anyone should meet.
-export const HOUSE_BOSS_WINS_COUNTED_PER_DAY = 10;
+
 
 // Applied from this UTC day onward. Days before it keep the rules they were
 // played under, so closed standings and anything already claimed stay fixed.

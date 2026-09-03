@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { MiniPayImage } from "../../components/MiniPayImage";
@@ -19,10 +19,21 @@ import {
   BOUNTY_TOP_N,
   bountyCampaignFor,
   bountyIsFinalPayingDay,
+  bountyDayUTC,
   bountyPausedOn,
+  bountyWinsPerDay,
   formatBountyCampaignRange,
   formatGdollar,
+  HOUSE_BOSS_WINS_COUNTED_PER_DAY,
+  HOUSE_LOSS_POINTS_PER_DAY,
 } from "../../lib/bountyConfig";
+// The engine's own numbers, so the table cannot drift from what is actually paid.
+import {
+  DIFFICULTY_POINT_MULTIPLIER,
+  HOUSE_FLAWLESS_BONUS,
+  HOUSE_LOSS_POINTS,
+  HOUSE_WIN_BASE_POINTS,
+} from "../../lib/houseDifficulty";
 
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
 
@@ -128,6 +139,7 @@ export default function Leaderboard() {
     floorPoints: number | null;
   };
   const [youToday, setYouToday] = useState<YouToday | null>(null);
+  const [showScoring, setShowScoring] = useState(false);
   const [history, setHistory] = useState<HistoryDay[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
 
@@ -373,6 +385,78 @@ export default function Leaderboard() {
                       ? `${pointsToPrize.toLocaleString()} more points for a prize spot`
                       : "You're in a prize spot — hold it until 00:00 UTC"}
                   </span>
+                )}
+              </div>
+            )}
+
+            {/* How a daily score is actually built.
+                The board announced the prize and the threshold and never once
+                said how points are earned or why a score stops moving. Players
+                asked twice in a day. Collapsed by default so it does not crowd
+                the standings, and driven off the same constants the engine
+                scores with so the table cannot quietly go stale. */}
+            {tab === "bounty" && (
+              <div style={{ marginBottom: 12, background: "rgba(86,164,203,0.05)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 5, overflow: "hidden" }}>
+                <button
+                  onClick={() => setShowScoring((v) => !v)}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                >
+                  <span className="material-icons" style={{ fontSize: 14, color: "#56a4cb" }}>calculate</span>
+                  <span style={{ flex: 1, fontSize: isCompact ? 13 : 11, fontWeight: 700, color: "#b9e7f4", letterSpacing: 0.4 }}>
+                    How today&apos;s score is calculated
+                  </span>
+                  <span className="material-icons" style={{ fontSize: 16, color: "#56a4cb" }}>
+                    {showScoring ? "expand_less" : "expand_more"}
+                  </span>
+                </button>
+                {showScoring && (
+                  <div style={{ padding: "0 14px 12px", fontSize: isCompact ? 13 : 11, color: "#94a3b8", lineHeight: 1.7, letterSpacing: 0.2 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "2px 10px", marginBottom: 10, alignItems: "baseline" }}>
+                      <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 1, textTransform: "uppercase" }}>VS House</span>
+                      <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 1, textTransform: "uppercase", textAlign: "right" }}>Win</span>
+                      <span style={{ fontSize: isCompact ? 11 : 9, color: "#475569", letterSpacing: 1, textTransform: "uppercase", textAlign: "right" }}>Flawless</span>
+                      {([
+                        { label: "Easy", d: 0 as const, note: "" },
+                        { label: "Moderate", d: 1 as const, note: "" },
+                        { label: "Hard", d: 2 as const, note: "cards" },
+                        { label: "Boss", d: 3 as const, note: "cards" },
+                      ]).map(({ label, d, note }) => (
+                        <Fragment key={label}>
+                          <span style={{ color: "#cbd5e1" }}>
+                            {label}
+                            {note && <span style={{ color: "#a855f7", fontSize: isCompact ? 10 : 9, marginLeft: 5 }}>needs black market {note}</span>}
+                          </span>
+                          <span style={{ textAlign: "right", color: "#e2e8f0", fontWeight: 700 }}>
+                            {Math.round(HOUSE_WIN_BASE_POINTS * DIFFICULTY_POINT_MULTIPLIER[d])}
+                          </span>
+                          <span style={{ textAlign: "right", color: "#fbbf24", fontWeight: 700 }}>
+                            {Math.round((HOUSE_WIN_BASE_POINTS + HOUSE_FLAWLESS_BONUS) * DIFFICULTY_POINT_MULTIPLIER[d])}
+                          </span>
+                        </Fragment>
+                      ))}
+                    </div>
+                    <p style={{ margin: "0 0 6px" }}>
+                      <strong style={{ color: "#e2e8f0" }}>Flawless</strong> means winning without dropping a round.{" "}
+                      A loss still pays <strong style={{ color: "#e2e8f0" }}>{HOUSE_LOSS_POINTS}</strong>, up to{" "}
+                      <strong style={{ color: "#e2e8f0" }}>{HOUSE_LOSS_POINTS_PER_DAY}</strong> a day.
+                    </p>
+                    <p style={{ margin: "0 0 6px" }}>
+                      Only your <strong style={{ color: "#fbbf24" }}>best {bountyWinsPerDay(bountyDayUTC())} wins</strong> count each day.
+                      Once they are all filled a new win has to <strong style={{ color: "#e2e8f0" }}>beat your weakest one</strong> to
+                      move your score — which is why it can stop climbing while you keep winning. Play a harder tier or win
+                      flawlessly and it replaces a weaker result.
+                    </p>
+                    <p style={{ margin: "0 0 6px" }}>
+                      <strong style={{ color: "#e2e8f0" }}>Boss wins are separate</strong> — up to{" "}
+                      {HOUSE_BOSS_WINS_COUNTED_PER_DAY} a day, and they never use up your{" "}
+                      {bountyWinsPerDay(bountyDayUTC())}.
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      Everything resets <strong style={{ color: "#e2e8f0" }}>00:00 UTC</strong>. Your{" "}
+                      <strong style={{ color: "#e2e8f0" }}>Casual</strong> score is all-time and has no cap — wins past the
+                      daily limit still count there.
+                    </p>
+                  </div>
                 )}
               </div>
             )}

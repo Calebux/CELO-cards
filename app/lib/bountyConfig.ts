@@ -329,6 +329,20 @@ export const BOUNTY_WINS_PER_DAY = 25;
 export const BOUNTY_WINS_PER_DAY_RAISED = 30;
 export const BOUNTY_WINS_RAISED_FROM_DAY = "2026-09-04";
 
+// Losses do not consume the win allowance — counting them against it punished
+// exactly the players the bounty exists to pull in, since a low-win-rate player
+// could burn the whole allowance on defeats and become unable to reach the
+// threshold at all. So they get their own ceiling, worth ten losses, or losing
+// on purpose becomes unlimited points.
+export const HOUSE_LOSS_POINTS_PER_DAY = 100;
+
+// House Boss fights sit outside the win allowance entirely: they neither spend
+// it nor stop once it is gone. A run is five fights and each one used to spend
+// a slot, so the rarest outcome in the game was the one most likely to land
+// past the cap and score nothing. Defence in depth rather than a limit anyone
+// should meet — the boss wins roughly 96% of the time.
+export const HOUSE_BOSS_WINS_COUNTED_PER_DAY = 10;
+
 /** The daily win allowance in force on a given UTC day. */
 export function bountyWinsPerDay(day: string): number {
   return day >= BOUNTY_WINS_RAISED_FROM_DAY ? BOUNTY_WINS_PER_DAY_RAISED : BOUNTY_WINS_PER_DAY;
