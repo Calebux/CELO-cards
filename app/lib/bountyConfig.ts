@@ -177,6 +177,45 @@ export function bountyPrizeForRank(rank: number): number {
   return BOUNTY_PRIZE_SPLIT_USD[rank - 1] ?? 0;
 }
 
+/** A player's day, reduced to what decides their position on the board. */
+export type RankableBountyRow = {
+  address: string;
+  points: number;
+  /** When this score was first reached, epoch ms. 0 when not recorded. */
+  reachedAt: number;
+};
+
+/**
+ * Put a day's players in prize order.
+ *
+ * The daily cap means the top of the board TIES: 25 flawless Hard wins plus the
+ * loss allowance is 7,600 and nothing can beat it, so every player who gets
+ * there holds the same score. Three did on 2026-09-03. Whatever decides those
+ * ties is deciding real money.
+ *
+ * It used to be decided by nothing: standings took Redis's ZRANGE order, which
+ * for equal scores is the member string — so first place went to the highest
+ * wallet address. Reaching the ceiling first is at least something the player
+ * did.
+ *
+ * Address remains the last resort, DESCENDING, only because that is what
+ * ZRANGE was already doing. A tie with no timestamps on either side is a day
+ * played before this existed, and reordering those would move prize money
+ * between players after the fact — the one thing the campaign rules are most
+ * insistent must never happen.
+ */
+export function orderBountyRows<T extends RankableBountyRow>(rows: readonly T[]): T[] {
+  return [...rows].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    // Unrecorded (0) sorts last, so a player with a timestamp is never beaten
+    // by one without.
+    const at = a.reachedAt || Number.POSITIVE_INFINITY;
+    const bt = b.reachedAt || Number.POSITIVE_INFINITY;
+    if (at !== bt) return at - bt;
+    return a.address < b.address ? 1 : a.address > b.address ? -1 : 0;
+  });
+}
+
 // Minimum points in the day to qualify for a prize. Without it, on a quiet day
 // a single match could take the pool — which rewards showing up at the right
 // moment rather than actually competing.

@@ -16,6 +16,7 @@ import { resolveAgentStatus } from "./goodagent-server";
 // can announce it without pulling redis/viem in. Re-exported here so server
 // callers have a single import.
 import {
+  orderBountyRows,
   BOUNTY_MIN_POINTS_TO_WIN,
   BOUNTY_PARTICIPATION_POOL_USD,
   BOUNTY_POOL_USD,
@@ -135,6 +136,11 @@ const pvpPointsKey = (day: string, addr: string) => `bounty:pvp-pts:${day}:${add
 // be reconstructed. Without it, switching to component scoring would wipe
 // whatever a player had already banked today.
 const carryOverKey = (day: string, addr: string) => `bounty:carryover:${day}:${addr}`;
+// When the player's total last went UP. Ties at the daily ceiling are decided
+// on this: whoever got there first ranks higher. Only written on an increase,
+// so playing on past the cap — which cannot raise the total — does not push a
+// player down the board for continuing to play.
+const reachedKey = (day: string, addr: string) => `bounty:reached:${day}:${addr}`;
 const pairCountKey = (day: string, addr: string, opponent: string) =>
   `bounty:pair:${day}:${addr}:${opponent}`;
 const paidKey = (day: string) => `bounty:paid:${day}`;
@@ -216,8 +222,12 @@ async function recomputeDayTotal(day: string, addr: string): Promise<number> {
     (Number(lossPts) || 0) +
     (Number(pvpPts) || 0);
 
+  const previous = Number(await redis.zscore(pointsKey(day), addr).catch(() => null)) || 0;
   await redis.zadd(pointsKey(day), {}, { score: total, member: addr });
   await redis.expire(pointsKey(day), BOUNTY_TTL_SECONDS);
+  if (total > previous) {
+    await redis.set(reachedKey(day, addr), Date.now(), { ex: BOUNTY_TTL_SECONDS }).catch(() => {});
+  }
   return total;
 }
 
@@ -378,6 +388,13 @@ export async function getBountyStandings(
     rows.push({ address: String(raw[i]), points: Number(raw[i + 1]) || 0 });
   }
 
+  const reachedAt = await Promise.all(
+    rows.map((r) => redis.get<number>(reachedKey(day, r.address)).catch(() => null)),
+  );
+  const ordered = orderBountyRows(
+    rows.map((r, i) => ({ ...r, reachedAt: Number(reachedAt[i]) || 0 })),
+  );
+
   const names = (await redis.hgetall<Record<string, string>>(namesKey(day)).catch(() => null)) ?? {};
   const qualifierCount = await countBountyQualifiers(day);
   const share = bountyParticipationShareUsd(bountyParticipationRecipients(qualifierCount));
@@ -389,7 +406,7 @@ export async function getBountyStandings(
   // Rows are sorted by points descending, so everyone meeting the threshold is
   // a prefix of the list. That means a player below it can never sit above a
   // qualifier and block a prize slot — rank and prize rank are the same number.
-  return rows.map((row, index) => {
+  return ordered.map((row, index) => {
     const qualified = meetsBountyThreshold(row.points);
     const rank = index + 1;
     const prizeUsd = qualified && !paused ? bountyPrizeForRank(rank) : 0;
@@ -470,14 +487,40 @@ export async function getPlayerBountyToday(
       slotsFilled: 0, floorPoints: null,
     };
   }
-  // Rank = how many players are strictly ahead, plus one. Ties share a rank,
-  // which is fine for a progress indicator.
+  // Rank must match the board exactly, because this is the number the player is
+  // shown and the board is the number that gets paid.
+  //
+  // It used to be "players strictly ahead, plus one", which gives every tied
+  // player the same rank. With three players tied at the ceiling on a paying
+  // day, all three were told rank 1 and a $5 prize out of a $10 pool — two of
+  // them were going to be paid $3 and $2 having been shown $5.
+  //
+  // Only the tied group is read, so this stays cheap: everyone ahead is counted
+  // with ZCOUNT, and position within the tie comes from the same ordering the
+  // board uses.
   const winsUsed = Number(await redis.get<number>(houseWinsKey(day, addr)).catch(() => 0)) || 0;
   const winSlots = (await redis.get<number[]>(houseWinPtsKey(day, addr)).catch(() => null)) ?? [];
   const slotsFilled = Math.min(winSlots.length, HOUSE_WINS_COUNTED_PER_DAY);
   const floorPoints = slotsFilled >= HOUSE_WINS_COUNTED_PER_DAY ? Math.min(...winSlots) : null;
   const ahead = await redis.zcount(pointsKey(day), points + 1, "+inf").catch(() => 0);
-  const rank = ahead + 1;
+  // Everyone on exactly this score occupies the slice straight after those
+  // ahead of it, so the tied group is reachable by index without a by-score
+  // query the redis wrapper does not expose.
+  const tieCount = await redis.zcount(pointsKey(day), points, points).catch(() => 1);
+  const tiedWith = tieCount > 1
+    ? await redis
+        .zrange<string>(pointsKey(day), ahead, ahead + tieCount - 1, { rev: true })
+        .catch(() => [addr])
+    : [addr];
+  const tiedRows = await Promise.all(
+    (tiedWith ?? [addr]).map(async (member) => ({
+      address: String(member),
+      points,
+      reachedAt: Number(await redis.get<number>(reachedKey(day, String(member))).catch(() => null)) || 0,
+    })),
+  );
+  const positionInTie = orderBountyRows(tiedRows).findIndex((r) => r.address === addr);
+  const rank = ahead + (positionInTie >= 0 ? positionInTie : 0) + 1;
   const qualified = meetsBountyThreshold(points);
   const share = qualified && !paused && rank > BOUNTY_TOP_N
     ? bountyParticipationShareUsd(bountyParticipationRecipients(await countBountyQualifiers(day)))
