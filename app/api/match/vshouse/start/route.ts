@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../../../lib/redis";
 import { CHARACTERS } from "../../../../lib/gameData";
-import { clampDifficulty } from "../../../../lib/houseDifficulty";
+import {
+  clampDifficulty,
+  gateDifficultyByPremium,
+  maxDifficultyForPremiumCount,
+} from "../../../../lib/houseDifficulty";
+import { readOwnedPremium } from "../../../../lib/premiumOwnership";
 import { checkRateLimit, sanitizePlayerName } from "../../../../lib/rateLimit";
 import { isAgentKeyRequest } from "../../../../lib/agentKey";
 import { registerAgentWallet } from "../../../../lib/agentTrack";
@@ -29,6 +34,7 @@ interface HouseMatchState {
   usedCardIds: string[];
   previousAiOrderIds: string[];
   difficulty: 0 | 1 | 2 | 3;
+  maxDifficulty?: 0 | 1 | 2 | 3;
   playerCharacterId?: string;
   opponentCharacterId?: string;
 }
@@ -91,7 +97,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const difficulty = clampDifficulty(body.difficulty ?? 0);
+  // Hard and Boss are bought into, so the tier this match pins is capped by the
+  // premium cards the wallet owns. Agents are exempt — they buy nothing and
+  // score on their own board, so gating them would close the lane rather than
+  // sell a card. Resolve applies the same gate when it opens a match itself, so
+  // skipping start cannot skip this.
+  const requested = clampDifficulty(body.difficulty ?? 0);
+  const ownedPremiumCount = fromAgent ? 0 : (await readOwnedPremium(addr)).length;
+  // Pinned for the life of the match so resolve needs no further lookup, and a
+  // card bought mid-run cannot upgrade a match already in play.
+  const maxDifficulty: 0 | 1 | 2 | 3 = fromAgent ? 3 : maxDifficultyForPremiumCount(ownedPremiumCount);
+  const difficulty = fromAgent ? requested : gateDifficultyByPremium(requested, ownedPremiumCount);
   const state: HouseMatchState = {
     matchId,
     playerRoundsWon: 0,
@@ -102,6 +118,7 @@ export async function POST(req: NextRequest) {
     usedCardIds: [],
     previousAiOrderIds: [],
     difficulty,
+    maxDifficulty,
     // Pinned so resolve can run without them: the skill's resolve body carries
     // only the card order, by design.
     playerCharacterId: playerChar.id,
@@ -113,6 +130,9 @@ export async function POST(req: NextRequest) {
     ok: true,
     matchId,
     difficulty,
+    // Set when the requested tier was above what this wallet has unlocked. The
+    // match still opens — at the tier they can play — rather than failing.
+    difficultyGated: difficulty < requested ? { requested, granted: difficulty } : null,
     playerCharacterId: playerChar.id,
     opponentCharacterId: opponentChar.id,
     playerName: sanitizePlayerName(body.playerName ?? "") ?? null,

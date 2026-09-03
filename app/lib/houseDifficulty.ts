@@ -90,3 +90,46 @@ export function resolveAiDifficulty(params: {
   if (params.upperChamberActive && params.upperChamberRound >= 3) return 3;
   return params.chosen;
 }
+
+// ── Premium card gate ────────────────────────────────────────────────────────
+// The high-multiplier tiers are what the leaderboard is actually made of: a
+// Hard flawless win is 300 points and the top of the board is thousands of
+// them. Gating Hard and Boss on owning black market cards is what makes those
+// tiers something bought into rather than simply ground out.
+//
+// Ownership, not deck composition — a player who has paid should not also have
+// to spend deck slots on the cards to reach the tier they paid for. It also
+// keeps the check cheap: one set read per match rather than per round.
+//
+// Easy and Moderate stay open. A free player can still play, still score, and
+// still climb; they are capped at 1.5x rather than shut out.
+
+/** Premium cards owned to unlock Hard (2x). */
+export const PREMIUM_CARDS_FOR_HARD = 1;
+/** Premium cards owned to unlock Boss (2.5x), including the upper chamber finale. */
+export const PREMIUM_CARDS_FOR_BOSS = 3;
+
+/**
+ * The highest difficulty a wallet may play for reward, given how many premium
+ * cards it owns.
+ */
+export function maxDifficultyForPremiumCount(ownedCount: number): HouseDifficulty {
+  const owned = Number.isFinite(ownedCount) ? Math.max(0, Math.floor(ownedCount)) : 0;
+  if (owned >= PREMIUM_CARDS_FOR_BOSS) return 3;
+  if (owned >= PREMIUM_CARDS_FOR_HARD) return 2;
+  return 1;
+}
+
+/**
+ * Clamp a requested difficulty down to what the wallet has unlocked.
+ *
+ * Applied to BOTH the reward tier and the AI the player actually faces. Pinning
+ * only the reward would drop a free player into a Hard opponent for Moderate
+ * pay — the precise failure effectiveAiDifficulty's comment exists to prevent.
+ */
+export function gateDifficultyByPremium(
+  requested: HouseDifficulty,
+  ownedCount: number,
+): HouseDifficulty {
+  return Math.min(requested, maxDifficultyForPremiumCount(ownedCount)) as HouseDifficulty;
+}

@@ -14,6 +14,7 @@ import { useAccount } from "wagmi";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { useGameFrameScale } from "../../lib/mobile";
 import { useMatchActionAuth } from "../../lib/useMatchActionAuth";
+import { maxDifficultyForPremiumCount, PREMIUM_CARDS_FOR_HARD } from "../../lib/houseDifficulty";
 
 const OnboardingCoach = dynamic(() => import("../../components/OnboardingCoach").then(m => ({ default: m.OnboardingCoach })), { ssr: false });
 const WalletSection = dynamic(() => import("../../components/WalletSection").then(m => ({ default: m.WalletSection })), { ssr: false, loading: () => <div style={{ width: 220, height: 40 }} /> });
@@ -125,7 +126,19 @@ export default function CreateMatch() {
   const setVsBot = useGameStore((s) => s.setVsBot);
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
   const setAiDifficulty = useGameStore((s) => s.setAiDifficulty);
+  const unlockedPremiumCards = useGameStore((s) => s.unlockedPremiumCards);
   const setUpperChamberActive = useGameStore((s) => s.setUpperChamberActive);
+
+  // Hard (2x) and the boss finale (2.5x) are unlocked by owning black market
+  // cards. The server pins the same gate when the match opens, so this only
+  // decides what the picker offers — it is not the enforcement.
+  const maxDifficulty = maxDifficultyForPremiumCount(unlockedPremiumCards.length);
+  useEffect(() => {
+    // A selection left over from before the gate — or from a wallet that owned
+    // cards and then traded them away — would sit on Hard in the picker while
+    // the server pinned Moderate. Bring the two back into agreement.
+    if (aiDifficulty > maxDifficulty) setAiDifficulty(Math.min(maxDifficulty, 2) as 0 | 1 | 2);
+  }, [aiDifficulty, maxDifficulty, setAiDifficulty]);
   const markOnboardingStep = useGameStore((s) => s.markOnboardingStep);
   const matchPhase = useGameStore((s) => s.matchPhase);
   const matchId = useGameStore((s) => s.matchId);
@@ -542,30 +555,55 @@ export default function CreateMatch() {
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       {DIFFICULTIES.map((d) => {
-                        const active = aiDifficulty === d.value;
+                        const locked = d.value > maxDifficulty;
+                        const active = !locked && aiDifficulty === d.value;
                         return (
                           <button
                             key={d.value}
-                            onClick={() => setAiDifficulty(d.value)}
+                            // A locked tier sends the player to where it is sold
+                            // rather than doing nothing — a dead button reads as
+                            // a bug, and the card is the whole point of the lock.
+                            onClick={() => (locked ? router.push("/black-market") : setAiDifficulty(d.value))}
                             style={{
                               flex: 1, padding: isCompactPhone ? "10px 8px" : "9px 8px",
-                              border: `1.5px solid ${active ? d.color : "#334155"}`,
+                              border: `1.5px solid ${active ? d.color : locked ? "#2a2137" : "#334155"}`,
                               borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
                               background: active ? `${d.color}1f` : "rgba(17,10,24,0.4)",
                               display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
                               transition: "all 0.2s",
+                              opacity: locked ? 0.55 : 1,
                             }}
                           >
-                            <span style={{ fontSize: isCompactPhone ? 12 : 11, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: active ? d.color : "#6b7280" }}>
-                              {d.label}
+                            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                              {locked && (
+                                <span className="material-symbols-outlined" style={{ fontSize: isCompactPhone ? 12 : 11, color: "#a855f7" }}>
+                                  lock
+                                </span>
+                              )}
+                              <span style={{ fontSize: isCompactPhone ? 12 : 11, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: active ? d.color : locked ? "#7c6f93" : "#6b7280" }}>
+                                {d.label}
+                              </span>
                             </span>
-                            <span style={{ fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, color: active ? "rgba(255,255,255,0.75)" : "#475569" }}>
+                            <span style={{ fontSize: isCompactPhone ? 11 : 10, fontWeight: 700, color: active ? "rgba(255,255,255,0.75)" : locked ? "#5b5170" : "#475569" }}>
                               {d.multiplier}
                             </span>
                           </button>
                         );
                       })}
                     </div>
+                    {maxDifficulty < 2 && (
+                      <p style={{ margin: "8px 0 0", fontSize: 10, lineHeight: 1.6, color: "#64748b", letterSpacing: 0.3 }}>
+                        <span style={{ color: "#a855f7", fontWeight: 700 }}>Hard</span> is unlocked by owning{" "}
+                        {PREMIUM_CARDS_FOR_HARD === 1 ? "a black market card" : `${PREMIUM_CARDS_FOR_HARD} black market cards`}.
+                        It pays 2× and is where the top of the leaderboard is won.{" "}
+                        <span
+                          onClick={() => router.push("/black-market")}
+                          style={{ color: "#fbbf24", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
+                        >
+                          Visit the black market
+                        </span>
+                      </p>
+                    )}
                     {aiDifficulty === 0 && (
                       <p style={{ margin: "8px 0 0", fontSize: 10, lineHeight: 1.6, color: "#64748b", letterSpacing: 0.3 }}>
                         {/* The reason to leave Easy is the daily pool while it is

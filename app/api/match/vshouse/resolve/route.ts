@@ -12,7 +12,14 @@ import { registerAgentWallet } from "../../../../lib/agentTrack";
 import { isAgentKeyRequest } from "../../../../lib/agentKey";
 import { consumeFreeGame } from "../../../../lib/freeGames";
 import { resolveAgentStatus } from "../../../../lib/goodagent-server";
-import { clampDifficulty, effectiveAiDifficulty, houseMatchPoints } from "../../../../lib/houseDifficulty";
+import {
+  clampDifficulty,
+  effectiveAiDifficulty,
+  gateDifficultyByPremium,
+  houseMatchPoints,
+  maxDifficultyForPremiumCount,
+} from "../../../../lib/houseDifficulty";
+import { readOwnedPremium, stripUnownedPremium } from "../../../../lib/premiumOwnership";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
 import { ARENA_ADDRESS, ARENA_ABI, matchIdToBytes32 } from "../../../../lib/arena";
 import { WAGER_AMOUNT_CELO } from "../../../../lib/cusd";
@@ -49,6 +56,11 @@ interface HouseMatchState {
    * the payout.
    */
   difficulty: 0 | 1 | 2 | 3;
+  /**
+   * Ceiling the premium gate pinned at open. Optional because matches already
+   * in flight when this shipped have no such field, and are left ungated.
+   */
+  maxDifficulty?: 0 | 1 | 2 | 3;
 }
 
 async function ensureHouseEntryTx(matchId: string): Promise<string | null> {
@@ -122,6 +134,12 @@ export async function POST(req: NextRequest) {
   let entryTxHash: string | null = null;
   const allowTreasuryEntry = process.env.ENABLE_VSHOUSE_TREASURY_ENTRY === "true";
 
+  // Premium ownership gates the scoring tiers and decides which cards may
+  // legally appear in the deck. Read once per round because the deck arrives
+  // once per round; the tier ceiling it implies is pinned into match state at
+  // open, so the rounds after the first cost nothing extra to gate.
+  const ownedPremium = await readOwnedPremium(addr);
+
   // 1. Get or Initialize Match State
   let state = await redis.get<HouseMatchState>(redisKey);
   if (!state || state.matchId !== matchId) {
@@ -174,8 +192,22 @@ export async function POST(req: NextRequest) {
       attunementSurgeUsed: false,
       usedCardIds: [],
       previousAiOrderIds: [],
+      // The highest tier this match may ever run at, pinned for its lifetime.
+      //
+      // Hard and Boss are bought into, so the ceiling is what the wallet had
+      // unlocked at open. Pinning it rather than re-deriving each round means a
+      // card bought — or traded away — mid-match cannot change a match already
+      // in play, and the rounds after the first need no further lookups.
+      //
+      // Agents are exempt for the same reason they skip free-game metering:
+      // they play this route by design, buy nothing, and score on their own
+      // board via recordAgentPoints, so gating them would close the GoodAgent
+      // lane without selling a single card.
+      maxDifficulty: isAgentMatch ? 3 : maxDifficultyForPremiumCount(ownedPremium.length),
       // Locked in here for the life of the match.
-      difficulty: clampDifficulty(difficulty),
+      difficulty: isAgentMatch
+        ? clampDifficulty(difficulty)
+        : gateDifficultyByPremium(clampDifficulty(difficulty), ownedPremium.length),
     };
 
     if (wagered && allowTreasuryEntry) {
@@ -196,7 +228,31 @@ export async function POST(req: NextRequest) {
   const resolvedOpponentCharId = opponentCharacterId ?? state.opponentCharacterId;
   const playerChar = CHARACTERS.find((c) => c.id === resolvedPlayerCharId);
   const opponentChar = CHARACTERS.find((c) => c.id === resolvedOpponentCharId);
-  const playerOrder = playerOrderCardIds.map(id => CARDS.find(c => c.id === id)).filter((c): c is Card => !!c);
+  // Cards are checked against what the wallet actually paid for. Until now the
+  // order was mapped straight out of the catalogue, so a request could name any
+  // premium card without owning it — harmless while the client was the only
+  // caller and the cards were just cards, an open door now that they unlock the
+  // scoring tiers.
+  const { kept: ownedOrderCardIds, removed: unownedCardIds } = stripUnownedPremium(
+    playerOrderCardIds,
+    ownedPremium,
+  );
+  if (unownedCardIds.length > 0) {
+    // Refused rather than silently substituted: dropping the cards would leave
+    // a short deck and surface as "Invalid match data", which tells the player
+    // nothing about why. The client filters premium cards it does not own, so
+    // reaching this means a stale unlock list or a hand-made request.
+    return NextResponse.json(
+      {
+        error: "Your deck contains black market cards this wallet does not own.",
+        reason: "unowned-premium",
+        cards: unownedCardIds,
+      },
+      { status: 403 },
+    );
+  }
+
+  const playerOrder = ownedOrderCardIds.map(id => CARDS.find(c => c.id === id)).filter((c): c is Card => !!c);
 
   if (!playerChar || !opponentChar || playerOrder.length < 5) {
     return NextResponse.json({ error: "Invalid match data" }, { status: 400 });
@@ -214,7 +270,17 @@ export async function POST(req: NextRequest) {
   const rewardDifficulty: 0 | 1 | 2 | 3 = state.difficulty ?? clampDifficulty(difficulty);
   state.difficulty = rewardDifficulty;
 
-  const aiDifficulty = effectiveAiDifficulty(rewardDifficulty, difficulty);
+  // effectiveAiDifficulty lets the client escalate the OPPONENT mid-match — the
+  // upper chamber finale asks for tier 3. Held to the pinned ceiling so a free
+  // player cannot be dropped into the boss for Moderate pay: the reward stays
+  // pinned to rewardDifficulty, so an ungated escalation would hand them the
+  // hardest opponent in the game at 1.5x.
+  //
+  // `?? 3` leaves matches opened before this shipped exactly as they were,
+  // the same way rewardDifficulty covers state from before difficulty was
+  // pinned. A run in flight must not change rules underneath the player.
+  const escalated = effectiveAiDifficulty(rewardDifficulty, difficulty);
+  const aiDifficulty = Math.min(escalated, state.maxDifficulty ?? 3) as 0 | 1 | 2 | 3;
   const resolvedRound = state.roundNumber;
   state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 
