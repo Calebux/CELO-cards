@@ -6,7 +6,32 @@ const HOUSE_WINNER_REWARDS_KEY = "ops:activity:house_winner_rewards";
 const BLACK_MARKET_PURCHASES_KEY = "ops:activity:black_market_purchases";
 const AUTH_FAILURES_KEY = "ops:activity:auth_failures";
 const ACTIVITY_TTL_SECONDS = 60 * 60 * 24 * 180;
-const MAX_ACTIVITY_ITEMS = 100;
+
+// A hundred entries was roughly three hours of history for the WHOLE game, and
+// one busy player could hold a third of it. Runs were ageing out before their
+// own prize claim could be verified.
+//
+// Raising it is only safe because the append below no longer rewrites the whole
+// array — see appendActivity.
+const MAX_ACTIVITY_ITEMS = 2000;
+
+// Every player also gets their own list. The global feed is ordered by time, so
+// a player's history is only ever as long as the quietest stretch of everyone
+// else's — on a busy night that is minutes. Anything reasoning about ONE
+// player's run reads this instead and is unaffected by how much anyone else is
+// playing.
+const MAX_PLAYER_ITEMS = 200;
+const playerMatchesKey = (address: string) => `ops:activity:house_matches:p:${address.toLowerCase()}`;
+
+// The list-backed keys. The originals held a single JSON array, which is a
+// different Redis type — writing a list to them would fail with WRONGTYPE — so
+// the new data lives beside the old and readers merge the two until the old
+// window has aged out. Every feed moves together: appendActivity now writes
+// lists, so a reader still calling GET on the old key would see nothing.
+const HOUSE_MATCHES_LIST_KEY = `${HOUSE_MATCHES_KEY}:list`;
+const HOUSE_WINNER_REWARDS_LIST_KEY = `${HOUSE_WINNER_REWARDS_KEY}:list`;
+const BLACK_MARKET_PURCHASES_LIST_KEY = `${BLACK_MARKET_PURCHASES_KEY}:list`;
+const AUTH_FAILURES_LIST_KEY = `${AUTH_FAILURES_KEY}:list`;
 
 export type HouseMatchActivity = {
   matchId: string;
@@ -71,42 +96,136 @@ export type AuthFailureActivity = {
   failedAt: number;
 };
 
-async function appendActivity<T>(key: string, entry: T): Promise<void> {
-  const existing = (await redis.get<T[]>(key)) ?? [];
-  const updated = [entry, ...existing].slice(0, MAX_ACTIVITY_ITEMS);
-  await redis.set(key, updated, { ex: ACTIVITY_TTL_SECONDS });
+/**
+ * Append to a capped, newest-first list.
+ *
+ * This used to read the whole array, prepend, and write it all back. That made
+ * the cap expensive to raise — every match paid for the entire history twice
+ * over the wire — and it lost writes: two matches finishing together both read
+ * the same array and the second overwrote the first. LPUSH is O(1), atomic, and
+ * indifferent to how long the list is.
+ */
+async function appendActivity<T>(key: string, entry: T, cap = MAX_ACTIVITY_ITEMS): Promise<void> {
+  await redis.lpush(key, JSON.stringify(entry));
+  await redis.ltrim(key, 0, cap - 1);
+  await redis.expire(key, ACTIVITY_TTL_SECONDS);
+}
+
+/**
+ * Read a list written by appendActivity.
+ *
+ * Upstash decodes JSON element values on the way out, so entries arrive as
+ * objects already; a string means it did not, and it is parsed here. Anything
+ * unreadable is dropped rather than failing the whole read — one malformed
+ * entry must not hide the rest of the history.
+ */
+async function readActivityList<T>(key: string, limit: number): Promise<T[]> {
+  const raw = await redis.lrange<unknown>(key, 0, Math.max(0, limit - 1)).catch(() => []);
+  const out: T[] = [];
+  for (const item of raw ?? []) {
+    if (typeof item === "string") {
+      try { out.push(JSON.parse(item) as T); } catch { /* skip */ }
+    } else if (item && typeof item === "object") {
+      out.push(item as T);
+    }
+  }
+  return out;
+}
+
+/**
+ * List plus whatever the pre-switch JSON array still holds, newest first.
+ *
+ * `identity` keeps an entry from appearing twice while both stores overlap;
+ * `timestamp` orders the union. Once the legacy key expires this is just the
+ * list.
+ */
+async function readMergedActivity<T>(
+  listKey: string,
+  legacyKey: string,
+  limit: number,
+  identity: (entry: T) => string,
+  timestamp: (entry: T) => number,
+): Promise<T[]> {
+  const [list, legacy] = await Promise.all([
+    readActivityList<T>(listKey, limit),
+    redis.get<T[]>(legacyKey).catch(() => null),
+  ]);
+  if (!legacy?.length) return list;
+  const seen = new Set(list.map(identity));
+  const merged = [...list];
+  for (const entry of legacy) {
+    if (!seen.has(identity(entry))) merged.push(entry);
+  }
+  return merged.sort((a, b) => timestamp(b) - timestamp(a)).slice(0, limit);
 }
 
 export async function recordHouseMatchActivity(entry: HouseMatchActivity): Promise<void> {
-  await appendActivity(HOUSE_MATCHES_KEY, entry);
+  // Written to both the global feed and the player's own list. The per-player
+  // copy is what prize verification reads, so a run stays provable however busy
+  // the rest of the game is.
+  await Promise.all([
+    appendActivity(HOUSE_MATCHES_LIST_KEY, entry),
+    appendActivity(playerMatchesKey(entry.playerAddress), entry, MAX_PLAYER_ITEMS),
+  ]);
+}
+
+/**
+ * One player's own match history, newest first.
+ *
+ * Falls back to filtering the global feed when the player has no list yet,
+ * which covers matches played before this existed — without it, a claim made
+ * moments after deploy would find no history and be refused.
+ */
+export async function getPlayerHouseMatchActivity(
+  address: string,
+  limit = MAX_PLAYER_ITEMS,
+): Promise<HouseMatchActivity[]> {
+  const own = await readActivityList<HouseMatchActivity>(playerMatchesKey(address), limit);
+  if (own.length > 0) return own;
+  const addr = address.toLowerCase();
+  return (await getHouseMatchActivity())
+    .filter((m) => m.playerAddress.toLowerCase() === addr)
+    .slice(0, limit);
 }
 
 export async function recordHouseWinnerRewardActivity(entry: HouseWinnerRewardActivity): Promise<void> {
-  await appendActivity(HOUSE_WINNER_REWARDS_KEY, entry);
+  await appendActivity(HOUSE_WINNER_REWARDS_LIST_KEY, entry);
 }
 
 export async function recordBlackMarketPurchaseActivity(entry: BlackMarketPurchaseActivity): Promise<void> {
-  await appendActivity(BLACK_MARKET_PURCHASES_KEY, entry);
+  await appendActivity(BLACK_MARKET_PURCHASES_LIST_KEY, entry);
 }
 
-export async function getHouseMatchActivity(): Promise<HouseMatchActivity[]> {
-  return (await redis.get<HouseMatchActivity[]>(HOUSE_MATCHES_KEY)) ?? [];
+export async function getHouseMatchActivity(limit = MAX_ACTIVITY_ITEMS): Promise<HouseMatchActivity[]> {
+  return readMergedActivity<HouseMatchActivity>(
+    HOUSE_MATCHES_LIST_KEY, HOUSE_MATCHES_KEY, limit,
+    (m) => `${m.matchId}:${m.completedAt}`, (m) => m.completedAt ?? 0,
+  );
 }
 
-export async function getHouseWinnerRewardActivity(): Promise<HouseWinnerRewardActivity[]> {
-  return (await redis.get<HouseWinnerRewardActivity[]>(HOUSE_WINNER_REWARDS_KEY)) ?? [];
+export async function getHouseWinnerRewardActivity(limit = MAX_ACTIVITY_ITEMS): Promise<HouseWinnerRewardActivity[]> {
+  return readMergedActivity<HouseWinnerRewardActivity>(
+    HOUSE_WINNER_REWARDS_LIST_KEY, HOUSE_WINNER_REWARDS_KEY, limit,
+    (r) => `${r.matchId}:${r.playerAddress}`, (r) => r.verifiedAt ?? 0,
+  );
 }
 
-export async function getBlackMarketPurchaseActivity(): Promise<BlackMarketPurchaseActivity[]> {
-  return (await redis.get<BlackMarketPurchaseActivity[]>(BLACK_MARKET_PURCHASES_KEY)) ?? [];
+export async function getBlackMarketPurchaseActivity(limit = MAX_ACTIVITY_ITEMS): Promise<BlackMarketPurchaseActivity[]> {
+  return readMergedActivity<BlackMarketPurchaseActivity>(
+    BLACK_MARKET_PURCHASES_LIST_KEY, BLACK_MARKET_PURCHASES_KEY, limit,
+    (p) => `${p.txHash}:${p.cardId}`, (p) => p.purchasedAt ?? 0,
+  );
 }
 
 export async function recordAuthFailureActivity(entry: AuthFailureActivity): Promise<void> {
-  await appendActivity(AUTH_FAILURES_KEY, entry);
+  await appendActivity(AUTH_FAILURES_LIST_KEY, entry);
 }
 
-export async function getAuthFailureActivity(): Promise<AuthFailureActivity[]> {
-  return (await redis.get<AuthFailureActivity[]>(AUTH_FAILURES_KEY)) ?? [];
+export async function getAuthFailureActivity(limit = MAX_ACTIVITY_ITEMS): Promise<AuthFailureActivity[]> {
+  return readMergedActivity<AuthFailureActivity>(
+    AUTH_FAILURES_LIST_KEY, AUTH_FAILURES_KEY, limit,
+    (f) => `${f.failedAt}:${f.stage}:${f.reason}`, (f) => f.failedAt ?? 0,
+  );
 }
 
 /** Failure counts grouped by reason and by device, newest window first. */

@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { redis } from "../../lib/redis";
 import {
   getHouseMatchActivity,
+  getPlayerHouseMatchActivity,
   getHouseWinnerRewardActivity,
   recordHouseWinnerRewardActivity,
   type HouseWinnerRewardActivity,
@@ -193,7 +194,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, pending: true, pointsAwarded: 0, message: PENDING_MESSAGE });
   }
 
-  const houseMatches = await getHouseMatchActivity();
+  // The player's OWN history, not the global feed. The feed is time-ordered and
+  // shared, so on a busy night a run's opening fights were pushed out before the
+  // claim landed and a genuine win was refused for want of evidence.
+  const houseMatches = await getPlayerHouseMatchActivity(playerAddress);
 
   /**
    * The player's own matches from before a finale, newest first — the run

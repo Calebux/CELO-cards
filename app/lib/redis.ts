@@ -37,6 +37,7 @@ type RedisLike = {
   hgetall<T = Record<string, string>>(key: string): Promise<T | null>;
   lpush(key: string, ...values: string[]): Promise<number>;
   lrange<T>(key: string, start: number, end: number): Promise<T[]>;
+  ltrim(key: string, start: number, end: number): Promise<string>;
   scan(cursor: string, options?: { match?: string; count?: number }): Promise<[string, string[]]>;
   keys(pattern: string): Promise<string[]>;
   eval<T = unknown>(script: string, keys: string[], args: (string | number)[]): Promise<T>;
@@ -127,6 +128,10 @@ function createDisabledRedis(): RedisLike {
     async lrange<T>() {
       warn();
       return [] as T[];
+    },
+    async ltrim() {
+      warn();
+      return "OK";
     },
     async scan() {
       warn();
