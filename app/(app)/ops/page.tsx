@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { buildOpsAuthMessage, isOpsAllowed } from "../../lib/admin";
 import { ReferralPayouts } from "./ReferralPayouts";
+import { HouseBossApprovals } from "./HouseBossApprovals";
 
 type BalanceResponse = Awaited<ReturnType<typeof import("../../lib/balance").getBalanceDashboard>>;
 
@@ -246,6 +247,7 @@ export default function OpsPage() {
         {/* Referral payouts sit above the telemetry: it is the only section
             with an outstanding obligation attached, so it should be the first
             thing seen rather than something scrolled past. */}
+        <HouseBossApprovals />
         <ReferralPayouts />
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, margin: "28px 0" }}>
