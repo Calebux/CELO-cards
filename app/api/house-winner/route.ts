@@ -87,8 +87,30 @@ export async function GET() {
   // were shown and genuine wins land as "pending". Anyone checking those
   // addresses on-chain would have found nothing.
   const all = await getHouseWinnerRewardActivity();
-  const verified = all.filter(isVerifiedReward);
-  const pending = all.filter((r) => !isVerifiedReward(r));
+
+  // One row per PLAYER, not per claim.
+  //
+  // The prize resets daily, so a repeat winner has a record for every day they
+  // cleared the chamber — and the board listed each one, so the same wallet
+  // appeared two and three times over. Worse, it appeared under whatever name
+  // it held on each day: one player showed up as both "Umaribn" and "Umaribnt"
+  // and read as two different people.
+  //
+  // Keyed on the wallet and resolved to the most recent claim, which also means
+  // the name shown is the one they go by now rather than a retired one.
+  const newestFirst = [...all].sort((a, b) => b.verifiedAt - a.verifiedAt);
+  const byPlayer = new Map<string, (typeof all)[number]>();
+  for (const reward of newestFirst) {
+    const key = reward.playerAddress.toLowerCase();
+    const held = byPlayer.get(key);
+    // A verified claim outranks a pending one whatever their dates, so a player
+    // who has actually been paid never displays as still waiting.
+    if (!held || (!isVerifiedReward(held) && isVerifiedReward(reward))) byPlayer.set(key, reward);
+  }
+  const distinct = [...byPlayer.values()];
+
+  const verified = distinct.filter(isVerifiedReward);
+  const pending = distinct.filter((r) => !isVerifiedReward(r));
 
   const winners = [
     ...verified.map((reward) => ({
@@ -122,7 +144,11 @@ export async function GET() {
 
   // Only rewards actually paid count against the pool. The old figure took the
   // max of real payouts and (winner count x $5), so padding inflated it.
-  const claimedUsd = verified.reduce((sum, reward) => sum + reward.rewardUsd, 0);
+  //
+  // Counted over every claim rather than the deduped list: the prize resets
+  // daily, so a player who cleared the chamber on two days is owed twice, and
+  // the pool has to reflect the money rather than the headcount.
+  const claimedUsd = all.filter(isVerifiedReward).reduce((sum, reward) => sum + reward.rewardUsd, 0);
 
   return NextResponse.json({
     recentWinners: winners,
