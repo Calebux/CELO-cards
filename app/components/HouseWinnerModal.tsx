@@ -194,7 +194,7 @@ export function HouseWinnerModal({ rewardCode, rewardUsd, isMiniPay = false, onC
                 5 / 5 COMPLETE
               </div>
               <div style={{ fontSize: isMiniPay ? 15 : 13, lineHeight: 1.68, color: "#94a3b8", marginBottom: 16 }}>
-                You cleared the full House streak. This run is worth <span style={{ color: "#4ade80", fontWeight: 800 }}>${rewardUsd}</span>. Copy your code and claim in <span style={{ color: "#fbbf24", fontWeight: 700 }}>Bounty Corner</span> inside the Action Order Telegram.
+                You cleared the full House streak. This run is worth <span style={{ color: "#4ade80", fontWeight: 800 }}>${rewardUsd}</span>. Once we confirm the win, a <span style={{ color: "#4ade80", fontWeight: 700 }}>Claim</span> button appears on the House Boss page and pays straight to your wallet.
               </div>
 
               <div
@@ -262,7 +262,7 @@ export function HouseWinnerModal({ rewardCode, rewardUsd, isMiniPay = false, onC
                     whiteSpace: "nowrap",
                   }}
                 >
-                  Claim In Bounty Corner
+                  Go To House Boss Page
                 </a>
                 <button
                   onClick={onClose}

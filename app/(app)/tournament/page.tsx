@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { ClaimHousePrizeButton } from "../../components/ClaimHousePrizeButton";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { WalletSection } from "../../components/WalletSection";
 import { useGameStore } from "../../lib/gameStore";
@@ -74,7 +75,7 @@ export default function HouseBossChallengePage() {
     {
       step: "04",
       title: "CLAIM IN BOUNTY CORNER",
-      body: "Post your code in Bounty Corner inside t.me/actionorder. Ops can verify the win and release your reward from the pool.",
+      body: "Your win is checked by us first — once it is confirmed, a Claim button appears right here and pays straight to your wallet.",
       icon: "💬",
       color: "#a855f7",
     },
@@ -178,11 +179,14 @@ export default function HouseBossChallengePage() {
                 {totalWinners}
               </div>
             </div>
+            {/* The prize itself, where the Telegram signpost used to be. It
+                renders nothing at all for a wallet that has never won, so the
+                header does not grow an empty slot for everyone else. */}
             {address && (
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>CLAIM CHANNEL</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#fbbf24", letterSpacing: 0.4, marginTop: 6 }}>
-                  BOUNTY CORNER
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>YOUR PRIZE</div>
+                <div style={{ marginTop: 6, display: "flex", justifyContent: "center" }}>
+                  <ClaimHousePrizeButton />
                 </div>
               </div>
             )}
@@ -286,7 +290,7 @@ export default function HouseBossChallengePage() {
             <div style={{ background: "rgba(251,204,92,0.05)", border: "1px solid rgba(251,204,92,0.24)", borderRadius: 8, padding: "16px 18px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>CLAIM FLOW</div>
               <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.65 }}>
-                Win the final mirror fight, copy the code from the House Winner modal, then post it in <span style={{ color: "#fbbf24", fontWeight: 700 }}>Bounty Corner</span> at <span style={{ color: "#b9e7f4", fontWeight: 700 }}>t.me/actionorder</span>.
+                Win the final mirror fight and your win is recorded automatically. We confirm it, then a <span style={{ color: "#4ade80", fontWeight: 700 }}>Claim</span> button appears here and pays straight to your wallet.
               </div>
             </div>
 

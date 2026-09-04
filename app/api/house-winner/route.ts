@@ -24,8 +24,8 @@ const POOL_PRIZE_USD = 50; // aligned with the $50-in-G$ House Boss pool
 // farmed/forged win can't mint unlimited value. Derived from the pool size.
 const MAX_AUTO_REWARDS = Math.max(1, Math.floor(POOL_PRIZE_USD / REWARD_USD));
 const PENDING_MESSAGE =
-  "Your House win is recorded! Rewards are verified by our team and sent on " +
-  "Telegram — share your win there to claim your $5.";
+  "Your House win is recorded! We check every win by hand — once it's confirmed, " +
+  "a Claim button appears on the House Boss page and pays straight to your wallet.";
 // Beat the boss after losing to it at least once. The points still land; the
 // $5 does not. Said plainly, because the alternative is what happened before —
 // the screen said COMPLETE and the claim came back as a flat refusal.
