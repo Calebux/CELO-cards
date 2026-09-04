@@ -11,6 +11,7 @@ import {
 import { sanitizePlayerName } from "../../lib/rateLimit";
 import { HOUSE_AUTO_REWARDS_ENABLED } from "../../lib/houseConfig";
 import { classifyBossRun, houseBossPoints, type ChamberFight } from "../../lib/houseBossRun";
+import { houseBossCashPaused } from "../../lib/houseRewardConfig";
 import { recordMatchResult } from "../../lib/leaderboard";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
@@ -29,6 +30,11 @@ const PENDING_MESSAGE =
 // Beat the boss after losing to it at least once. The points still land; the
 // $5 does not. Said plainly, because the alternative is what happened before —
 // the screen said COMPLETE and the claim came back as a flat refusal.
+// While the cash prize is paused, clearing the chamber is worth its points and
+// says so. Promising a reward that is not running would be worse than silence.
+const POINTS_ONLY_MESSAGE =
+  "House Boss cleared! Your points are on your total and the leaderboard. " +
+  "The cash prize is paused right now — the challenge itself still stands.";
 const RETRIED_MESSAGE =
   "Chamber cleared! You rematched the Boss to do it, so this run pays points " +
   "only — beat the Boss without a rematch to claim the full reward.";
@@ -298,19 +304,27 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Points always. The cash prize only while it is running — a win recorded
+  // during the pause carries rewardUsd 0, so the record is honest about what it
+  // is worth and the claim endpoint has something concrete to refuse.
+  const cashPaused = houseBossCashPaused();
+
   const baseEntry = {
     matchId,
     playerAddress,
     playerName: sanitizePlayerName(body.playerName ?? null),
     playerCharacterId,
     opponentCharacterId,
-    rewardUsd: REWARD_USD,
+    rewardUsd: cashPaused ? 0 : REWARD_USD,
     verifiedAt: Date.now(),
   };
 
   // VS House telemetry isn't authenticated, so a "win" is forgeable. Unless
   // auto-rewards are explicitly enabled, record the claim as pending and issue
   // NO redeemable code — the prize is paid only after manual verification (M-07).
+  if (cashPaused) {
+    return recordPending(rewardKey, baseEntry, POINTS_ONLY_MESSAGE, { pointsAwarded });
+  }
   if (!HOUSE_AUTO_REWARDS_ENABLED) {
     return recordPending(rewardKey, baseEntry, PENDING_MESSAGE, { pointsAwarded });
   }

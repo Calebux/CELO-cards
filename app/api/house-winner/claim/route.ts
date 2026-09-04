@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
       "no-win": "No House Boss win found for this wallet.",
       "pending-review": "Your win is still being verified. You'll be able to claim once it's confirmed.",
       "pool-empty": "The House Boss pool is fully claimed.",
+      "points-only": "The House Boss cash prize is paused — this win scored its points instead.",
       "already-claimed": "You've already claimed your House Boss prize.",
     };
     return NextResponse.json({ error: messages[state.reason], reason: state.reason }, { status: 409 });

@@ -78,3 +78,46 @@ test("the signed message binds the claim to one wallet", () => {
   // A signature captured for one wallet cannot be replayed for another.
   assert.notEqual(msg, buildHouseClaimAuthMessage("0xabc0000000000000000000000000000000000002"));
 });
+
+// ── The cash prize pause ─────────────────────────────────────────────────────
+// Dated, so a win keeps the terms it was won under. Points always pay; the cash
+// only while it is running.
+
+import {
+  houseBossCashPaysOn,
+  houseBossCashPaused,
+  HOUSE_BOSS_CASH_PAUSED_FROM,
+  HOUSE_BOSS_POINTS,
+} from "../app/lib/houseRewardConfig";
+
+test("wins before the pause still carry cash, wins from it do not", () => {
+  assert.ok(HOUSE_BOSS_CASH_PAUSED_FROM, "a pause day is set");
+  assert.equal(houseBossCashPaysOn("2026-09-03"), true);
+  assert.equal(houseBossCashPaysOn(HOUSE_BOSS_CASH_PAUSED_FROM!), false);
+  assert.equal(houseBossCashPaysOn("2027-01-01"), false);
+  assert.equal(houseBossCashPaused(Date.parse("2026-09-03T23:59:59Z")), false);
+  assert.equal(houseBossCashPaused(Date.parse("2026-09-04T00:00:00Z")), true);
+});
+
+test("a points-only win is never claimable for cash", () => {
+  // rewardUsd 0 is what a win recorded during the pause carries.
+  const pointsOnly = { status: "verified" as const, rewardCode: "HOUSE-XYZ", rewardUsd: 0 };
+  assert.deepEqual(
+    claimableState({ record: pointsOnly, alreadyClaimed: false, spentCents: 0 }),
+    { claimable: false, reason: "points-only" },
+  );
+});
+
+test("a win banked before the pause stays claimable through it", () => {
+  // Read from the record, not from today — pausing must not stranding money
+  // already earned, which is the rule the daily bounty campaigns established.
+  const earned = { status: "verified" as const, rewardCode: "HOUSE-ABC", rewardUsd: 5 };
+  assert.deepEqual(
+    claimableState({ record: earned, alreadyClaimed: false, spentCents: 0 }),
+    { claimable: true },
+  );
+});
+
+test("the points award is unaffected by the pause", () => {
+  assert.equal(HOUSE_BOSS_POINTS, 5000);
+});

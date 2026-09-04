@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ClaimHousePrizeButton } from "../../components/ClaimHousePrizeButton";
+import { HOUSE_BOSS_POINTS, houseBossCashPaused } from "../../lib/houseRewardConfig";
 import { MiniPayImage } from "../../components/MiniPayImage";
 import { WalletSection } from "../../components/WalletSection";
 import { useGameStore } from "../../lib/gameStore";
@@ -75,7 +76,7 @@ export default function HouseBossChallengePage() {
     {
       step: "04",
       title: "CLAIM IN BOUNTY CORNER",
-      body: "Your win is checked by us first — once it is confirmed, a Claim button appears right here and pays straight to your wallet.",
+      body: "Clearing the chamber scores its points straight away. The cash prize is paused for now; anything already won and approved is still claimable here.",
       icon: "💬",
       color: "#a855f7",
     },
@@ -104,7 +105,10 @@ export default function HouseBossChallengePage() {
     router.push("/create");
   };
 
-  const poolPrizeDisplay = `${data?.poolPrizeUsd ?? 100} USDT`;
+  // No `?? 100` fallback: before the fetch lands that invented a pool figure
+  // out of nothing, which is how a paused prize could still flash "100 USDT".
+  const cashPaused = houseBossCashPaused();
+  const poolPrizeDisplay = `${data?.poolPrizeUsd ?? 0} USDT`;
   const poolRemainingDisplay = `${Math.max(0, data?.poolRemainingUsd ?? 100).toFixed(0)} USDT`;
   const totalWinners = data?.totalWinners ?? 0;
 
@@ -157,22 +161,41 @@ export default function HouseBossChallengePage() {
             HOUSE BOSS CHALLENGE
           </div>
           <div style={{ fontSize: 15, color: "#9ca3af", letterSpacing: 0.5, textAlign: "center", maxWidth: 640, lineHeight: 1.6 }}>
-            Beat our House AI through the full 5/5 Upper Chamber streak on HARD difficulty. Clear the final mirror fight, get your verified winner code, and claim from the {poolPrizeDisplay} pool prize. Wins on Easy or Moderate do not qualify.
+            Beat our House AI through the full 5/5 Upper Chamber streak on HARD difficulty. Clear the final
+            mirror fight without a rematch and it is worth{" "}
+            <span style={{ color: "#fbbf24", fontWeight: 800 }}>{HOUSE_BOSS_POINTS.toLocaleString()} points</span>.
+            Wins on Easy or Moderate do not qualify.
+            {!cashPaused && <> Verified winners also claim from the {poolPrizeDisplay} pool prize.</>}
           </div>
 
           <div style={{ display: "flex", gap: 40, marginTop: 6, alignItems: "flex-start" }}>
+            {/* The reward, whatever it currently is. While the cash prize is
+                paused the pool figures are not shown at all rather than shown
+                as zero — a $0 pool reads as broken, and advertising a prize
+                that is not running is worse than saying nothing. */}
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>POOL PRIZE</div>
-              <div style={{ fontSize: 32, fontWeight: 900, color: "#4ade80", letterSpacing: -1, marginTop: 2, textShadow: "0 0 20px rgba(74,222,128,0.4)" }}>
-                {poolPrizeDisplay}
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>Reward</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: "#fbbf24", letterSpacing: -1, marginTop: 2, textShadow: "0 0 20px rgba(251,191,36,0.35)" }}>
+                {HOUSE_BOSS_POINTS.toLocaleString()}
               </div>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#6b7280", textTransform: "uppercase", marginTop: 2 }}>Points</div>
             </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>POOL LEFT</div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: "#f59e0b", letterSpacing: -1, marginTop: 2 }}>
-                {poolRemainingDisplay}
-              </div>
-            </div>
+            {!cashPaused && (
+              <>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>POOL PRIZE</div>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#4ade80", letterSpacing: -1, marginTop: 2, textShadow: "0 0 20px rgba(74,222,128,0.4)" }}>
+                    {poolPrizeDisplay}
+                  </div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>POOL LEFT</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: "#f59e0b", letterSpacing: -1, marginTop: 2 }}>
+                    {poolRemainingDisplay}
+                  </div>
+                </div>
+              </>
+            )}
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, color: "#6b7280", textTransform: "uppercase" }}>VERIFIED WINNERS</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: "#b9e7f4", letterSpacing: -1, marginTop: 2 }}>
@@ -242,11 +265,26 @@ export default function HouseBossChallengePage() {
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 16, alignItems: "center", flexShrink: 0 }}>
+                          {/* What this particular win is worth, read off its own
+                              record rather than today's rules. A win banked while
+                              the cash prize ran is still worth its $5 and says so
+                              through a pause; one won during the pause carries no
+                              dollar value and shows its points instead — "$0"
+                              would just read as broken. */}
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: 15, fontWeight: 800, color: winner.status === "pending" ? "#fbbf24" : "#4ade80" }}>${winner.rewardUsd.toFixed(0)}</div>
-                            <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>
-                              {winner.status === "pending" ? "IN REVIEW" : "REWARD"}
-                            </div>
+                            {winner.rewardUsd > 0 ? (
+                              <>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: winner.status === "pending" ? "#fbbf24" : "#4ade80" }}>${winner.rewardUsd.toFixed(0)}</div>
+                                <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>
+                                  {winner.status === "pending" ? "IN REVIEW" : "REWARD"}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: "#fbbf24" }}>{HOUSE_BOSS_POINTS.toLocaleString()}</div>
+                                <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>POINTS</div>
+                              </>
+                            )}
                           </div>
                           <div style={{ textAlign: "right" }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "#b9e7f4" }}>
@@ -283,14 +321,28 @@ export default function HouseBossChallengePage() {
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(86,164,203,0.18)", borderRadius: 8, padding: "16px 18px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>EVENT RULE</div>
               <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.65 }}>
-                This is not a ranked leaderboard race. The prize is for players who beat the full House 5/5 streak on HARD difficulty and get a verified winner code from the final match.
+                This is not a ranked leaderboard race. The reward is for players who beat the full House
+                5/5 streak on HARD difficulty and clear the final mirror fight without a rematch.
               </div>
             </div>
 
             <div style={{ background: "rgba(251,204,92,0.05)", border: "1px solid rgba(251,204,92,0.24)", borderRadius: 8, padding: "16px 18px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>CLAIM FLOW</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>
+                {cashPaused ? "CASH PRIZE PAUSED" : "CLAIM FLOW"}
+              </div>
               <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.65 }}>
-                Win the final mirror fight and your win is recorded automatically. We confirm it, then a <span style={{ color: "#4ade80", fontWeight: 700 }}>Claim</span> button appears here and pays straight to your wallet.
+                {cashPaused ? (
+                  <>
+                    The cash prize is on hold for now. Clearing the chamber still scores its{" "}
+                    <span style={{ color: "#fbbf24", fontWeight: 700 }}>{HOUSE_BOSS_POINTS.toLocaleString()} points</span>,
+                    and anything already won and approved stays claimable.
+                  </>
+                ) : (
+                  <>
+                    Win the final mirror fight and your win is recorded automatically. We confirm it, then a{" "}
+                    <span style={{ color: "#4ade80", fontWeight: 700 }}>Claim</span> button appears here and pays straight to your wallet.
+                  </>
+                )}
               </div>
             </div>
 

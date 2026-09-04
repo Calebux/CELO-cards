@@ -34,7 +34,10 @@ export const MAX_POOL_PAYOUT_CENTS = Math.round(POOL_PRIZE_USD * 100);
 export const REWARD_CENTS = Math.round(REWARD_USD * 100);
 
 export type ClaimableState =
-  | { claimable: false; reason: "no-win" | "pending-review" | "already-claimed" | "pool-empty" }
+  | {
+      claimable: false;
+      reason: "no-win" | "pending-review" | "already-claimed" | "pool-empty" | "points-only";
+    }
   | { claimable: true };
 
 export type RewardRecordLike = {
@@ -62,6 +65,12 @@ export function claimableState(params: {
 }): ClaimableState {
   if (!params.record) return { claimable: false, reason: "no-win" };
   if (params.alreadyClaimed) return { claimable: false, reason: "already-claimed" };
+  // Won while the cash prize was paused: points only, and the record says so by
+  // carrying no dollar value. Checked from the record rather than from today's
+  // pause state, so resuming the prize later cannot retroactively make these
+  // claimable — and a win banked while it was running stays claimable through a
+  // pause, which is the direction that protects players.
+  if ((params.record.rewardUsd ?? 0) <= 0) return { claimable: false, reason: "points-only" };
   if (!isVerifiedReward(params.record)) return { claimable: false, reason: "pending-review" };
   if (params.spentCents + REWARD_CENTS > MAX_POOL_PAYOUT_CENTS) {
     return { claimable: false, reason: "pool-empty" };
