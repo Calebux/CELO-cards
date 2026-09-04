@@ -27,6 +27,8 @@ import {
   BOUNTY_CAMPAIGNS,
   BOUNTY_PAUSED_FROM_DAY,
   BOUNTY_WINS_PER_DAY,
+  BOUNTY_WINS_PER_DAY_RAISED,
+  BOUNTY_WINS_RAISED_FROM_DAY,
   bountyWinsPerDay,
   HOUSE_LOSS_POINTS_PER_DAY,
   HOUSE_BOSS_WINS_COUNTED_PER_DAY,
@@ -62,6 +64,9 @@ export {
   bountyParticipationShareUsd,
   bountyPausedOn,
   bountyPrizeForRank,
+  bountyWinsPerDay,
+  BOUNTY_WINS_PER_DAY_RAISED,
+  BOUNTY_WINS_RAISED_FROM_DAY,
   lastPayingDayAtOrBefore,
   meetsBountyThreshold,
   nextBountyPayingDay,
@@ -85,9 +90,11 @@ const BOUNTY_TTL_SECONDS = 8 * 24 * 60 * 60;
 // 22%-win-rate player burned all ten slots on defeats worth 10 points each and
 // became mathematically unable to reach the threshold, with nothing on screen
 // saying why.
-// The allowance for TODAY. Anything scoring or displaying a specific day must
-// use bountyWinsPerDay(day) instead — this is only the current default, and it
-// changes on the day the raise lands.
+// The BASE allowance, i.e. the one in force before the raise. It is a constant,
+// so it cannot describe a dated change: anything scoring or displaying a
+// specific day must call bountyWinsPerDay(day) instead. Kept because the
+// invariant tests want the smaller of the two — a threshold reachable under the
+// base allowance is reachable under every later one.
 export const HOUSE_WINS_COUNTED_PER_DAY = BOUNTY_WINS_PER_DAY;
 
 // Re-exported from bountyConfig so client components can show the ceiling

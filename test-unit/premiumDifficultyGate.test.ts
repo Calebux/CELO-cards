@@ -108,3 +108,32 @@ test("ownership: an unreachable store fails closed to the free tier", async () =
   // blinked — the opposite of consumeFreeGame, which fails open on purpose.
   assert.equal(gateDifficultyByPremium(3, owned.length), 1);
 });
+
+// ── The gate caps pay, never the opponent ────────────────────────────────────
+// It briefly capped both, which deleted the House Boss: the chamber finale asks
+// for tier 3, and clamping the AI to the reward ceiling handed anyone with one
+// or two cards a Hard opponent wearing the boss's name. One player beat the
+// boss in the three weeks before that shipped; five beat it in the two days
+// after. These pin the two apart.
+
+import { effectiveAiDifficulty } from "../app/lib/houseDifficulty";
+
+test("the chamber finale still escalates to the boss for a one-card wallet", () => {
+  // Reward pinned to Hard by the gate...
+  const rewardDifficulty = gateDifficultyByPremium(2, PREMIUM_CARDS_FOR_HARD);
+  assert.equal(rewardDifficulty, 2);
+  // ...but the finale's request for tier 3 is honoured in full.
+  assert.equal(effectiveAiDifficulty(rewardDifficulty, 3), 3);
+});
+
+test("a wallet with no cards still meets the real boss in the chamber", () => {
+  const rewardDifficulty = gateDifficultyByPremium(2, 0);
+  assert.equal(rewardDifficulty, 1, "paid at Moderate");
+  assert.equal(effectiveAiDifficulty(rewardDifficulty, 3), 3, "but fights the boss");
+});
+
+test("escalation never lowers the opponent below the paid tier", () => {
+  // A stale or malicious request asking for something easier is ignored.
+  assert.equal(effectiveAiDifficulty(2, 0), 2);
+  assert.equal(effectiveAiDifficulty(3, 1), 3);
+});

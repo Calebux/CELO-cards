@@ -18,7 +18,6 @@ import {
   effectiveAiDifficulty,
   gateDifficultyByPremium,
   houseMatchPoints,
-  maxDifficultyForPremiumCount,
 } from "../../../../lib/houseDifficulty";
 import { readOwnedPremium, stripUnownedPremium } from "../../../../lib/premiumOwnership";
 import { recordHouseMatchActivity } from "../../../../lib/opsActivity";
@@ -57,11 +56,6 @@ interface HouseMatchState {
    * the payout.
    */
   difficulty: 0 | 1 | 2 | 3;
-  /**
-   * Ceiling the premium gate pinned at open. Optional because matches already
-   * in flight when this shipped have no such field, and are left ungated.
-   */
-  maxDifficulty?: 0 | 1 | 2 | 3;
 }
 
 async function ensureHouseEntryTx(matchId: string): Promise<string | null> {
@@ -193,19 +187,18 @@ export async function POST(req: NextRequest) {
       attunementSurgeUsed: false,
       usedCardIds: [],
       previousAiOrderIds: [],
-      // The highest tier this match may ever run at, pinned for its lifetime.
+      // The tier this match PAYS at, pinned for its lifetime and capped by the
+      // premium cards the wallet held when it opened — Hard and Boss are bought
+      // into. It caps the reward only; the opponent still escalates to the boss
+      // for everyone, because the chamber is opt-in and the boss is the boss.
       //
-      // Hard and Boss are bought into, so the ceiling is what the wallet had
-      // unlocked at open. Pinning it rather than re-deriving each round means a
-      // card bought — or traded away — mid-match cannot change a match already
-      // in play, and the rounds after the first need no further lookups.
+      // Pinning rather than re-deriving each round means a card bought — or
+      // traded away — mid-match cannot change a match already in play.
       //
       // Agents are exempt for the same reason they skip free-game metering:
       // they play this route by design, buy nothing, and score on their own
       // board via recordAgentPoints, so gating them would close the GoodAgent
       // lane without selling a single card.
-      maxDifficulty: isAgentMatch ? 3 : maxDifficultyForPremiumCount(ownedPremium.length),
-      // Locked in here for the life of the match.
       difficulty: isAgentMatch
         ? clampDifficulty(difficulty)
         : gateDifficultyByPremium(clampDifficulty(difficulty), ownedPremium.length),
@@ -271,17 +264,23 @@ export async function POST(req: NextRequest) {
   const rewardDifficulty: 0 | 1 | 2 | 3 = state.difficulty ?? clampDifficulty(difficulty);
   state.difficulty = rewardDifficulty;
 
-  // effectiveAiDifficulty lets the client escalate the OPPONENT mid-match — the
-  // upper chamber finale asks for tier 3. Held to the pinned ceiling so a free
-  // player cannot be dropped into the boss for Moderate pay: the reward stays
-  // pinned to rewardDifficulty, so an ungated escalation would hand them the
-  // hardest opponent in the game at 1.5x.
+  // The premium gate caps what a match PAYS. It must never cap how hard the
+  // opponent fights.
   //
-  // `?? 3` leaves matches opened before this shipped exactly as they were,
-  // the same way rewardDifficulty covers state from before difficulty was
-  // pinned. A run in flight must not change rules underneath the player.
-  const escalated = effectiveAiDifficulty(rewardDifficulty, difficulty);
-  const aiDifficulty = Math.min(escalated, state.maxDifficulty ?? 3) as 0 | 1 | 2 | 3;
+  // It briefly did both, and that quietly deleted the House Boss. The upper
+  // chamber finale asks for tier 3, and clamping the AI to the player's reward
+  // ceiling turned that request into tier 2 for anyone holding fewer than three
+  // cards — so the "Boss" they met had none of what makes it the boss: no
+  // BOSS_ENERGY_BONUS, no buildBossOrders search, just a Hard opponent wearing
+  // the boss's name. One player had beaten the boss in the three weeks before
+  // that shipped. Five beat it in the two days after.
+  //
+  // The reward ceiling still applies, because it is pinned into state.difficulty
+  // at match open and read back as rewardDifficulty above. A player who has not
+  // bought in can still walk into the chamber and face the real boss — the
+  // chamber is opt-in and always was — they are simply paid at the tier they
+  // unlocked.
+  const aiDifficulty = effectiveAiDifficulty(rewardDifficulty, difficulty);
   const resolvedRound = state.roundNumber;
   state.usedCardIds = Array.from(new Set([...(state.usedCardIds ?? []), ...playerOrderCardIds]));
 

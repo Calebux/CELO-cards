@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../../../lib/redis";
 import { CHARACTERS } from "../../../../lib/gameData";
-import {
-  clampDifficulty,
-  gateDifficultyByPremium,
-  maxDifficultyForPremiumCount,
-} from "../../../../lib/houseDifficulty";
+import { clampDifficulty, gateDifficultyByPremium } from "../../../../lib/houseDifficulty";
 import { readOwnedPremium } from "../../../../lib/premiumOwnership";
 import { checkRateLimit, sanitizePlayerName } from "../../../../lib/rateLimit";
 import { isAgentKeyRequest } from "../../../../lib/agentKey";
@@ -34,7 +30,6 @@ interface HouseMatchState {
   usedCardIds: string[];
   previousAiOrderIds: string[];
   difficulty: 0 | 1 | 2 | 3;
-  maxDifficulty?: 0 | 1 | 2 | 3;
   playerCharacterId?: string;
   opponentCharacterId?: string;
 }
@@ -104,9 +99,8 @@ export async function POST(req: NextRequest) {
   // skipping start cannot skip this.
   const requested = clampDifficulty(body.difficulty ?? 0);
   const ownedPremiumCount = fromAgent ? 0 : (await readOwnedPremium(addr)).length;
-  // Pinned for the life of the match so resolve needs no further lookup, and a
-  // card bought mid-run cannot upgrade a match already in play.
-  const maxDifficulty: 0 | 1 | 2 | 3 = fromAgent ? 3 : maxDifficultyForPremiumCount(ownedPremiumCount);
+  // Caps what the match PAYS, never how hard the opponent fights — the upper
+  // chamber finale still escalates to the boss for everyone.
   const difficulty = fromAgent ? requested : gateDifficultyByPremium(requested, ownedPremiumCount);
   const state: HouseMatchState = {
     matchId,
@@ -118,7 +112,6 @@ export async function POST(req: NextRequest) {
     usedCardIds: [],
     previousAiOrderIds: [],
     difficulty,
-    maxDifficulty,
     // Pinned so resolve can run without them: the skill's resolve body carries
     // only the card order, by design.
     playerCharacterId: playerChar.id,

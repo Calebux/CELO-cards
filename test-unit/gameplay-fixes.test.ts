@@ -43,6 +43,7 @@ import {
   bestWinPointsTotal,
   HOUSE_LOSS_POINTS_PER_DAY,
   HOUSE_WINS_COUNTED_PER_DAY,
+  bountyWinsPerDay,
   meetsBountyThreshold,
   usdToGdollar,
 } from "../app/lib/bounty";
@@ -443,27 +444,38 @@ test("house: VS House volume alone cannot reach the campaign threshold", () => {
 });
 
 test("bounty: the BEST wins score, not the first ones", () => {
-  // Written against the allowance rather than a literal, so raising the cap for
-  // a campaign cannot quietly leave this asserting the old rules.
+  // The allowance is dated — 25 before 2026-09-04, 30 from it — so every case
+  // here names the day it is scoring. Letting it default to "today" made this
+  // test change its own answer when the calendar rolled over.
+  const DAY_25 = "2026-09-03";
+  const DAY_30 = "2026-09-04";
   const cap = HOUSE_WINS_COUNTED_PER_DAY;
+  assert.equal(bountyWinsPerDay(DAY_25), cap, "DAY_25 must be a pre-raise day");
 
   // A full allowance of Easy wins, then four Hard ones. Counting the FIRST `cap`
   // threw the Hard wins away, so a player who warmed up on Easy and then moved
   // up was punished for improving. The best must displace the weakest.
   const easyThenHard = [...new Array(cap).fill(100), 200, 200, 200, 300];
-  assert.equal(bestWinPointsTotal(easyThenHard), 300 + 200 * 3 + 100 * (cap - 4));
+  assert.equal(bestWinPointsTotal(easyThenHard, DAY_25), 300 + 200 * 3 + 100 * (cap - 4));
 
   // Order must not matter — the same day's matches score the same however they
   // are played.
   const shuffled = [...easyThenHard].reverse();
-  assert.equal(bestWinPointsTotal(shuffled), bestWinPointsTotal(easyThenHard));
+  assert.equal(bestWinPointsTotal(shuffled, DAY_25), bestWinPointsTotal(easyThenHard, DAY_25));
 
   // Under the allowance, everything counts.
-  assert.equal(bestWinPointsTotal([200, 100, 150]), 450);
-  assert.equal(bestWinPointsTotal([]), 0);
+  assert.equal(bestWinPointsTotal([200, 100, 150], DAY_25), 450);
+  assert.equal(bestWinPointsTotal([], DAY_25), 0);
 
   // Never more than the allowance, however much is played.
-  assert.equal(bestWinPointsTotal(new Array(cap * 5).fill(300)), cap * 300);
+  assert.equal(bestWinPointsTotal(new Array(cap * 5).fill(300), DAY_25), cap * 300);
+
+  // The raised allowance counts more of the same day's wins, and nothing else
+  // about the rule changes.
+  const raised = bountyWinsPerDay(DAY_30);
+  assert.ok(raised > cap);
+  assert.equal(bestWinPointsTotal(easyThenHard, DAY_30), 300 + 200 * 3 + 100 * (easyThenHard.length - 4));
+  assert.equal(bestWinPointsTotal(new Array(raised * 5).fill(300), DAY_30), raised * 300);
 });
 
 test("bounty: House Boss wins are exempt from the daily win allowance", () => {
