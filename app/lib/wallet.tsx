@@ -195,7 +195,10 @@ export function WalletSync() {
       setPlayerName("");
       return;
     }
-    void fetch(`/api/username?address=${address.toLowerCase()}&t=${Date.now()}`)
+    // `mp` tells the server which surface this wallet plays on. Sent from here
+    // and nowhere else: this is the connected wallet, so the tag lands on the
+    // right address — a name lookup for someone else must not tag them.
+    void fetch(`/api/username?address=${address.toLowerCase()}&mp=${isMiniPay() ? "1" : "0"}&t=${Date.now()}`)
       .then((r) => r.json())
       .then((d: { username?: string | null }) => {
         setPlayerName(d.username ?? "");

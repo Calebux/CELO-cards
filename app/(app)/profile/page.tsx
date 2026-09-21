@@ -15,6 +15,7 @@ import { useAttunementSync } from "../../lib/useSignatureCardSync";
 import { DESIGN_W, DESIGN_H } from "../../lib/designConstants";
 import { addressToCode } from "../../lib/referral";
 import { useMiniPayMode } from "../../lib/premiumPayments";
+import { isMiniPay } from "../../lib/minipayRuntime";
 import { useMobileViewportMode } from "../../lib/mobile";
 import { useTradeCardSync } from "../../lib/useTradeCardSync";
 
@@ -186,7 +187,7 @@ export default function ProfilePage() {
       const res = await fetch("/api/username", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, username: name }),
+        body: JSON.stringify({ address, username: name, minipay: isMiniPay() }),
       });
       const data = await res.json() as { ok?: boolean; username?: string; error?: string };
       if (!res.ok) {

@@ -9,7 +9,7 @@ import { GDOLLAR_SEASON_PASS_CONTRACT, GDOLLAR_SEASON_PASS_ABI } from "./gdollar
 import { SIGNUPS_CONTRACT, SIGNUPS_ABI } from "./signupsContract";
 import { IDENTITY_CONTRACT, IDENTITY_ABI } from "./gooddollar";
 import { getOnChainWallets } from "./onChainWallets";
-import { getSignupMetrics } from "./signupMetrics";
+import { getSignupMetrics, getSurfaceMetrics } from "./signupMetrics";
 import { ServerMatch } from "./serverMatch";
 import type { ServerMatchRecord } from "./leaderboard";
 
@@ -515,6 +515,16 @@ export async function getBalanceDashboard() {
     { today: 0, yesterday: 0, last24h: 0, last7d: 0, trackedTotal: 0 },
     "signup metrics",
   );
+  const surfaces = await withFallback(
+    getSurfaceMetrics(),
+    {
+      minipay: { total: 0, today: 0, yesterday: 0, last7d: 0 },
+      web: { total: 0, today: 0, yesterday: 0, last7d: 0 },
+      tagged: 0,
+      minipayShare: 0,
+    },
+    "surface metrics",
+  );
   return {
     snapshot,
     policy: BALANCE_POLICY,
@@ -524,6 +534,9 @@ export async function getBalanceDashboard() {
     // Distinct from audience.totalPlayers: this counts first username claims by
     // date, so it answers "who joined today" rather than "who exists".
     signups,
+    // MiniPay vs web. Covers only wallets tagged since this shipped — read the
+    // split against `surfaces.tagged`, never against the whole player base.
+    surfaces,
     onChain,
     retention,
     transactionHealth,

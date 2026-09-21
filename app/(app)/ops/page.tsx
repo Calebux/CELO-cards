@@ -211,7 +211,7 @@ export default function OpsPage() {
     );
   }
 
-  const { snapshot, activity, onChain } = data;
+  const { snapshot, activity, onChain, signups, surfaces } = data;
 
   return (
     <div style={{ ...OPS_SHELL, padding: "40px 32px 64px" }}>
@@ -266,6 +266,32 @@ export default function OpsPage() {
               {item.note ? <div style={{ marginTop: 4, fontSize: 11, color: "#64748b" }}>{item.note}</div> : null}
             </div>
           ))}
+        </div>
+
+        {/* Where players actually come from. Nothing recorded this before, so
+            it counts only wallets seen since it shipped — every number here is
+            read against `surfaces.tagged`, not against the whole player base. */}
+        <div style={{ margin: "0 0 28px" }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 900 }}>Where players come from</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 }}>
+            {[
+              { label: "MiniPay Players", value: surfaces.minipay.total.toLocaleString(), note: `${share(surfaces.minipay.total, surfaces.tagged)} of tagged wallets` },
+              { label: "Web Players", value: surfaces.web.total.toLocaleString(), note: `${share(surfaces.web.total, surfaces.tagged)} of tagged wallets` },
+              { label: "New Today — MiniPay / Web", value: `${surfaces.minipay.today} / ${surfaces.web.today}`, note: `${signups.today} joined today in total` },
+              { label: "Last 7 Days — MiniPay / Web", value: `${surfaces.minipay.last7d} / ${surfaces.web.last7d}`, note: `${signups.last7d} joined this week in total` },
+            ].map((item) => (
+              <div key={item.label} style={{ background: "rgba(10,15,24,0.88)", border: "1px solid rgba(86,164,203,0.2)", borderRadius: 12, padding: "18px 18px 16px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase" }}>{item.label}</div>
+                <div style={{ marginTop: 8, fontSize: 30, fontWeight: 900 }}>{item.value}</div>
+                {item.note ? <div style={{ marginTop: 4, fontSize: 11, color: "#64748b" }}>{item.note}</div> : null}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>
+            {surfaces.tagged.toLocaleString()} wallets tagged so far. Tagging began when this shipped, and an older
+            wallet is classified the next time its owner opens the game — so these totals climb toward the real base
+            rather than starting at it.
+          </div>
         </div>
 
         {!onChain.walletsComplete ? (

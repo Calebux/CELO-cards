@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { useGameStore } from "../lib/gameStore";
 import { DESIGN_W, DESIGN_H } from "../lib/designConstants";
+import { isMiniPay } from "../lib/minipayRuntime";
 
 export function UsernameModal() {
   const { address } = useAccount();
@@ -98,7 +99,10 @@ export function UsernameModal() {
       const res = await fetch("/api/username", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, username: trimmed }),
+        // Which surface the player joined on, so new signups can be split
+        // MiniPay vs web. minipayRuntime, not lib/minipay — this is the
+        // dependency-free detector, so no wallet client lands in this bundle.
+        body: JSON.stringify({ address, username: trimmed, minipay: isMiniPay() }),
       });
       const data = await res.json() as { ok?: boolean; username?: string; error?: string };
       if (!res.ok) {

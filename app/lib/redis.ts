@@ -27,6 +27,7 @@ type RedisLike = {
   zscore(key: string, member: string): Promise<number | null>;
   zincrby(key: string, increment: number, member: string): Promise<number>;
   zcount(key: string, min: number | string, max: number | string): Promise<number>;
+  zcard(key: string): Promise<number>;
   zrange<T = string>(
     key: string,
     start: number,
@@ -34,6 +35,7 @@ type RedisLike = {
     options?: { rev?: boolean; withScores?: boolean }
   ): Promise<T[]>;
   hset(key: string, kv: Record<string, unknown>): Promise<number>;
+  hsetnx(key: string, field: string, value: unknown): Promise<number>;
   hgetall<T = Record<string, string>>(key: string): Promise<T | null>;
   lpush(key: string, ...values: string[]): Promise<number>;
   lrange<T>(key: string, start: number, end: number): Promise<T[]>;
@@ -109,6 +111,10 @@ function createDisabledRedis(): RedisLike {
       warn();
       return 0;
     },
+    async zcard() {
+      warn();
+      return 0;
+    },
     async zrange<T>() {
       warn();
       return [] as T[];
@@ -116,6 +122,13 @@ function createDisabledRedis(): RedisLike {
     async hset() {
       warn();
       return 0;
+    },
+    // 1 = "the field was empty and we wrote it". Without Redis every call has
+    // to look like a first write, or a caller that only acts on the first
+    // sighting of a key would never act at all.
+    async hsetnx() {
+      warn();
+      return 1;
     },
     async hgetall<T>() {
       warn();

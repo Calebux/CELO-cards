@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../lib/redis";
 import { checkRateLimit } from "../../lib/rateLimit";
-import { recordUsernameClaim } from "../../lib/signupMetrics";
+import { recordSignupSurface, recordUsernameClaim, resolveSignupSurface } from "../../lib/signupMetrics";
 
 // GET /api/username?address=0x...          → { address, username }
 // GET /api/username?addresses=0x1,0x2,...  → { map: Record<address, username> }
 // POST /api/username { address, username } → claim / update username
+//
+// The single-address GET also tags which surface the wallet plays on, but ONLY
+// when the caller passes `mp` — this endpoint is also used to look up OTHER
+// people's names, and tagging those would stamp the viewer's surface onto
+// someone else's wallet. `mp` is sent from the wallet-connect path alone, where
+// the address is the connected one by construction.
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address")?.toLowerCase();
   const bulk = req.nextUrl.searchParams.get("addresses");
@@ -34,6 +40,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid address" }, { status: 400 });
     }
     const username = await redis.get<string>(`user:addr:${address}`);
+
+    // Tagging on connect, not only on first claim, is what backfills the
+    // ~4,900 wallets that already had a username before any of this existed:
+    // each one is classified the next time its owner opens the game.
+    const mp = req.nextUrl.searchParams.get("mp");
+    if (mp !== null) {
+      await recordSignupSurface(
+        address,
+        resolveSignupSurface(req.headers.get("user-agent"), mp === "1"),
+      );
+    }
+
     return NextResponse.json({ address, username: username ?? null });
   }
 
@@ -41,7 +59,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { address?: string; username?: string };
+  let body: { address?: string; username?: string; minipay?: boolean };
   try {
     body = await req.json() as typeof body;
   } catch {
@@ -92,6 +110,8 @@ export async function POST(req: NextRequest) {
   // Stamp the first claim so "how many players joined today" is answerable.
   // NX inside, so a rename never re-dates an existing player as a new signup.
   await recordUsernameClaim(addr);
+  // ...and which surface they joined on, so that count can be split.
+  await recordSignupSurface(addr, resolveSignupSurface(req.headers.get("user-agent"), body.minipay));
 
   return NextResponse.json({ ok: true, username: trimmed });
 }

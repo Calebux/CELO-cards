@@ -14,6 +14,55 @@ import { redis } from "./redis";
 
 const CLAIMED_KEY = "signups:username-claimed";
 
+// Which surface a wallet plays on. Nothing recorded this before, so "how many
+// of our players come from MiniPay" was unanswerable from Redis — the only
+// rows that carried it were payout records, where the flag picks USDT over G$.
+//
+// Surface is treated as a property of the WALLET, not the session: a MiniPay
+// wallet is provisioned inside MiniPay and cannot be opened in a desktop
+// browser, so the first surface we ever see a wallet on is its surface. The
+// hash is written first-sighting-wins (HSETNX) and the per-surface sorted sets
+// carry the date, so a daily split is one ZCOUNT — the same shape as above.
+const SURFACE_KEY = "signups:surface";
+const surfaceSeriesKey = (surface: SignupSurface) => `signups:surface:${surface}`;
+
+export type SignupSurface = "minipay" | "web";
+
+/**
+ * Decide the surface for a request. Mirrors the rule the payout routes already
+ * use: the client's own `isMiniPay()` is the better signal (it checks
+ * `window.ethereum.isMiniPay` before falling back to the user agent), but the
+ * user agent alone still catches a client that never sent the flag.
+ *
+ * Deliberately one-directional — either signal alone marks MiniPay. A caller
+ * can therefore only ever overstate MiniPay, never hide it, and this feeds a
+ * counter rather than a payment.
+ */
+export function resolveSignupSurface(userAgent: string | null | undefined, explicit?: boolean): SignupSurface {
+  if (explicit === true) return "minipay";
+  return /MiniPay/i.test(userAgent ?? "") ? "minipay" : "web";
+}
+
+/**
+ * Tag a wallet's surface the first time it is ever seen. Later sightings are
+ * ignored, so a player who opens the web build once is not reclassified and
+ * the daily series cannot double-count them.
+ */
+export async function recordSignupSurface(
+  address: string,
+  surface: SignupSurface,
+  at: number = Date.now(),
+): Promise<void> {
+  const addr = address.toLowerCase();
+  try {
+    const firstSighting = await redis.hsetnx(SURFACE_KEY, addr, surface);
+    if (!firstSighting) return;
+    await redis.zadd(surfaceSeriesKey(surface), { nx: true }, { score: at, member: addr });
+  } catch {
+    // Metrics must never fail the request they are attached to.
+  }
+}
+
 /**
  * Record a wallet's FIRST username claim. Uses NX so renaming later never
  * rewrites the original date — otherwise a player changing their name would
@@ -61,5 +110,47 @@ export async function getSignupMetrics() {
     // Counting only starts from deployment, so this undercounts existing
     // players. Surfaced so nobody reads it as a lifetime total.
     trackedTotal: total,
+  };
+}
+
+/**
+ * The MiniPay / web split, tagged and dated.
+ *
+ * Like the signup counters, this starts empty at deployment: the ~4,900 wallets
+ * that claimed a username before it shipped carry no tag, and are backfilled
+ * only as they come back and reconnect. `tagged` is returned alongside so the
+ * split is always read against the number of wallets it actually covers rather
+ * than against the whole base.
+ */
+export async function getSurfaceMetrics() {
+  const now = Date.now();
+  const todayStart = startOfUTCDay(now);
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  const countBetween = async (key: string, from: number, to: number | "+inf") =>
+    await redis.zcount(key, from, to).catch(() => 0);
+
+  const [
+    minipayTotal, webTotal,
+    minipayToday, webToday,
+    minipayYesterday, webYesterday,
+    minipay7d, web7d,
+  ] = await Promise.all([
+    redis.zcard(surfaceSeriesKey("minipay")).catch(() => 0),
+    redis.zcard(surfaceSeriesKey("web")).catch(() => 0),
+    countBetween(surfaceSeriesKey("minipay"), todayStart, "+inf"),
+    countBetween(surfaceSeriesKey("web"), todayStart, "+inf"),
+    countBetween(surfaceSeriesKey("minipay"), todayStart - dayMs, todayStart - 1),
+    countBetween(surfaceSeriesKey("web"), todayStart - dayMs, todayStart - 1),
+    countBetween(surfaceSeriesKey("minipay"), todayStart - 6 * dayMs, "+inf"),
+    countBetween(surfaceSeriesKey("web"), todayStart - 6 * dayMs, "+inf"),
+  ]);
+
+  const tagged = minipayTotal + webTotal;
+  return {
+    minipay: { total: minipayTotal, today: minipayToday, yesterday: minipayYesterday, last7d: minipay7d },
+    web: { total: webTotal, today: webToday, yesterday: webYesterday, last7d: web7d },
+    tagged,
+    minipayShare: tagged > 0 ? minipayTotal / tagged : 0,
   };
 }
